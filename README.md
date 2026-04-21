@@ -85,3 +85,27 @@ python3 main.py remove --svctag ABC1234
 | -d, --debug     | Enable verbose debug output.                                     |
 | -w, --warranty  | Path to a custom SQLite database file (defaults to warranty.db). |
 
+
+Mode Aliases
+
+| Full Command | Alias |
+| ------------ | ----- |
+| add          | a     |
+| edit         | e     |
+| lookup       | l     |
+| remove       | r     |
+| list         | li    |
+
+🛡️ License
+This project is licensed under the GNU General Public License v3.0 (GPLv3).
+
+Why GPLv3?
+By using GPLv3, this project remains free software. You are free to copy, distribute, and modify the software as long as:
+
+You track changes in source files.
+
+Any modifications or derivative works are also licensed under GPLv3.
+
+You provide the source code of the modified version to those you distribute it to.
+
+For more details, see the LICENSE file or visit the official GNU license page.
