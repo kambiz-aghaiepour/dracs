@@ -79,7 +79,9 @@ python3 main.py remove --svctag ABC1234
 ```
 
 ⚙️ Arguments Summary
+
 | Global Argument | Description                                                      |
+| --------------- | ---------------------------------------------------------------- |
 | -d, --debug     | Enable verbose debug output.                                     |
 | -w, --warranty  | Path to a custom SQLite database file (defaults to warranty.db). |
 
