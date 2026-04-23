@@ -19,6 +19,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     name: Test Suite
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
