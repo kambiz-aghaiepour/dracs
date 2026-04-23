@@ -35,7 +35,7 @@ jobs:
         run: uv sync --group dev
 
       - name: Lint
-        run: uv run --with flake8 flake8 src/
+        run: uv run --with flake8 flake8 src/ --count --max-line-length=160 --show-source --statistics
 
       - name: Run tests
         run: uv run pytest tests/ -v
