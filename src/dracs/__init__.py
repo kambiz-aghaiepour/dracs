@@ -113,6 +113,33 @@ def validate_hostname(hostname: Optional[str]) -> bool:
     return True
 
 
+def read_host_list(filepath: str) -> List[str]:
+    """
+    Reads a plain text file containing one hostname per line.
+    Strips whitespace and skips empty lines and comments.
+    """
+    path = Path(filepath)
+    if not path.is_file():
+        raise ValidationError(f"Host list file not found: {filepath}")
+
+    hosts = []
+    for line in path.read_text().splitlines():
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#"):
+            if not validate_hostname(stripped):
+                raise ValidationError(
+                    f"Invalid hostname in host list: {stripped}. "
+                    "Hostnames should contain only letters, numbers, "
+                    "hyphens, and periods"
+                )
+            hosts.append(stripped)
+
+    if not hosts:
+        raise ValidationError(f"Host list file is empty: {filepath}")
+
+    return hosts
+
+
 def validate_version(version: Optional[str]) -> bool:
     """
     Validates version string format (e.g., 2.1.0).
@@ -950,6 +977,66 @@ async def discover_dell_system(hostname: str, warranty: str) -> Tuple[str, str]:
     return (service_tag, model)
 
 
+async def _discover_single_host(
+    hostname: str, warranty: str, auto_add: bool
+) -> dict:
+    """
+    Discovers a single host and optionally adds it to the database.
+    Returns a result dict with status information.
+    """
+    result = {"hostname": hostname, "status": "ok", "error": None}
+    try:
+        service_tag, model = await discover_dell_system(hostname, warranty)
+        result["service_tag"] = service_tag
+        result["model"] = model
+
+        if auto_add:
+            await add_dell_warranty(service_tag, hostname, model, warranty)
+            result["added"] = True
+        else:
+            result["added"] = False
+    except (SNMPError, DracsError) as e:
+        result["status"] = "error"
+        result["error"] = str(e)
+        logger.error(f"Failed to discover {hostname}: {e}")
+
+    return result
+
+
+async def discover_dell_systems_batch(
+    hosts: List[str], warranty: str, auto_add: bool
+) -> None:
+    """
+    Discovers multiple hosts concurrently using asyncio.gather.
+    Prints a summary table of results.
+    """
+    tasks = [_discover_single_host(h, warranty, auto_add) for h in hosts]
+    results = await asyncio.gather(*tasks)
+
+    succeeded = [r for r in results if r["status"] == "ok"]
+    failed = [r for r in results if r["status"] == "error"]
+
+    if succeeded:
+        table_data = [
+            (r["hostname"], r["service_tag"], r["model"],
+             "Added" if r.get("added") else "Discovered")
+            for r in succeeded
+        ]
+        headers = ["Hostname", "Service Tag", "Model", "Status"]
+        print(tabulate(table_data, headers=headers, tablefmt="grid"))
+
+    if failed:
+        print(f"\nFailed ({len(failed)}/{len(results)}):")
+        for r in failed:
+            print(f"  {r['hostname']}: {r['error']}")
+
+    total = len(results)
+    print(
+        f"\nSummary: {len(succeeded)} succeeded, "
+        f"{len(failed)} failed out of {total} hosts"
+    )
+
+
 async def remove_dell_warranty(
     service_tag: Optional[str], hostname: Optional[str], warranty: str
 ) -> None:
@@ -1060,8 +1147,12 @@ async def main() -> None:
     parser_discover = subparsers.add_parser(
         "discover", aliases=["d"], help="Discover system via SNMP"
     )
-    parser_discover.add_argument(
-        "-t", "--target", required=True, help="DNS Hostname to discover"
+    discover_target_group = parser_discover.add_mutually_exclusive_group(required=True)
+    discover_target_group.add_argument(
+        "-t", "--target", help="DNS Hostname to discover"
+    )
+    discover_target_group.add_argument(
+        "--host-list", help="Path to file containing hostnames, one per line"
     )
     parser_discover.add_argument(
         "--add",
@@ -1205,35 +1296,46 @@ async def main() -> None:
 
     # Logic Routing
     if args.command in ["discover", "d"]:
-        # Discover system information via SNMP
-        discovered_tag, discovered_model = await discover_dell_system(
-            args.target, warranty
-        )
-
-        # Check if --add flag was provided
-        if hasattr(args, "add") and args.add:
-            # Auto-add without prompting
-            logger.info("Auto-adding system to database (--add flag provided)")
-            await add_dell_warranty(
-                discovered_tag, args.target, discovered_model, warranty
-            )
+        if args.host_list:
+            hosts = read_host_list(args.host_list)
+            auto_add = hasattr(args, "add") and args.add
+            if not auto_add:
+                print(f"Discovering {len(hosts)} hosts from {args.host_list}...")
+                response = input(
+                    "Add discovered systems to database? (y/n): "
+                ).strip().lower()
+                auto_add = response in ["y", "yes"]
+            await discover_dell_systems_batch(hosts, warranty, auto_add)
         else:
-            # Prompt user
-            print("\nDiscovered system:")
-            print(f"  Hostname:    {args.target}")
-            print(f"  Service Tag: {discovered_tag}")
-            print(f"  Model:       {discovered_model}")
-            print()
-            response = input("Add to database? (y/n): ").strip().lower()
+            # Single host discover
+            discovered_tag, discovered_model = await discover_dell_system(
+                args.target, warranty
+            )
 
-            if response in ["y", "yes"]:
-                logger.info("User confirmed, adding system to database")
+            # Check if --add flag was provided
+            if hasattr(args, "add") and args.add:
+                # Auto-add without prompting
+                logger.info("Auto-adding system to database (--add flag provided)")
                 await add_dell_warranty(
                     discovered_tag, args.target, discovered_model, warranty
                 )
             else:
-                logger.info("User declined, not adding to database")
-                print("System not added to database")
+                # Prompt user
+                print("\nDiscovered system:")
+                print(f"  Hostname:    {args.target}")
+                print(f"  Service Tag: {discovered_tag}")
+                print(f"  Model:       {discovered_model}")
+                print()
+                response = input("Add to database? (y/n): ").strip().lower()
+
+                if response in ["y", "yes"]:
+                    logger.info("User confirmed, adding system to database")
+                    await add_dell_warranty(
+                        discovered_tag, args.target, discovered_model, warranty
+                    )
+                else:
+                    logger.info("User declined, not adding to database")
+                    print("System not added to database")
 
     elif args.command in ["add", "a"]:
         await add_dell_warranty(target_tag, args.target, args.model, warranty)
