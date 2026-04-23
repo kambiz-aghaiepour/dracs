@@ -122,6 +122,9 @@ dmypy.json
 # Mac OS
 .DS_Store
 
+# UV
+uv.lock
+
 # --- Environment Variables (SECURITY CRITICAL) ---
 # Never commit your secrets/API keys
 .env
