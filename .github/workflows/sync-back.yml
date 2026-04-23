@@ -6,23 +6,30 @@ name: Sync Back to Development
     types:
       - completed
 
+permissions:
+  contents: write
+
 jobs:
   sync-branches:
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    permissions:
-      contents: write
 
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: development
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Merge main into development
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git checkout development
-          git merge origin/main
+
+          git fetch origin
+
+          echo "Merging main back into development..."
+          git merge origin/main --no-edit
+
           git push origin development
