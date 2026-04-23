@@ -6,7 +6,6 @@ from sqlalchemy.orm import (
     DeclarativeBase,
     Mapped,
     mapped_column,
-    Session,
     sessionmaker,
 )
 
@@ -68,9 +67,7 @@ def get_session():
 
 def query_by_service_tag(db_url: str, service_tag: str) -> List[tuple]:
     with get_session() as session:
-        results = (
-            session.query(System).filter(System.svc_tag == service_tag).all()
-        )
+        results = session.query(System).filter(System.svc_tag == service_tag).all()
         return [r.to_tuple() for r in results]
 
 
