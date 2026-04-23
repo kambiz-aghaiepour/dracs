@@ -2,6 +2,7 @@ import pytest
 
 from dracs import filter_list_results
 
+
 @pytest.mark.asyncio
 async def test_filter_bios_lt():
     """Test filtering systems with BIOS version less than target."""
@@ -19,6 +20,7 @@ async def test_filter_bios_lt():
 
     assert len(filtered) == 1
     assert filtered[0][0] == 'TAG1'
+
 
 @pytest.mark.asyncio
 async def test_filter_bios_eq():
@@ -39,6 +41,7 @@ async def test_filter_bios_eq():
     assert filtered[0][0] == 'TAG2'
     assert filtered[1][0] == 'TAG3'
 
+
 @pytest.mark.asyncio
 async def test_filter_idrac_ge():
     """Test filtering systems with iDRAC version greater than or equal to target."""
@@ -58,6 +61,7 @@ async def test_filter_idrac_ge():
     assert filtered[0][0] == 'TAG2'
     assert filtered[1][0] == 'TAG3'
 
+
 @pytest.mark.asyncio
 async def test_filter_no_filters():
     """Test that no filters returns empty list."""
@@ -72,6 +76,7 @@ async def test_filter_no_filters():
     )
 
     assert len(filtered) == 0
+
 
 @pytest.mark.asyncio
 async def test_filter_version_tuple_comparison():

@@ -1,8 +1,7 @@
 import pytest
-import sqlite3
 import tempfile
 import os
-from pathlib import Path
+
 
 @pytest.fixture
 def temp_db():
@@ -13,15 +12,18 @@ def temp_db():
     if os.path.exists(path):
         os.unlink(path)
 
+
 @pytest.fixture
 def sample_service_tag():
     """Provide a sample service tag for testing."""
     return "ABC1234"
 
+
 @pytest.fixture
 def sample_hostname():
     """Provide a sample hostname for testing."""
     return "server01"
+
 
 @pytest.fixture
 def sample_model():
