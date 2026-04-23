@@ -1,6 +1,6 @@
 name: Semantic Release
 
-'on':
+on:
   push:
     branches:
       - main
@@ -34,4 +34,7 @@ jobs:
       - name: Run semantic release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: uv tool run --from python-semantic-release semantic-release version
+        # Run 'version' to bump/commit/tag, then 'publish' to push and create the GitHub Release
+        run: |
+          uv tool run --from python-semantic-release semantic-release version
+          uv tool run --from python-semantic-release semantic-release publish
