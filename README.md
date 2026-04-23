@@ -1,5 +1,9 @@
 # D.R.A.C.S. — Dell Rack & Asset Control System
 
+[![Flake8 Lint](https://github.com/kambiz-aghaiepour/dracs/actions/workflows/flake8-lint.yml/badge.svg)](https://github.com/kambiz-aghaiepour/dracs/actions/workflows/flake8-lint.yml)
+[![Run Tests](https://github.com/kambiz-aghaiepour/dracs/actions/workflows/run-tests.yml/badge.svg)](https://github.com/kambiz-aghaiepour/dracs/actions/workflows/run-tests.yml)
+[![Sync Back to Development](https://github.com/kambiz-aghaiepour/dracs/actions/workflows/sync-back.yml/badge.svg)](https://github.com/kambiz-aghaiepour/dracs/actions/workflows/sync-back.yml)
+
 Simple, portable, self-contained dynamic CLI inventory tool for managing Dell bare-metal systems inventory, warranty and lifecycle.
 
 - Plugs directly into Dell Support API
