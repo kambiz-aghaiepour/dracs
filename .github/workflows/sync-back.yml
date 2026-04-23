@@ -1,6 +1,6 @@
 name: Sync Back to Development
 
-'on':
+on:
   workflow_run:
     workflows: ["Semantic Release"]
     types:
@@ -12,6 +12,7 @@ permissions:
 jobs:
   sync-branches:
     runs-on: ubuntu-latest
+    # Only run if the Semantic Release was successful
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -21,17 +22,25 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: development
+          # Removed ref: development to avoid detached HEAD.
+          # We will handle branch switching in the run block.
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Merge main into development
         run: |
+          # Use the official GitHub Actions bot identity
           git config --global user.name 'github-actions[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
 
+          # Fetch all branches from origin
           git fetch origin
 
+          # Explicitly check out the development branch to create a tracking branch
+          git checkout development
+
           echo "Merging main back into development..."
+          # Merge the updated main (which now has the new version strings/tags)
           git merge origin/main --no-edit
 
+          # Push the changes back to GitHub
           git push origin development
