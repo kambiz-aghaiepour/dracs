@@ -714,6 +714,7 @@ async def list_dell_warranty(
     idrac_gt: Optional[str],
     idrac_eq: Optional[str],
     expires_in: Optional[str],
+    expired: bool,
     printjson: bool,
     host_only: bool,
     warranty: str,
@@ -776,9 +777,18 @@ async def list_dell_warranty(
         params = {"regex": regex}
 
     if expires_in:
-        timestamp = int(time.time()) + (int(expires_in) * 86400)
-        query += "AND exp_epoch <= :timestamp\n"
-        params["timestamp"] = timestamp
+        current_time = int(time.time())
+        future_timestamp = current_time + (int(expires_in) * 86400)
+        # Only include systems expiring in the future (not already expired)
+        query += "AND exp_epoch > :current_time AND exp_epoch <= :future_timestamp\n"
+        params["current_time"] = current_time
+        params["future_timestamp"] = future_timestamp
+
+    if expired:
+        current_time = int(time.time())
+        # Only include systems that have already expired
+        query += "AND exp_epoch < :current_time\n"
+        params["current_time"] = current_time
 
     # Always sort by hostname for consistent output
     query += " ORDER BY name"
@@ -1079,6 +1089,9 @@ async def main() -> None:
     parser_list.add_argument("-m", "--model", help="Target model to list")
     parser_list.add_argument("--expires_in", help="List hosts that expire in N days")
     parser_list.add_argument(
+        "--expired", action="store_true", help="List hosts with expired warranties"
+    )
+    parser_list.add_argument(
         "--json", action="store_true", help="Print list results in json format"
     )
     parser_list.add_argument(
@@ -1238,6 +1251,7 @@ async def main() -> None:
             args.idrac_gt,
             args.idrac_eq,
             args.expires_in,
+            args.expired,
             args.json,
             args.host_only,
             warranty,

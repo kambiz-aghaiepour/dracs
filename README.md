@@ -151,8 +151,11 @@ python3 dracs.py li
 # List systems by model
 python3 dracs.py list --model R660
 
-# List systems expiring in the next 30 days
+# List systems expiring in the next 30 days (excludes already expired)
 python3 dracs.py list --expires_in 30
+
+# List systems with expired warranties
+python3 dracs.py list --expired
 
 # List systems with hostname matching a pattern
 python3 dracs.py list --regex "server%"
@@ -280,6 +283,9 @@ python3 dracs.py discover -t server06.example.com
 # Check what's expiring soon
 python3 dracs.py list --expires_in 30
 
+# Check what has already expired
+python3 dracs.py list --expired
+
 # Find systems that need firmware updates
 python3 dracs.py list --idrac_lt 6.10.30.00
 
@@ -322,7 +328,7 @@ python3 dracs.py -d add -s ABC1234 -t server01 -m R660
 | `discover`   | `d`   | `-t/--target`                            | `--add`                                                                                                |
 | `edit`       | `e`   | `-s/--svctag` OR `-t/--target`           | `--bios` `--idrac` `--model`                                                                           |
 | `lookup`     | `l`   | `-s/--svctag` OR `-t/--target`           | `--full` `--bios` `--idrac`                                                                            |
-| `list`       | `li`  | None                                     | `--model` `--regex` `--expires_in` `--svctag` `--target` `--bios_*` `--idrac_*` `--json` `--host-only` |
+| `list`       | `li`  | None                                     | `--model` `--regex` `--expires_in` `--expired` `--svctag` `--target` `--bios_*` `--idrac_*` `--json` `--host-only` |
 | `refresh`    | `rf`  | `-s/--svctag` OR `-t/--target`           | None                                                                                                   |
 | `remove`     | `r`   | `-s/--svctag` OR `-t/--target`           | None                                                                                                   |
 
@@ -348,7 +354,8 @@ python3 dracs.py -d add -s ABC1234 -t server01 -m R660
 
 - `--model MODEL` - Filter by server model (e.g., R650, R660)
 - `--regex PATTERN` - Filter hostname by SQL LIKE pattern
-- `--expires_in DAYS` - Systems with warranty expiring in N days
+- `--expires_in DAYS` - Systems with warranty expiring in N days (excludes already expired systems)
+- `--expired` - Systems with warranties that have already expired
 
 **Output Options:**
 
