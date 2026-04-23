@@ -40,7 +40,7 @@ Simple, portable, self-contained dynamic CLI inventory tool for managing Dell ba
 
 ## 🛠️ Prerequisites
 
-- **Python 3.8+** (tested with Python 3.14)
+- **Python 3.12+**
 - **Dell TechDirect API Credentials:** You must have a Client ID and Secret from Dell to access warranty data
 - **SNMP Enabled:** The target Dell systems must have SNMP enabled on their iDRACs (default community: public)
 - **Network Access:** Ability to reach Dell iDRAC interfaces via DNS (naming convention configured via DRACS_DNS_STRING and DRACS_DNS_MODE)
@@ -50,24 +50,29 @@ Simple, portable, self-contained dynamic CLI inventory tool for managing Dell ba
 **1) Clone the repository:**
 
 ```
-git clone https://github.com/yourusername/dell-warranty-manager.git
-cd dell-warranty-manager
+git clone https://github.com/yourusername/dracs.git
+cd dracs
 ```
 
-**2) Create a virtual environment (recommended):**
+**2) Install with [uv](https://docs.astral.sh/uv/):**
 
 ```bash
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+uv sync
 ```
 
-**3) Install dependencies:**
+For development (includes pytest, black, etc.):
 
 ```bash
-pip install -r requirements.txt
+uv sync --group dev
 ```
 
-**4) Configure environment variables:**
+Source the virtual environment
+
+```bash
+source .venv/bin/activate
+```
+
+**3) Configure environment variables:**
 Create a .env file in the root directory:
 
 ```bash
@@ -99,7 +104,7 @@ DEBUG=false
 
 ## 📖 Usage
 
-The script uses subcommands for different operations: **add**, **discover**, **edit**, **lookup**, **list**, **refresh**, and **remove**.
+DRACS uses subcommands for different operations: **add**, **discover**, **edit**, **lookup**, **list**, **refresh**, and **remove**.
 
 ### 1. Add a New System
 
@@ -107,13 +112,13 @@ This polls the iDRAC for firmware/BIOS versions and the Dell API for warranty.
 
 ```bash
 # Add a system (full command)
-python3 dracs.py add --svctag ABC1234 --target server01.example.com --model R660
+dracs add --svctag ABC1234 --target server01.example.com --model R660
 
 # Using alias and verbose output
-python3 dracs.py -v a -s ABC1234 -t server01.example.com -m R660
+dracs -v a -s ABC1234 -t server01.example.com -m R660
 
 # With custom database path
-python3 dracs.py -w /path/to/custom.db add -s ABC1234 -t server01 -m R650
+dracs -w /path/to/custom.db add -s ABC1234 -t server01 -m R650
 ```
 
 ### 2. Discover a System
@@ -122,19 +127,19 @@ Automatically discover service tag and model information via SNMP, then optional
 
 ```bash
 # Discover a system (prompts for confirmation)
-python3 dracs.py discover --target server01.example.com
+dracs discover --target server01.example.com
 
 # Using alias
-python3 dracs.py d -t server01.example.com
+dracs d -t server01.example.com
 
 # Auto-add without prompting
-python3 dracs.py discover --target server01.example.com --add
+dracs discover --target server01.example.com --add
 
 # With verbose output
-python3 dracs.py -v discover -t server01.example.com
+dracs -v discover -t server01.example.com
 
 # Discover and auto-add using alias
-python3 dracs.py d -t server01.example.com --add
+dracs d -t server01.example.com --add
 ```
 
 ### 3. List Inventory
@@ -143,47 +148,47 @@ View all systems. You can filter by model, expiration, or version. Results are a
 
 ```bash
 # List all systems
-python3 dracs.py list
+dracs list
 
 # List all systems (using alias)
-python3 dracs.py li
+dracs li
 
 # List systems by model
-python3 dracs.py list --model R660
+dracs list --model R660
 
 # List systems expiring in the next 30 days (excludes already expired)
-python3 dracs.py list --expires_in 30
+dracs list --expires_in 30
 
 # List systems with expired warranties
-python3 dracs.py list --expired
+dracs list --expired
 
 # List systems with hostname matching a pattern
-python3 dracs.py list --regex "server%"
+dracs list --regex "server%"
 
 # Filter by BIOS version
-python3 dracs.py list --bios_lt 2.5.1        # BIOS less than 2.5.1
-python3 dracs.py list --bios_le 2.5.1        # BIOS less than or equal to 2.5.1
-python3 dracs.py list --bios_gt 2.5.1        # BIOS greater than 2.5.1
-python3 dracs.py list --bios_ge 2.5.1        # BIOS greater than or equal to 2.5.1
-python3 dracs.py list --bios_eq 2.5.1        # BIOS equal to 2.5.1
+dracs list --bios_lt 2.5.1        # BIOS less than 2.5.1
+dracs list --bios_le 2.5.1        # BIOS less than or equal to 2.5.1
+dracs list --bios_gt 2.5.1        # BIOS greater than 2.5.1
+dracs list --bios_ge 2.5.1        # BIOS greater than or equal to 2.5.1
+dracs list --bios_eq 2.5.1        # BIOS equal to 2.5.1
 
 # Filter by iDRAC firmware version
-python3 dracs.py list --idrac_lt 6.10.30.00  # iDRAC less than 6.10.30.00
-python3 dracs.py list --idrac_ge 6.10.30.00  # iDRAC greater than or equal
+dracs list --idrac_lt 6.10.30.00  # iDRAC less than 6.10.30.00
+dracs list --idrac_ge 6.10.30.00  # iDRAC greater than or equal
 
 # Output as JSON for automation
-python3 dracs.py list --json
+dracs list --json
 
 # Output only hostnames (one per line) - useful for scripting
-python3 dracs.py list --host-only
-python3 dracs.py list --model R650 --host-only
+dracs list --host-only
+dracs list --model R650 --host-only
 
 # Complex filter: R660 systems with old BIOS expiring soon
-python3 dracs.py list --model R660 --bios_lt 2.5.0 --expires_in 60
+dracs list --model R660 --bios_lt 2.5.0 --expires_in 60
 
 # Lookup specific system in list format
-python3 dracs.py list --svctag ABC1234
-python3 dracs.py list --target server01.example.com
+dracs list --svctag ABC1234
+dracs list --target server01.example.com
 ```
 
 ### 4. Lookup a Specific System
@@ -192,19 +197,19 @@ Retrieve detailed information about a single system.
 
 ```bash
 # Lookup by service tag with all fields
-python3 dracs.py lookup --svctag ABC1234 --full
+dracs lookup --svctag ABC1234 --full
 
 # Lookup by hostname
-python3 dracs.py lookup --target server01.example.com --full
+dracs lookup --target server01.example.com --full
 
 # Show only BIOS version
-python3 dracs.py lookup --svctag ABC1234 --bios
+dracs lookup --svctag ABC1234 --bios
 
 # Show only iDRAC firmware version
-python3 dracs.py lookup -s ABC1234 --idrac
+dracs lookup -s ABC1234 --idrac
 
 # Using alias
-python3 dracs.py l -t server01.example.com --full
+dracs l -t server01.example.com --full
 ```
 
 ### 5. Edit a System
@@ -213,22 +218,22 @@ Update specific fields in the database by re-polling hardware or changing model.
 
 ```bash
 # Update both BIOS and iDRAC versions from SNMP
-python3 dracs.py edit --target server01.example.com --bios --idrac
+dracs edit --target server01.example.com --bios --idrac
 
 # Update by service tag
-python3 dracs.py edit --svctag ABC1234 --bios --idrac
+dracs edit --svctag ABC1234 --bios --idrac
 
 # Update only BIOS version
-python3 dracs.py edit -t server01 --bios
+dracs edit -t server01 --bios
 
 # Update only iDRAC firmware version
-python3 dracs.py edit -s ABC1234 --idrac
+dracs edit -s ABC1234 --idrac
 
 # Change model name
-python3 dracs.py edit -s ABC1234 --model R650
+dracs edit -s ABC1234 --model R650
 
 # Using alias with verbose output
-python3 dracs.py -v e -t server01 --bios --idrac
+dracs -v e -t server01 --bios --idrac
 ```
 
 ### 6. Refresh System Data
@@ -238,16 +243,16 @@ This is useful when service contracts are renewed or firmware is updated.
 
 ```bash
 # Refresh by service tag
-python3 dracs.py refresh --svctag ABC1234
+dracs refresh --svctag ABC1234
 
 # Refresh by hostname
-python3 dracs.py refresh --target server01.example.com
+dracs refresh --target server01.example.com
 
 # Using alias with verbose output to see progress
-python3 dracs.py -v rf -s ABC1234
+dracs -v rf -s ABC1234
 
 # With debug output
-python3 dracs.py -d refresh -t server01
+dracs -d refresh -t server01
 ```
 
 ### 7. Remove a System
@@ -256,57 +261,57 @@ Delete a system from the database.
 
 ```bash
 # Remove by service tag
-python3 dracs.py remove --svctag ABC1234
+dracs remove --svctag ABC1234
 
 # Remove by hostname
-python3 dracs.py remove --target server01.example.com
+dracs remove --target server01.example.com
 
 # Using alias
-python3 dracs.py r -s ABC1234
+dracs r -s ABC1234
 ```
 
 ### Common Usage Patterns
 
 ```bash
 # Initial setup: Add all your systems
-python3 dracs.py -v add -s ABC1234 -t server01.example.com -m R660
-python3 dracs.py -v add -s DEF5678 -t server02.example.com -m R650
-python3 dracs.py -v add -s GHI9012 -t server03.example.com -m R660
+dracs -v add -s ABC1234 -t server01.example.com -m R660
+dracs -v add -s DEF5678 -t server02.example.com -m R650
+dracs -v add -s GHI9012 -t server03.example.com -m R660
 
 # Or discover and add systems automatically
-python3 dracs.py -v discover -t server04.example.com --add
-python3 dracs.py -v d -t server05.example.com --add
+dracs -v discover -t server04.example.com --add
+dracs -v d -t server05.example.com --add
 
 # Discover a system but confirm before adding
-python3 dracs.py discover -t server06.example.com
+dracs discover -t server06.example.com
 
 # Check what's expiring soon
-python3 dracs.py list --expires_in 30
+dracs list --expires_in 30
 
 # Check what has already expired
-python3 dracs.py list --expired
+dracs list --expired
 
 # Find systems that need firmware updates
-python3 dracs.py list --idrac_lt 6.10.30.00
+dracs list --idrac_lt 6.10.30.00
 
 # After updating firmware, refresh the data
-python3 dracs.py -v refresh -t server01.example.com
+dracs -v refresh -t server01.example.com
 
 # After renewing support contracts, refresh warranty
-python3 dracs.py -v refresh -s ABC1234
+dracs -v refresh -s ABC1234
 
 # Generate JSON report for external tools
-python3 dracs.py list --json > inventory.json
+dracs list --json > inventory.json
 
 # Get list of all hostnames for scripting (e.g., to feed to xargs or a loop)
-python3 dracs.py list --host-only > hostnames.txt
-for host in $(python3 dracs.py list --model R650 --host-only); do echo "Processing $host"; done
+dracs list --host-only > hostnames.txt
+for host in $(dracs list --model R650 --host-only); do echo "Processing $host"; done
 
 # Find all R660 models
-python3 dracs.py list --model R660
+dracs list --model R660
 
 # Detailed troubleshooting with debug output
-python3 dracs.py -d add -s ABC1234 -t server01 -m R660
+dracs -d add -s ABC1234 -t server01 -m R660
 ```
 
 ## ⚙️ Command Reference
@@ -368,7 +373,7 @@ python3 dracs.py -d add -s ABC1234 -t server01 -m R660
 Always use `-v` when running commands interactively to see progress:
 
 ```bash
-python3 dracs.py -v add -s ABC1234 -t server01 -m R660
+dracs -v add -s ABC1234 -t server01 -m R660
 ```
 
 **SNMP Connectivity:**
@@ -385,7 +390,7 @@ python3 dracs.py -v add -s ABC1234 -t server01 -m R660
 
 **Database Location:**
 
-- Default: `warranty.db` in the same directory as `dracs.py`
+- Default: `warranty.db` in the current working directory
 - Custom: Use `-w /path/to/custom.db` flag
 - The database is created automatically on first use
 
@@ -398,5 +403,5 @@ Use `-d` flag to see detailed debugging including:
 - Internal data structures
 
 ```bash
-python3 dracs.py -d add -s ABC1234 -t server01 -m R660
+dracs -d add -s ABC1234 -t server01 -m R660
 ```
