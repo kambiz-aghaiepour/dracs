@@ -25,7 +25,7 @@ from pysnmp.hlapi.v1arch.asyncio import (
 )
 from tabulate import tabulate
 
-__version__ = "0.1.0"
+__version__ = "1.0.0"
 
 logger = logging.getLogger(__name__)
 
