@@ -548,12 +548,16 @@ async def discover_dell_systems_batch(
         print(f"\nSucceeded: {len(succeeded)}")
 
     if failed:
-        print(f"\nFailed: {len(failed)}")
-        for r in failed:
-            print(f"  {r['hostname']}: {r['error']}")
+        print(f"Failed: {len(failed)}")
+        table_data = [
+            (r['hostname'], r['error'])
+            for r in failed
+        ]
+        headers = ["Hostname", "Error"]
+        print(tabulate(table_data, headers=headers, tablefmt="grid"))
 
     total = len(results)
-    print(f"\nTotal: {total} hosts")
+    print(f"Total: {total} hosts")
 
 
 async def remove_dell_warranty(
