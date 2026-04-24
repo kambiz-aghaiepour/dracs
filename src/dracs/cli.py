@@ -118,6 +118,11 @@ async def main() -> None:
         action="store_true",
         help="Automatically add to database without prompting",
     )
+    parser_discover.add_argument(
+        "--show-discovered",
+        action="store_true",
+        help="Show detailed table of discovered systems",
+    )
 
     # --- EDIT COMMAND ---
     parser_edit = subparsers.add_parser("edit", aliases=["e"], help="Edit a system")
@@ -257,13 +262,14 @@ async def main() -> None:
         if args.host_list:
             hosts = read_host_list(args.host_list)
             auto_add = hasattr(args, "add") and args.add
+            show_discovered = hasattr(args, "show_discovered") and args.show_discovered
             if not auto_add:
                 print(f"Discovering {len(hosts)} hosts from {args.host_list}...")
                 response = input(
                     "Add discovered systems to database? (y/n): "
                 ).strip().lower()
                 auto_add = response in ["y", "yes"]
-            await commands.discover_dell_systems_batch(hosts, warranty, auto_add)
+            await commands.discover_dell_systems_batch(hosts, warranty, auto_add, show_discovered)
         else:
             # Single host discover
             discovered_tag, discovered_model = await commands.discover_dell_system(

@@ -500,7 +500,7 @@ async def _discover_single_host(
 
 
 async def discover_dell_systems_batch(
-    hosts: List[str], warranty: str, auto_add: bool
+    hosts: List[str], warranty: str, auto_add: bool, show_discovered: bool = False
 ) -> None:
     tasks = [_discover_single_host(h, warranty, False) for h in hosts]
     results = await asyncio.gather(*tasks)
@@ -535,7 +535,7 @@ async def discover_dell_systems_batch(
     succeeded = [r for r in results if r["status"] == "ok"]
     failed = [r for r in results if r["status"] == "error"]
 
-    if succeeded:
+    if succeeded and show_discovered:
         table_data = [
             (r["hostname"], r["service_tag"], r["model"],
              "Added" if r.get("added") else "Discovered")
@@ -544,16 +544,16 @@ async def discover_dell_systems_batch(
         headers = ["Hostname", "Service Tag", "Model", "Status"]
         print(tabulate(table_data, headers=headers, tablefmt="grid"))
 
+    if succeeded:
+        print(f"\nSucceeded: {len(succeeded)}")
+
     if failed:
-        print(f"\nFailed ({len(failed)}/{len(results)}):")
+        print(f"\nFailed: {len(failed)}")
         for r in failed:
             print(f"  {r['hostname']}: {r['error']}")
 
     total = len(results)
-    print(
-        f"\nSummary: {len(succeeded)} succeeded, "
-        f"{len(failed)} failed out of {total} hosts"
-    )
+    print(f"\nTotal: {total} hosts")
 
 
 async def remove_dell_warranty(
