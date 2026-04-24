@@ -3,7 +3,7 @@ import json
 import logging
 import os
 import time
-from typing import List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional
 
 from tabulate import tabulate
 
@@ -30,7 +30,11 @@ debug_output = False
 
 
 async def add_dell_warranty(
-    service_tag: str, hostname: str, model: str, warranty: str
+    service_tag: str,
+    hostname: str,
+    model: str,
+    warranty: str,
+    warranty_results: Optional[Dict] = None,
 ) -> None:
     idrac_host = build_idrac_hostname(hostname)
     community_string = os.getenv("SNMP_COMMUNITY", "public")
@@ -77,7 +81,9 @@ async def add_dell_warranty(
         logger.info(
             f"Adding new record for {service_tag}, fetching warranty from Dell API"
         )
-        h_epoch, h_date = dell_api_warranty_date(service_tag)
+        if warranty_results is None:
+            warranty_results = dell_api_warranty_date(service_tag)
+        h_epoch, h_date = warranty_results[service_tag]
 
         if debug_output:
             logger.debug(
@@ -432,7 +438,8 @@ async def refresh_dell_warranty(
     logger.info(f"Updated SNMP values - BIOS: {bios_version}, iDRAC: {idrac_version}")
 
     logger.info("Fetching updated warranty information from Dell API")
-    exp_epoch, exp_date = dell_api_warranty_date(svc_tag)
+    warranty_results = dell_api_warranty_date(svc_tag)
+    exp_epoch, exp_date = warranty_results[svc_tag]
 
     logger.info(f"Updated warranty expiration: {exp_date}")
 
@@ -495,8 +502,35 @@ async def _discover_single_host(
 async def discover_dell_systems_batch(
     hosts: List[str], warranty: str, auto_add: bool
 ) -> None:
-    tasks = [_discover_single_host(h, warranty, auto_add) for h in hosts]
+    tasks = [_discover_single_host(h, warranty, False) for h in hosts]
     results = await asyncio.gather(*tasks)
+
+    if auto_add:
+        discovered = [r for r in results if r["status"] == "ok"]
+        if discovered:
+            tags = [r["service_tag"] for r in discovered]
+            warranty_results = dell_api_warranty_date(tags)
+
+            add_tasks = [
+                add_dell_warranty(
+                    r["service_tag"],
+                    r["hostname"],
+                    r["model"],
+                    warranty,
+                    warranty_results=warranty_results,
+                )
+                for r in discovered
+            ]
+            add_outcomes = await asyncio.gather(
+                *add_tasks, return_exceptions=True
+            )
+
+            for r, outcome in zip(discovered, add_outcomes):
+                if isinstance(outcome, Exception):
+                    r["status"] = "error"
+                    r["error"] = str(outcome)
+                else:
+                    r["added"] = True
 
     succeeded = [r for r in results if r["status"] == "ok"]
     failed = [r for r in results if r["status"] == "error"]
