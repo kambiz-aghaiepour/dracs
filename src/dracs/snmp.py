@@ -11,6 +11,7 @@ from pysnmp.hlapi.v1arch.asyncio import (
     ObjectType,
     get_cmd,
 )
+from pysnmp.error import PySnmpError
 
 from dracs.exceptions import SNMPError, ValidationError
 
@@ -26,6 +27,12 @@ async def get_snmp_value(target: str, community: str, oid: str) -> Optional[str]
 
     try:
         udp_target = await UdpTransportTarget.create((target, 161))
+    except PySnmpError as e:
+        error_msg = str(e)
+        if "No address associated with hostname" in error_msg or "Name or service not known" in error_msg:
+            raise SNMPError(f"DNS resolution failed for {target}: unable to resolve hostname")
+        else:
+            raise SNMPError(f"SNMP transport error for {target}: {e}")
     except socket.gaierror as e:
         raise SNMPError(f"DNS resolution failed for {target}: {e}")
     except OSError as e:
