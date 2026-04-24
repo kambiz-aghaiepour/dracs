@@ -4,7 +4,7 @@
 [![Semantic Release](https://github.com/kambiz-aghaiepour/dracs/actions/workflows/semantic-release.yml/badge.svg)](https://github.com/kambiz-aghaiepour/dracs/actions/workflows/semantic-release.yml)
 [![Sync Back to Development](https://github.com/kambiz-aghaiepour/dracs/actions/workflows/sync-back.yml/badge.svg)](https://github.com/kambiz-aghaiepour/dracs/actions/workflows/sync-back.yml)
 
-![DRACS](/image/dracs_dragon_128x128.png?raw=true)
+<img src="image/dracs.svg" alt="DRACS" width="128" height="128" />
 
 Simple, portable, self-contained dynamic CLI inventory tool for managing Dell bare-metal systems inventory, warranty and lifecycle.
 
@@ -56,7 +56,7 @@ Simple, portable, self-contained dynamic CLI inventory tool for managing Dell ba
 **1) Clone the repository:**
 
 ```
-git clone https://github.com/yourusername/dracs.git
+git clone https://github.com/kambiz-aghaiepour/dracs.git
 cd dracs
 ```
 
