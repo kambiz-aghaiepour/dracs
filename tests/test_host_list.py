@@ -87,7 +87,7 @@ def test_batch_discover_with_add(
     mock_add.return_value = None
 
     hosts = ["server01.example.com", "server02.example.com"]
-    asyncio.run(discover_dell_systems_batch(hosts, "/tmp/test.db", auto_add=True))
+    asyncio.run(discover_dell_systems_batch(hosts, "/tmp/test.db", auto_add=True, show_discovered=True))
 
     assert mock_discover.call_count == 2
     mock_warranty.assert_called_once_with(["TAG0001", "TAG0002"])
@@ -96,8 +96,8 @@ def test_batch_discover_with_add(
     output = capsys.readouterr().out
     assert "TAG0001" in output
     assert "TAG0002" in output
-    assert "2 succeeded" in output
-    assert "0 failed" in output
+    assert "Succeeded: 2" in output
+    assert "Total: 2 hosts" in output
 
 
 @patch("dracs.commands.discover_dell_system")
@@ -108,13 +108,14 @@ def test_batch_discover_without_add(mock_add, mock_discover, capsys):
     ]
 
     hosts = ["server01.example.com"]
-    asyncio.run(discover_dell_systems_batch(hosts, "/tmp/test.db", auto_add=False))
+    asyncio.run(discover_dell_systems_batch(hosts, "/tmp/test.db", auto_add=False, show_discovered=True))
 
     assert mock_discover.call_count == 1
     assert mock_add.call_count == 0
 
     output = capsys.readouterr().out
     assert "Discovered" in output
+    assert "Succeeded: 1" in output
 
 
 @patch("dracs.commands.discover_dell_system")
@@ -127,9 +128,41 @@ def test_batch_discover_partial_failure(mock_discover, capsys):
     ]
 
     hosts = ["server01.example.com", "server02.example.com"]
-    asyncio.run(discover_dell_systems_batch(hosts, "/tmp/test.db", auto_add=False))
+    asyncio.run(discover_dell_systems_batch(hosts, "/tmp/test.db", auto_add=False, show_discovered=False))
 
     output = capsys.readouterr().out
-    assert "1 succeeded" in output
-    assert "1 failed" in output
+    assert "Succeeded: 1" in output
+    assert "Failed: 1" in output
+    assert "Total: 2 hosts" in output
     assert "Connection timeout" in output
+
+
+@patch("dracs.commands.dell_api_warranty_date")
+@patch("dracs.commands.discover_dell_system")
+@patch("dracs.commands.add_dell_warranty")
+def test_batch_discover_without_show_discovered(
+    mock_add, mock_discover, mock_warranty, capsys
+):
+    mock_discover.side_effect = [
+        ("TAG0001", "R660"),
+        ("TAG0002", "R650"),
+    ]
+    mock_warranty.return_value = {
+        "TAG0001": (1700000000, "November 14, 2023"),
+        "TAG0002": (1700000000, "November 14, 2023"),
+    }
+    mock_add.return_value = None
+
+    hosts = ["server01.example.com", "server02.example.com"]
+    asyncio.run(discover_dell_systems_batch(hosts, "/tmp/test.db", auto_add=True, show_discovered=False))
+
+    assert mock_discover.call_count == 2
+    assert mock_add.call_count == 2
+
+    output = capsys.readouterr().out
+    assert "TAG0001" not in output
+    assert "TAG0002" not in output
+    assert "Hostname" not in output
+    assert "Service Tag" not in output
+    assert "Succeeded: 2" in output
+    assert "Total: 2 hosts" in output
