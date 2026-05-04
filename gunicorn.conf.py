@@ -36,3 +36,15 @@ flask_secret_key = "dev-secret-key-change-in-production-123456789012345678901234
 # Auto-refresh frequency for webapp display (in seconds)
 # Set to 0 to disable auto-refresh
 refresh_frequency = 10
+
+# Warranty expiration highlighting
+# Highlight systems with expired warranties in red (true/false)
+highlight_expired = True
+
+# Highlight systems expiring within this many days in yellow
+# Set to 0 or negative to disable expiring-soon highlighting
+highlight_expiring = 30
+
+# Pagination
+# Default number of systems to display per page
+default_page_size = 20

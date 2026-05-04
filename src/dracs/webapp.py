@@ -2,6 +2,7 @@
 
 import asyncio
 import configparser
+from datetime import datetime
 import json
 import os
 import re
@@ -46,6 +47,13 @@ ADMIN_PASSWORD = os.environ.get("WEBADMIN_PASSWORD", "admin")
 
 # Auto-refresh frequency (in seconds, 0 = disabled)
 REFRESH_FREQUENCY = int(os.environ.get("REFRESH_FREQUENCY", "10"))
+
+# Warranty expiration highlighting
+HIGHLIGHT_EXPIRED = os.environ.get("HIGHLIGHT_EXPIRED", "true").lower() in ("true", "1", "yes")
+HIGHLIGHT_EXPIRING = int(os.environ.get("HIGHLIGHT_EXPIRING", "30"))
+
+# Pagination
+DEFAULT_PAGE_SIZE = int(os.environ.get("DEFAULT_PAGE_SIZE", "20"))
 
 # Initialize database on app startup
 DB_PATH = os.environ.get("DRACS_DB", "warranty.db")
@@ -101,6 +109,54 @@ def get_idrac_credentials(hostname: str) -> tuple:
         password = config["DEFAULT"].get("password", "calvin")
 
     return (username, password)
+
+
+def run_command_background(cmd: list, log_file_path: str) -> bool:
+    """
+    Run a command in the background without blocking.
+
+    Args:
+        cmd: Command and arguments as a list
+        log_file_path: Path to log file for stdout/stderr
+
+    Returns:
+        bool: True if process started successfully, False otherwise
+    """
+    try:
+        # Ensure log directory exists
+        log_dir = os.path.dirname(log_file_path)
+        if log_dir:
+            os.makedirs(log_dir, exist_ok=True)
+
+        # Open log file for writing
+        with open(log_file_path, 'w') as log_file:
+            log_file.write(f"Command started at: {datetime.now().isoformat()}\n")
+            log_file.write(f"Command: {' '.join(cmd)}\n")
+            log_file.write("-" * 80 + "\n\n")
+            log_file.flush()
+
+            # Start process in background
+            # Use Popen instead of run to avoid blocking
+            # Redirect stdout and stderr to log file
+            subprocess.Popen(
+                cmd,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                start_new_session=True  # Detach from parent process
+            )
+
+            # Process is now running in background
+            # We don't wait for it to complete
+            return True
+
+    except Exception as e:
+        # Log the error
+        try:
+            with open(log_file_path, 'a') as log_file:
+                log_file.write(f"\nError starting process: {str(e)}\n")
+        except Exception:
+            pass
+        return False
 
 
 def get_bios_filename(model: str, bios_version: str) -> str:
@@ -217,6 +273,9 @@ def index():
         is_authenticated=is_authenticated,
         username=username,
         refresh_frequency=REFRESH_FREQUENCY,
+        highlight_expired=HIGHLIGHT_EXPIRED,
+        highlight_expiring=HIGHLIGHT_EXPIRING,
+        default_page_size=DEFAULT_PAGE_SIZE,
     )
 
 
@@ -470,7 +529,12 @@ def api_firmware_update():
         # Build firmware filename: MODEL-TARGET_VERSION.d9
         firmware_file = f"{model}-{target_version}.d9"
 
-        # Run firmware update command
+        # Prepare log file path
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_dir = Path("logs/firmware-updates")
+        log_file = log_dir / f"{hostname}_{target_version}_{timestamp}.log"
+
+        # Build firmware update command
         cmd = [
             "sshpass",
             "-p", password,
@@ -482,27 +546,20 @@ def api_firmware_update():
             "racadm", "fwupdate", "-f", ftp_server, "ftp", "user", "-d", f"pub/{firmware_file}"
         ]
 
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
+        # Run firmware update command in background
+        success = run_command_background(cmd, str(log_file))
 
-        if result.returncode == 0:
+        if success:
             return jsonify({
                 "success": True,
-                "message": f"Firmware update initiated successfully for {hostname} to version {target_version}"
+                "message": f"Firmware update initiated for {hostname} to version {target_version}. Check logs/{log_file.relative_to('logs')} for progress."
             })
         else:
-            error_msg = result.stderr[:200] if result.stderr else result.stdout[:200]
             return jsonify({
                 "success": False,
-                "message": f"Firmware update failed: {error_msg}"
+                "message": f"Failed to start firmware update process. Check {log_file} for details."
             })
 
-    except subprocess.TimeoutExpired:
-        return jsonify({"success": False, "message": "Firmware update command timeout"}), 500
     except FileNotFoundError:
         return jsonify({"success": False, "message": "sshpass command not found"}), 500
     except Exception as e:
@@ -551,7 +608,12 @@ def api_bios_update():
         # Build NFS path: DRACS_NFS_SERVER:DRACS_NFS_PATH/MODEL
         nfs_location = f"{nfs_server}:{nfs_path}/{model}"
 
-        # Run BIOS update command
+        # Prepare log file path
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_dir = Path("logs/bios-updates")
+        log_file = log_dir / f"{hostname}_{target_bios}_{timestamp}.log"
+
+        # Build BIOS update command
         cmd = [
             "sshpass",
             "-p", password,
@@ -563,27 +625,20 @@ def api_bios_update():
             "racadm", "update", "-f", nfs_filename, "-l", nfs_location
         ]
 
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
+        # Run BIOS update command in background
+        success = run_command_background(cmd, str(log_file))
 
-        if result.returncode == 0:
+        if success:
             return jsonify({
                 "success": True,
-                "message": f"BIOS update initiated successfully for {hostname} to version {target_bios}"
+                "message": f"BIOS update initiated for {hostname} to version {target_bios}. Check logs/{log_file.relative_to('logs')} for progress."
             })
         else:
-            error_msg = result.stderr[:200] if result.stderr else result.stdout[:200]
             return jsonify({
                 "success": False,
-                "message": f"BIOS update failed: {error_msg}"
+                "message": f"Failed to start BIOS update process. Check {log_file} for details."
             })
 
-    except subprocess.TimeoutExpired:
-        return jsonify({"success": False, "message": "BIOS update command timeout"}), 500
     except FileNotFoundError:
         return jsonify({"success": False, "message": "sshpass command not found"}), 500
     except Exception as e:

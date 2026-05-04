@@ -78,6 +78,9 @@ db.sqlite3-journal
 instance/
 .webassets-cache
 
+# --- DRACS Update Logs ---
+logs/
+
 # --- Scrapy Stuff (Optional) ---
 .scrapy
 

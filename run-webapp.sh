@@ -33,6 +33,19 @@ if [ -z "$REFRESH_FREQUENCY" ]; then
     export REFRESH_FREQUENCY="10"
 fi
 
+# Set warranty expiration highlighting from gunicorn config (unless already set)
+if [ -z "$HIGHLIGHT_EXPIRED" ]; then
+    export HIGHLIGHT_EXPIRED="true"
+fi
+if [ -z "$HIGHLIGHT_EXPIRING" ]; then
+    export HIGHLIGHT_EXPIRING="30"
+fi
+
+# Set pagination from gunicorn config (unless already set)
+if [ -z "$DEFAULT_PAGE_SIZE" ]; then
+    export DEFAULT_PAGE_SIZE="20"
+fi
+
 echo "Starting DRACS web application..."
 echo "Using virtualenv: $VIRTUAL_ENV"
 echo "Database: $DRACS_DB"

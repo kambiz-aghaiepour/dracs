@@ -127,6 +127,12 @@
             border-bottom: 1px solid #eee;
         }
 
+        /* Right-align warranty expiration date column */
+        th:nth-child(6),
+        td:nth-child(6) {
+            text-align: right;
+        }
+
         tbody tr:hover {
             background-color: #f8f9fa;
         }
@@ -135,11 +141,95 @@
             display: none;
         }
 
+        /* Warranty expiration highlighting */
+        tbody tr.warranty-expired {
+            background-color: #ffcccc !important;  /* Light red */
+        }
+
+        tbody tr.warranty-expiring {
+            background-color: #ffffcc !important;  /* Light yellow */
+        }
+
+        tbody tr.warranty-expired:hover,
+        tbody tr.warranty-expiring:hover {
+            opacity: 0.9;
+        }
+
         .no-results {
             text-align: center;
             padding: 40px;
             color: #999;
             font-size: 16px;
+        }
+
+        /* Pagination controls */
+        .pagination-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+            padding: 15px 0;
+            border-top: 1px solid #ddd;
+        }
+
+        .pagination-controls {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+        }
+
+        .pagination-controls button {
+            padding: 6px 12px;
+            border: 1px solid #ddd;
+            background-color: white;
+            color: #333;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .pagination-controls button:hover:not(:disabled) {
+            background-color: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+
+        .pagination-controls button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .pagination-controls button.active {
+            background-color: #007bff;
+            color: white;
+            border-color: #007bff;
+            font-weight: 600;
+        }
+
+        .pagination-arrow {
+            font-weight: bold;
+        }
+
+        .page-size-selector {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .page-size-selector label {
+            font-size: 14px;
+            color: #555;
+            font-weight: 600;
+        }
+
+        .page-size-selector select {
+            padding: 6px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            background-color: white;
+            cursor: pointer;
         }
 
         @media (max-width: 1024px) {
@@ -561,8 +651,7 @@
                     <th>Model</th>
                     <th>Firmware</th>
                     <th>BIOS</th>
-                    <th>Expires</th>
-                    <th>Timestamp</th>
+                    <th>Warranty Expiration Date</th>
                 </tr>
             </thead>
             <tbody id="table-body">
@@ -572,6 +661,26 @@
 
         <div id="no-results" class="no-results" style="display: none;">
             No systems match your filters
+        </div>
+
+        <!-- Pagination Controls -->
+        <div id="pagination-container" class="pagination-container">
+            <div class="pagination-controls">
+                <button id="prev-page" class="pagination-arrow" onclick="goToPreviousPage()">&laquo; Previous</button>
+                <div id="page-numbers"></div>
+                <button id="next-page" class="pagination-arrow" onclick="goToNextPage()">Next &raquo;</button>
+            </div>
+            <div class="page-size-selector">
+                <label for="page-size">Show:</label>
+                <select id="page-size" onchange="handlePageSizeChange(event)">
+                    <option value="20">20</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                    <option value="500">500</option>
+                    <option value="1000">1000</option>
+                    <option value="-1">ALL</option>
+                </select>
+            </div>
         </div>
 
         <!-- Login Modal -->
@@ -674,11 +783,18 @@
         let selectedRows = [];  // Changed to array for multi-select
         let selectedSystems = [];  // Changed to array for multi-select
         let refreshFrequency = {{ refresh_frequency }};  // Auto-refresh frequency in seconds
+        let highlightExpired = {{ 'true' if highlight_expired else 'false' }};  // Highlight expired warranties
+        let highlightExpiring = {{ highlight_expiring }};  // Days threshold for expiring warning
         let autoRefreshTimer = null;
         let isRefreshing = false;  // Prevent concurrent refreshes
         let lastClickedRow = null;  // For shift-click range selection
         let pendingFirmwareUpdate = null;  // Store pending firmware update info
         let pendingBiosUpdate = null;  // Store pending BIOS update info
+
+        // Pagination state
+        let currentPage = 1;
+        let pageSize = {{ default_page_size }};
+        let totalPages = 1;
 
         console.log('DRACS: JavaScript loaded, isAuthenticated:', isAuthenticated, 'refreshFrequency:', refreshFrequency);
 
@@ -1666,8 +1782,25 @@
                 <td>${system.idrac_version || ''}</td>
                 <td>${system.bios_version || ''}</td>
                 <td>${system.exp_date || ''}</td>
-                <td>${system.exp_epoch || ''}</td>
             `;
+
+            // Apply warranty expiration highlighting
+            if (system.exp_epoch) {
+                const currentTime = Math.floor(Date.now() / 1000);  // Current time in seconds (UNIX timestamp)
+                const expirationTime = parseInt(system.exp_epoch);
+
+                if (highlightExpired && expirationTime < currentTime) {
+                    // Warranty has expired - highlight in red
+                    row.classList.add('warranty-expired');
+                } else if (highlightExpiring > 0) {
+                    // Check if warranty is expiring soon
+                    const daysUntilExpiration = (expirationTime - currentTime) / (60 * 60 * 24);
+                    if (daysUntilExpiration > 0 && daysUntilExpiration <= highlightExpiring) {
+                        // Warranty expiring within threshold - highlight in yellow
+                        row.classList.add('warranty-expiring');
+                    }
+                }
+            }
 
             return row;
         }
@@ -1720,10 +1853,153 @@
             if (visibleCount === 0 && rows.length > 0) {
                 noResults.style.display = 'block';
                 document.getElementById('systems-table').style.display = 'none';
+                document.getElementById('pagination-container').style.display = 'none';
             } else {
                 noResults.style.display = 'none';
                 document.getElementById('systems-table').style.display = 'table';
+                document.getElementById('pagination-container').style.display = 'flex';
             }
+
+            // Update pagination after filters are applied
+            updatePagination();
+        }
+
+        // Pagination functions
+        function updatePagination() {
+            const rows = tableBody.querySelectorAll('tr');
+
+            // Get visible rows (not hidden by filters)
+            const visibleRows = Array.from(rows).filter(row => !row.classList.contains('hidden'));
+            const visibleCount = visibleRows.length;
+
+            // Calculate total pages
+            if (pageSize === -1) {
+                // Show all
+                totalPages = 1;
+            } else {
+                totalPages = Math.max(1, Math.ceil(visibleCount / pageSize));
+            }
+
+            // Ensure current page is within bounds
+            if (currentPage > totalPages) {
+                currentPage = totalPages;
+            }
+            if (currentPage < 1) {
+                currentPage = 1;
+            }
+
+            // Apply pagination display
+            applyPagination(visibleRows);
+
+            // Update pagination controls
+            updatePaginationControls();
+        }
+
+        function applyPagination(visibleRows) {
+            // First, hide all rows for pagination
+            const rows = tableBody.querySelectorAll('tr');
+            rows.forEach(row => {
+                // Only hide if not already hidden by filters
+                if (!row.classList.contains('hidden')) {
+                    row.style.display = 'none';
+                }
+            });
+
+            // Show only rows for current page
+            if (pageSize === -1) {
+                // Show all visible rows
+                visibleRows.forEach(row => {
+                    row.style.display = '';
+                });
+            } else {
+                const startIndex = (currentPage - 1) * pageSize;
+                const endIndex = startIndex + pageSize;
+
+                for (let i = startIndex; i < endIndex && i < visibleRows.length; i++) {
+                    visibleRows[i].style.display = '';
+                }
+            }
+        }
+
+        function updatePaginationControls() {
+            // Update prev/next buttons
+            document.getElementById('prev-page').disabled = currentPage === 1;
+            document.getElementById('next-page').disabled = currentPage === totalPages;
+
+            // Generate page number buttons
+            const pageNumbersDiv = document.getElementById('page-numbers');
+            pageNumbersDiv.innerHTML = '';
+
+            if (totalPages <= 1) {
+                // Don't show page numbers if only one page
+                return;
+            }
+
+            // Calculate which page numbers to show
+            let startPage = Math.max(1, currentPage - 2);
+            let endPage = Math.min(totalPages, currentPage + 2);
+
+            // Always show first page
+            if (startPage > 1) {
+                addPageButton(1);
+                if (startPage > 2) {
+                    const ellipsis = document.createElement('span');
+                    ellipsis.textContent = '...';
+                    ellipsis.style.padding = '6px 8px';
+                    pageNumbersDiv.appendChild(ellipsis);
+                }
+            }
+
+            // Show page numbers
+            for (let i = startPage; i <= endPage; i++) {
+                addPageButton(i);
+            }
+
+            // Always show last page
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    const ellipsis = document.createElement('span');
+                    ellipsis.textContent = '...';
+                    ellipsis.style.padding = '6px 8px';
+                    pageNumbersDiv.appendChild(ellipsis);
+                }
+                addPageButton(totalPages);
+            }
+        }
+
+        function addPageButton(pageNum) {
+            const button = document.createElement('button');
+            button.textContent = pageNum;
+            button.onclick = () => goToPage(pageNum);
+            if (pageNum === currentPage) {
+                button.classList.add('active');
+            }
+            document.getElementById('page-numbers').appendChild(button);
+        }
+
+        function goToPage(pageNum) {
+            currentPage = pageNum;
+            updatePagination();
+        }
+
+        function goToPreviousPage() {
+            if (currentPage > 1) {
+                currentPage--;
+                updatePagination();
+            }
+        }
+
+        function goToNextPage() {
+            if (currentPage < totalPages) {
+                currentPage++;
+                updatePagination();
+            }
+        }
+
+        function handlePageSizeChange(event) {
+            pageSize = parseInt(event.target.value);
+            currentPage = 1;  // Reset to first page when changing page size
+            updatePagination();
         }
 
         // Initialize table
@@ -1740,6 +2016,11 @@
                 noResults.textContent = 'No systems found in database';
                 noResults.style.display = 'block';
                 document.getElementById('systems-table').style.display = 'none';
+                document.getElementById('pagination-container').style.display = 'none';
+            } else {
+                // Initialize pagination
+                document.getElementById('page-size').value = pageSize;
+                updatePagination();
             }
         }
 
