@@ -55,6 +55,10 @@ HIGHLIGHT_EXPIRING = int(os.environ.get("HIGHLIGHT_EXPIRING", "30"))
 # Pagination
 DEFAULT_PAGE_SIZE = int(os.environ.get("DEFAULT_PAGE_SIZE", "20"))
 
+# Firmware and BIOS version highlighting
+HIGHLIGHT_FIRMWARE = os.environ.get("HIGHLIGHT_FIRMWARE", "true").lower() in ("true", "1", "yes")
+HIGHLIGHT_BIOS = os.environ.get("HIGHLIGHT_BIOS", "true").lower() in ("true", "1", "yes")
+
 # Initialize database on app startup
 DB_PATH = os.environ.get("DRACS_DB", "warranty.db")
 db_initialize(DB_PATH)
@@ -276,6 +280,8 @@ def index():
         highlight_expired=HIGHLIGHT_EXPIRED,
         highlight_expiring=HIGHLIGHT_EXPIRING,
         default_page_size=DEFAULT_PAGE_SIZE,
+        highlight_firmware=HIGHLIGHT_FIRMWARE,
+        highlight_bios=HIGHLIGHT_BIOS,
     )
 
 

@@ -48,3 +48,10 @@ highlight_expiring = 30
 # Pagination
 # Default number of systems to display per page
 default_page_size = 20
+
+# Firmware and BIOS version highlighting
+# Highlight firmware versions based on how outdated they are (true/false)
+highlight_firmware = True
+
+# Highlight BIOS versions based on how outdated they are (true/false)
+highlight_bios = True

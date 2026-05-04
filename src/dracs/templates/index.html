@@ -155,6 +155,23 @@
             opacity: 0.9;
         }
 
+        /* Firmware and BIOS version highlighting */
+        td.firmware-outdated-1 {
+            background-color: #ffffcc !important;  /* Light yellow - 1 version behind */
+        }
+
+        td.firmware-outdated-2plus {
+            background-color: #ffcccc !important;  /* Light red - 2+ versions behind */
+        }
+
+        td.bios-outdated-1 {
+            background-color: #ffffcc !important;  /* Light yellow - 1 version behind */
+        }
+
+        td.bios-outdated-2plus {
+            background-color: #ffcccc !important;  /* Light red - 2+ versions behind */
+        }
+
         .no-results {
             text-align: center;
             padding: 40px;
@@ -545,6 +562,270 @@
             color: #333;
             text-align: center;
         }
+
+        /* Theme Toggle */
+        .theme-toggle {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-left: 20px;
+        }
+
+        .theme-toggle label {
+            font-size: 14px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 24px;
+            background-color: #ccc;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background-color: white;
+            top: 2px;
+            left: 2px;
+            transition: transform 0.3s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .toggle-switch.active {
+            background-color: #007bff;
+        }
+
+        .toggle-switch.active::after {
+            transform: translateX(26px);
+        }
+
+        /* Dark Theme Styles */
+        body.dark-theme {
+            background-color: #1a1a1a;
+        }
+
+        body.dark-theme .container {
+            background-color: #2d2d2d;
+            color: #e0e0e0;
+        }
+
+        body.dark-theme h1 {
+            color: #e0e0e0;
+            border-bottom-color: #007bff;
+        }
+
+        body.dark-theme .filters {
+            background-color: #3a3a3a;
+        }
+
+        body.dark-theme .filter-group label {
+            color: #b0b0b0;
+        }
+
+        body.dark-theme input[type="text"],
+        body.dark-theme select {
+            background-color: #4a4a4a;
+            color: #e0e0e0;
+            border-color: #555;
+        }
+
+        body.dark-theme input[type="text"]:focus,
+        body.dark-theme select:focus {
+            border-color: #007bff;
+            background-color: #3a3a3a;
+        }
+
+        body.dark-theme select[multiple] option:checked {
+            background: linear-gradient(#007bff, #007bff);
+        }
+
+        body.dark-theme .results-info {
+            color: #b0b0b0;
+        }
+
+        body.dark-theme thead {
+            background-color: #1e5a8e;
+        }
+
+        body.dark-theme th {
+            border-bottom-color: #003d5c;
+        }
+
+        body.dark-theme td {
+            border-bottom-color: #444;
+        }
+
+        body.dark-theme tbody tr:hover {
+            background-color: #3a3a3a;
+        }
+
+        body.dark-theme .no-results {
+            color: #888;
+        }
+
+        body.dark-theme .theme-toggle label {
+            color: #b0b0b0;
+        }
+
+        body.dark-theme .auth-section {
+            color: #e0e0e0;
+        }
+
+        body.dark-theme .login-link,
+        body.dark-theme .logout-link {
+            color: #4da3ff;
+        }
+
+        body.dark-theme .login-link:hover,
+        body.dark-theme .logout-link:hover {
+            color: #66b3ff;
+        }
+
+        body.dark-theme .btn {
+            background-color: #1e5a8e;
+            color: #e0e0e0;
+            border-color: #1e5a8e;
+        }
+
+        body.dark-theme .btn:hover:not(:disabled) {
+            background-color: #2a6ba8;
+        }
+
+        body.dark-theme .btn-secondary {
+            background-color: #555;
+            border-color: #555;
+        }
+
+        body.dark-theme .btn-secondary:hover {
+            background-color: #666;
+        }
+
+        body.dark-theme .modal-overlay {
+            background-color: rgba(0, 0, 0, 0.8);
+        }
+
+        body.dark-theme .modal-content {
+            background-color: #2d2d2d;
+            color: #e0e0e0;
+        }
+
+        body.dark-theme .modal-header {
+            border-bottom-color: #444;
+        }
+
+        body.dark-theme .modal-header h2 {
+            color: #e0e0e0;
+        }
+
+        body.dark-theme .modal-footer {
+            border-top-color: #444;
+        }
+
+        body.dark-theme .form-group label {
+            color: #b0b0b0;
+        }
+
+        body.dark-theme input[type="text"],
+        body.dark-theme input[type="password"] {
+            background-color: #4a4a4a;
+            color: #e0e0e0;
+            border-color: #555;
+        }
+
+        body.dark-theme .notification {
+            background-color: #2d2d2d;
+            border-color: #555;
+        }
+
+        body.dark-theme .notification.success {
+            background-color: #1e4d2b;
+            border-color: #2d7a3e;
+        }
+
+        body.dark-theme .notification.error {
+            background-color: #5c1e1e;
+            border-color: #8a2e2e;
+        }
+
+        body.dark-theme .admin-actions {
+            background-color: #3a3a3a;
+        }
+
+        body.dark-theme .pagination-container {
+            border-top-color: #444;
+        }
+
+        body.dark-theme .pagination-controls button {
+            background-color: #4a4a4a;
+            color: #e0e0e0;
+            border-color: #555;
+        }
+
+        body.dark-theme .pagination-controls button:hover:not(:disabled) {
+            background-color: #1e5a8e;
+            border-color: #1e5a8e;
+        }
+
+        body.dark-theme .pagination-controls button.active {
+            background-color: #1e5a8e;
+            border-color: #1e5a8e;
+        }
+
+        body.dark-theme .page-size-selector label {
+            color: #b0b0b0;
+        }
+
+        body.dark-theme .page-size-selector select {
+            background-color: #4a4a4a;
+            color: #e0e0e0;
+            border-color: #555;
+        }
+
+        body.dark-theme .detail-label {
+            color: #b0b0b0;
+        }
+
+        body.dark-theme .detail-value {
+            color: #e0e0e0;
+        }
+
+        body.dark-theme .firmware-warning {
+            color: #b0b0b0;
+        }
+
+        /* Dark theme highlight colors - darker shades for visibility with light text */
+        body.dark-theme tbody tr.warranty-expired {
+            background-color: #660000 !important;  /* Dark red */
+        }
+
+        body.dark-theme tbody tr.warranty-expiring {
+            background-color: #665500 !important;  /* Dark amber/yellow */
+        }
+
+        body.dark-theme td.firmware-outdated-1 {
+            background-color: #665500 !important;  /* Dark amber/yellow */
+        }
+
+        body.dark-theme td.firmware-outdated-2plus {
+            background-color: #660000 !important;  /* Dark red */
+        }
+
+        body.dark-theme td.bios-outdated-1 {
+            background-color: #665500 !important;  /* Dark amber/yellow */
+        }
+
+        body.dark-theme td.bios-outdated-2plus {
+            background-color: #660000 !important;  /* Dark red */
+        }
     </style>
 </head>
 <body>
@@ -553,6 +834,10 @@
             <div class="header-left">
                 <img src="{{ url_for('static', filename='images/dracs.svg') }}" alt="DRACS Logo" class="logo">
                 <h1 style="margin: 0; border: none; padding: 0;">DRACS Inventory</h1>
+                <div class="theme-toggle">
+                    <label for="theme-toggle-switch">Dark Mode</label>
+                    <div id="theme-toggle-switch" class="toggle-switch" onclick="toggleTheme()"></div>
+                </div>
             </div>
             <div class="auth-section">
                 {% if is_authenticated %}
@@ -796,7 +1081,48 @@
         let pageSize = {{ default_page_size }};
         let totalPages = 1;
 
+        // Firmware and BIOS highlighting
+        let highlightFirmware = {{ 'true' if highlight_firmware else 'false' }};
+        let highlightBios = {{ 'true' if highlight_bios else 'false' }};
+        let firmwareVersionsByModel = {};  // Firmware versions grouped by model, each sorted newest first
+        let biosVersionsByModel = {};  // BIOS versions grouped by model, each sorted newest first
+
         console.log('DRACS: JavaScript loaded, isAuthenticated:', isAuthenticated, 'refreshFrequency:', refreshFrequency);
+
+        // Theme Toggle
+        function toggleTheme() {
+            const body = document.body;
+            const toggleSwitch = document.getElementById('theme-toggle-switch');
+
+            if (body.classList.contains('dark-theme')) {
+                // Switch to light theme
+                body.classList.remove('dark-theme');
+                toggleSwitch.classList.remove('active');
+                localStorage.setItem('theme', 'light');
+            } else {
+                // Switch to dark theme
+                body.classList.add('dark-theme');
+                toggleSwitch.classList.add('active');
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+
+        // Apply saved theme on page load
+        function applySavedTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            const body = document.body;
+            const toggleSwitch = document.getElementById('theme-toggle-switch');
+
+            if (savedTheme === 'dark') {
+                body.classList.add('dark-theme');
+                if (toggleSwitch) {
+                    toggleSwitch.classList.add('active');
+                }
+            }
+        }
+
+        // Apply theme immediately on load
+        applySavedTheme();
 
         // Modal functions
         function showLoginModal(event) {
@@ -1144,6 +1470,10 @@
                 console.log('DRACS: Clearing table, current row count:', tableBodyEl.children.length);
                 tableBodyEl.innerHTML = '';
                 console.log('DRACS: Table cleared, row count:', tableBodyEl.children.length);
+
+                // Update systems array with new data and recalculate versions
+                systems = data;
+                calculateAllVersions();
 
                 // Rebuild table
                 data.forEach(system => {
@@ -1687,7 +2017,7 @@
         });
 
         // Embed data from Flask
-        const systems = {{ systems_json | safe }};
+        let systems = {{ systems_json | safe }};  // Use let instead of const so it can be reassigned during refresh
         const biosVersions = {{ bios_versions_json | safe }};
         const firmwareVersions = {{ firmware_versions_json | safe }};
         const models = {{ models_json | safe }};
@@ -1802,7 +2132,104 @@
                 }
             }
 
+            // Apply firmware and BIOS version highlighting to cells
+            const cells = row.getElementsByTagName('td');
+
+            // Firmware highlighting (column index 3)
+            if (highlightFirmware && system.model && system.idrac_version) {
+                const modelVersions = firmwareVersionsByModel[system.model];
+                if (modelVersions && modelVersions.length > 0) {
+                    const versionsBehind = getVersionsBehind(system.idrac_version, modelVersions);
+                    if (versionsBehind === 1) {
+                        cells[3].classList.add('firmware-outdated-1');
+                    } else if (versionsBehind >= 2) {
+                        cells[3].classList.add('firmware-outdated-2plus');
+                    }
+                }
+            }
+
+            // BIOS highlighting (column index 4)
+            if (highlightBios && system.model && system.bios_version) {
+                const modelVersions = biosVersionsByModel[system.model];
+                if (modelVersions && modelVersions.length > 0) {
+                    const versionsBehind = getVersionsBehind(system.bios_version, modelVersions);
+                    if (versionsBehind === 1) {
+                        cells[4].classList.add('bios-outdated-1');
+                    } else if (versionsBehind >= 2) {
+                        cells[4].classList.add('bios-outdated-2plus');
+                    }
+                }
+            }
+
             return row;
+        }
+
+        // Calculate how many versions behind a given version is
+        function getVersionsBehind(currentVersion, allVersionsSorted) {
+            if (!currentVersion || !allVersionsSorted || allVersionsSorted.length === 0) {
+                return 0;
+            }
+
+            // Find the index of the current version in the sorted list (newest first)
+            const currentIndex = allVersionsSorted.findIndex(v => v === currentVersion);
+
+            if (currentIndex === -1) {
+                // Version not found in list, assume it's outdated
+                return allVersionsSorted.length;
+            }
+
+            // If index is 0, it's the newest version
+            // If index is 1, it's one version behind
+            // If index is 2+, it's 2+ versions behind
+            return currentIndex;
+        }
+
+        // Calculate all unique firmware and BIOS versions from systems data
+        function calculateAllVersions() {
+            // Reset the objects
+            firmwareVersionsByModel = {};
+            biosVersionsByModel = {};
+
+            // Defensive check
+            if (!systems || !Array.isArray(systems)) {
+                console.warn('DRACS: systems is not an array in calculateAllVersions');
+                return;
+            }
+
+            // Group firmware versions by model
+            systems.forEach(system => {
+                if (system.model && system.idrac_version) {
+                    if (!firmwareVersionsByModel[system.model]) {
+                        firmwareVersionsByModel[system.model] = new Set();
+                    }
+                    firmwareVersionsByModel[system.model].add(system.idrac_version);
+                }
+            });
+
+            // Convert sets to sorted arrays (newest first)
+            for (const model in firmwareVersionsByModel) {
+                firmwareVersionsByModel[model] = Array.from(firmwareVersionsByModel[model])
+                    .sort((a, b) => compareVersions(b, a));
+            }
+
+            // Group BIOS versions by model
+            systems.forEach(system => {
+                if (system.model && system.bios_version) {
+                    if (!biosVersionsByModel[system.model]) {
+                        biosVersionsByModel[system.model] = new Set();
+                    }
+                    biosVersionsByModel[system.model].add(system.bios_version);
+                }
+            });
+
+            // Convert sets to sorted arrays (newest first)
+            for (const model in biosVersionsByModel) {
+                biosVersionsByModel[model] = Array.from(biosVersionsByModel[model])
+                    .sort((a, b) => compareVersions(b, a));
+            }
+
+            console.log('DRACS: Calculated firmware versions by model:', firmwareVersionsByModel);
+            console.log('DRACS: Calculated BIOS versions by model:', biosVersionsByModel);
         }
 
         // Filter rows
@@ -1866,11 +2293,20 @@
 
         // Pagination functions
         function updatePagination() {
+            // Defensive check
+            if (!tableBody) {
+                console.error('DRACS: tableBody element not found in updatePagination');
+                return;
+            }
+
             const rows = tableBody.querySelectorAll('tr');
+            console.log('DRACS: updatePagination - total rows:', rows.length);
 
             // Get visible rows (not hidden by filters)
             const visibleRows = Array.from(rows).filter(row => !row.classList.contains('hidden'));
             const visibleCount = visibleRows.length;
+
+            console.log('DRACS: updatePagination - visible rows:', visibleCount, 'current page:', currentPage, 'page size:', pageSize);
 
             // Calculate total pages
             if (pageSize === -1) {
@@ -1882,11 +2318,14 @@
 
             // Ensure current page is within bounds
             if (currentPage > totalPages) {
+                console.log('DRACS: Current page', currentPage, 'exceeds total pages', totalPages, '- resetting to page', totalPages);
                 currentPage = totalPages;
             }
             if (currentPage < 1) {
                 currentPage = 1;
             }
+
+            console.log('DRACS: updatePagination - calculated total pages:', totalPages, 'final current page:', currentPage);
 
             // Apply pagination display
             applyPagination(visibleRows);
@@ -1896,6 +2335,12 @@
         }
 
         function applyPagination(visibleRows) {
+            // Defensive check
+            if (!visibleRows || !Array.isArray(visibleRows)) {
+                console.warn('DRACS: visibleRows is not valid in applyPagination');
+                return;
+            }
+
             // First, hide all rows for pagination
             const rows = tableBody.querySelectorAll('tr');
             rows.forEach(row => {
@@ -1914,6 +2359,8 @@
             } else {
                 const startIndex = (currentPage - 1) * pageSize;
                 const endIndex = startIndex + pageSize;
+
+                console.log('DRACS: Pagination showing rows', startIndex, 'to', Math.min(endIndex, visibleRows.length) - 1, 'of', visibleRows.length);
 
                 for (let i = startIndex; i < endIndex && i < visibleRows.length; i++) {
                     visibleRows[i].style.display = '';
@@ -2004,6 +2451,9 @@
 
         // Initialize table
         function initTable() {
+            // Calculate all unique versions before creating rows
+            calculateAllVersions();
+
             systems.forEach(system => {
                 const row = createRow(system);
                 tableBody.appendChild(row);

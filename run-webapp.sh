@@ -46,6 +46,14 @@ if [ -z "$DEFAULT_PAGE_SIZE" ]; then
     export DEFAULT_PAGE_SIZE="20"
 fi
 
+# Set firmware and BIOS highlighting from gunicorn config (unless already set)
+if [ -z "$HIGHLIGHT_FIRMWARE" ]; then
+    export HIGHLIGHT_FIRMWARE="true"
+fi
+if [ -z "$HIGHLIGHT_BIOS" ]; then
+    export HIGHLIGHT_BIOS="true"
+fi
+
 echo "Starting DRACS web application..."
 echo "Using virtualenv: $VIRTUAL_ENV"
 echo "Database: $DRACS_DB"
