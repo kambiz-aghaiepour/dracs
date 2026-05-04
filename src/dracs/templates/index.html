@@ -142,17 +142,13 @@
         }
 
         /* Warranty expiration highlighting */
-        tbody tr.warranty-expired {
+        /* Warranty expiration highlighting - cell only (not entire row) */
+        td.warranty-expired {
             background-color: #ffcccc !important;  /* Light red */
         }
 
-        tbody tr.warranty-expiring {
+        td.warranty-expiring {
             background-color: #ffffcc !important;  /* Light yellow */
-        }
-
-        tbody tr.warranty-expired:hover,
-        tbody tr.warranty-expiring:hover {
-            opacity: 0.9;
         }
 
         /* Firmware and BIOS version highlighting */
@@ -803,11 +799,11 @@
         }
 
         /* Dark theme highlight colors - darker shades for visibility with light text */
-        body.dark-theme tbody tr.warranty-expired {
+        body.dark-theme td.warranty-expired {
             background-color: #660000 !important;  /* Dark red */
         }
 
-        body.dark-theme tbody tr.warranty-expiring {
+        body.dark-theme td.warranty-expiring {
             background-color: #665500 !important;  /* Dark amber/yellow */
         }
 
@@ -2114,26 +2110,28 @@
                 <td>${system.exp_date || ''}</td>
             `;
 
-            // Apply warranty expiration highlighting
+            // Get cells for highlighting
+            const cells = row.getElementsByTagName('td');
+
+            // Apply warranty expiration highlighting to the expiration date cell (column 5)
             if (system.exp_epoch) {
                 const currentTime = Math.floor(Date.now() / 1000);  // Current time in seconds (UNIX timestamp)
                 const expirationTime = parseInt(system.exp_epoch);
 
                 if (highlightExpired && expirationTime < currentTime) {
-                    // Warranty has expired - highlight in red
-                    row.classList.add('warranty-expired');
+                    // Warranty has expired - highlight cell in red
+                    cells[5].classList.add('warranty-expired');
                 } else if (highlightExpiring > 0) {
                     // Check if warranty is expiring soon
                     const daysUntilExpiration = (expirationTime - currentTime) / (60 * 60 * 24);
                     if (daysUntilExpiration > 0 && daysUntilExpiration <= highlightExpiring) {
-                        // Warranty expiring within threshold - highlight in yellow
-                        row.classList.add('warranty-expiring');
+                        // Warranty expiring within threshold - highlight cell in yellow
+                        cells[5].classList.add('warranty-expiring');
                     }
                 }
             }
 
             // Apply firmware and BIOS version highlighting to cells
-            const cells = row.getElementsByTagName('td');
 
             // Firmware highlighting (column index 3)
             if (highlightFirmware && system.model && system.idrac_version) {
