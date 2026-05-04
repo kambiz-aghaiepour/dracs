@@ -5,7 +5,6 @@ import configparser
 import json
 import os
 import re
-import secrets
 import subprocess
 from pathlib import Path
 from dotenv import load_dotenv
@@ -178,7 +177,7 @@ def test_idrac_connectivity(hostname: str) -> tuple:
             return (False, f"iDRAC Access Failed: {result.stderr[:100] if result.stderr else 'Connection failed'}")
 
     except subprocess.TimeoutExpired:
-        return (False, f"iDRAC Access Failed: Connection timeout")
+        return (False, "iDRAC Access Failed: Connection timeout")
     except FileNotFoundError:
         return (False, "iDRAC Access Failed: sshpass command not found (please install sshpass)")
     except Exception as e:
