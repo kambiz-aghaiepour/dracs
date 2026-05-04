@@ -42,6 +42,9 @@ app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
 # Load admin credentials from environment or use defaults
+# Priority: 1) .env file (if exists), 2) environment variables, 3) defaults below
+# This allows local installations to override the password via .env
+# even when gunicorn.conf.py is updated via git pull
 ADMIN_USER = os.environ.get("WEBADMIN_USER", "admin")
 ADMIN_PASSWORD = os.environ.get("WEBADMIN_PASSWORD", "admin")
 

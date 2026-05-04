@@ -4,6 +4,15 @@
 # Change to project directory
 cd "$(dirname "$0")"
 
+# Load .env file if it exists (so local settings take precedence over defaults below)
+if [ -f .env ]; then
+    echo "Loading settings from .env file..."
+    # Export all variables from .env
+    set -a
+    source .env
+    set +a
+fi
+
 # Set database path (default to current directory)
 export DRACS_DB="${DRACS_DB:-./warranty.db}"
 
@@ -21,6 +30,7 @@ if [ -z "$FLASK_SECRET_KEY" ]; then
 fi
 
 # Set admin credentials from gunicorn config (unless already set)
+# Note: .env file values (loaded above) take precedence over these defaults
 if [ -z "$WEBADMIN_USER" ]; then
     export WEBADMIN_USER="admin"
 fi
