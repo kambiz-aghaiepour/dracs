@@ -1208,8 +1208,11 @@
             // Clear existing options
             selectElement.innerHTML = '<option value="">Select firmware version...</option>';
 
+            // Sort versions in descending order (newest first)
+            const sortedVersions = versions.slice().sort((a, b) => compareVersions(b, a));
+
             // Add newer versions
-            versions.forEach(version => {
+            sortedVersions.forEach(version => {
                 const option = document.createElement('option');
                 option.value = version;
                 option.textContent = version;
@@ -1263,8 +1266,11 @@
             // Clear existing options
             selectElement.innerHTML = '<option value="">Select BIOS version...</option>';
 
+            // Sort versions in descending order (newest first)
+            const sortedVersions = versions.slice().sort((a, b) => compareVersions(b, a));
+
             // Add newer versions
-            versions.forEach(version => {
+            sortedVersions.forEach(version => {
                 const option = document.createElement('option');
                 option.value = version;
                 option.textContent = version;
