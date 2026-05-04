@@ -1289,7 +1289,8 @@
                 hostname: hostname,
                 currentVersion: currentFirmwareVersion,
                 newVersion: selectedVersion,
-                serviceTag: selectedSystem.service_tag
+                serviceTag: selectedSystem.service_tag,
+                model: selectedSystem.model
             };
 
             // Populate and show confirmation modal
@@ -1303,18 +1304,77 @@
         }
 
         // Confirm firmware update
-        function confirmFirmwareUpdate() {
+        async function confirmFirmwareUpdate() {
             if (!pendingFirmwareUpdate) return;
 
             console.log('DRACS: User confirmed firmware update to version:', pendingFirmwareUpdate.newVersion, 'for host:', pendingFirmwareUpdate.hostname);
-            showNotification(`Firmware update confirmed for ${pendingFirmwareUpdate.hostname} to version ${pendingFirmwareUpdate.newVersion}. (Update functionality not yet implemented)`, 'success');
 
-            // TODO: Implement actual firmware update logic here
-            // Example:
-            // performFirmwareUpdate(pendingFirmwareUpdate.serviceTag, pendingFirmwareUpdate.newVersion);
-
-            // Close modal and clear pending update
+            // Close the confirmation modal first
             document.getElementById('firmware-confirm-modal').classList.remove('active');
+
+            // Test iDRAC connectivity before proceeding
+            showNotification('Testing iDRAC connectivity...', 'success');
+
+            try {
+                const response = await fetch('/api/test-idrac', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        hostname: pendingFirmwareUpdate.hostname
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // iDRAC access succeeded
+                    showNotification(data.message, 'success');
+                    console.log('DRACS: iDRAC connectivity test passed');
+
+                    // Proceed with actual firmware update
+                    setTimeout(async () => {
+                        showNotification('Initiating firmware update...', 'success');
+
+                        try {
+                            const updateResponse = await fetch('/api/firmware-update', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                    hostname: pendingFirmwareUpdate.hostname,
+                                    target_version: pendingFirmwareUpdate.newVersion,
+                                    model: pendingFirmwareUpdate.model
+                                })
+                            });
+
+                            const updateData = await updateResponse.json();
+
+                            if (updateData.success) {
+                                showNotification(updateData.message, 'success');
+                                console.log('DRACS: Firmware update initiated successfully');
+                            } else {
+                                showNotification(updateData.message, 'error');
+                                console.error('DRACS: Firmware update failed:', updateData.message);
+                            }
+                        } catch (error) {
+                            console.error('DRACS: Error initiating firmware update:', error);
+                            showNotification('Firmware update failed: ' + error.message, 'error');
+                        }
+                    }, 2000);
+                } else {
+                    // iDRAC access failed
+                    showNotification(data.message, 'error');
+                    console.error('DRACS: iDRAC connectivity test failed:', data.message);
+                }
+            } catch (error) {
+                console.error('DRACS: Error testing iDRAC connectivity:', error);
+                showNotification('iDRAC Access Failed: ' + error.message, 'error');
+            }
+
+            // Clear pending update
             pendingFirmwareUpdate = null;
         }
 
@@ -1344,7 +1404,8 @@
                 hostname: hostname,
                 currentVersion: currentBiosVersion,
                 newVersion: selectedVersion,
-                serviceTag: selectedSystem.service_tag
+                serviceTag: selectedSystem.service_tag,
+                model: selectedSystem.model
             };
 
             // Populate and show confirmation modal
@@ -1358,18 +1419,77 @@
         }
 
         // Confirm BIOS update
-        function confirmBiosUpdate() {
+        async function confirmBiosUpdate() {
             if (!pendingBiosUpdate) return;
 
             console.log('DRACS: User confirmed BIOS update to version:', pendingBiosUpdate.newVersion, 'for host:', pendingBiosUpdate.hostname);
-            showNotification(`BIOS update confirmed for ${pendingBiosUpdate.hostname} to version ${pendingBiosUpdate.newVersion}. (Update functionality not yet implemented)`, 'success');
 
-            // TODO: Implement actual BIOS update logic here
-            // Example:
-            // performBiosUpdate(pendingBiosUpdate.serviceTag, pendingBiosUpdate.newVersion);
-
-            // Close modal and clear pending update
+            // Close the confirmation modal first
             document.getElementById('bios-confirm-modal').classList.remove('active');
+
+            // Test iDRAC connectivity before proceeding
+            showNotification('Testing iDRAC connectivity...', 'success');
+
+            try {
+                const response = await fetch('/api/test-idrac', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        hostname: pendingBiosUpdate.hostname
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // iDRAC access succeeded
+                    showNotification(data.message, 'success');
+                    console.log('DRACS: iDRAC connectivity test passed');
+
+                    // Proceed with actual BIOS update
+                    setTimeout(async () => {
+                        showNotification('Initiating BIOS update...', 'success');
+
+                        try {
+                            const updateResponse = await fetch('/api/bios-update', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                    hostname: pendingBiosUpdate.hostname,
+                                    target_bios: pendingBiosUpdate.newVersion,
+                                    model: pendingBiosUpdate.model
+                                })
+                            });
+
+                            const updateData = await updateResponse.json();
+
+                            if (updateData.success) {
+                                showNotification(updateData.message, 'success');
+                                console.log('DRACS: BIOS update initiated successfully');
+                            } else {
+                                showNotification(updateData.message, 'error');
+                                console.error('DRACS: BIOS update failed:', updateData.message);
+                            }
+                        } catch (error) {
+                            console.error('DRACS: Error initiating BIOS update:', error);
+                            showNotification('BIOS update failed: ' + error.message, 'error');
+                        }
+                    }, 2000);
+                } else {
+                    // iDRAC access failed
+                    showNotification(data.message, 'error');
+                    console.error('DRACS: iDRAC connectivity test failed:', data.message);
+                }
+            } catch (error) {
+                console.error('DRACS: Error testing iDRAC connectivity:', error);
+                showNotification('iDRAC Access Failed: ' + error.message, 'error');
+            }
+
+            // Clear pending update
             pendingBiosUpdate = null;
         }
 
