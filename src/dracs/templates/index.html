@@ -1,0 +1,1766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DRACS - Dell Rack & Asset Control System</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #333;
+            margin-top: 0;
+            border-bottom: 3px solid #007bff;
+            padding-bottom: 10px;
+        }
+
+        .filters {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .filter-group label {
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #555;
+            font-size: 14px;
+        }
+
+        .filter-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        input[type="text"],
+        select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        input[type="text"]:focus,
+        select:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 3px rgba(0,123,255,0.1);
+        }
+
+        select {
+            flex: 1;
+        }
+
+        select.operator {
+            flex: 0 0 70px;
+        }
+
+        select[multiple] {
+            min-height: 100px;
+            padding: 4px;
+        }
+
+        select[multiple] option {
+            padding: 6px 8px;
+            margin: 2px 0;
+            border-radius: 3px;
+        }
+
+        select[multiple] option:checked {
+            background: linear-gradient(#007bff, #007bff);
+            color: white;
+        }
+
+        .results-info {
+            margin-bottom: 15px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        thead {
+            background-color: #007bff;
+            color: white;
+        }
+
+        th {
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid #0056b3;
+        }
+
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #eee;
+        }
+
+        tbody tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        tbody tr.hidden {
+            display: none;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+            font-size: 16px;
+        }
+
+        @media (max-width: 1024px) {
+            .filters {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            table {
+                font-size: 12px;
+            }
+
+            th, td {
+                padding: 8px 6px;
+            }
+        }
+
+        /* Header with login link */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo {
+            height: 48px;
+            width: auto;
+        }
+
+        .auth-section {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .login-link, .logout-link {
+            color: #007bff;
+            text-decoration: none;
+            font-size: 14px;
+            cursor: pointer;
+            padding: 6px 12px;
+            border: 1px solid #007bff;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .login-link:hover, .logout-link:hover {
+            background-color: #007bff;
+            color: white;
+        }
+
+        .username-display {
+            font-size: 14px;
+            color: #666;
+        }
+
+        /* Modal overlay */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            width: 90%;
+            max-width: 400px;
+        }
+
+        .modal-header {
+            margin-bottom: 20px;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            color: #333;
+        }
+
+        .modal-body {
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .modal-footer {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background-color: #007bff;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #0056b3;
+        }
+
+        .btn-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background-color: #545b62;
+        }
+
+        .btn-success {
+            background-color: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background-color: #218838;
+        }
+
+        .btn-success:disabled {
+            background-color: #94d3a2;
+            cursor: not-allowed;
+        }
+
+        .btn-primary:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+
+        /* Row selection */
+        tbody tr {
+            cursor: pointer;
+            user-select: none;  /* Prevent text selection when shift-clicking for range select */
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+
+        tbody tr.selected {
+            background-color: #cce5ff !important;
+            font-weight: 500;
+        }
+
+        /* Admin actions container */
+        .admin-actions {
+            margin-bottom: 15px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .firmware-update-container, .bios-update-container {
+            position: relative;
+            display: inline-block;
+        }
+
+        .firmware-version-select, .bios-version-select {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            background-color: #007bff;
+            color: white;
+            transition: all 0.2s;
+        }
+
+        .firmware-version-select:hover, .bios-version-select:hover {
+            background-color: #0056b3;
+        }
+
+        .firmware-version-select:disabled, .bios-version-select:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+
+        #update-bios-btn.unavailable {
+            background-color: #6c757d;
+            cursor: not-allowed;
+            padding: 8px 16px;
+            line-height: 1.2;
+        }
+
+        #update-bios-btn.unavailable .subtitle {
+            display: block;
+            font-size: 11px;
+            font-weight: normal;
+            margin-top: 2px;
+            opacity: 0.8;
+        }
+
+        /* Notification message */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            z-index: 2000;
+            display: none;
+            max-width: 400px;
+        }
+
+        .notification.active {
+            display: block;
+        }
+
+        .notification.success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+
+        .notification.error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+
+        .notification .close-btn {
+            float: right;
+            margin-left: 15px;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            color: inherit;
+            opacity: 0.5;
+        }
+
+        .notification .close-btn:hover {
+            opacity: 1;
+        }
+
+        /* Firmware confirmation modal styling */
+        .firmware-details {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+        }
+
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+
+        .detail-label {
+            font-weight: 600;
+            color: #555;
+        }
+
+        .detail-value {
+            color: #333;
+            font-family: monospace;
+        }
+
+        .firmware-warning {
+            margin-top: 15px;
+            font-weight: 500;
+            color: #333;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-left">
+                <img src="{{ url_for('static', filename='images/dracs.svg') }}" alt="DRACS Logo" class="logo">
+                <h1 style="margin: 0; border: none; padding: 0;">DRACS Inventory</h1>
+            </div>
+            <div class="auth-section">
+                {% if is_authenticated %}
+                    <span class="username-display">Logged in as <strong>{{ username }}</strong></span>
+                    <a href="#" class="logout-link" onclick="handleLogout(event)">Logout</a>
+                {% else %}
+                    <a href="#" class="login-link" onclick="showLoginModal(event)">Login</a>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="filters">
+            <div class="filter-group">
+                <label for="hostname-filter">Hostname Filter</label>
+                <input type="text" id="hostname-filter" placeholder="Type to filter by hostname...">
+            </div>
+
+            <div class="filter-group">
+                <label for="model-filter">Host Types (Ctrl+Click for multiple)</label>
+                <select id="model-filter" multiple>
+                    <!-- Options will be populated by JavaScript -->
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label>BIOS Version</label>
+                <div class="filter-row">
+                    <select id="bios-version">
+                        <option value="">(all versions)</option>
+                    </select>
+                    <select id="bios-operator" class="operator">
+                        <option value="">(none)</option>
+                        <option value="<=">&lt;=</option>
+                        <option value="<">&lt;</option>
+                        <option value=">=">>=</option>
+                        <option value=">">&gt;</option>
+                        <option value="=">=</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="filter-group">
+                <label>Firmware Version</label>
+                <div class="filter-row">
+                    <select id="firmware-version">
+                        <option value="">(all versions)</option>
+                    </select>
+                    <select id="firmware-operator" class="operator">
+                        <option value="">(none)</option>
+                        <option value="<=">&lt;=</option>
+                        <option value="<">&lt;</option>
+                        <option value=">=">>=</option>
+                        <option value=">">&gt;</option>
+                        <option value="=">=</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        {% if is_authenticated %}
+        <div class="admin-actions">
+            <button id="refresh-btn" class="btn btn-success" onclick="handleRefreshSelected()" disabled>
+                Refresh Selected (<span id="selected-count">0</span>)
+            </button>
+            <button id="refresh-all-btn" class="btn btn-success" onclick="handleRefreshAll()">
+                Refresh All Systems
+            </button>
+            <div class="firmware-update-container">
+                <button id="update-firmware-btn" class="btn btn-primary" disabled>
+                    Update Firmware
+                </button>
+                <select id="firmware-version-select" class="firmware-version-select" style="display: none;" onchange="handleFirmwareVersionSelect(event)">
+                    <option value="">Select firmware version...</option>
+                </select>
+            </div>
+            <div class="bios-update-container">
+                <button id="update-bios-btn" class="btn btn-primary" disabled>
+                    Update BIOS
+                </button>
+                <select id="bios-version-select" class="bios-version-select" style="display: none;" onchange="handleBiosVersionSelect(event)">
+                    <option value="">Select BIOS version...</option>
+                </select>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="results-info">
+            Showing <span id="results-count">0</span> of <span id="total-count">0</span> systems
+        </div>
+
+        <table id="systems-table">
+            <thead>
+                <tr>
+                    <th>Service Tag</th>
+                    <th>Hostname</th>
+                    <th>Model</th>
+                    <th>Firmware</th>
+                    <th>BIOS</th>
+                    <th>Expires</th>
+                    <th>Timestamp</th>
+                </tr>
+            </thead>
+            <tbody id="table-body">
+                <!-- Rows will be populated by JavaScript -->
+            </tbody>
+        </table>
+
+        <div id="no-results" class="no-results" style="display: none;">
+            No systems match your filters
+        </div>
+
+        <!-- Login Modal -->
+        <div id="login-modal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Admin Login</h2>
+                </div>
+                <div class="modal-body">
+                    <form id="login-form" onsubmit="handleLogin(event)">
+                        <div class="form-group">
+                            <label for="username">Username</label>
+                            <input type="text" id="username" name="username" required autocomplete="username">
+                        </div>
+                        <div class="form-group">
+                            <label for="password">Password</label>
+                            <input type="password" id="password" name="password" required autocomplete="current-password">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="hideLoginModal()">Cancel</button>
+                    <button type="submit" form="login-form" class="btn btn-primary">Login</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notification -->
+        <div id="notification" class="notification">
+            <span class="close-btn" onclick="hideNotification()">&times;</span>
+            <span id="notification-message"></span>
+        </div>
+
+        <!-- Firmware Update Confirmation Modal -->
+        <div id="firmware-confirm-modal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Confirm Firmware Update</h2>
+                </div>
+                <div class="modal-body">
+                    <p id="firmware-confirm-message"></p>
+                    <div class="firmware-details">
+                        <div class="detail-row">
+                            <span class="detail-label">Host:</span>
+                            <span id="firmware-hostname" class="detail-value"></span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Current Version:</span>
+                            <span id="firmware-current-version" class="detail-value"></span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">New Version:</span>
+                            <span id="firmware-new-version" class="detail-value" style="font-weight: 600; color: #007bff;"></span>
+                        </div>
+                    </div>
+                    <p class="firmware-warning">Are you sure you want to proceed with this firmware update?</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="cancelFirmwareUpdate()">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="confirmFirmwareUpdate()">Yes, Update Firmware</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- BIOS Update Confirmation Modal -->
+        <div id="bios-confirm-modal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Confirm BIOS Update</h2>
+                </div>
+                <div class="modal-body">
+                    <p id="bios-confirm-message"></p>
+                    <div class="firmware-details">
+                        <div class="detail-row">
+                            <span class="detail-label">Host:</span>
+                            <span id="bios-hostname" class="detail-value"></span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Current Version:</span>
+                            <span id="bios-current-version" class="detail-value"></span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">New Version:</span>
+                            <span id="bios-new-version" class="detail-value" style="font-weight: 600; color: #007bff;"></span>
+                        </div>
+                    </div>
+                    <p class="firmware-warning">Are you sure you want to proceed with this BIOS update?</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="cancelBiosUpdate()">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="confirmBiosUpdate()">Yes, Update BIOS</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Authentication and admin functionality
+        let isAuthenticated = {{ 'true' if is_authenticated else 'false' }};
+        let selectedRows = [];  // Changed to array for multi-select
+        let selectedSystems = [];  // Changed to array for multi-select
+        let refreshFrequency = {{ refresh_frequency }};  // Auto-refresh frequency in seconds
+        let autoRefreshTimer = null;
+        let isRefreshing = false;  // Prevent concurrent refreshes
+        let lastClickedRow = null;  // For shift-click range selection
+        let pendingFirmwareUpdate = null;  // Store pending firmware update info
+        let pendingBiosUpdate = null;  // Store pending BIOS update info
+
+        console.log('DRACS: JavaScript loaded, isAuthenticated:', isAuthenticated, 'refreshFrequency:', refreshFrequency);
+
+        // Modal functions
+        function showLoginModal(event) {
+            event.preventDefault();
+            document.getElementById('login-modal').classList.add('active');
+            document.getElementById('username').focus();
+        }
+
+        function hideLoginModal() {
+            document.getElementById('login-modal').classList.remove('active');
+            document.getElementById('login-form').reset();
+        }
+
+        // Login handler
+        async function handleLogin(event) {
+            event.preventDefault();
+            console.log('DRACS: handleLogin called');
+
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            console.log('DRACS: Attempting login for user:', username);
+
+            try {
+                const response = await fetch('/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+
+                // Check if response is JSON
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const text = await response.text();
+                    console.error('Non-JSON response:', text);
+                    showNotification('Server error: Expected JSON response', 'error');
+                    return;
+                }
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    hideLoginModal();
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                showNotification('Login failed: ' + error.message, 'error');
+            }
+        }
+
+        // Logout handler
+        async function handleLogout(event) {
+            event.preventDefault();
+
+            try {
+                const response = await fetch('/logout', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                }
+            } catch (error) {
+                showNotification('Logout failed: ' + error.message, 'error');
+            }
+        }
+
+        // Row selection handler (supports multi-select with Ctrl/Cmd+Click and Shift+Click for range)
+        function handleRowClick(event) {
+            if (!isAuthenticated) return;
+
+            const row = event.target.closest('tr');
+            if (!row) return;
+
+            // Check modifier keys
+            const isMultiSelect = event.ctrlKey || event.metaKey;
+            const isRangeSelect = event.shiftKey;
+
+            // Extract system data from row
+            const cells = row.getElementsByTagName('td');
+            const systemData = {
+                service_tag: cells[0].textContent,
+                hostname: cells[1].textContent,
+                model: cells[2].textContent
+            };
+
+            if (isRangeSelect && lastClickedRow) {
+                // Shift+Click: Select range from lastClickedRow to this row
+                const tableBodyEl = document.getElementById('table-body');
+                const allRows = Array.from(tableBodyEl.querySelectorAll('tr:not(.hidden)'));
+
+                const startIndex = allRows.indexOf(lastClickedRow);
+                const endIndex = allRows.indexOf(row);
+
+                if (startIndex !== -1 && endIndex !== -1) {
+                    const minIndex = Math.min(startIndex, endIndex);
+                    const maxIndex = Math.max(startIndex, endIndex);
+
+                    // Clear current selection
+                    selectedRows.forEach(r => r.classList.remove('selected'));
+                    selectedRows = [];
+                    selectedSystems = [];
+
+                    // Select all rows in the range
+                    for (let i = minIndex; i <= maxIndex; i++) {
+                        const rangeRow = allRows[i];
+                        rangeRow.classList.add('selected');
+                        selectedRows.push(rangeRow);
+
+                        const rangeCells = rangeRow.getElementsByTagName('td');
+                        selectedSystems.push({
+                            service_tag: rangeCells[0].textContent,
+                            hostname: rangeCells[1].textContent,
+                            model: rangeCells[2].textContent
+                        });
+                    }
+                }
+            } else if (isMultiSelect) {
+                // Ctrl/Cmd+Click: Toggle individual row
+                const rowIndex = selectedRows.indexOf(row);
+
+                if (rowIndex > -1) {
+                    // Deselect this row
+                    row.classList.remove('selected');
+                    selectedRows.splice(rowIndex, 1);
+                    selectedSystems.splice(rowIndex, 1);
+                } else {
+                    // Select this row
+                    row.classList.add('selected');
+                    selectedRows.push(row);
+                    selectedSystems.push(systemData);
+                }
+
+                // Update lastClickedRow for future range selections
+                lastClickedRow = row;
+            } else {
+                // Normal click: Single-select mode
+                const rowIndex = selectedRows.indexOf(row);
+
+                // Clear all selections
+                selectedRows.forEach(r => r.classList.remove('selected'));
+                selectedRows = [];
+                selectedSystems = [];
+
+                if (rowIndex === -1) {
+                    // Select this row
+                    row.classList.add('selected');
+                    selectedRows.push(row);
+                    selectedSystems.push(systemData);
+                }
+
+                // Update lastClickedRow for future range selections
+                lastClickedRow = row;
+            }
+
+            // Update button state and count
+            const selectedCount = selectedSystems.length;
+            document.getElementById('selected-count').textContent = selectedCount;
+            document.getElementById('refresh-btn').disabled = selectedCount === 0;
+
+            // Update firmware button state
+            updateFirmwareButtonState();
+        }
+
+        // Refresh selected systems
+        async function handleRefreshSelected() {
+            if (selectedSystems.length === 0) return;
+
+            const refreshBtn = document.getElementById('refresh-btn');
+            const originalText = refreshBtn.textContent;
+            refreshBtn.disabled = true;
+            refreshBtn.textContent = `Refreshing ${selectedSystems.length} system(s)...`;
+
+            try {
+                const response = await fetch('/api/refresh-multiple', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        systems: selectedSystems
+                    })
+                });
+
+                // Check if response is JSON
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const text = await response.text();
+                    console.error('Non-JSON response:', text);
+                    showNotification('Server error: Expected JSON response', 'error');
+                    refreshBtn.disabled = false;
+                    refreshBtn.textContent = originalText;
+                    return;
+                }
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    // Refresh table data to show the updated information
+                    setTimeout(() => {
+                        console.log('DRACS: Manual refresh triggered table reload');
+                        refreshTableData();
+                        // Re-enable button after table refresh
+                        refreshBtn.disabled = selectedSystems.length === 0;
+                        refreshBtn.textContent = originalText;
+                    }, 1000);
+                } else {
+                    showNotification(data.message, 'error');
+                    refreshBtn.disabled = selectedSystems.length === 0;
+                    refreshBtn.textContent = originalText;
+                }
+            } catch (error) {
+                console.error('Refresh error:', error);
+                showNotification('Refresh failed: ' + error.message, 'error');
+                refreshBtn.disabled = false;
+                refreshBtn.textContent = originalText;
+            }
+        }
+
+        // Refresh all systems
+        async function handleRefreshAll() {
+            if (!confirm('This will refresh all systems in the database. This may take several minutes. Continue?')) {
+                return;
+            }
+
+            const refreshAllBtn = document.getElementById('refresh-all-btn');
+            const originalText = refreshAllBtn.textContent;
+            refreshAllBtn.disabled = true;
+            refreshAllBtn.textContent = 'Refreshing all systems...';
+
+            try {
+                const response = await fetch('/api/refresh-all', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                // Check if response is JSON
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const text = await response.text();
+                    console.error('Non-JSON response:', text);
+                    showNotification('Server error: Expected JSON response', 'error');
+                    refreshAllBtn.disabled = false;
+                    refreshAllBtn.textContent = originalText;
+                    return;
+                }
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    // Reload data after 1 second
+                    setTimeout(() => {
+                        console.log('DRACS: Refresh all triggered table reload');
+                        refreshTableData();
+                        // Re-enable button after table refresh
+                        refreshAllBtn.disabled = false;
+                        refreshAllBtn.textContent = originalText;
+                    }, 1000);
+                } else {
+                    showNotification(data.message, 'error');
+                    refreshAllBtn.disabled = false;
+                    refreshAllBtn.textContent = originalText;
+                }
+            } catch (error) {
+                console.error('Refresh all error:', error);
+                showNotification('Refresh all failed: ' + error.message, 'error');
+                refreshAllBtn.disabled = false;
+                refreshAllBtn.textContent = originalText;
+            }
+        }
+
+        // Refresh table data without full page reload
+        async function refreshTableData() {
+            // Prevent concurrent refreshes
+            if (isRefreshing) {
+                console.log('DRACS: Refresh already in progress, skipping...');
+                return;
+            }
+
+            try {
+                isRefreshing = true;
+                console.log('DRACS: Refreshing table data...');
+                const response = await fetch('/api/systems');
+                const data = await response.json();
+
+                console.log('DRACS: Received', data.length, 'systems from API');
+
+                // Get fresh references to DOM elements
+                const tableBodyEl = document.getElementById('table-body');
+                const hostnameFilterEl = document.getElementById('hostname-filter');
+                const modelFilterEl = document.getElementById('model-filter');
+                const biosVersionEl = document.getElementById('bios-version');
+                const biosOperatorEl = document.getElementById('bios-operator');
+                const firmwareVersionEl = document.getElementById('firmware-version');
+                const firmwareOperatorEl = document.getElementById('firmware-operator');
+                const totalCountEl = document.getElementById('total-count');
+                const selectedCountEl = document.getElementById('selected-count');
+
+                if (!tableBodyEl) {
+                    console.error('DRACS: table-body element not found!');
+                    return;
+                }
+
+                // Save current filter values
+                const hostnameText = hostnameFilterEl.value;
+                const biosVersionValue = biosVersionEl.value;
+                const biosOperatorValue = biosOperatorEl.value;
+                const firmwareVersionValue = firmwareVersionEl.value;
+                const firmwareOperatorValue = firmwareOperatorEl.value;
+                const selectedModelValues = Array.from(modelFilterEl.selectedOptions).map(opt => opt.value);
+
+                console.log('DRACS: Current filters - hostname:', hostnameText, 'models:', selectedModelValues);
+
+                // Remember currently selected service tags
+                const selectedTags = selectedSystems.map(s => s.service_tag);
+
+                // Remember the service tag of the last clicked row for range selection
+                const lastClickedTag = lastClickedRow ? lastClickedRow.getElementsByTagName('td')[0].textContent : null;
+
+                // Clear selection arrays
+                selectedRows = [];
+                selectedSystems = [];
+                lastClickedRow = null;  // Will be restored below if found
+
+                // Clear current table before rebuilding
+                console.log('DRACS: Clearing table, current row count:', tableBodyEl.children.length);
+                tableBodyEl.innerHTML = '';
+                console.log('DRACS: Table cleared, row count:', tableBodyEl.children.length);
+
+                // Rebuild table
+                data.forEach(system => {
+                    const row = createRow(system);
+                    tableBodyEl.appendChild(row);
+
+                    // Re-select previously selected rows
+                    if (selectedTags.includes(system.svc_tag)) {
+                        row.classList.add('selected');
+                        selectedRows.push(row);
+                        const cells = row.getElementsByTagName('td');
+                        selectedSystems.push({
+                            service_tag: cells[0].textContent,
+                            hostname: cells[1].textContent,
+                            model: cells[2].textContent
+                        });
+                    }
+
+                    // Restore lastClickedRow reference
+                    if (lastClickedTag && system.svc_tag === lastClickedTag) {
+                        lastClickedRow = row;
+                    }
+                });
+
+                console.log('DRACS: Table rebuilt, row count:', tableBodyEl.children.length);
+
+                // Update counts
+                if (totalCountEl) totalCountEl.textContent = data.length;
+                if (selectedCountEl) selectedCountEl.textContent = selectedSystems.length;
+
+                // Restore filter values (in case they got cleared somehow)
+                hostnameFilterEl.value = hostnameText;
+                biosVersionEl.value = biosVersionValue;
+                biosOperatorEl.value = biosOperatorValue;
+                firmwareVersionEl.value = firmwareVersionValue;
+                firmwareOperatorEl.value = firmwareOperatorValue;
+
+                // Restore model selections
+                Array.from(modelFilterEl.options).forEach(option => {
+                    option.selected = selectedModelValues.includes(option.value);
+                });
+
+                console.log('DRACS: Reapplying filters...');
+                // Reapply filters
+                applyFilters();
+
+                // Update firmware button state after refresh
+                if (isAuthenticated) {
+                    updateFirmwareButtonState();
+                }
+
+                console.log('DRACS: Table refresh complete, visible rows:', document.querySelectorAll('#table-body tr:not(.hidden)').length);
+            } catch (error) {
+                console.error('Error refreshing table data:', error);
+            } finally {
+                isRefreshing = false;
+            }
+        }
+
+        // Update Firmware button state and populate versions
+        async function updateFirmwareButtonState() {
+            const updateBtn = document.getElementById('update-firmware-btn');
+            const versionSelect = document.getElementById('firmware-version-select');
+            const biosUpdateBtn = document.getElementById('update-bios-btn');
+            const biosVersionSelect = document.getElementById('bios-version-select');
+
+            if (selectedSystems.length !== 1) {
+                // Disable both buttons when 0 or multiple systems selected
+                updateBtn.style.display = 'inline-block';
+                updateBtn.disabled = true;
+                versionSelect.style.display = 'none';
+
+                biosUpdateBtn.style.display = 'inline-block';
+                biosUpdateBtn.disabled = true;
+                biosUpdateBtn.classList.remove('unavailable');
+                biosUpdateBtn.innerHTML = 'Update BIOS';
+                biosVersionSelect.style.display = 'none';
+            } else {
+                // Exactly one system selected - fetch firmware versions
+                const selectedSystem = selectedSystems[0];
+                const newerFirmwareVersions = selectedSystem.model ? await fetchFirmwareVersions(selectedSystem) : null;
+
+                if (newerFirmwareVersions && newerFirmwareVersions.length > 0) {
+                    // Show firmware dropdown with available versions
+                    updateBtn.style.display = 'none';
+                    versionSelect.style.display = 'inline-block';
+                    populateFirmwareVersions(versionSelect, newerFirmwareVersions);
+                } else {
+                    // No newer firmware versions available
+                    updateBtn.style.display = 'inline-block';
+                    updateBtn.disabled = true;
+                    versionSelect.style.display = 'none';
+                }
+
+                // Update BIOS button state
+                await updateBiosButtonState(selectedSystem, newerFirmwareVersions);
+            }
+        }
+
+        // Update BIOS button state
+        async function updateBiosButtonState(selectedSystem, newerFirmwareVersions) {
+            const biosUpdateBtn = document.getElementById('update-bios-btn');
+            const biosVersionSelect = document.getElementById('bios-version-select');
+
+            // Check if firmware is the newest available
+            const firmwareIsNewest = !newerFirmwareVersions || newerFirmwareVersions.length === 0;
+
+            if (!firmwareIsNewest) {
+                // Firmware is not newest - show unavailable message
+                biosUpdateBtn.style.display = 'inline-block';
+                biosUpdateBtn.disabled = true;
+                biosUpdateBtn.classList.add('unavailable');
+                biosUpdateBtn.innerHTML = 'Update BIOS unavailable<span class="subtitle">(Update Firmware)</span>';
+                biosVersionSelect.style.display = 'none';
+            } else {
+                // Firmware is newest - check for newer BIOS versions
+                const newerBiosVersions = selectedSystem.model ? await fetchBiosVersions(selectedSystem) : null;
+
+                if (newerBiosVersions && newerBiosVersions.length > 0) {
+                    // Show BIOS dropdown with available versions
+                    biosUpdateBtn.style.display = 'none';
+                    biosVersionSelect.style.display = 'inline-block';
+                    populateBiosVersions(biosVersionSelect, newerBiosVersions);
+                } else {
+                    // No newer BIOS versions available
+                    biosUpdateBtn.style.display = 'inline-block';
+                    biosUpdateBtn.disabled = true;
+                    biosUpdateBtn.classList.remove('unavailable');
+                    biosUpdateBtn.innerHTML = 'Update BIOS';
+                    biosVersionSelect.style.display = 'none';
+                }
+            }
+        }
+
+        // Fetch firmware versions for the selected system's model
+        async function fetchFirmwareVersions(system) {
+            try {
+                // Get the selected row to extract current firmware version
+                const selectedRow = selectedRows[0];
+                const cells = selectedRow.getElementsByTagName('td');
+                const currentFirmwareVersion = cells[3].textContent.trim(); // Column index 3 is firmware
+                const model = system.model;
+
+                if (!model) {
+                    console.log('DRACS: No model found for selected system');
+                    return [];
+                }
+
+                console.log('DRACS: Fetching firmware versions for model:', model, 'current version:', currentFirmwareVersion);
+
+                const response = await fetch(`/api/firmware-versions/${encodeURIComponent(model)}`);
+                const data = await response.json();
+
+                if (!data.success) {
+                    console.error('DRACS: Failed to fetch firmware versions:', data.message);
+                    return [];
+                }
+
+                console.log('DRACS: Received versions:', data.versions);
+
+                // Filter to only versions newer than current
+                const newerVersions = data.versions.filter(version => {
+                    const comparison = compareVersions(version, currentFirmwareVersion);
+                    return comparison > 0; // Only include if version > currentVersion
+                });
+
+                console.log('DRACS: Newer versions:', newerVersions);
+
+                return newerVersions;
+            } catch (error) {
+                console.error('DRACS: Error fetching firmware versions:', error);
+                return [];
+            }
+        }
+
+        // Populate firmware version dropdown
+        function populateFirmwareVersions(selectElement, versions) {
+            // Clear existing options
+            selectElement.innerHTML = '<option value="">Select firmware version...</option>';
+
+            // Sort versions in descending order (newest first)
+            const sortedVersions = versions.slice().sort((a, b) => compareVersions(b, a));
+
+            // Add newer versions
+            sortedVersions.forEach(version => {
+                const option = document.createElement('option');
+                option.value = version;
+                option.textContent = version;
+                selectElement.appendChild(option);
+            });
+        }
+
+        // Fetch BIOS versions for the selected system's model
+        async function fetchBiosVersions(system) {
+            try {
+                // Get the selected row to extract current BIOS version
+                const selectedRow = selectedRows[0];
+                const cells = selectedRow.getElementsByTagName('td');
+                const currentBiosVersion = cells[4].textContent.trim(); // Column index 4 is BIOS
+                const model = system.model;
+
+                if (!model) {
+                    console.log('DRACS: No model found for selected system');
+                    return [];
+                }
+
+                console.log('DRACS: Fetching BIOS versions for model:', model, 'current version:', currentBiosVersion);
+
+                const response = await fetch(`/api/bios-versions/${encodeURIComponent(model)}`);
+                const data = await response.json();
+
+                if (!data.success) {
+                    console.error('DRACS: Failed to fetch BIOS versions:', data.message);
+                    return [];
+                }
+
+                console.log('DRACS: Received BIOS versions:', data.versions);
+
+                // Filter to only versions newer than current
+                const newerVersions = data.versions.filter(version => {
+                    const comparison = compareVersions(version, currentBiosVersion);
+                    return comparison > 0; // Only include if version > currentVersion
+                });
+
+                console.log('DRACS: Newer BIOS versions:', newerVersions);
+
+                return newerVersions;
+            } catch (error) {
+                console.error('DRACS: Error fetching BIOS versions:', error);
+                return [];
+            }
+        }
+
+        // Populate BIOS version dropdown
+        function populateBiosVersions(selectElement, versions) {
+            // Clear existing options
+            selectElement.innerHTML = '<option value="">Select BIOS version...</option>';
+
+            // Sort versions in descending order (newest first)
+            const sortedVersions = versions.slice().sort((a, b) => compareVersions(b, a));
+
+            // Add newer versions
+            sortedVersions.forEach(version => {
+                const option = document.createElement('option');
+                option.value = version;
+                option.textContent = version;
+                selectElement.appendChild(option);
+            });
+        }
+
+        // Handle firmware version selection
+        function handleFirmwareVersionSelect(event) {
+            const selectedVersion = event.target.value;
+
+            if (!selectedVersion) {
+                return; // User selected the placeholder option
+            }
+
+            const selectedSystem = selectedSystems[0];
+            const hostname = selectedSystem.hostname;
+            const currentFirmwareVersion = selectedRows[0].getElementsByTagName('td')[3].textContent.trim();
+
+            // Store pending update info
+            pendingFirmwareUpdate = {
+                hostname: hostname,
+                currentVersion: currentFirmwareVersion,
+                newVersion: selectedVersion,
+                serviceTag: selectedSystem.service_tag,
+                model: selectedSystem.model
+            };
+
+            // Populate and show confirmation modal
+            document.getElementById('firmware-hostname').textContent = hostname;
+            document.getElementById('firmware-current-version').textContent = currentFirmwareVersion;
+            document.getElementById('firmware-new-version').textContent = selectedVersion;
+            document.getElementById('firmware-confirm-modal').classList.add('active');
+
+            // Reset dropdown to placeholder
+            event.target.value = '';
+        }
+
+        // Confirm firmware update
+        async function confirmFirmwareUpdate() {
+            if (!pendingFirmwareUpdate) return;
+
+            console.log('DRACS: User confirmed firmware update to version:', pendingFirmwareUpdate.newVersion, 'for host:', pendingFirmwareUpdate.hostname);
+
+            // Close the confirmation modal first
+            document.getElementById('firmware-confirm-modal').classList.remove('active');
+
+            // Test iDRAC connectivity before proceeding
+            showNotification('Testing iDRAC connectivity...', 'success');
+
+            try {
+                const response = await fetch('/api/test-idrac', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        hostname: pendingFirmwareUpdate.hostname
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // iDRAC access succeeded
+                    showNotification(data.message, 'success');
+                    console.log('DRACS: iDRAC connectivity test passed');
+
+                    // Proceed with actual firmware update
+                    setTimeout(async () => {
+                        showNotification('Initiating firmware update...', 'success');
+
+                        try {
+                            const updateResponse = await fetch('/api/firmware-update', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                    hostname: pendingFirmwareUpdate.hostname,
+                                    target_version: pendingFirmwareUpdate.newVersion,
+                                    model: pendingFirmwareUpdate.model
+                                })
+                            });
+
+                            const updateData = await updateResponse.json();
+
+                            if (updateData.success) {
+                                showNotification(updateData.message, 'success');
+                                console.log('DRACS: Firmware update initiated successfully');
+                            } else {
+                                showNotification(updateData.message, 'error');
+                                console.error('DRACS: Firmware update failed:', updateData.message);
+                            }
+                        } catch (error) {
+                            console.error('DRACS: Error initiating firmware update:', error);
+                            showNotification('Firmware update failed: ' + error.message, 'error');
+                        }
+                    }, 2000);
+                } else {
+                    // iDRAC access failed
+                    showNotification(data.message, 'error');
+                    console.error('DRACS: iDRAC connectivity test failed:', data.message);
+                }
+            } catch (error) {
+                console.error('DRACS: Error testing iDRAC connectivity:', error);
+                showNotification('iDRAC Access Failed: ' + error.message, 'error');
+            }
+
+            // Clear pending update
+            pendingFirmwareUpdate = null;
+        }
+
+        // Cancel firmware update
+        function cancelFirmwareUpdate() {
+            console.log('DRACS: User cancelled firmware update');
+
+            // Close modal and clear pending update
+            document.getElementById('firmware-confirm-modal').classList.remove('active');
+            pendingFirmwareUpdate = null;
+        }
+
+        // Handle BIOS version selection
+        function handleBiosVersionSelect(event) {
+            const selectedVersion = event.target.value;
+
+            if (!selectedVersion) {
+                return; // User selected the placeholder option
+            }
+
+            const selectedSystem = selectedSystems[0];
+            const hostname = selectedSystem.hostname;
+            const currentBiosVersion = selectedRows[0].getElementsByTagName('td')[4].textContent.trim();
+
+            // Store pending update info
+            pendingBiosUpdate = {
+                hostname: hostname,
+                currentVersion: currentBiosVersion,
+                newVersion: selectedVersion,
+                serviceTag: selectedSystem.service_tag,
+                model: selectedSystem.model
+            };
+
+            // Populate and show confirmation modal
+            document.getElementById('bios-hostname').textContent = hostname;
+            document.getElementById('bios-current-version').textContent = currentBiosVersion;
+            document.getElementById('bios-new-version').textContent = selectedVersion;
+            document.getElementById('bios-confirm-modal').classList.add('active');
+
+            // Reset dropdown to placeholder
+            event.target.value = '';
+        }
+
+        // Confirm BIOS update
+        async function confirmBiosUpdate() {
+            if (!pendingBiosUpdate) return;
+
+            console.log('DRACS: User confirmed BIOS update to version:', pendingBiosUpdate.newVersion, 'for host:', pendingBiosUpdate.hostname);
+
+            // Close the confirmation modal first
+            document.getElementById('bios-confirm-modal').classList.remove('active');
+
+            // Test iDRAC connectivity before proceeding
+            showNotification('Testing iDRAC connectivity...', 'success');
+
+            try {
+                const response = await fetch('/api/test-idrac', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        hostname: pendingBiosUpdate.hostname
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // iDRAC access succeeded
+                    showNotification(data.message, 'success');
+                    console.log('DRACS: iDRAC connectivity test passed');
+
+                    // Proceed with actual BIOS update
+                    setTimeout(async () => {
+                        showNotification('Initiating BIOS update...', 'success');
+
+                        try {
+                            const updateResponse = await fetch('/api/bios-update', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                    hostname: pendingBiosUpdate.hostname,
+                                    target_bios: pendingBiosUpdate.newVersion,
+                                    model: pendingBiosUpdate.model
+                                })
+                            });
+
+                            const updateData = await updateResponse.json();
+
+                            if (updateData.success) {
+                                showNotification(updateData.message, 'success');
+                                console.log('DRACS: BIOS update initiated successfully');
+                            } else {
+                                showNotification(updateData.message, 'error');
+                                console.error('DRACS: BIOS update failed:', updateData.message);
+                            }
+                        } catch (error) {
+                            console.error('DRACS: Error initiating BIOS update:', error);
+                            showNotification('BIOS update failed: ' + error.message, 'error');
+                        }
+                    }, 2000);
+                } else {
+                    // iDRAC access failed
+                    showNotification(data.message, 'error');
+                    console.error('DRACS: iDRAC connectivity test failed:', data.message);
+                }
+            } catch (error) {
+                console.error('DRACS: Error testing iDRAC connectivity:', error);
+                showNotification('iDRAC Access Failed: ' + error.message, 'error');
+            }
+
+            // Clear pending update
+            pendingBiosUpdate = null;
+        }
+
+        // Cancel BIOS update
+        function cancelBiosUpdate() {
+            console.log('DRACS: User cancelled BIOS update');
+
+            // Close modal and clear pending update
+            document.getElementById('bios-confirm-modal').classList.remove('active');
+            pendingBiosUpdate = null;
+        }
+
+        // Auto-refresh functionality
+        function startAutoRefresh() {
+            if (refreshFrequency > 0) {
+                console.log('DRACS: Starting auto-refresh every', refreshFrequency, 'seconds');
+                autoRefreshTimer = setInterval(() => {
+                    console.log('DRACS: Auto-refreshing table data');
+                    refreshTableData();
+                }, refreshFrequency * 1000);
+            } else {
+                console.log('DRACS: Auto-refresh disabled (frequency = 0)');
+            }
+        }
+
+        function stopAutoRefresh() {
+            if (autoRefreshTimer) {
+                clearInterval(autoRefreshTimer);
+                autoRefreshTimer = null;
+                console.log('DRACS: Auto-refresh stopped');
+            }
+        }
+
+        // Notification functions
+        function showNotification(message, type) {
+            const notification = document.getElementById('notification');
+            const messageSpan = document.getElementById('notification-message');
+
+            messageSpan.textContent = message;
+            notification.className = 'notification active ' + type;
+
+            // Auto-hide success messages after 5 seconds
+            if (type === 'success') {
+                setTimeout(() => {
+                    hideNotification();
+                }, 5000);
+            }
+        }
+
+        function hideNotification() {
+            document.getElementById('notification').classList.remove('active');
+        }
+
+        // Close modal on background click
+        document.getElementById('login-modal').addEventListener('click', function(event) {
+            if (event.target === this) {
+                hideLoginModal();
+            }
+        });
+
+        // Close firmware confirmation modal on background click
+        document.getElementById('firmware-confirm-modal').addEventListener('click', function(event) {
+            if (event.target === this) {
+                cancelFirmwareUpdate();
+            }
+        });
+
+        // Close BIOS confirmation modal on background click
+        document.getElementById('bios-confirm-modal').addEventListener('click', function(event) {
+            if (event.target === this) {
+                cancelBiosUpdate();
+            }
+        });
+
+        // Embed data from Flask
+        const systems = {{ systems_json | safe }};
+        const biosVersions = {{ bios_versions_json | safe }};
+        const firmwareVersions = {{ firmware_versions_json | safe }};
+        const models = {{ models_json | safe }};
+
+        // Get filter elements
+        const hostnameFilter = document.getElementById('hostname-filter');
+        const modelFilter = document.getElementById('model-filter');
+        const biosVersionSelect = document.getElementById('bios-version');
+        const biosOperatorSelect = document.getElementById('bios-operator');
+        const firmwareVersionSelect = document.getElementById('firmware-version');
+        const firmwareOperatorSelect = document.getElementById('firmware-operator');
+        const tableBody = document.getElementById('table-body');
+        const resultsCount = document.getElementById('results-count');
+        const totalCount = document.getElementById('total-count');
+        const noResults = document.getElementById('no-results');
+
+        // Populate version dropdowns
+        biosVersions.forEach(version => {
+            const option = document.createElement('option');
+            option.value = version;
+            option.textContent = version;
+            biosVersionSelect.appendChild(option);
+        });
+
+        firmwareVersions.forEach(version => {
+            const option = document.createElement('option');
+            option.value = version;
+            option.textContent = version;
+            firmwareVersionSelect.appendChild(option);
+        });
+
+        // Populate model multi-select dropdown
+        models.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model;
+            option.textContent = model;
+            modelFilter.appendChild(option);
+        });
+
+        // Version comparison function
+        function parseVersion(versionStr) {
+            if (!versionStr) return [];
+            return versionStr.split('.').map(part => {
+                const num = parseInt(part, 10);
+                return isNaN(num) ? 0 : num;
+            });
+        }
+
+        function compareVersions(v1, v2) {
+            const parts1 = parseVersion(v1);
+            const parts2 = parseVersion(v2);
+            const maxLen = Math.max(parts1.length, parts2.length);
+
+            for (let i = 0; i < maxLen; i++) {
+                const p1 = parts1[i] || 0;
+                const p2 = parts2[i] || 0;
+
+                if (p1 < p2) return -1;
+                if (p1 > p2) return 1;
+            }
+            return 0;
+        }
+
+        function matchesVersionFilter(systemVersion, filterVersion, operator) {
+            if (!operator || !filterVersion) return true;
+            if (!systemVersion) return false;
+
+            const cmp = compareVersions(systemVersion, filterVersion);
+
+            switch (operator) {
+                case '<=': return cmp <= 0;
+                case '<': return cmp < 0;
+                case '>=': return cmp >= 0;
+                case '>': return cmp > 0;
+                case '=': return cmp === 0;
+                default: return true;
+            }
+        }
+
+        // Create table row
+        function createRow(system) {
+            const row = document.createElement('tr');
+            row.dataset.hostname = (system.name || '').toLowerCase();
+            row.dataset.model = system.model || '';
+            row.dataset.biosVersion = system.bios_version || '';
+            row.dataset.firmwareVersion = system.idrac_version || '';
+
+            row.innerHTML = `
+                <td>${system.svc_tag || ''}</td>
+                <td>${system.name || ''}</td>
+                <td>${system.model || ''}</td>
+                <td>${system.idrac_version || ''}</td>
+                <td>${system.bios_version || ''}</td>
+                <td>${system.exp_date || ''}</td>
+                <td>${system.exp_epoch || ''}</td>
+            `;
+
+            return row;
+        }
+
+        // Filter rows
+        function applyFilters() {
+            const hostnameText = hostnameFilter.value.toLowerCase();
+            const biosVersion = biosVersionSelect.value;
+            const biosOperator = biosOperatorSelect.value;
+            const firmwareVersion = firmwareVersionSelect.value;
+            const firmwareOperator = firmwareOperatorSelect.value;
+
+            // Get selected models from multi-select
+            const selectedModels = Array.from(modelFilter.selectedOptions).map(opt => opt.value);
+
+            let visibleCount = 0;
+
+            const rows = tableBody.querySelectorAll('tr');
+            rows.forEach(row => {
+                const hostname = row.dataset.hostname;
+                const rowModel = row.dataset.model;
+                const rowBiosVersion = row.dataset.biosVersion;
+                const rowFirmwareVersion = row.dataset.firmwareVersion;
+
+                // Check hostname filter
+                const hostnameMatch = !hostnameText || hostname.includes(hostnameText);
+
+                // Check model filter (if any models selected, row model must be in the list)
+                const modelMatch = selectedModels.length === 0 || selectedModels.includes(rowModel);
+
+                // Check BIOS version filter
+                const biosMatch = matchesVersionFilter(rowBiosVersion, biosVersion, biosOperator);
+
+                // Check firmware version filter
+                const firmwareMatch = matchesVersionFilter(rowFirmwareVersion, firmwareVersion, firmwareOperator);
+
+                // Show row if all filters match
+                if (hostnameMatch && modelMatch && biosMatch && firmwareMatch) {
+                    row.classList.remove('hidden');
+                    visibleCount++;
+                } else {
+                    row.classList.add('hidden');
+                }
+            });
+
+            // Update results count
+            resultsCount.textContent = visibleCount;
+
+            // Show/hide no results message
+            if (visibleCount === 0 && rows.length > 0) {
+                noResults.style.display = 'block';
+                document.getElementById('systems-table').style.display = 'none';
+            } else {
+                noResults.style.display = 'none';
+                document.getElementById('systems-table').style.display = 'table';
+            }
+        }
+
+        // Initialize table
+        function initTable() {
+            systems.forEach(system => {
+                const row = createRow(system);
+                tableBody.appendChild(row);
+            });
+
+            totalCount.textContent = systems.length;
+            resultsCount.textContent = systems.length;
+
+            if (systems.length === 0) {
+                noResults.textContent = 'No systems found in database';
+                noResults.style.display = 'block';
+                document.getElementById('systems-table').style.display = 'none';
+            }
+        }
+
+        // Add event listeners
+        hostnameFilter.addEventListener('input', applyFilters);
+        modelFilter.addEventListener('change', applyFilters);
+        biosVersionSelect.addEventListener('change', applyFilters);
+        biosOperatorSelect.addEventListener('change', applyFilters);
+        firmwareVersionSelect.addEventListener('change', applyFilters);
+        firmwareOperatorSelect.addEventListener('change', applyFilters);
+
+        // Initialize on page load
+        initTable();
+
+        // Add row click handler to table body (for admin users)
+        if (isAuthenticated) {
+            document.getElementById('table-body').addEventListener('click', handleRowClick);
+        }
+
+        // Start auto-refresh if enabled
+        startAutoRefresh();
+    </script>
+</body>
+</html>

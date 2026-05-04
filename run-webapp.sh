@@ -1,0 +1,43 @@
+#!/bin/bash
+# Launch script for DRACS web application
+
+# Change to project directory
+cd "$(dirname "$0")"
+
+# Set database path (default to current directory)
+export DRACS_DB="${DRACS_DB:-./warranty.db}"
+
+# Check if virtualenv is activated
+if [ -z "$VIRTUAL_ENV" ]; then
+    echo "Warning: No virtualenv activated!"
+    echo "Please run: uv sync && source .venv/bin/activate"
+    echo "Or use: uv run gunicorn -c gunicorn.conf.py dracs.webapp:app"
+    exit 1
+fi
+
+# Set Flask secret key from gunicorn config (unless already set)
+if [ -z "$FLASK_SECRET_KEY" ]; then
+    export FLASK_SECRET_KEY="dev-secret-key-change-in-production-12345678901234567890123456789012"
+fi
+
+# Set admin credentials from gunicorn config (unless already set)
+if [ -z "$WEBADMIN_USER" ]; then
+    export WEBADMIN_USER="admin"
+fi
+if [ -z "$WEBADMIN_PASSWORD" ]; then
+    export WEBADMIN_PASSWORD="admin"
+fi
+
+# Set refresh frequency from gunicorn config (unless already set)
+if [ -z "$REFRESH_FREQUENCY" ]; then
+    export REFRESH_FREQUENCY="10"
+fi
+
+echo "Starting DRACS web application..."
+echo "Using virtualenv: $VIRTUAL_ENV"
+echo "Database: $DRACS_DB"
+echo "Server: http://0.0.0.0:1888"
+echo ""
+
+# Launch gunicorn from activated virtualenv
+gunicorn -c gunicorn.conf.py "dracs.webapp:app"
