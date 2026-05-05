@@ -65,6 +65,12 @@
             border: 1px solid #ddd;
             border-radius: 4px;
             font-size: 14px;
+            background-color: #ffffff;
+            color: #333;
+        }
+
+        input[type="text"]::placeholder {
+            color: #999;
         }
 
         input[type="text"]:focus,
@@ -638,6 +644,10 @@
         body.dark-theme select:focus {
             border-color: #007bff;
             background-color: #3a3a3a;
+        }
+
+        body.dark-theme input[type="text"]::placeholder {
+            color: #777;
         }
 
         body.dark-theme select[multiple] option:checked {
