@@ -17,6 +17,8 @@ dependencies = [
     "sqlalchemy>=2.0.0",
     "flask>=3.0.0",
     "gunicorn>=21.2.0",
+    "build",
+    "twine",
 ]
 
 [project.scripts]
@@ -51,3 +53,15 @@ asyncio_default_fixture_loop_scope = "function"
 [tool.black]
 line-length = 88
 target-version = ['py312']
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+  "/.claude",
+  "/claude.md",
+]
+
+[tool.hatch.build.targets.wheel]
+exclude = [
+  "/.claude",
+  "/claude.md",
+]
