@@ -7,6 +7,7 @@ import json
 import os
 import re
 import subprocess
+import threading
 from pathlib import Path
 from dotenv import load_dotenv
 from flask import Flask, render_template, jsonify, session, request
@@ -118,6 +119,24 @@ def get_idrac_credentials(hostname: str) -> tuple:
     return (username, password)
 
 
+def _run_command_thread(cmd: list, log_file_path: str) -> None:
+    """Run a command in a background thread and properly wait for completion."""
+    try:
+        with open(log_file_path, 'a') as log_file:
+            subprocess.run(
+                cmd,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                timeout=600
+            )
+    except subprocess.TimeoutExpired:
+        with open(log_file_path, 'a') as log_file:
+            log_file.write("\nCommand timed out after 600 seconds\n")
+    except Exception as e:
+        with open(log_file_path, 'a') as log_file:
+            log_file.write(f"\nError running command: {str(e)}\n")
+
+
 def run_command_background(cmd: list, log_file_path: str) -> bool:
     """
     Run a command in the background without blocking.
@@ -135,26 +154,21 @@ def run_command_background(cmd: list, log_file_path: str) -> bool:
         if log_dir:
             os.makedirs(log_dir, exist_ok=True)
 
-        # Open log file for writing
+        # Write initial log header
         with open(log_file_path, 'w') as log_file:
             log_file.write(f"Command started at: {datetime.now().isoformat()}\n")
             log_file.write(f"Command: {' '.join(cmd)}\n")
             log_file.write("-" * 80 + "\n\n")
-            log_file.flush()
 
-            # Start process in background
-            # Use Popen instead of run to avoid blocking
-            # Redirect stdout and stderr to log file
-            subprocess.Popen(
-                cmd,
-                stdout=log_file,
-                stderr=subprocess.STDOUT,
-                start_new_session=True  # Detach from parent process
-            )
+        # Start command in a daemon thread
+        thread = threading.Thread(
+            target=_run_command_thread,
+            args=(cmd, log_file_path),
+            daemon=True
+        )
+        thread.start()
 
-            # Process is now running in background
-            # We don't wait for it to complete
-            return True
+        return True
 
     except Exception as e:
         # Log the error
@@ -191,6 +205,61 @@ def get_bios_filename(model: str, bios_version: str) -> str:
 
     # Get filename for the BIOS version
     return config[model].get(bios_version, None)
+
+
+def parse_job_queue(output: str) -> list:
+    """
+    Parse the output from 'racadm jobqueue view' command.
+
+    Args:
+        output: The raw output from the command
+
+    Returns:
+        list: List of dictionaries containing job information
+    """
+    jobs = []
+    current_job = {}
+
+    for line in output.split('\n'):
+        line = line.strip()
+
+        # Skip empty lines and separator lines
+        if not line or line.startswith('---') or 'JOB QUEUE' in line:
+            continue
+
+        # New job starts with [Job ID=...]
+        if line.startswith('[Job ID='):
+            # Save previous job if it exists
+            if current_job:
+                jobs.append(current_job)
+            # Start new job
+            job_id = line.replace('[Job ID=', '').replace(']', '')
+            current_job = {'job_id': job_id}
+        elif '=' in line and current_job:
+            # Parse key=value pairs
+            key, value = line.split('=', 1)
+            key = key.strip()
+            value = value.strip().replace('[', '').replace(']', '')
+
+            # Map to our field names
+            if key == 'Job Name':
+                current_job['job_name'] = value
+            elif key == 'Status':
+                current_job['status'] = value
+            elif key == 'Actual Start Time':
+                current_job['actual_start_time'] = value
+            elif key == 'Actual Completion Time':
+                current_job['actual_completion_time'] = value
+            elif key == 'Message':
+                current_job['message'] = value
+            elif key == 'Percent Complete':
+                current_job['percent_complete'] = value
+
+    # Don't forget the last job
+    if current_job:
+        jobs.append(current_job)
+
+    return jobs
 
 
 def test_idrac_connectivity(hostname: str) -> tuple:
@@ -650,6 +719,145 @@ def api_bios_update():
 
     except FileNotFoundError:
         return jsonify({"success": False, "message": "sshpass command not found"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+
+@app.route("/api/job-queue", methods=["POST"])
+def api_job_queue():
+    """Retrieve job queue from iDRAC via SSH."""
+    try:
+        # Check authentication
+        if not session.get("authenticated", False):
+            return jsonify({"success": False, "message": "Authentication required"}), 401
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "message": "Invalid request"}), 400
+
+        hostname = data.get("hostname", "").strip()
+
+        if not hostname:
+            return jsonify({"success": False, "message": "Hostname required"}), 400
+
+        # Build iDRAC FQDN
+        idrac_fqdn = build_idrac_hostname(hostname)
+
+        # Get credentials
+        username, password = get_idrac_credentials(hostname)
+
+        # Build job queue command
+        cmd = [
+            "sshpass",
+            "-p", password,
+            "ssh",
+            "-o", "StrictHostKeyChecking=no",
+            "-o", "UserKnownHostsFile=/dev/null",
+            "-o", "ConnectTimeout=10",
+            f"{username}@{idrac_fqdn}",
+            "racadm", "jobqueue", "view"
+        ]
+
+        # Run command and capture output
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+
+        if result.returncode != 0:
+            return jsonify({
+                "success": False,
+                "message": f"Command failed with exit code {result.returncode}: {result.stderr}"
+            }), 500
+
+        # Parse job queue output
+        jobs = parse_job_queue(result.stdout)
+
+        return jsonify({
+            "success": True,
+            "jobs": jobs
+        })
+
+    except FileNotFoundError:
+        return jsonify({"success": False, "message": "sshpass command not found"}), 500
+    except subprocess.TimeoutExpired:
+        return jsonify({"success": False, "message": "Command timed out"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+
+def _clear_single_job_queue(hostname: str) -> None:
+    """
+    Clear job queue for a single host in a background thread.
+    This function properly waits for the command to complete, avoiding zombie processes.
+    """
+    try:
+        # Build iDRAC FQDN
+        idrac_fqdn = build_idrac_hostname(hostname)
+
+        # Get credentials
+        username, password = get_idrac_credentials(hostname)
+
+        # Build clear job queue command
+        cmd = [
+            "sshpass",
+            "-p", password,
+            "ssh",
+            "-o", "StrictHostKeyChecking=no",
+            "-o", "UserKnownHostsFile=/dev/null",
+            "-o", "ConnectTimeout=10",
+            f"{username}@{idrac_fqdn}",
+            "racadm", "jobqueue", "delete", "--all"
+        ]
+
+        # Run command and wait for completion (prevents zombie processes)
+        subprocess.run(
+            cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=30
+        )
+
+    except Exception as e:
+        print(f"Error clearing job queue for {hostname}: {str(e)}")
+
+
+@app.route("/api/clear-job-queue", methods=["POST"])
+def api_clear_job_queue():
+    """Clear job queue on multiple iDRACs via SSH (non-blocking)."""
+    try:
+        # Check authentication
+        if not session.get("authenticated", False):
+            return jsonify({"success": False, "message": "Authentication required"}), 401
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "message": "Invalid request"}), 400
+
+        hostnames = data.get("hostnames", [])
+
+        if not hostnames or not isinstance(hostnames, list):
+            return jsonify({"success": False, "message": "Hostnames list required"}), 400
+
+        # Spawn a thread for each host to clear job queue
+        # Threads will properly clean up subprocess resources
+        threads = []
+        for hostname in hostnames:
+            thread = threading.Thread(
+                target=_clear_single_job_queue,
+                args=(hostname,),
+                daemon=True
+            )
+            thread.start()
+            threads.append(thread)
+
+        return jsonify({
+            "success": True,
+            "message": f"Clear job queue initiated for {len(hostnames)} host(s)"
+        })
+
     except Exception as e:
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
 
