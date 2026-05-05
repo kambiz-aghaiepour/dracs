@@ -4,6 +4,15 @@
 # Change to project directory
 cd "$(dirname "$0")"
 
+# Load .env file if it exists (so local settings take precedence over defaults below)
+if [ -f .env ]; then
+    echo "Loading settings from .env file..."
+    # Export all variables from .env
+    set -a
+    source .env
+    set +a
+fi
+
 # Set database path (default to current directory)
 export DRACS_DB="${DRACS_DB:-./warranty.db}"
 
@@ -21,6 +30,7 @@ if [ -z "$FLASK_SECRET_KEY" ]; then
 fi
 
 # Set admin credentials from gunicorn config (unless already set)
+# Note: .env file values (loaded above) take precedence over these defaults
 if [ -z "$WEBADMIN_USER" ]; then
     export WEBADMIN_USER="admin"
 fi
@@ -31,6 +41,27 @@ fi
 # Set refresh frequency from gunicorn config (unless already set)
 if [ -z "$REFRESH_FREQUENCY" ]; then
     export REFRESH_FREQUENCY="10"
+fi
+
+# Set warranty expiration highlighting from gunicorn config (unless already set)
+if [ -z "$HIGHLIGHT_EXPIRED" ]; then
+    export HIGHLIGHT_EXPIRED="true"
+fi
+if [ -z "$HIGHLIGHT_EXPIRING" ]; then
+    export HIGHLIGHT_EXPIRING="30"
+fi
+
+# Set pagination from gunicorn config (unless already set)
+if [ -z "$DEFAULT_PAGE_SIZE" ]; then
+    export DEFAULT_PAGE_SIZE="20"
+fi
+
+# Set firmware and BIOS highlighting from gunicorn config (unless already set)
+if [ -z "$HIGHLIGHT_FIRMWARE" ]; then
+    export HIGHLIGHT_FIRMWARE="true"
+fi
+if [ -z "$HIGHLIGHT_BIOS" ]; then
+    export HIGHLIGHT_BIOS="true"
 fi
 
 echo "Starting DRACS web application..."
