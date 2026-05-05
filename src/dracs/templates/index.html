@@ -1866,6 +1866,13 @@
                 }))
                 .filter(sys => compareVersions(selectedVersion, sys.currentVersion) > 0);
 
+            // Check if any systems actually need updating
+            if (systemsNeedingUpdate.length === 0) {
+                showNotification('All selected systems already have version ' + selectedVersion, 'error');
+                event.target.value = '';
+                return;
+            }
+
             // Store pending update info for systems that need updating
             pendingFirmwareUpdate = {
                 systems: systemsNeedingUpdate,
@@ -2040,23 +2047,38 @@
                 return; // User selected the placeholder option
             }
 
-            // Store pending update info for all selected systems
-            pendingBiosUpdate = {
-                systems: selectedSystems.map((sys, idx) => ({
+            // Filter to only systems that need updating (don't already have the target version)
+            const systemsNeedingUpdate = selectedSystems
+                .map((sys, idx) => ({
                     hostname: sys.hostname,
-                    currentVersion: selectedRows[idx].getElementsByTagName('td')[4].textContent.trim(),
+                    currentVersion: selectedRows[idx].dataset.biosVersion,
                     serviceTag: sys.service_tag,
                     model: sys.model
-                })),
-                newVersion: selectedVersion
+                }))
+                .filter(sys => compareVersions(selectedVersion, sys.currentVersion) > 0);
+
+            // Check if any systems actually need updating
+            if (systemsNeedingUpdate.length === 0) {
+                showNotification('All selected systems already have BIOS version ' + selectedVersion, 'error');
+                event.target.value = '';
+                return;
+            }
+
+            // Store pending update info for systems that need updating
+            pendingBiosUpdate = {
+                systems: systemsNeedingUpdate,
+                newVersion: selectedVersion,
+                totalSelected: selectedSystems.length
             };
 
             // Populate and show confirmation modal
             const hostnamesList = pendingBiosUpdate.systems.map(s => s.hostname).join(', ');
             const isBulk = pendingBiosUpdate.systems.length > 1;
+            const updateCount = pendingBiosUpdate.systems.length;
+            const totalCount = pendingBiosUpdate.totalSelected;
 
-            if (isBulk) {
-                document.getElementById('bios-hostname').textContent = `${pendingBiosUpdate.systems.length} hosts: ${hostnamesList}`;
+            if (isBulk || totalCount > 1) {
+                document.getElementById('bios-hostname').textContent = `${updateCount} of ${totalCount} selected systems: ${hostnamesList}`;
                 document.getElementById('bios-current-version').textContent = 'Multiple';
             } else {
                 document.getElementById('bios-hostname').textContent = pendingBiosUpdate.systems[0].hostname;
