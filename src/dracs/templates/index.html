@@ -1911,22 +1911,30 @@
         async function confirmFirmwareUpdate() {
             if (!pendingFirmwareUpdate) return;
 
-            const isBulk = pendingFirmwareUpdate.systems.length > 1;
-            console.log('DRACS: User confirmed firmware update to version:', pendingFirmwareUpdate.newVersion,
-                        'for', isBulk ? `${pendingFirmwareUpdate.systems.length} hosts` : pendingFirmwareUpdate.systems[0].hostname);
+            // Capture values we need before clearing pendingFirmwareUpdate
+            const updateInfo = {
+                systems: pendingFirmwareUpdate.systems,
+                newVersion: pendingFirmwareUpdate.newVersion
+            };
+            const isBulk = updateInfo.systems.length > 1;
+            console.log('DRACS: User confirmed firmware update to version:', updateInfo.newVersion,
+                        'for', isBulk ? `${updateInfo.systems.length} hosts` : updateInfo.systems[0].hostname);
 
             // Close the confirmation modal first
             document.getElementById('firmware-confirm-modal').classList.remove('active');
 
+            // Clear pending update early to allow new selections
+            pendingFirmwareUpdate = null;
+
             if (isBulk) {
                 // Bulk update - skip iDRAC test and initiate all updates
-                showNotification(`Initiating bulk firmware update for ${pendingFirmwareUpdate.systems.length} hosts...`, 'success');
+                showNotification(`Initiating bulk firmware update for ${updateInfo.systems.length} hosts...`, 'success');
 
                 try {
                     let successCount = 0;
                     let failCount = 0;
 
-                    for (const system of pendingFirmwareUpdate.systems) {
+                    for (const system of updateInfo.systems) {
                         try {
                             const updateResponse = await fetch('/api/firmware-update', {
                                 method: 'POST',
@@ -1935,7 +1943,7 @@
                                 },
                                 body: JSON.stringify({
                                     hostname: system.hostname,
-                                    target_version: pendingFirmwareUpdate.newVersion,
+                                    target_version: updateInfo.newVersion,
                                     model: system.model
                                 })
                             });
@@ -1963,7 +1971,7 @@
                 }
             } else {
                 // Single host update - test iDRAC first
-                const system = pendingFirmwareUpdate.systems[0];
+                const system = updateInfo.systems[0];
                 showNotification('Testing iDRAC connectivity...', 'success');
 
                 try {
@@ -1996,7 +2004,7 @@
                                     },
                                     body: JSON.stringify({
                                         hostname: system.hostname,
-                                        target_version: pendingFirmwareUpdate.newVersion,
+                                        target_version: updateInfo.newVersion,
                                         model: system.model
                                     })
                                 });
@@ -2025,9 +2033,6 @@
                     showNotification('iDRAC Access Failed: ' + error.message, 'error');
                 }
             }
-
-            // Clear pending update
-            pendingFirmwareUpdate = null;
         }
 
         // Cancel firmware update
@@ -2102,22 +2107,30 @@
         async function confirmBiosUpdate() {
             if (!pendingBiosUpdate) return;
 
-            const isBulk = pendingBiosUpdate.systems.length > 1;
-            console.log('DRACS: User confirmed BIOS update to version:', pendingBiosUpdate.newVersion,
-                        'for', isBulk ? `${pendingBiosUpdate.systems.length} hosts` : pendingBiosUpdate.systems[0].hostname);
+            // Capture values we need before clearing pendingBiosUpdate
+            const updateInfo = {
+                systems: pendingBiosUpdate.systems,
+                newVersion: pendingBiosUpdate.newVersion
+            };
+            const isBulk = updateInfo.systems.length > 1;
+            console.log('DRACS: User confirmed BIOS update to version:', updateInfo.newVersion,
+                        'for', isBulk ? `${updateInfo.systems.length} hosts` : updateInfo.systems[0].hostname);
 
             // Close the confirmation modal first
             document.getElementById('bios-confirm-modal').classList.remove('active');
 
+            // Clear pending update early to allow new selections
+            pendingBiosUpdate = null;
+
             if (isBulk) {
                 // Bulk update - skip iDRAC test and initiate all updates
-                showNotification(`Initiating bulk BIOS update for ${pendingBiosUpdate.systems.length} hosts...`, 'success');
+                showNotification(`Initiating bulk BIOS update for ${updateInfo.systems.length} hosts...`, 'success');
 
                 try {
                     let successCount = 0;
                     let failCount = 0;
 
-                    for (const system of pendingBiosUpdate.systems) {
+                    for (const system of updateInfo.systems) {
                         try {
                             const updateResponse = await fetch('/api/bios-update', {
                                 method: 'POST',
@@ -2126,7 +2139,7 @@
                                 },
                                 body: JSON.stringify({
                                     hostname: system.hostname,
-                                    target_bios: pendingBiosUpdate.newVersion,
+                                    target_bios: updateInfo.newVersion,
                                     model: system.model
                                 })
                             });
@@ -2154,7 +2167,7 @@
                 }
             } else {
                 // Single host update - test iDRAC first
-                const system = pendingBiosUpdate.systems[0];
+                const system = updateInfo.systems[0];
                 showNotification('Testing iDRAC connectivity...', 'success');
 
                 try {
@@ -2187,7 +2200,7 @@
                                     },
                                     body: JSON.stringify({
                                         hostname: system.hostname,
-                                        target_bios: pendingBiosUpdate.newVersion,
+                                        target_bios: updateInfo.newVersion,
                                         model: system.model
                                     })
                                 });
@@ -2216,9 +2229,6 @@
                     showNotification('iDRAC Access Failed: ' + error.message, 'error');
                 }
             }
-
-            // Clear pending update
-            pendingBiosUpdate = null;
         }
 
         // Cancel BIOS update
