@@ -664,6 +664,10 @@
             background-color: #3a3a3a;
         }
 
+        body.dark-theme tbody tr.selected {
+            background-color: #2a6ba8 !important;  /* Slightly lighter than header blue (#1e5a8e) */
+        }
+
         body.dark-theme .no-results {
             color: #888;
         }
@@ -786,12 +790,29 @@
             border-color: #555;
         }
 
+        body.dark-theme .modal-body {
+            color: #e0e0e0;
+        }
+
+        body.dark-theme .firmware-details {
+            background-color: #3a3a3a;
+        }
+
+        body.dark-theme .detail-row {
+            border-bottom-color: #555;
+        }
+
         body.dark-theme .detail-label {
             color: #b0b0b0;
         }
 
         body.dark-theme .detail-value {
             color: #e0e0e0;
+        }
+
+        body.dark-theme #firmware-new-version,
+        body.dark-theme #bios-new-version {
+            color: #4da3ff !important;
         }
 
         body.dark-theme .firmware-warning {
@@ -1536,8 +1557,8 @@
             const biosUpdateBtn = document.getElementById('update-bios-btn');
             const biosVersionSelect = document.getElementById('bios-version-select');
 
-            if (selectedSystems.length !== 1) {
-                // Disable both buttons when 0 or multiple systems selected
+            if (selectedSystems.length === 0) {
+                // No selection - disable both buttons
                 updateBtn.style.display = 'inline-block';
                 updateBtn.disabled = true;
                 versionSelect.style.display = 'none';
@@ -1547,59 +1568,154 @@
                 biosUpdateBtn.classList.remove('unavailable');
                 biosUpdateBtn.innerHTML = 'Update BIOS';
                 biosVersionSelect.style.display = 'none';
-            } else {
-                // Exactly one system selected - fetch firmware versions
-                const selectedSystem = selectedSystems[0];
-                const newerFirmwareVersions = selectedSystem.model ? await fetchFirmwareVersions(selectedSystem) : null;
+                return;
+            }
 
-                if (newerFirmwareVersions && newerFirmwareVersions.length > 0) {
+            // Check if all selected systems are the same model
+            const firstModel = selectedSystems[0].model;
+            const allSameModel = selectedSystems.every(sys => sys.model === firstModel);
+
+            if (!allSameModel) {
+                // Mixed models - disable both buttons
+                updateBtn.style.display = 'inline-block';
+                updateBtn.disabled = true;
+                updateBtn.innerHTML = 'Update Firmware<span class="subtitle">(Mixed models)</span>';
+                versionSelect.style.display = 'none';
+
+                biosUpdateBtn.style.display = 'inline-block';
+                biosUpdateBtn.disabled = true;
+                biosUpdateBtn.classList.remove('unavailable');
+                biosUpdateBtn.innerHTML = 'Update BIOS<span class="subtitle">(Mixed models)</span>';
+                biosVersionSelect.style.display = 'none';
+                return;
+            }
+
+            // All same model - find highest and lowest firmware versions among selected systems
+            const selectedFirmwareVersions = selectedSystems
+                .map(sys => selectedRows[selectedSystems.indexOf(sys)].dataset.firmwareVersion)
+                .filter(v => v);
+
+            let highestSelectedFirmware = null;
+            let lowestSelectedFirmware = null;
+            for (const version of selectedFirmwareVersions) {
+                if (!highestSelectedFirmware || compareVersions(version, highestSelectedFirmware) > 0) {
+                    highestSelectedFirmware = version;
+                }
+                if (!lowestSelectedFirmware || compareVersions(version, lowestSelectedFirmware) < 0) {
+                    lowestSelectedFirmware = version;
+                }
+            }
+
+            // Get all firmware versions for this model
+            const modelFirmwareVersions = firmwareVersionsByModel[firstModel] || [];
+            const newestFirmware = modelFirmwareVersions.length > 0 ? modelFirmwareVersions[0] : null;
+
+            // Check if ALL selected hosts already have the newest firmware
+            const allAtNewest = selectedSystems.every(sys => {
+                const sysIndex = selectedSystems.indexOf(sys);
+                const sysFirmware = selectedRows[sysIndex].dataset.firmwareVersion;
+                return sysFirmware === newestFirmware;
+            });
+
+            if (newestFirmware && allAtNewest) {
+                // All selected hosts are already at the latest firmware
+                updateBtn.style.display = 'inline-block';
+                updateBtn.disabled = true;
+                updateBtn.innerHTML = 'Update Firmware';
+                versionSelect.style.display = 'none';
+            } else {
+                // Filter to versions strictly newer than the LOWEST among selected
+                // This allows updates when at least one system can be upgraded
+                const availableVersions = modelFirmwareVersions.filter(version => {
+                    if (!lowestSelectedFirmware) return true;
+                    return compareVersions(version, lowestSelectedFirmware) > 0;
+                });
+
+                if (availableVersions && availableVersions.length > 0) {
                     // Show firmware dropdown with available versions
                     updateBtn.style.display = 'none';
                     versionSelect.style.display = 'inline-block';
-                    populateFirmwareVersions(versionSelect, newerFirmwareVersions);
+                    populateFirmwareVersions(versionSelect, availableVersions);
                 } else {
-                    // No newer firmware versions available
+                    // No firmware updates available
                     updateBtn.style.display = 'inline-block';
                     updateBtn.disabled = true;
+                    updateBtn.innerHTML = 'Update Firmware';
                     versionSelect.style.display = 'none';
                 }
-
-                // Update BIOS button state
-                await updateBiosButtonState(selectedSystem, newerFirmwareVersions);
             }
+
+            // Update BIOS button state
+            await updateBiosButtonState(firstModel, highestSelectedFirmware, modelFirmwareVersions);
         }
 
         // Update BIOS button state
-        async function updateBiosButtonState(selectedSystem, newerFirmwareVersions) {
+        async function updateBiosButtonState(model, highestSelectedFirmware, modelFirmwareVersions) {
             const biosUpdateBtn = document.getElementById('update-bios-btn');
             const biosVersionSelect = document.getElementById('bios-version-select');
 
-            // Check if firmware is the newest available
-            const firmwareIsNewest = !newerFirmwareVersions || newerFirmwareVersions.length === 0;
+            // Get the newest firmware version for this model
+            const newestFirmware = modelFirmwareVersions && modelFirmwareVersions.length > 0 ? modelFirmwareVersions[0] : null;
 
-            if (!firmwareIsNewest) {
-                // Firmware is not newest - show unavailable message
+            // Check if ALL selected systems have the newest firmware
+            const allHaveNewestFirmware = selectedSystems.every(sys => {
+                const sysIndex = selectedSystems.indexOf(sys);
+                const sysFirmware = selectedRows[sysIndex].dataset.firmwareVersion;
+                return sysFirmware === newestFirmware;
+            });
+
+            if (!allHaveNewestFirmware) {
+                // Not all systems have newest firmware - BIOS update unavailable
                 biosUpdateBtn.style.display = 'inline-block';
                 biosUpdateBtn.disabled = true;
                 biosUpdateBtn.classList.add('unavailable');
-                biosUpdateBtn.innerHTML = 'Update BIOS unavailable<span class="subtitle">(Update Firmware)</span>';
+                biosUpdateBtn.innerHTML = 'Update BIOS unavailable<span class="subtitle">(Update Firmware First)</span>';
                 biosVersionSelect.style.display = 'none';
             } else {
-                // Firmware is newest - check for newer BIOS versions
-                const newerBiosVersions = selectedSystem.model ? await fetchBiosVersions(selectedSystem) : null;
+                // All systems have newest firmware - find highest BIOS among selected
+                const selectedBiosVersions = selectedSystems
+                    .map(sys => selectedRows[selectedSystems.indexOf(sys)].dataset.biosVersion)
+                    .filter(v => v);
 
-                if (newerBiosVersions && newerBiosVersions.length > 0) {
-                    // Show BIOS dropdown with available versions
-                    biosUpdateBtn.style.display = 'none';
-                    biosVersionSelect.style.display = 'inline-block';
-                    populateBiosVersions(biosVersionSelect, newerBiosVersions);
-                } else {
-                    // No newer BIOS versions available
+                let highestSelectedBios = null;
+                for (const version of selectedBiosVersions) {
+                    if (!highestSelectedBios || compareVersions(version, highestSelectedBios) > 0) {
+                        highestSelectedBios = version;
+                    }
+                }
+
+                // Get all BIOS versions for this model
+                const modelBiosVersions = biosVersionsByModel[model] || [];
+                const newestBios = modelBiosVersions.length > 0 ? modelBiosVersions[0] : null;
+
+                // Check if all selected hosts already have the newest BIOS
+                if (newestBios && highestSelectedBios && compareVersions(highestSelectedBios, newestBios) === 0) {
+                    // All selected hosts are already at the latest BIOS
                     biosUpdateBtn.style.display = 'inline-block';
                     biosUpdateBtn.disabled = true;
                     biosUpdateBtn.classList.remove('unavailable');
                     biosUpdateBtn.innerHTML = 'Update BIOS';
                     biosVersionSelect.style.display = 'none';
+                } else {
+                    // Filter to versions strictly newer than highest among selected
+                    const availableBiosVersions = modelBiosVersions.filter(version => {
+                        if (!highestSelectedBios) return true;
+                        return compareVersions(version, highestSelectedBios) > 0;
+                    });
+
+                    if (availableBiosVersions && availableBiosVersions.length > 0) {
+                        // Show BIOS dropdown with available versions
+                        biosUpdateBtn.style.display = 'none';
+                        biosVersionSelect.style.display = 'inline-block';
+                        populateBiosVersions(biosVersionSelect, availableBiosVersions);
+                    } else {
+                        // No newer BIOS versions available
+                        biosUpdateBtn.style.display = 'inline-block';
+                        biosUpdateBtn.disabled = true;
+                        biosUpdateBtn.classList.remove('unavailable');
+                        biosUpdateBtn.innerHTML = 'Update BIOS';
+                        biosVersionSelect.style.display = 'none';
+                    }
                 }
             }
         }
@@ -1728,23 +1844,44 @@
                 return; // User selected the placeholder option
             }
 
-            const selectedSystem = selectedSystems[0];
-            const hostname = selectedSystem.hostname;
-            const currentFirmwareVersion = selectedRows[0].getElementsByTagName('td')[3].textContent.trim();
+            // Filter to only systems that need updating (don't already have the target version)
+            const systemsNeedingUpdate = selectedSystems
+                .map((sys, idx) => ({
+                    hostname: sys.hostname,
+                    currentVersion: selectedRows[idx].dataset.firmwareVersion,
+                    serviceTag: sys.service_tag,
+                    model: sys.model
+                }))
+                .filter(sys => compareVersions(selectedVersion, sys.currentVersion) > 0);
 
-            // Store pending update info
+            // Store pending update info for systems that need updating
             pendingFirmwareUpdate = {
-                hostname: hostname,
-                currentVersion: currentFirmwareVersion,
+                systems: systemsNeedingUpdate,
                 newVersion: selectedVersion,
-                serviceTag: selectedSystem.service_tag,
-                model: selectedSystem.model
+                totalSelected: selectedSystems.length
             };
 
             // Populate and show confirmation modal
-            document.getElementById('firmware-hostname').textContent = hostname;
-            document.getElementById('firmware-current-version').textContent = currentFirmwareVersion;
+            const hostnamesList = pendingFirmwareUpdate.systems.map(s => s.hostname).join(', ');
+            const isBulk = pendingFirmwareUpdate.systems.length > 1;
+            const updateCount = pendingFirmwareUpdate.systems.length;
+            const totalCount = pendingFirmwareUpdate.totalSelected;
+
+            if (isBulk || totalCount > 1) {
+                document.getElementById('firmware-hostname').textContent = `${updateCount} of ${totalCount} selected systems: ${hostnamesList}`;
+                document.getElementById('firmware-current-version').textContent = 'Multiple';
+            } else {
+                document.getElementById('firmware-hostname').textContent = pendingFirmwareUpdate.systems[0].hostname;
+                document.getElementById('firmware-current-version').textContent = pendingFirmwareUpdate.systems[0].currentVersion;
+            }
             document.getElementById('firmware-new-version').textContent = selectedVersion;
+
+            // Update modal title for bulk operations
+            const modalTitle = document.querySelector('#firmware-confirm-modal .modal-header h2');
+            if (modalTitle) {
+                modalTitle.textContent = isBulk ? 'Confirm BULK Firmware Update' : 'Confirm Firmware Update';
+            }
+
             document.getElementById('firmware-confirm-modal').classList.add('active');
 
             // Reset dropdown to placeholder
@@ -1755,36 +1892,22 @@
         async function confirmFirmwareUpdate() {
             if (!pendingFirmwareUpdate) return;
 
-            console.log('DRACS: User confirmed firmware update to version:', pendingFirmwareUpdate.newVersion, 'for host:', pendingFirmwareUpdate.hostname);
+            const isBulk = pendingFirmwareUpdate.systems.length > 1;
+            console.log('DRACS: User confirmed firmware update to version:', pendingFirmwareUpdate.newVersion,
+                        'for', isBulk ? `${pendingFirmwareUpdate.systems.length} hosts` : pendingFirmwareUpdate.systems[0].hostname);
 
             // Close the confirmation modal first
             document.getElementById('firmware-confirm-modal').classList.remove('active');
 
-            // Test iDRAC connectivity before proceeding
-            showNotification('Testing iDRAC connectivity...', 'success');
+            if (isBulk) {
+                // Bulk update - skip iDRAC test and initiate all updates
+                showNotification(`Initiating bulk firmware update for ${pendingFirmwareUpdate.systems.length} hosts...`, 'success');
 
-            try {
-                const response = await fetch('/api/test-idrac', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        hostname: pendingFirmwareUpdate.hostname
-                    })
-                });
+                try {
+                    let successCount = 0;
+                    let failCount = 0;
 
-                const data = await response.json();
-
-                if (data.success) {
-                    // iDRAC access succeeded
-                    showNotification(data.message, 'success');
-                    console.log('DRACS: iDRAC connectivity test passed');
-
-                    // Proceed with actual firmware update
-                    setTimeout(async () => {
-                        showNotification('Initiating firmware update...', 'success');
-
+                    for (const system of pendingFirmwareUpdate.systems) {
                         try {
                             const updateResponse = await fetch('/api/firmware-update', {
                                 method: 'POST',
@@ -1792,34 +1915,96 @@
                                     'Content-Type': 'application/json',
                                 },
                                 body: JSON.stringify({
-                                    hostname: pendingFirmwareUpdate.hostname,
+                                    hostname: system.hostname,
                                     target_version: pendingFirmwareUpdate.newVersion,
-                                    model: pendingFirmwareUpdate.model
+                                    model: system.model
                                 })
                             });
 
                             const updateData = await updateResponse.json();
 
                             if (updateData.success) {
-                                showNotification(updateData.message, 'success');
-                                console.log('DRACS: Firmware update initiated successfully');
+                                successCount++;
+                                console.log('DRACS: Firmware update initiated for:', system.hostname);
                             } else {
-                                showNotification(updateData.message, 'error');
-                                console.error('DRACS: Firmware update failed:', updateData.message);
+                                failCount++;
+                                console.error('DRACS: Firmware update failed for:', system.hostname, updateData.message);
                             }
                         } catch (error) {
-                            console.error('DRACS: Error initiating firmware update:', error);
-                            showNotification('Firmware update failed: ' + error.message, 'error');
+                            failCount++;
+                            console.error('DRACS: Error initiating firmware update for:', system.hostname, error);
                         }
-                    }, 2000);
-                } else {
-                    // iDRAC access failed
-                    showNotification(data.message, 'error');
-                    console.error('DRACS: iDRAC connectivity test failed:', data.message);
+                    }
+
+                    showNotification(`Bulk firmware update: ${successCount} initiated, ${failCount} failed`,
+                                   failCount === 0 ? 'success' : 'error');
+                } catch (error) {
+                    console.error('DRACS: Error in bulk firmware update:', error);
+                    showNotification('Bulk firmware update failed: ' + error.message, 'error');
                 }
-            } catch (error) {
-                console.error('DRACS: Error testing iDRAC connectivity:', error);
-                showNotification('iDRAC Access Failed: ' + error.message, 'error');
+            } else {
+                // Single host update - test iDRAC first
+                const system = pendingFirmwareUpdate.systems[0];
+                showNotification('Testing iDRAC connectivity...', 'success');
+
+                try {
+                    const response = await fetch('/api/test-idrac', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            hostname: system.hostname
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        // iDRAC access succeeded
+                        showNotification(data.message, 'success');
+                        console.log('DRACS: iDRAC connectivity test passed');
+
+                        // Proceed with actual firmware update
+                        setTimeout(async () => {
+                            showNotification('Initiating firmware update...', 'success');
+
+                            try {
+                                const updateResponse = await fetch('/api/firmware-update', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                    },
+                                    body: JSON.stringify({
+                                        hostname: system.hostname,
+                                        target_version: pendingFirmwareUpdate.newVersion,
+                                        model: system.model
+                                    })
+                                });
+
+                                const updateData = await updateResponse.json();
+
+                                if (updateData.success) {
+                                    showNotification(updateData.message, 'success');
+                                    console.log('DRACS: Firmware update initiated successfully');
+                                } else {
+                                    showNotification(updateData.message, 'error');
+                                    console.error('DRACS: Firmware update failed:', updateData.message);
+                                }
+                            } catch (error) {
+                                console.error('DRACS: Error initiating firmware update:', error);
+                                showNotification('Firmware update failed: ' + error.message, 'error');
+                            }
+                        }, 2000);
+                    } else {
+                        // iDRAC access failed
+                        showNotification(data.message, 'error');
+                        console.error('DRACS: iDRAC connectivity test failed:', data.message);
+                    }
+                } catch (error) {
+                    console.error('DRACS: Error testing iDRAC connectivity:', error);
+                    showNotification('iDRAC Access Failed: ' + error.message, 'error');
+                }
             }
 
             // Clear pending update
@@ -1843,23 +2028,36 @@
                 return; // User selected the placeholder option
             }
 
-            const selectedSystem = selectedSystems[0];
-            const hostname = selectedSystem.hostname;
-            const currentBiosVersion = selectedRows[0].getElementsByTagName('td')[4].textContent.trim();
-
-            // Store pending update info
+            // Store pending update info for all selected systems
             pendingBiosUpdate = {
-                hostname: hostname,
-                currentVersion: currentBiosVersion,
-                newVersion: selectedVersion,
-                serviceTag: selectedSystem.service_tag,
-                model: selectedSystem.model
+                systems: selectedSystems.map((sys, idx) => ({
+                    hostname: sys.hostname,
+                    currentVersion: selectedRows[idx].getElementsByTagName('td')[4].textContent.trim(),
+                    serviceTag: sys.service_tag,
+                    model: sys.model
+                })),
+                newVersion: selectedVersion
             };
 
             // Populate and show confirmation modal
-            document.getElementById('bios-hostname').textContent = hostname;
-            document.getElementById('bios-current-version').textContent = currentBiosVersion;
+            const hostnamesList = pendingBiosUpdate.systems.map(s => s.hostname).join(', ');
+            const isBulk = pendingBiosUpdate.systems.length > 1;
+
+            if (isBulk) {
+                document.getElementById('bios-hostname').textContent = `${pendingBiosUpdate.systems.length} hosts: ${hostnamesList}`;
+                document.getElementById('bios-current-version').textContent = 'Multiple';
+            } else {
+                document.getElementById('bios-hostname').textContent = pendingBiosUpdate.systems[0].hostname;
+                document.getElementById('bios-current-version').textContent = pendingBiosUpdate.systems[0].currentVersion;
+            }
             document.getElementById('bios-new-version').textContent = selectedVersion;
+
+            // Update modal title for bulk operations
+            const modalTitle = document.querySelector('#bios-confirm-modal .modal-header h2');
+            if (modalTitle) {
+                modalTitle.textContent = isBulk ? 'Confirm BULK BIOS Update' : 'Confirm BIOS Update';
+            }
+
             document.getElementById('bios-confirm-modal').classList.add('active');
 
             // Reset dropdown to placeholder
@@ -1870,36 +2068,22 @@
         async function confirmBiosUpdate() {
             if (!pendingBiosUpdate) return;
 
-            console.log('DRACS: User confirmed BIOS update to version:', pendingBiosUpdate.newVersion, 'for host:', pendingBiosUpdate.hostname);
+            const isBulk = pendingBiosUpdate.systems.length > 1;
+            console.log('DRACS: User confirmed BIOS update to version:', pendingBiosUpdate.newVersion,
+                        'for', isBulk ? `${pendingBiosUpdate.systems.length} hosts` : pendingBiosUpdate.systems[0].hostname);
 
             // Close the confirmation modal first
             document.getElementById('bios-confirm-modal').classList.remove('active');
 
-            // Test iDRAC connectivity before proceeding
-            showNotification('Testing iDRAC connectivity...', 'success');
+            if (isBulk) {
+                // Bulk update - skip iDRAC test and initiate all updates
+                showNotification(`Initiating bulk BIOS update for ${pendingBiosUpdate.systems.length} hosts...`, 'success');
 
-            try {
-                const response = await fetch('/api/test-idrac', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        hostname: pendingBiosUpdate.hostname
-                    })
-                });
+                try {
+                    let successCount = 0;
+                    let failCount = 0;
 
-                const data = await response.json();
-
-                if (data.success) {
-                    // iDRAC access succeeded
-                    showNotification(data.message, 'success');
-                    console.log('DRACS: iDRAC connectivity test passed');
-
-                    // Proceed with actual BIOS update
-                    setTimeout(async () => {
-                        showNotification('Initiating BIOS update...', 'success');
-
+                    for (const system of pendingBiosUpdate.systems) {
                         try {
                             const updateResponse = await fetch('/api/bios-update', {
                                 method: 'POST',
@@ -1907,34 +2091,96 @@
                                     'Content-Type': 'application/json',
                                 },
                                 body: JSON.stringify({
-                                    hostname: pendingBiosUpdate.hostname,
+                                    hostname: system.hostname,
                                     target_bios: pendingBiosUpdate.newVersion,
-                                    model: pendingBiosUpdate.model
+                                    model: system.model
                                 })
                             });
 
                             const updateData = await updateResponse.json();
 
                             if (updateData.success) {
-                                showNotification(updateData.message, 'success');
-                                console.log('DRACS: BIOS update initiated successfully');
+                                successCount++;
+                                console.log('DRACS: BIOS update initiated for:', system.hostname);
                             } else {
-                                showNotification(updateData.message, 'error');
-                                console.error('DRACS: BIOS update failed:', updateData.message);
+                                failCount++;
+                                console.error('DRACS: BIOS update failed for:', system.hostname, updateData.message);
                             }
                         } catch (error) {
-                            console.error('DRACS: Error initiating BIOS update:', error);
-                            showNotification('BIOS update failed: ' + error.message, 'error');
+                            failCount++;
+                            console.error('DRACS: Error initiating BIOS update for:', system.hostname, error);
                         }
-                    }, 2000);
-                } else {
-                    // iDRAC access failed
-                    showNotification(data.message, 'error');
-                    console.error('DRACS: iDRAC connectivity test failed:', data.message);
+                    }
+
+                    showNotification(`Bulk BIOS update: ${successCount} initiated, ${failCount} failed`,
+                                   failCount === 0 ? 'success' : 'error');
+                } catch (error) {
+                    console.error('DRACS: Error in bulk BIOS update:', error);
+                    showNotification('Bulk BIOS update failed: ' + error.message, 'error');
                 }
-            } catch (error) {
-                console.error('DRACS: Error testing iDRAC connectivity:', error);
-                showNotification('iDRAC Access Failed: ' + error.message, 'error');
+            } else {
+                // Single host update - test iDRAC first
+                const system = pendingBiosUpdate.systems[0];
+                showNotification('Testing iDRAC connectivity...', 'success');
+
+                try {
+                    const response = await fetch('/api/test-idrac', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            hostname: system.hostname
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        // iDRAC access succeeded
+                        showNotification(data.message, 'success');
+                        console.log('DRACS: iDRAC connectivity test passed');
+
+                        // Proceed with actual BIOS update
+                        setTimeout(async () => {
+                            showNotification('Initiating BIOS update...', 'success');
+
+                            try {
+                                const updateResponse = await fetch('/api/bios-update', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                    },
+                                    body: JSON.stringify({
+                                        hostname: system.hostname,
+                                        target_bios: pendingBiosUpdate.newVersion,
+                                        model: system.model
+                                    })
+                                });
+
+                                const updateData = await updateResponse.json();
+
+                                if (updateData.success) {
+                                    showNotification(updateData.message, 'success');
+                                    console.log('DRACS: BIOS update initiated successfully');
+                                } else {
+                                    showNotification(updateData.message, 'error');
+                                    console.error('DRACS: BIOS update failed:', updateData.message);
+                                }
+                            } catch (error) {
+                                console.error('DRACS: Error initiating BIOS update:', error);
+                                showNotification('BIOS update failed: ' + error.message, 'error');
+                            }
+                        }, 2000);
+                    } else {
+                        // iDRAC access failed
+                        showNotification(data.message, 'error');
+                        console.error('DRACS: iDRAC connectivity test failed:', data.message);
+                    }
+                } catch (error) {
+                    console.error('DRACS: Error testing iDRAC connectivity:', error);
+                    showNotification('iDRAC Access Failed: ' + error.message, 'error');
+                }
             }
 
             // Clear pending update
