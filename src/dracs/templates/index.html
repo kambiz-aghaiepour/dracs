@@ -42,6 +42,12 @@
             gap: 15px;
         }
 
+        .filter-group-left {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
         .filter-group {
             display: flex;
             flex-direction: column;
@@ -57,6 +63,53 @@
         .filter-row {
             display: flex;
             gap: 8px;
+        }
+
+        .checkbox-row {
+            display: flex;
+            gap: 15px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-weight: 400;
+            font-size: 13px;
+            color: #555;
+            cursor: pointer;
+        }
+
+        .checkbox-label input[type="checkbox"] {
+            cursor: pointer;
+        }
+
+        .warranty-combined-row {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-top: 5px;
+            flex-wrap: wrap;
+        }
+
+        .warranty-expires-inline {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .warranty-expires-inline label {
+            font-weight: 400;
+            font-size: 13px;
+            color: #555;
+            margin: 0;
+            white-space: nowrap;
+        }
+
+        .warranty-expires-inline select {
+            min-width: 100px;
         }
 
         input[type="text"],
@@ -110,15 +163,26 @@
             font-size: 14px;
         }
 
+        .table-scroll-container {
+            max-height: 60vh;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 10px;
+            margin-top: 0;
         }
 
         thead {
             background-color: #007bff;
             color: white;
+            position: sticky;
+            top: 0;
+            z-index: 10;
         }
 
         th {
@@ -340,6 +404,40 @@
             max-width: 400px;
         }
 
+        .modal-large {
+            max-width: 1000px;
+        }
+
+        #job-queue-table-container {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        #job-queue-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        #job-queue-table th,
+        #job-queue-table td {
+            padding: 8px;
+            text-align: left;
+            border: 1px solid #ddd;
+        }
+
+        #job-queue-table th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        #job-queue-table tbody tr:hover {
+            background-color: #f8f9fa;
+        }
+
         .modal-header {
             margin-bottom: 20px;
         }
@@ -446,7 +544,7 @@
             align-items: center;
         }
 
-        .firmware-update-container, .bios-update-container {
+        .firmware-update-container, .bios-update-container, .job-queue-container, .clear-job-queue-container {
             position: relative;
             display: inline-block;
         }
@@ -633,6 +731,14 @@
             color: #b0b0b0;
         }
 
+        body.dark-theme .checkbox-label {
+            color: #b0b0b0;
+        }
+
+        body.dark-theme .warranty-expires-inline label {
+            color: #b0b0b0;
+        }
+
         body.dark-theme input[type="text"],
         body.dark-theme select {
             background-color: #4a4a4a;
@@ -656,6 +762,10 @@
 
         body.dark-theme .results-info {
             color: #b0b0b0;
+        }
+
+        body.dark-theme .table-scroll-container {
+            border-color: #555;
         }
 
         body.dark-theme thead {
@@ -738,6 +848,21 @@
 
         body.dark-theme .modal-footer {
             border-top-color: #444;
+        }
+
+        body.dark-theme #job-queue-table th {
+            background-color: #3a3a3a;
+            color: #e0e0e0;
+            border-color: #555;
+        }
+
+        body.dark-theme #job-queue-table td {
+            border-color: #555;
+            color: #e0e0e0;
+        }
+
+        body.dark-theme #job-queue-table tbody tr:hover {
+            background-color: #3a3a3a;
         }
 
         body.dark-theme .form-group label {
@@ -879,9 +1004,36 @@
         </div>
 
         <div class="filters">
-            <div class="filter-group">
-                <label for="hostname-filter">Hostname Filter</label>
-                <input type="text" id="hostname-filter" placeholder="Type to filter by hostname...">
+            <div class="filter-group-left">
+                <div class="filter-group">
+                    <label for="hostname-filter">Hostname Filter</label>
+                    <input type="text" id="hostname-filter" placeholder="Type to filter by hostname...">
+                </div>
+
+                <div class="filter-group">
+                    <label for="servicetag-filter">Service Tag Filter</label>
+                    <input type="text" id="servicetag-filter" placeholder="Type to filter by service tag...">
+                </div>
+
+                <div class="filter-group">
+                    <label>Warranty Filters</label>
+                    <div class="warranty-combined-row">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="warranty-expired">
+                            Warranty Expired
+                        </label>
+                        <div class="warranty-expires-inline">
+                            <label for="warranty-expires">Expires in</label>
+                            <select id="warranty-expires">
+                                <option value="">(none)</option>
+                                <option value="30">30 days</option>
+                                <option value="60">60 days</option>
+                                <option value="90">90 days</option>
+                                <option value="180">180 days</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="filter-group">
@@ -889,6 +1041,37 @@
                 <select id="model-filter" multiple>
                     <!-- Options will be populated by JavaScript -->
                 </select>
+            </div>
+
+            <div class="filter-group">
+                <label>Firmware Version</label>
+                <div class="filter-row">
+                    <select id="firmware-version">
+                        <option value="">(all versions)</option>
+                    </select>
+                    <select id="firmware-operator" class="operator">
+                        <option value="">(none)</option>
+                        <option value="<=">&lt;=</option>
+                        <option value="<">&lt;</option>
+                        <option value=">=">>=</option>
+                        <option value=">">&gt;</option>
+                        <option value="=">=</option>
+                    </select>
+                </div>
+                <div class="checkbox-row">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="firmware-current">
+                        Current Firmware
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="firmware-older">
+                        Older Firmware
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="firmware-oldest">
+                        Oldest Firmware
+                    </label>
+                </div>
             </div>
 
             <div class="filter-group">
@@ -906,22 +1089,19 @@
                         <option value="=">=</option>
                     </select>
                 </div>
-            </div>
-
-            <div class="filter-group">
-                <label>Firmware Version</label>
-                <div class="filter-row">
-                    <select id="firmware-version">
-                        <option value="">(all versions)</option>
-                    </select>
-                    <select id="firmware-operator" class="operator">
-                        <option value="">(none)</option>
-                        <option value="<=">&lt;=</option>
-                        <option value="<">&lt;</option>
-                        <option value=">=">>=</option>
-                        <option value=">">&gt;</option>
-                        <option value="=">=</option>
-                    </select>
+                <div class="checkbox-row">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="bios-current">
+                        Current BIOS
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="bios-older">
+                        Older BIOS
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="bios-oldest">
+                        Oldest BIOS
+                    </label>
                 </div>
             </div>
         </div>
@@ -950,6 +1130,16 @@
                     <option value="">Select BIOS version...</option>
                 </select>
             </div>
+            <div class="job-queue-container">
+                <button id="job-queue-btn" class="btn btn-primary" disabled onclick="handleJobQueueClick()">
+                    Job Queue
+                </button>
+            </div>
+            <div class="clear-job-queue-container">
+                <button id="clear-job-queue-btn" class="btn btn-primary" disabled onclick="handleClearJobQueueClick()">
+                    Clear Job Queue
+                </button>
+            </div>
         </div>
         {% endif %}
 
@@ -957,24 +1147,27 @@
             Showing <span id="results-count">0</span> of <span id="total-count">0</span> systems
         </div>
 
-        <table id="systems-table">
-            <thead>
-                <tr>
-                    <th>Service Tag</th>
-                    <th>Hostname</th>
-                    <th>Model</th>
-                    <th>Firmware</th>
-                    <th>BIOS</th>
-                    <th>Warranty Expiration Date</th>
-                </tr>
-            </thead>
-            <tbody id="table-body">
-                <!-- Rows will be populated by JavaScript -->
-            </tbody>
-        </table>
+        <!-- Scrollable table container -->
+        <div class="table-scroll-container">
+            <table id="systems-table">
+                <thead>
+                    <tr>
+                        <th>Service Tag</th>
+                        <th>Hostname</th>
+                        <th>Model</th>
+                        <th>Firmware</th>
+                        <th>BIOS</th>
+                        <th>Warranty Expiration Date</th>
+                    </tr>
+                </thead>
+                <tbody id="table-body">
+                    <!-- Rows will be populated by JavaScript -->
+                </tbody>
+            </table>
 
-        <div id="no-results" class="no-results" style="display: none;">
-            No systems match your filters
+            <div id="no-results" class="no-results" style="display: none;">
+                No systems match your filters
+            </div>
         </div>
 
         <!-- Pagination Controls -->
@@ -1089,6 +1282,37 @@
                 </div>
             </div>
         </div>
+
+        <!-- Job Queue Modal -->
+        <div id="job-queue-modal" class="modal-overlay">
+            <div class="modal-content modal-large">
+                <div class="modal-header">
+                    <h2>Job Queue - <span id="job-queue-hostname"></span></h2>
+                </div>
+                <div class="modal-body">
+                    <div id="job-queue-table-container">
+                        <table id="job-queue-table">
+                            <thead>
+                                <tr>
+                                    <th>Job ID</th>
+                                    <th>Job Name</th>
+                                    <th>Status</th>
+                                    <th>Actual Start Time</th>
+                                    <th>Actual Completion Time</th>
+                                    <th>Message</th>
+                                    <th>Percent Complete</th>
+                                </tr>
+                            </thead>
+                            <tbody id="job-queue-tbody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" onclick="dismissJobQueue()">Dismiss</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -1104,6 +1328,8 @@
         let lastClickedRow = null;  // For shift-click range selection
         let pendingFirmwareUpdate = null;  // Store pending firmware update info
         let pendingBiosUpdate = null;  // Store pending BIOS update info
+        let firmwareFirstConfirmation = false;  // Track two-stage confirmation for large batches
+        let biosFirstConfirmation = false;  // Track two-stage confirmation for large batches
 
         // Pagination state
         let currentPage = 1;
@@ -1327,8 +1553,10 @@
             document.getElementById('selected-count').textContent = selectedCount;
             document.getElementById('refresh-btn').disabled = selectedCount === 0;
 
-            // Update firmware button state
+            // Update firmware and job queue button states
             updateFirmwareButtonState();
+            updateJobQueueButtonState();
+            updateClearJobQueueButtonState();
         }
 
         // Refresh selected systems
@@ -1461,6 +1689,7 @@
                 // Get fresh references to DOM elements
                 const tableBodyEl = document.getElementById('table-body');
                 const hostnameFilterEl = document.getElementById('hostname-filter');
+                const servicetagFilterEl = document.getElementById('servicetag-filter');
                 const modelFilterEl = document.getElementById('model-filter');
                 const biosVersionEl = document.getElementById('bios-version');
                 const biosOperatorEl = document.getElementById('bios-operator');
@@ -1476,6 +1705,7 @@
 
                 // Save current filter values
                 const hostnameText = hostnameFilterEl.value;
+                const servicetagText = servicetagFilterEl.value;
                 const biosVersionValue = biosVersionEl.value;
                 const biosOperatorValue = biosOperatorEl.value;
                 const firmwareVersionValue = firmwareVersionEl.value;
@@ -1503,6 +1733,7 @@
                 // Update systems array with new data and recalculate versions
                 systems = data;
                 calculateAllVersions();
+                updateVersionDropdowns();
 
                 // Rebuild table
                 data.forEach(system => {
@@ -1535,6 +1766,7 @@
 
                 // Restore filter values (in case they got cleared somehow)
                 hostnameFilterEl.value = hostnameText;
+                servicetagFilterEl.value = servicetagText;
                 biosVersionEl.value = biosVersionValue;
                 biosOperatorEl.value = biosOperatorValue;
                 firmwareVersionEl.value = firmwareVersionValue;
@@ -1549,9 +1781,11 @@
                 // Reapply filters
                 applyFilters();
 
-                // Update firmware button state after refresh
+                // Update firmware and job queue button states after refresh
                 if (isAuthenticated) {
                     updateFirmwareButtonState();
+                    updateJobQueueButtonState();
+                    updateClearJobQueueButtonState();
                 }
 
                 console.log('DRACS: Table refresh complete, visible rows:', document.querySelectorAll('#table-body tr:not(.hidden)').length);
@@ -1732,6 +1966,32 @@
             }
         }
 
+        // Update Job Queue button state
+        function updateJobQueueButtonState() {
+            const jobQueueBtn = document.getElementById('job-queue-btn');
+
+            if (selectedSystems.length === 1) {
+                // Exactly 1 system selected - enable button
+                jobQueueBtn.disabled = false;
+            } else {
+                // 0 or more than 1 system selected - disable button
+                jobQueueBtn.disabled = true;
+            }
+        }
+
+        // Update Clear Job Queue button state
+        function updateClearJobQueueButtonState() {
+            const clearJobQueueBtn = document.getElementById('clear-job-queue-btn');
+
+            if (selectedSystems.length >= 1) {
+                // 1 or more systems selected - enable button
+                clearJobQueueBtn.disabled = false;
+            } else {
+                // 0 systems selected - disable button
+                clearJobQueueBtn.disabled = true;
+            }
+        }
+
         // Fetch firmware versions for the selected system's model
         async function fetchFirmwareVersions(system) {
             try {
@@ -1880,28 +2140,60 @@
                 totalSelected: selectedSystems.length
             };
 
-            // Populate and show confirmation modal
-            const hostnamesList = pendingFirmwareUpdate.systems.map(s => s.hostname).join(', ');
-            const isBulk = pendingFirmwareUpdate.systems.length > 1;
             const updateCount = pendingFirmwareUpdate.systems.length;
-            const totalCount = pendingFirmwareUpdate.totalSelected;
 
-            if (isBulk || totalCount > 1) {
-                document.getElementById('firmware-hostname').textContent = `${updateCount} of ${totalCount} selected systems: ${hostnamesList}`;
-                document.getElementById('firmware-current-version').textContent = 'Multiple';
+            // Check if we need two-stage confirmation (more than 10 hosts)
+            if (updateCount > 10) {
+                // First stage: Simple confirmation
+                firmwareFirstConfirmation = true;
+                const hostnameElement = document.getElementById('firmware-hostname');
+                hostnameElement.textContent = `${updateCount} hosts selected`;
+                // Show the "Host:" label for first stage
+                const hostnameLabel = hostnameElement.previousElementSibling;
+                if (hostnameLabel && hostnameLabel.classList.contains('detail-label')) {
+                    hostnameLabel.style.display = '';
+                }
+                document.getElementById('firmware-current-version').textContent = 'N/A';
+                document.getElementById('firmware-new-version').textContent = selectedVersion;
+                document.querySelector('#firmware-confirm-modal .firmware-warning').textContent = 'Are you sure?';
+
+                const modalTitle = document.querySelector('#firmware-confirm-modal .modal-header h2');
+                if (modalTitle) {
+                    modalTitle.textContent = 'Confirm Firmware Update';
+                }
+
+                document.getElementById('firmware-confirm-modal').classList.add('active');
             } else {
-                document.getElementById('firmware-hostname').textContent = pendingFirmwareUpdate.systems[0].hostname;
-                document.getElementById('firmware-current-version').textContent = pendingFirmwareUpdate.systems[0].currentVersion;
-            }
-            document.getElementById('firmware-new-version').textContent = selectedVersion;
+                // Normal confirmation for <= 10 hosts
+                firmwareFirstConfirmation = false;
+                const hostnamesList = pendingFirmwareUpdate.systems.map(s => s.hostname).join(', ');
+                const isBulk = pendingFirmwareUpdate.systems.length > 1;
+                const totalCount = pendingFirmwareUpdate.totalSelected;
 
-            // Update modal title for bulk operations
-            const modalTitle = document.querySelector('#firmware-confirm-modal .modal-header h2');
-            if (modalTitle) {
-                modalTitle.textContent = isBulk ? 'Confirm BULK Firmware Update' : 'Confirm Firmware Update';
-            }
+                // Show the "Host:" label for normal confirmations
+                const hostnameElement = document.getElementById('firmware-hostname');
+                const hostnameLabel = hostnameElement.previousElementSibling;
+                if (hostnameLabel && hostnameLabel.classList.contains('detail-label')) {
+                    hostnameLabel.style.display = '';
+                }
 
-            document.getElementById('firmware-confirm-modal').classList.add('active');
+                if (isBulk || totalCount > 1) {
+                    hostnameElement.textContent = `${updateCount} of ${totalCount} selected systems: ${hostnamesList}`;
+                    document.getElementById('firmware-current-version').textContent = 'Multiple';
+                } else {
+                    document.getElementById('firmware-hostname').textContent = pendingFirmwareUpdate.systems[0].hostname;
+                    document.getElementById('firmware-current-version').textContent = pendingFirmwareUpdate.systems[0].currentVersion;
+                }
+                document.getElementById('firmware-new-version').textContent = selectedVersion;
+                document.querySelector('#firmware-confirm-modal .firmware-warning').textContent = 'Are you sure you want to proceed with this firmware update?';
+
+                const modalTitle = document.querySelector('#firmware-confirm-modal .modal-header h2');
+                if (modalTitle) {
+                    modalTitle.textContent = isBulk ? 'Confirm BULK Firmware Update' : 'Confirm Firmware Update';
+                }
+
+                document.getElementById('firmware-confirm-modal').classList.add('active');
+            }
 
             // Reset dropdown to placeholder
             event.target.value = '';
@@ -1910,6 +2202,35 @@
         // Confirm firmware update
         async function confirmFirmwareUpdate() {
             if (!pendingFirmwareUpdate) return;
+
+            // Check if this is the first confirmation for large batch
+            if (firmwareFirstConfirmation) {
+                // Move to second confirmation stage
+                firmwareFirstConfirmation = false;
+
+                const updateCount = pendingFirmwareUpdate.systems.length;
+                const first10 = pendingFirmwareUpdate.systems.slice(0, 10).map(s => s.hostname).join('<br>');
+                const hostnamesList = `<strong>Selection:</strong> ${updateCount} systems<br>${first10}<br>...`;
+
+                const hostnameElement = document.getElementById('firmware-hostname');
+                hostnameElement.innerHTML = hostnamesList;
+                // Hide the "Host:" label for multi-host display
+                const hostnameLabel = hostnameElement.previousElementSibling;
+                if (hostnameLabel && hostnameLabel.classList.contains('detail-label')) {
+                    hostnameLabel.style.display = 'none';
+                }
+                document.getElementById('firmware-current-version').textContent = 'Multiple';
+                document.getElementById('firmware-new-version').textContent = pendingFirmwareUpdate.newVersion;
+                document.querySelector('#firmware-confirm-modal .firmware-warning').textContent = 'Are you sure you want to proceed with this firmware update?';
+
+                const modalTitle = document.querySelector('#firmware-confirm-modal .modal-header h2');
+                if (modalTitle) {
+                    modalTitle.textContent = 'Confirm BULK Firmware Update';
+                }
+
+                // Modal is already open, just updated content
+                return;
+            }
 
             // Capture values we need before clearing pendingFirmwareUpdate
             const updateInfo = {
@@ -2042,6 +2363,7 @@
             // Close modal and clear pending update
             document.getElementById('firmware-confirm-modal').classList.remove('active');
             pendingFirmwareUpdate = null;
+            firmwareFirstConfirmation = false;
         }
 
         // Handle BIOS version selection
@@ -2076,28 +2398,60 @@
                 totalSelected: selectedSystems.length
             };
 
-            // Populate and show confirmation modal
-            const hostnamesList = pendingBiosUpdate.systems.map(s => s.hostname).join(', ');
-            const isBulk = pendingBiosUpdate.systems.length > 1;
             const updateCount = pendingBiosUpdate.systems.length;
-            const totalCount = pendingBiosUpdate.totalSelected;
 
-            if (isBulk || totalCount > 1) {
-                document.getElementById('bios-hostname').textContent = `${updateCount} of ${totalCount} selected systems: ${hostnamesList}`;
-                document.getElementById('bios-current-version').textContent = 'Multiple';
+            // Check if we need two-stage confirmation (more than 10 hosts)
+            if (updateCount > 10) {
+                // First stage: Simple confirmation
+                biosFirstConfirmation = true;
+                const hostnameElement = document.getElementById('bios-hostname');
+                hostnameElement.textContent = `${updateCount} hosts selected`;
+                // Show the "Host:" label for first stage
+                const hostnameLabel = hostnameElement.previousElementSibling;
+                if (hostnameLabel && hostnameLabel.classList.contains('detail-label')) {
+                    hostnameLabel.style.display = '';
+                }
+                document.getElementById('bios-current-version').textContent = 'N/A';
+                document.getElementById('bios-new-version').textContent = selectedVersion;
+                document.querySelector('#bios-confirm-modal .firmware-warning').textContent = 'Are you sure?';
+
+                const modalTitle = document.querySelector('#bios-confirm-modal .modal-header h2');
+                if (modalTitle) {
+                    modalTitle.textContent = 'Confirm BIOS Update';
+                }
+
+                document.getElementById('bios-confirm-modal').classList.add('active');
             } else {
-                document.getElementById('bios-hostname').textContent = pendingBiosUpdate.systems[0].hostname;
-                document.getElementById('bios-current-version').textContent = pendingBiosUpdate.systems[0].currentVersion;
-            }
-            document.getElementById('bios-new-version').textContent = selectedVersion;
+                // Normal confirmation for <= 10 hosts
+                biosFirstConfirmation = false;
+                const hostnamesList = pendingBiosUpdate.systems.map(s => s.hostname).join(', ');
+                const isBulk = pendingBiosUpdate.systems.length > 1;
+                const totalCount = pendingBiosUpdate.totalSelected;
 
-            // Update modal title for bulk operations
-            const modalTitle = document.querySelector('#bios-confirm-modal .modal-header h2');
-            if (modalTitle) {
-                modalTitle.textContent = isBulk ? 'Confirm BULK BIOS Update' : 'Confirm BIOS Update';
-            }
+                // Show the "Host:" label for normal confirmations
+                const hostnameElement = document.getElementById('bios-hostname');
+                const hostnameLabel = hostnameElement.previousElementSibling;
+                if (hostnameLabel && hostnameLabel.classList.contains('detail-label')) {
+                    hostnameLabel.style.display = '';
+                }
 
-            document.getElementById('bios-confirm-modal').classList.add('active');
+                if (isBulk || totalCount > 1) {
+                    hostnameElement.textContent = `${updateCount} of ${totalCount} selected systems: ${hostnamesList}`;
+                    document.getElementById('bios-current-version').textContent = 'Multiple';
+                } else {
+                    document.getElementById('bios-hostname').textContent = pendingBiosUpdate.systems[0].hostname;
+                    document.getElementById('bios-current-version').textContent = pendingBiosUpdate.systems[0].currentVersion;
+                }
+                document.getElementById('bios-new-version').textContent = selectedVersion;
+                document.querySelector('#bios-confirm-modal .firmware-warning').textContent = 'Are you sure you want to proceed with this BIOS update?';
+
+                const modalTitle = document.querySelector('#bios-confirm-modal .modal-header h2');
+                if (modalTitle) {
+                    modalTitle.textContent = isBulk ? 'Confirm BULK BIOS Update' : 'Confirm BIOS Update';
+                }
+
+                document.getElementById('bios-confirm-modal').classList.add('active');
+            }
 
             // Reset dropdown to placeholder
             event.target.value = '';
@@ -2106,6 +2460,35 @@
         // Confirm BIOS update
         async function confirmBiosUpdate() {
             if (!pendingBiosUpdate) return;
+
+            // Check if this is the first confirmation for large batch
+            if (biosFirstConfirmation) {
+                // Move to second confirmation stage
+                biosFirstConfirmation = false;
+
+                const updateCount = pendingBiosUpdate.systems.length;
+                const first10 = pendingBiosUpdate.systems.slice(0, 10).map(s => s.hostname).join('<br>');
+                const hostnamesList = `<strong>Selection:</strong> ${updateCount} systems<br>${first10}<br>...`;
+
+                const hostnameElement = document.getElementById('bios-hostname');
+                hostnameElement.innerHTML = hostnamesList;
+                // Hide the "Host:" label for multi-host display
+                const hostnameLabel = hostnameElement.previousElementSibling;
+                if (hostnameLabel && hostnameLabel.classList.contains('detail-label')) {
+                    hostnameLabel.style.display = 'none';
+                }
+                document.getElementById('bios-current-version').textContent = 'Multiple';
+                document.getElementById('bios-new-version').textContent = pendingBiosUpdate.newVersion;
+                document.querySelector('#bios-confirm-modal .firmware-warning').textContent = 'Are you sure you want to proceed with this BIOS update?';
+
+                const modalTitle = document.querySelector('#bios-confirm-modal .modal-header h2');
+                if (modalTitle) {
+                    modalTitle.textContent = 'Confirm BULK BIOS Update';
+                }
+
+                // Modal is already open, just updated content
+                return;
+            }
 
             // Capture values we need before clearing pendingBiosUpdate
             const updateInfo = {
@@ -2238,6 +2621,144 @@
             // Close modal and clear pending update
             document.getElementById('bios-confirm-modal').classList.remove('active');
             pendingBiosUpdate = null;
+            biosFirstConfirmation = false;
+        }
+
+        // Handle Job Queue button click
+        async function handleJobQueueClick() {
+            if (selectedSystems.length !== 1) {
+                showNotification('Please select exactly one system', 'error');
+                return;
+            }
+
+            const system = selectedSystems[0];
+            showNotification('Testing iDRAC connectivity...', 'success');
+
+            try {
+                const response = await fetch('/api/test-idrac', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        hostname: system.hostname
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // iDRAC access succeeded
+                    showNotification(data.message, 'success');
+                    console.log('DRACS: iDRAC connectivity test passed for job queue');
+
+                    // Fetch job queue data
+                    setTimeout(async () => {
+                        showNotification('Fetching job queue...', 'success');
+
+                        try {
+                            const jobResponse = await fetch('/api/job-queue', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                    hostname: system.hostname
+                                })
+                            });
+
+                            const jobData = await jobResponse.json();
+
+                            if (jobData.success) {
+                                showNotification('Job queue retrieved successfully', 'success');
+                                displayJobQueue(system.hostname, jobData.jobs);
+                            } else {
+                                showNotification(jobData.message, 'error');
+                                console.error('DRACS: Job queue fetch failed:', jobData.message);
+                            }
+                        } catch (error) {
+                            console.error('DRACS: Error fetching job queue:', error);
+                            showNotification('Job queue fetch failed: ' + error.message, 'error');
+                        }
+                    }, 2000);
+                } else {
+                    // iDRAC access failed
+                    showNotification(data.message, 'error');
+                    console.error('DRACS: iDRAC connectivity test failed:', data.message);
+                }
+            } catch (error) {
+                console.error('DRACS: Error testing iDRAC connectivity:', error);
+                showNotification('iDRAC Access Failed: ' + error.message, 'error');
+            }
+        }
+
+        // Display job queue in modal
+        function displayJobQueue(hostname, jobs) {
+            document.getElementById('job-queue-hostname').textContent = hostname;
+            const tbody = document.getElementById('job-queue-tbody');
+            tbody.innerHTML = '';
+
+            if (!jobs || jobs.length === 0) {
+                const row = document.createElement('tr');
+                row.innerHTML = '<td colspan="7" style="text-align: center;">No jobs found</td>';
+                tbody.appendChild(row);
+            } else {
+                jobs.forEach(job => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${job.job_id || ''}</td>
+                        <td>${job.job_name || ''}</td>
+                        <td>${job.status || ''}</td>
+                        <td>${job.actual_start_time || ''}</td>
+                        <td>${job.actual_completion_time || ''}</td>
+                        <td>${job.message || ''}</td>
+                        <td>${job.percent_complete || ''}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            }
+
+            document.getElementById('job-queue-modal').classList.add('active');
+        }
+
+        // Dismiss job queue modal
+        function dismissJobQueue() {
+            document.getElementById('job-queue-modal').classList.remove('active');
+            document.getElementById('job-queue-tbody').innerHTML = '';
+        }
+
+        // Handle Clear Job Queue button click
+        async function handleClearJobQueueClick() {
+            if (selectedSystems.length === 0) {
+                showNotification('Please select at least one system', 'error');
+                return;
+            }
+
+            const hostCount = selectedSystems.length;
+
+            try {
+                // Call API to clear job queue for all selected hosts
+                const response = await fetch('/api/clear-job-queue', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        hostnames: selectedSystems.map(sys => sys.hostname)
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showNotification(`All non-applied jobs cleared for ${hostCount} host${hostCount > 1 ? 's' : ''}.`, 'success');
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            } catch (error) {
+                console.error('DRACS: Error clearing job queue:', error);
+                showNotification('Clear job queue failed: ' + error.message, 'error');
+            }
         }
 
         // Auto-refresh functionality
@@ -2302,6 +2823,13 @@
             }
         });
 
+        // Close job queue modal on background click
+        document.getElementById('job-queue-modal').addEventListener('click', function(event) {
+            if (event.target === this) {
+                dismissJobQueue();
+            }
+        });
+
         // Embed data from Flask
         let systems = {{ systems_json | safe }};  // Use let instead of const so it can be reassigned during refresh
         const biosVersions = {{ bios_versions_json | safe }};
@@ -2310,11 +2838,20 @@
 
         // Get filter elements
         const hostnameFilter = document.getElementById('hostname-filter');
+        const servicetagFilter = document.getElementById('servicetag-filter');
         const modelFilter = document.getElementById('model-filter');
         const biosVersionSelect = document.getElementById('bios-version');
         const biosOperatorSelect = document.getElementById('bios-operator');
         const firmwareVersionSelect = document.getElementById('firmware-version');
         const firmwareOperatorSelect = document.getElementById('firmware-operator');
+        const firmwareCurrentCheck = document.getElementById('firmware-current');
+        const firmwareOlderCheck = document.getElementById('firmware-older');
+        const firmwareOldestCheck = document.getElementById('firmware-oldest');
+        const biosCurrentCheck = document.getElementById('bios-current');
+        const biosOlderCheck = document.getElementById('bios-older');
+        const biosOldestCheck = document.getElementById('bios-oldest');
+        const warrantyExpiredCheck = document.getElementById('warranty-expired');
+        const warrantyExpiresSelect = document.getElementById('warranty-expires');
         const tableBody = document.getElementById('table-body');
         const resultsCount = document.getElementById('results-count');
         const totalCount = document.getElementById('total-count');
@@ -2387,9 +2924,11 @@
         function createRow(system) {
             const row = document.createElement('tr');
             row.dataset.hostname = (system.name || '').toLowerCase();
+            row.dataset.serviceTag = (system.svc_tag || '').toLowerCase();
             row.dataset.model = system.model || '';
             row.dataset.biosVersion = system.bios_version || '';
             row.dataset.firmwareVersion = system.idrac_version || '';
+            row.dataset.expEpoch = system.exp_epoch || '';
 
             row.innerHTML = `
                 <td>${system.svc_tag || ''}</td>
@@ -2520,13 +3059,92 @@
             console.log('DRACS: Calculated BIOS versions by model:', biosVersionsByModel);
         }
 
+        // Update firmware and BIOS version dropdowns based on selected models
+        function updateVersionDropdowns() {
+            const selectedModels = Array.from(modelFilter.selectedOptions).map(opt => opt.value);
+
+            // Save currently selected values
+            const currentFirmwareVersion = firmwareVersionSelect.value;
+            const currentBiosVersion = biosVersionSelect.value;
+
+            // Determine which versions to show
+            let firmwareVersionsToShow, biosVersionsToShow;
+
+            if (selectedModels.length === 0) {
+                // No models selected - show all versions
+                firmwareVersionsToShow = firmwareVersions;
+                biosVersionsToShow = biosVersions;
+            } else {
+                // Models selected - show only versions that exist in selected models
+                const firmwareVersionSet = new Set();
+                const biosVersionSet = new Set();
+
+                selectedModels.forEach(model => {
+                    // Add firmware versions for this model
+                    if (firmwareVersionsByModel[model]) {
+                        firmwareVersionsByModel[model].forEach(version => {
+                            firmwareVersionSet.add(version);
+                        });
+                    }
+
+                    // Add BIOS versions for this model
+                    if (biosVersionsByModel[model]) {
+                        biosVersionsByModel[model].forEach(version => {
+                            biosVersionSet.add(version);
+                        });
+                    }
+                });
+
+                // Convert to sorted arrays (newest first)
+                firmwareVersionsToShow = Array.from(firmwareVersionSet).sort((a, b) => compareVersions(b, a));
+                biosVersionsToShow = Array.from(biosVersionSet).sort((a, b) => compareVersions(b, a));
+            }
+
+            // Rebuild firmware version dropdown
+            firmwareVersionSelect.innerHTML = '<option value="">(all versions)</option>';
+            firmwareVersionsToShow.forEach(version => {
+                const option = document.createElement('option');
+                option.value = version;
+                option.textContent = version;
+                firmwareVersionSelect.appendChild(option);
+            });
+
+            // Rebuild BIOS version dropdown
+            biosVersionSelect.innerHTML = '<option value="">(all versions)</option>';
+            biosVersionsToShow.forEach(version => {
+                const option = document.createElement('option');
+                option.value = version;
+                option.textContent = version;
+                biosVersionSelect.appendChild(option);
+            });
+
+            // Restore previously selected values if they still exist in the filtered lists
+            if (currentFirmwareVersion && firmwareVersionsToShow.includes(currentFirmwareVersion)) {
+                firmwareVersionSelect.value = currentFirmwareVersion;
+            }
+            if (currentBiosVersion && biosVersionsToShow.includes(currentBiosVersion)) {
+                biosVersionSelect.value = currentBiosVersion;
+            }
+        }
+
         // Filter rows
         function applyFilters() {
             const hostnameText = hostnameFilter.value.toLowerCase();
+            const servicetagText = servicetagFilter.value.toLowerCase();
             const biosVersion = biosVersionSelect.value;
             const biosOperator = biosOperatorSelect.value;
             const firmwareVersion = firmwareVersionSelect.value;
             const firmwareOperator = firmwareOperatorSelect.value;
+
+            // Get checkbox states
+            const firmwareCurrent = firmwareCurrentCheck.checked;
+            const firmwareOlder = firmwareOlderCheck.checked;
+            const firmwareOldest = firmwareOldestCheck.checked;
+            const biosCurrent = biosCurrentCheck.checked;
+            const biosOlder = biosOlderCheck.checked;
+            const biosOldest = biosOldestCheck.checked;
+            const warrantyExpired = warrantyExpiredCheck.checked;
+            const warrantyExpiresDays = warrantyExpiresSelect.value;
 
             // Get selected models from multi-select
             const selectedModels = Array.from(modelFilter.selectedOptions).map(opt => opt.value);
@@ -2536,12 +3154,16 @@
             const rows = tableBody.querySelectorAll('tr');
             rows.forEach(row => {
                 const hostname = row.dataset.hostname;
+                const servicetag = row.dataset.serviceTag;
                 const rowModel = row.dataset.model;
                 const rowBiosVersion = row.dataset.biosVersion;
                 const rowFirmwareVersion = row.dataset.firmwareVersion;
 
                 // Check hostname filter
                 const hostnameMatch = !hostnameText || hostname.includes(hostnameText);
+
+                // Check service tag filter
+                const servicetagMatch = !servicetagText || servicetag.includes(servicetagText);
 
                 // Check model filter (if any models selected, row model must be in the list)
                 const modelMatch = selectedModels.length === 0 || selectedModels.includes(rowModel);
@@ -2552,8 +3174,76 @@
                 // Check firmware version filter
                 const firmwareMatch = matchesVersionFilter(rowFirmwareVersion, firmwareVersion, firmwareOperator);
 
+                // Check firmware age filter
+                let firmwareAgeMatch = true;
+                if (firmwareCurrent || firmwareOlder || firmwareOldest) {
+                    // At least one checkbox is selected, apply age filter
+                    const modelFirmwareVersions = firmwareVersionsByModel[rowModel] || [];
+                    const versionIndex = modelFirmwareVersions.indexOf(rowFirmwareVersion);
+
+                    const isCurrent = versionIndex === 0;
+                    const isOlder = versionIndex === 1;
+                    const isOldest = versionIndex >= 2;
+
+                    // If all 3 are checked, show everything (same as none checked)
+                    if (firmwareCurrent && firmwareOlder && firmwareOldest) {
+                        firmwareAgeMatch = true;
+                    } else {
+                        firmwareAgeMatch = (firmwareCurrent && isCurrent) ||
+                                          (firmwareOlder && isOlder) ||
+                                          (firmwareOldest && isOldest);
+                    }
+                }
+
+                // Check BIOS age filter
+                let biosAgeMatch = true;
+                if (biosCurrent || biosOlder || biosOldest) {
+                    // At least one checkbox is selected, apply age filter
+                    const modelBiosVersions = biosVersionsByModel[rowModel] || [];
+                    const versionIndex = modelBiosVersions.indexOf(rowBiosVersion);
+
+                    const isCurrent = versionIndex === 0;
+                    const isOlder = versionIndex === 1;
+                    const isOldest = versionIndex >= 2;
+
+                    // If all 3 are checked, show everything (same as none checked)
+                    if (biosCurrent && biosOlder && biosOldest) {
+                        biosAgeMatch = true;
+                    } else {
+                        biosAgeMatch = (biosCurrent && isCurrent) ||
+                                      (biosOlder && isOlder) ||
+                                      (biosOldest && isOldest);
+                    }
+                }
+
+                // Check warranty filter
+                let warrantyMatch = true;
+                const rowExpEpoch = row.dataset.expEpoch;
+                if (warrantyExpired || warrantyExpiresDays) {
+                    if (rowExpEpoch) {
+                        const currentTime = Math.floor(Date.now() / 1000);
+                        const expirationTime = parseInt(rowExpEpoch);
+                        const isExpired = expirationTime < currentTime;
+                        const daysUntilExpiration = (expirationTime - currentTime) / (60 * 60 * 24);
+
+                        if (warrantyExpired && warrantyExpiresDays) {
+                            // Both filters active: show expired OR expiring within X days
+                            warrantyMatch = isExpired || (daysUntilExpiration > 0 && daysUntilExpiration <= parseInt(warrantyExpiresDays));
+                        } else if (warrantyExpired) {
+                            // Only expired checkbox: show only expired
+                            warrantyMatch = isExpired;
+                        } else if (warrantyExpiresDays) {
+                            // Only expires-in selector: show expiring within X days but NOT already expired
+                            warrantyMatch = !isExpired && daysUntilExpiration > 0 && daysUntilExpiration <= parseInt(warrantyExpiresDays);
+                        }
+                    } else {
+                        // No warranty data available, exclude from filtered results
+                        warrantyMatch = false;
+                    }
+                }
+
                 // Show row if all filters match
-                if (hostnameMatch && modelMatch && biosMatch && firmwareMatch) {
+                if (hostnameMatch && servicetagMatch && modelMatch && biosMatch && firmwareMatch && firmwareAgeMatch && biosAgeMatch && warrantyMatch) {
                     row.classList.remove('hidden');
                     visibleCount++;
                 } else {
@@ -2742,6 +3432,9 @@
             // Calculate all unique versions before creating rows
             calculateAllVersions();
 
+            // Update version dropdowns based on any selected models
+            updateVersionDropdowns();
+
             systems.forEach(system => {
                 const row = createRow(system);
                 tableBody.appendChild(row);
@@ -2764,11 +3457,23 @@
 
         // Add event listeners
         hostnameFilter.addEventListener('input', applyFilters);
-        modelFilter.addEventListener('change', applyFilters);
+        servicetagFilter.addEventListener('input', applyFilters);
+        modelFilter.addEventListener('change', () => {
+            updateVersionDropdowns();
+            applyFilters();
+        });
         biosVersionSelect.addEventListener('change', applyFilters);
         biosOperatorSelect.addEventListener('change', applyFilters);
         firmwareVersionSelect.addEventListener('change', applyFilters);
         firmwareOperatorSelect.addEventListener('change', applyFilters);
+        firmwareCurrentCheck.addEventListener('change', applyFilters);
+        firmwareOlderCheck.addEventListener('change', applyFilters);
+        firmwareOldestCheck.addEventListener('change', applyFilters);
+        biosCurrentCheck.addEventListener('change', applyFilters);
+        biosOlderCheck.addEventListener('change', applyFilters);
+        biosOldestCheck.addEventListener('change', applyFilters);
+        warrantyExpiredCheck.addEventListener('change', applyFilters);
+        warrantyExpiresSelect.addEventListener('change', applyFilters);
 
         // Initialize on page load
         initTable();
