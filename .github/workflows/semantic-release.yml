@@ -31,7 +31,7 @@ jobs:
       - name: Set up Python
         run: uv python install 3.12
 
-- name: Version and Build (Semantic Release)
+      - name: Version and Build (Semantic Release)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # This calculates the version, updates files, commits, tags, and runs `uv build` to populate the dist/ folder
