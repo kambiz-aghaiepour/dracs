@@ -31,10 +31,20 @@ jobs:
       - name: Set up Python
         run: uv python install 3.12
 
-      - name: Run semantic release
+- name: Version and Build (Semantic Release)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # Run 'version' to bump/commit/tag, then 'publish' to push and create the GitHub Release
-        run: |
-          uv tool run --from python-semantic-release semantic-release version
-          uv tool run --from python-semantic-release semantic-release publish
+        # This calculates the version, updates files, commits, tags, and runs `uv build` to populate the dist/ folder
+        run: uv tool run --from python-semantic-release semantic-release version
+
+      - name: Publish package to PyPI
+        uses: pypa/gh-action-pypi-publish@release-v1
+        # No password/token needed here! It uses the id-token permission to authenticate securely.
+        # It will automatically find the .whl and .tar.gz files in the dist/ folder.
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Pushes the GitHub Release out to your repository
+        run: uv tool run --from python-semantic-release semantic-release publish
+
