@@ -41,7 +41,7 @@ version_variables = [
 version_toml = [
     "pyproject.toml:project.version"
 ]
-build_command = "uv build"
+build_command = "pip install uv && uv build"
 commit_message = "chore(release): v{version} [skip ci]"
 
 [tool.pytest.ini_options]
