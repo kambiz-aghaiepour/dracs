@@ -38,11 +38,15 @@ jobs:
         run: uv tool run --from python-semantic-release semantic-release version
 
       - name: Publish package to PyPI
+        # 👇 Only run if the dist directory exists and has files
+        if: hashFiles('dist/*') != ''
         uses: pypa/gh-action-pypi-publish@release/v1
         # No password/token needed here! It uses the id-token permission to authenticate securely.
         # It will automatically find the .whl and .tar.gz files in the dist/ folder.
 
       - name: Create GitHub Release
+        # 👇 Only run if the dist directory exists and has files
+        if: hashFiles('dist/*') != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # Pushes the GitHub Release out to your repository
