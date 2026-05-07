@@ -21,6 +21,8 @@ from dracs.db import (
     db_initialize,
     query_by_service_tag,
     query_by_hostname,
+    query_by_model,
+    query_all_systems,
     upsert_system,
 )
 from dracs.snmp import get_snmp_value, build_idrac_hostname
@@ -532,6 +534,50 @@ async def refresh_dell_warranty(
     )
 
     logger.info(f"Successfully refreshed record for {svc_tag}")
+
+
+async def refresh_by_model(model: str, warranty: str) -> None:
+    db_initialize(warranty)
+    results = query_by_model(warranty, model)
+
+    if len(results) == 0:
+        raise DatabaseError(f"No systems found with model {model}")
+
+    success_count = 0
+    for result in results:
+        hostname = result[1]
+        print(f"Refreshing {hostname} ... ", end="", flush=True)
+        try:
+            await refresh_dell_warranty(None, hostname, warranty)
+            print("done.")
+            success_count += 1
+        except Exception as e:
+            print(f"failed: {e}")
+            logger.error(f"Failed to refresh {hostname}: {e}")
+
+    print(f"Summary: A total of {success_count} hosts refreshed")
+
+
+async def refresh_all_systems(warranty: str) -> None:
+    db_initialize(warranty)
+    results = query_all_systems(warranty)
+
+    if len(results) == 0:
+        raise DatabaseError("No systems found in database")
+
+    success_count = 0
+    for result in results:
+        hostname = result[1]
+        print(f"Refreshing {hostname} ... ", end="", flush=True)
+        try:
+            await refresh_dell_warranty(None, hostname, warranty)
+            print("done.")
+            success_count += 1
+        except Exception as e:
+            print(f"failed: {e}")
+            logger.error(f"Failed to refresh {hostname}: {e}")
+
+    print(f"Summary: A total of {success_count} hosts refreshed")
 
 
 async def discover_dell_system(hostname: str, warranty: str) -> Tuple[str, str]:

@@ -214,6 +214,12 @@ async def main() -> None:
     refresh_group.add_argument(
         "-t", "--target", help="Target hostname of system to refresh"
     )
+    refresh_group.add_argument(
+        "-m", "--model", help="Refresh all systems of specified model"
+    )
+    refresh_group.add_argument(
+        "-a", "--all", action="store_true", help="Refresh all systems in database"
+    )
 
     # --- REMOVE COMMAND ---
     parser_remove = subparsers.add_parser(
@@ -312,7 +318,12 @@ async def main() -> None:
             target_tag, args.target, args.idrac, args.bios, args.full, warranty
         )
     elif args.command in ["refresh", "rf"]:
-        await commands.refresh_dell_warranty(target_tag, args.target, warranty)
+        if args.all:
+            await commands.refresh_all_systems(warranty)
+        elif args.model:
+            await commands.refresh_by_model(args.model, warranty)
+        else:
+            await commands.refresh_dell_warranty(target_tag, args.target, warranty)
     elif args.command in ["remove", "r"]:
         await commands.remove_dell_warranty(target_tag, args.target, warranty)
     elif args.command in ["list", "li"]:

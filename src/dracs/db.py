@@ -77,6 +77,18 @@ def query_by_hostname(db_url: str, hostname: str) -> List[tuple]:
         return [r.to_tuple() for r in results]
 
 
+def query_by_model(db_url: str, model: str) -> List[tuple]:
+    with get_session() as session:
+        results = session.query(System).filter(System.model == model).all()
+        return [r.to_tuple() for r in results]
+
+
+def query_all_systems(db_url: str) -> List[tuple]:
+    with get_session() as session:
+        results = session.query(System).order_by(System.name).all()
+        return [r.to_tuple() for r in results]
+
+
 def upsert_system(
     db_url: str,
     svc_tag: str,
