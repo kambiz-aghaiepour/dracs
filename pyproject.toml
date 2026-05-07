@@ -45,6 +45,9 @@ version_toml = [
 build_command = "pip install uv && uv build"
 commit_message = "chore(release): v{version} [skip ci]"
 
+changelog_file = "CHANGELOG.md"
+changelog_sections = "feature,fix,breaking,documentation,performance"
+
 [tool.pytest.ini_options]
 addopts = "-v"
 testpaths = ["tests"]
