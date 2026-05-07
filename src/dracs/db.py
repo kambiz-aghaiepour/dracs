@@ -2,6 +2,7 @@ from contextlib import contextmanager
 from typing import List
 
 from sqlalchemy import create_engine, String, Integer
+from sqlalchemy.pool import NullPool
 from sqlalchemy.orm import (
     DeclarativeBase,
     Mapped,
@@ -49,7 +50,14 @@ def make_db_url(path: str) -> str:
 def db_initialize(db_url: str) -> None:
     global _engine, _SessionFactory
     url = make_db_url(db_url)
-    _engine = create_engine(url)
+
+    # Use NullPool for SQLite to prevent connection pooling issues
+    # which can cause "too many open files" errors during mass operations
+    if url.startswith("sqlite"):
+        _engine = create_engine(url, poolclass=NullPool)
+    else:
+        _engine = create_engine(url)
+
     Base.metadata.create_all(_engine)
     _SessionFactory = sessionmaker(bind=_engine)
 
