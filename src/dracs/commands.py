@@ -515,29 +515,33 @@ async def refresh_dell_warranty(
     if verbose:
         print(f"Refreshing {name} ... ", end="", flush=True)
 
-    logger.info(f"Refreshing data for {svc_tag} ({name})")
+    logger.debug(f"Refreshing data for {svc_tag} ({name})")
 
     idrac_host = build_idrac_hostname(name)
     community_string = os.getenv("SNMP_COMMUNITY", "public")
     BIOS_OID = "1.3.6.1.4.1.674.10892.5.4.300.50.1.8.1.1"
     IDRAC_FW_OID = "1.3.6.1.4.1.674.10892.5.1.1.8.0"
+    MODEL_OID = ".1.3.6.1.4.1.674.10892.5.1.3.12.0"
 
     bios_version = await get_snmp_value(idrac_host, community_string, BIOS_OID)
     idrac_version = await get_snmp_value(idrac_host, community_string, IDRAC_FW_OID)
+    model = await get_snmp_value(idrac_host, community_string, MODEL_OID)
 
-    logger.info(f"Updated SNMP values - BIOS: {bios_version}, iDRAC: {idrac_version}")
+    if model and model.startswith("PowerEdge "):
+        model = model.replace("PowerEdge ", "")
 
-    logger.info("Fetching updated warranty information from Dell API")
+    logger.debug(f"Updated SNMP values - Model: {model}, BIOS: {bios_version}, iDRAC: {idrac_version}")
+
     warranty_results = dell_api_warranty_date(svc_tag)
     exp_epoch, exp_date = warranty_results[svc_tag]
 
-    logger.info(f"Updated warranty expiration: {exp_date}")
+    logger.debug(f"Updated warranty expiration: {exp_date}")
 
     upsert_system(
-        warranty, svc_tag, name, old_model, idrac_version, bios_version, exp_date, exp_epoch
+        warranty, svc_tag, name, model, idrac_version, bios_version, exp_date, exp_epoch
     )
 
-    logger.info(f"Successfully refreshed record for {svc_tag}")
+    logger.debug(f"Successfully refreshed record for {svc_tag}")
 
     if verbose:
         print("done.")
@@ -545,6 +549,9 @@ async def refresh_dell_warranty(
     # Check for changes and report them
     from datetime import datetime
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    if old_model != model:
+        print(f"{timestamp} - dracs.cli - INFO - {name} updated: Model changed from {old_model} to {model}")
 
     if old_idrac_version != idrac_version:
         print(f"{timestamp} - dracs.cli - INFO - {name} updated: Firmware changed from {old_idrac_version} to {idrac_version}")
