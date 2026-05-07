@@ -435,7 +435,6 @@ async def list_dell_warranty(
         table.add_column("Firmware")
         table.add_column("BIOS")
         table.add_column("Expires")
-        table.add_column("Timestamp")
 
         current_time = int(time.time())
         ninety_days_future = current_time + (90 * 86400)
@@ -483,7 +482,6 @@ async def list_dell_warranty(
                 colored_firmware,
                 colored_bios,
                 colored_exp_date,
-                str(row[6]),
             )
 
         console.print(table)
