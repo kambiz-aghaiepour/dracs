@@ -571,7 +571,7 @@ async def refresh_by_model(model: str, warranty: str, verbose: bool = False) -> 
         raise DatabaseError(f"No systems found with model {model}")
 
     success_count = 0
-    for result in results:
+    for idx, result in enumerate(results, start=1):
         hostname = result[1]
         if verbose:
             print(f"Refreshing {hostname} ... ", end="", flush=True)
@@ -584,6 +584,11 @@ async def refresh_by_model(model: str, warranty: str, verbose: bool = False) -> 
             if verbose:
                 print(f"failed: {e}")
             logger.error(f"Failed to refresh {hostname}: {e}")
+
+        # Throttle after every 100 systems to avoid overwhelming Dell API
+        if idx % 100 == 0 and idx < len(results):
+            print("[ Waiting 30 seconds before proceeding ]")
+            await asyncio.sleep(30)
 
     print(f"Summary: A total of {success_count} hosts refreshed")
 
@@ -596,7 +601,7 @@ async def refresh_all_systems(warranty: str, verbose: bool = False) -> None:
         raise DatabaseError("No systems found in database")
 
     success_count = 0
-    for result in results:
+    for idx, result in enumerate(results, start=1):
         hostname = result[1]
         if verbose:
             print(f"Refreshing {hostname} ... ", end="", flush=True)
@@ -609,6 +614,11 @@ async def refresh_all_systems(warranty: str, verbose: bool = False) -> None:
             if verbose:
                 print(f"failed: {e}")
             logger.error(f"Failed to refresh {hostname}: {e}")
+
+        # Throttle after every 100 systems to avoid overwhelming Dell API
+        if idx % 100 == 0 and idx < len(results):
+            print("[ Waiting 30 seconds before proceeding ]")
+            await asyncio.sleep(30)
 
     print(f"Summary: A total of {success_count} hosts refreshed")
 
