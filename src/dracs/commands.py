@@ -6,6 +6,8 @@ import time
 from typing import Dict, List, Tuple, Optional
 
 from tabulate import tabulate
+from rich.console import Console
+from rich.table import Table
 
 from dracs.exceptions import (
     DatabaseError,
@@ -391,16 +393,98 @@ async def list_dell_warranty(
     elif printjson:
         print(json.dumps(results, indent=4))
     else:
-        headers = [
-            "Service Tag",
-            "Hostname",
-            "Model",
-            "Firmware",
-            "BIOS",
-            "Expires",
-            "Timestamp",
-        ]
-        print(tabulate(results, headers=headers, tablefmt="grid"))
+        firmware_by_model = {}
+        bios_by_model = {}
+
+        for row in results:
+            model = row[2]
+            firmware = row[3]
+            bios = row[4]
+
+            if model and firmware:
+                if model not in firmware_by_model:
+                    firmware_by_model[model] = set()
+                firmware_by_model[model].add(firmware)
+
+            if model and bios:
+                if model not in bios_by_model:
+                    bios_by_model[model] = set()
+                bios_by_model[model].add(bios)
+
+        for model in firmware_by_model:
+            firmware_by_model[model] = sorted(
+                firmware_by_model[model],
+                key=lambda v: tuple(map(int, v.split("."))),
+                reverse=True,
+            )
+
+        for model in bios_by_model:
+            bios_by_model[model] = sorted(
+                bios_by_model[model],
+                key=lambda v: tuple(map(int, v.split("."))),
+                reverse=True,
+            )
+
+        console = Console()
+        table = Table(show_header=True, header_style="bold cyan")
+        table.add_column("Service Tag")
+        table.add_column("Hostname")
+        table.add_column("Model")
+        table.add_column("Firmware")
+        table.add_column("BIOS")
+        table.add_column("Expires")
+        table.add_column("Timestamp")
+
+        current_time = int(time.time())
+        ninety_days_future = current_time + (90 * 86400)
+
+        for row in results:
+            model = str(row[2])
+            firmware = str(row[3])
+            bios = str(row[4])
+            exp_epoch = int(row[6])
+            exp_date = str(row[5])
+
+            if exp_epoch < current_time:
+                colored_exp_date = f"[red]{exp_date}[/red]"
+            elif exp_epoch <= ninety_days_future:
+                colored_exp_date = f"[yellow]{exp_date}[/yellow]"
+            else:
+                colored_exp_date = exp_date
+
+            if model in firmware_by_model and firmware in firmware_by_model[model]:
+                firmware_index = firmware_by_model[model].index(firmware)
+                if firmware_index == 1:
+                    colored_firmware = f"[yellow]{firmware}[/yellow]"
+                elif firmware_index >= 2:
+                    colored_firmware = f"[red]{firmware}[/red]"
+                else:
+                    colored_firmware = firmware
+            else:
+                colored_firmware = firmware
+
+            if model in bios_by_model and bios in bios_by_model[model]:
+                bios_index = bios_by_model[model].index(bios)
+                if bios_index == 1:
+                    colored_bios = f"[yellow]{bios}[/yellow]"
+                elif bios_index >= 2:
+                    colored_bios = f"[red]{bios}[/red]"
+                else:
+                    colored_bios = bios
+            else:
+                colored_bios = bios
+
+            table.add_row(
+                str(row[0]),
+                str(row[1]),
+                model,
+                colored_firmware,
+                colored_bios,
+                colored_exp_date,
+                str(row[6]),
+            )
+
+        console.print(table)
 
 
 async def refresh_dell_warranty(
