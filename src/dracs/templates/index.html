@@ -163,6 +163,26 @@
             font-size: 14px;
         }
 
+        .select-all-btn {
+            padding: 6px 12px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+
+        .select-all-btn:hover {
+            background-color: #218838;
+        }
+
+        .select-all-btn:active {
+            background-color: #1e7e34;
+        }
+
         .table-scroll-container {
             max-height: 60vh;
             overflow-y: auto;
@@ -764,6 +784,18 @@
             color: #b0b0b0;
         }
 
+        body.dark-theme .select-all-btn {
+            background-color: #1e7e34;
+        }
+
+        body.dark-theme .select-all-btn:hover {
+            background-color: #28a745;
+        }
+
+        body.dark-theme .select-all-btn:active {
+            background-color: #218838;
+        }
+
         body.dark-theme .table-scroll-container {
             border-color: #555;
         }
@@ -980,6 +1012,50 @@
         body.dark-theme td.bios-outdated-2plus {
             background-color: #660000 !important;  /* Dark red */
         }
+
+        /* Context Menu */
+        .context-menu {
+            position: fixed;
+            background-color: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            padding: 5px 0;
+            z-index: 10000;
+            display: none;
+            min-width: 120px;
+        }
+
+        .context-menu-item {
+            padding: 8px 16px;
+            cursor: pointer;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .context-menu-item:hover {
+            background-color: #007bff;
+            color: white;
+        }
+
+        body.dark-theme .context-menu {
+            background-color: #2b2b2b;
+            border-color: #444;
+        }
+
+        body.dark-theme .context-menu-item {
+            color: #e0e0e0;
+        }
+
+        body.dark-theme .context-menu-item:hover {
+            background-color: #0056b3;
+        }
+
+        /* Make table cells user-selectable for better UX */
+        #systems-table td {
+            user-select: text;
+            cursor: text;
+        }
     </style>
 </head>
 <body>
@@ -1140,6 +1216,12 @@
                     Clear Job Queue
                 </button>
             </div>
+        </div>
+        {% endif %}
+
+        {% if is_authenticated %}
+        <div style="margin-bottom: 10px;">
+            <button id="select-all-btn" class="select-all-btn" onclick="toggleSelectAll()">Select All</button>
         </div>
         {% endif %}
 
@@ -1557,6 +1639,76 @@
             updateFirmwareButtonState();
             updateJobQueueButtonState();
             updateClearJobQueueButtonState();
+            updateSelectAllButtonText();
+        }
+
+        // Update select all button text based on current selection state
+        function updateSelectAllButtonText() {
+            const selectAllBtn = document.getElementById('select-all-btn');
+            if (!selectAllBtn) return;
+
+            const visibleRows = Array.from(tableBody.querySelectorAll('tr:not(.hidden)'));
+            if (visibleRows.length === 0) {
+                selectAllBtn.textContent = 'Select All';
+                return;
+            }
+
+            const allSelected = visibleRows.every(row => row.classList.contains('selected'));
+            selectAllBtn.textContent = allSelected ? 'Deselect All' : 'Select All';
+        }
+
+        // Toggle select all visible systems
+        function toggleSelectAll() {
+            const selectAllBtn = document.getElementById('select-all-btn');
+            const visibleRows = Array.from(tableBody.querySelectorAll('tr:not(.hidden)'));
+
+            if (visibleRows.length === 0) {
+                return;
+            }
+
+            // Check if all visible rows are currently selected
+            const allSelected = visibleRows.every(row => row.classList.contains('selected'));
+
+            if (allSelected) {
+                // Deselect all visible rows
+                visibleRows.forEach(row => {
+                    row.classList.remove('selected');
+                });
+                selectedRows = [];
+                selectedSystems = [];
+                selectAllBtn.textContent = 'Select All';
+            } else {
+                // Select all visible rows
+                selectedRows = [];
+                selectedSystems = [];
+
+                visibleRows.forEach(row => {
+                    row.classList.add('selected');
+                    selectedRows.push(row);
+
+                    const cells = row.getElementsByTagName('td');
+                    selectedSystems.push({
+                        service_tag: cells[0].textContent,
+                        hostname: cells[1].textContent,
+                        model: cells[2].textContent
+                    });
+                });
+
+                selectAllBtn.textContent = 'Deselect All';
+            }
+
+            // Update button states
+            updateRefreshButtonState();
+            updateBiosButtonState();
+            updateFirmwareButtonState();
+            updateJobQueueButtonState();
+            updateClearJobQueueButtonState();
+
+            // Update selected count if it exists
+            const selectedCountEl = document.getElementById('selected-count');
+            if (selectedCountEl) {
+                selectedCountEl.textContent = selectedSystems.length;
+            }
         }
 
         // Refresh selected systems
@@ -3267,6 +3419,9 @@
 
             // Update pagination after filters are applied
             updatePagination();
+
+            // Update select all button text based on new visible rows
+            updateSelectAllButtonText();
         }
 
         // Pagination functions
@@ -3485,6 +3640,89 @@
 
         // Start auto-refresh if enabled
         startAutoRefresh();
+
+        // Context Menu functionality
+        const contextMenu = document.createElement('div');
+        contextMenu.className = 'context-menu';
+        contextMenu.id = 'cell-context-menu';
+        contextMenu.innerHTML = '<div class="context-menu-item" onclick="copyCellValue()">Copy</div>';
+        document.body.appendChild(contextMenu);
+
+        let currentCellValue = '';
+        let currentClickedRow = null;
+        let currentCellIndex = -1;
+
+        // Add right-click event listener to table body only (not headers)
+        document.getElementById('table-body').addEventListener('contextmenu', function(e) {
+            // Always prevent default browser context menu
+            e.preventDefault();
+
+            // Check if the target is a table data cell (not header)
+            const target = e.target;
+            if (target.tagName === 'TD') {
+                // Get the parent row and cell index
+                currentClickedRow = target.parentElement;
+                const cells = Array.from(currentClickedRow.getElementsByTagName('td'));
+                currentCellIndex = cells.indexOf(target);
+
+                // Get the cell text content
+                currentCellValue = target.textContent.trim();
+
+                // Position the context menu at mouse location
+                contextMenu.style.left = e.pageX + 'px';
+                contextMenu.style.top = e.pageY + 'px';
+                contextMenu.style.display = 'block';
+            }
+        });
+
+        // Hide context menu when clicking elsewhere
+        document.addEventListener('click', function(e) {
+            if (!contextMenu.contains(e.target)) {
+                contextMenu.style.display = 'none';
+            }
+        });
+
+        // Hide context menu on scroll
+        document.addEventListener('scroll', function() {
+            contextMenu.style.display = 'none';
+        });
+
+        // Copy cell value function
+        function copyCellValue() {
+            if (!currentCellValue) return;
+
+            // Check if admin is logged in, multiple rows are selected, and clicked row is selected
+            if (isAuthenticated && selectedRows.length > 1 && currentClickedRow && currentClickedRow.classList.contains('selected')) {
+                // Copy the same column from all selected rows
+                const columnNames = ['Service Tag', 'Hostname', 'Model', 'Firmware', 'BIOS', 'Warranty Expiration'];
+                const columnName = columnNames[currentCellIndex] || 'values';
+
+                const values = selectedRows.map(row => {
+                    const cells = row.getElementsByTagName('td');
+                    return cells[currentCellIndex] ? cells[currentCellIndex].textContent.trim() : '';
+                }).filter(val => val !== '');
+
+                const textToCopy = values.join('\n');
+                const count = values.length;
+
+                navigator.clipboard.writeText(textToCopy).then(function() {
+                    showNotification(`Copied ${count} ${columnName} to clipboard`, 'success');
+                    contextMenu.style.display = 'none';
+                }).catch(function(err) {
+                    showNotification('Failed to copy: ' + err, 'error');
+                    contextMenu.style.display = 'none';
+                });
+            } else {
+                // Single cell copy (original behavior)
+                navigator.clipboard.writeText(currentCellValue).then(function() {
+                    showNotification('Copied to clipboard: ' + currentCellValue, 'success');
+                    contextMenu.style.display = 'none';
+                }).catch(function(err) {
+                    showNotification('Failed to copy: ' + err, 'error');
+                    contextMenu.style.display = 'none';
+                });
+            }
+        }
     </script>
 </body>
 </html>
