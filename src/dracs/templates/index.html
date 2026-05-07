@@ -183,6 +183,27 @@
             background-color: #1e7e34;
         }
 
+        .select-shown-btn {
+            padding: 6px 12px;
+            background-color: #17a2b8;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: background-color 0.2s;
+            margin-left: 10px;
+        }
+
+        .select-shown-btn:hover {
+            background-color: #138496;
+        }
+
+        .select-shown-btn:active {
+            background-color: #117a8b;
+        }
+
         .custom-filter-buttons {
             display: flex;
             flex-direction: row;
@@ -602,6 +623,9 @@
         /* Row selection */
         tbody tr {
             cursor: pointer;
+        }
+
+        tbody tr, tbody tr * {
             user-select: none;  /* Prevent text selection when shift-clicking for range select */
             -webkit-user-select: none;
             -moz-user-select: none;
@@ -851,6 +875,18 @@
 
         body.dark-theme .select-all-btn:active {
             background-color: #218838;
+        }
+
+        body.dark-theme .select-shown-btn {
+            background-color: #138496;
+        }
+
+        body.dark-theme .select-shown-btn:hover {
+            background-color: #117a8b;
+        }
+
+        body.dark-theme .select-shown-btn:active {
+            background-color: #10707f;
         }
 
         body.dark-theme .custom-filter-btn {
@@ -1319,6 +1355,7 @@
         {% if is_authenticated %}
         <div style="margin-bottom: 10px;">
             <button id="select-all-btn" class="select-all-btn" onclick="toggleSelectAll()">Select All</button>
+            <button id="select-shown-btn" class="select-shown-btn" onclick="selectShown()">Select Shown</button>
         </div>
         {% endif %}
 
@@ -1524,6 +1561,7 @@
         let autoRefreshTimer = null;
         let isRefreshing = false;  // Prevent concurrent refreshes
         let lastClickedRow = null;  // For shift-click range selection
+        let shiftKeyAnchorRow = null;  // Anchor point for shift+arrow key selection
         let customFilterHostnames = [];  // Array of hostnames for custom filtering
         let pendingFirmwareUpdate = null;  // Store pending firmware update info
         let pendingBiosUpdate = null;  // Store pending BIOS update info
@@ -1670,6 +1708,11 @@
             const isMultiSelect = event.ctrlKey || event.metaKey;
             const isRangeSelect = event.shiftKey;
 
+            // Prevent text selection when shift-clicking for range selection
+            if (isRangeSelect) {
+                event.preventDefault();
+            }
+
             // Extract system data from row
             const cells = row.getElementsByTagName('td');
             const systemData = {
@@ -1708,6 +1751,10 @@
                             model: rangeCells[2].textContent
                         });
                     }
+
+                    // Set anchor to the original starting point (lastClickedRow) for shift+arrow navigation
+                    shiftKeyAnchorRow = lastClickedRow;
+                    // Don't update lastClickedRow - it stays as the starting point for future shift-clicks
                 }
             } else if (isMultiSelect) {
                 // Ctrl/Cmd+Click: Toggle individual row
@@ -1718,11 +1765,21 @@
                     row.classList.remove('selected');
                     selectedRows.splice(rowIndex, 1);
                     selectedSystems.splice(rowIndex, 1);
+
+                    // If we just deselected the anchor, update it to the first remaining selected row
+                    if (shiftKeyAnchorRow === row) {
+                        shiftKeyAnchorRow = selectedRows.length > 0 ? selectedRows[0] : null;
+                    }
                 } else {
                     // Select this row
                     row.classList.add('selected');
                     selectedRows.push(row);
                     selectedSystems.push(systemData);
+
+                    // Set anchor if not already set
+                    if (!shiftKeyAnchorRow) {
+                        shiftKeyAnchorRow = row;
+                    }
                 }
 
                 // Update lastClickedRow for future range selections
@@ -1745,10 +1802,13 @@
 
                 // Update lastClickedRow for future range selections
                 lastClickedRow = row;
+                // Set anchor for shift+arrow key selection
+                shiftKeyAnchorRow = row;
             }
 
             // Update button state and count
             const selectedCount = selectedSystems.length;
+            console.log('DRACS: Updated selection - count:', selectedCount, 'systems:', selectedSystems);
             document.getElementById('selected-count').textContent = selectedCount;
             document.getElementById('refresh-btn').disabled = selectedCount === 0;
 
@@ -1757,6 +1817,7 @@
             updateJobQueueButtonState();
             updateClearJobQueueButtonState();
             updateSelectAllButtonText();
+            updateSelectShownButtonText();
         }
 
         // Update select all button text based on current selection state
@@ -1772,6 +1833,109 @@
 
             const allSelected = visibleRows.every(row => row.classList.contains('selected'));
             selectAllBtn.textContent = allSelected ? 'Deselect All' : 'Select All';
+        }
+
+        function updateSelectShownButtonText() {
+            const selectShownBtn = document.getElementById('select-shown-btn');
+            if (!selectShownBtn) return;
+
+            // Get rows that are visible (pass filters) AND displayed on current page
+            const allRows = Array.from(tableBody.querySelectorAll('tr'));
+            const shownRows = allRows.filter(row =>
+                !row.classList.contains('hidden') &&
+                row.style.display !== 'none'
+            );
+
+            if (shownRows.length === 0) {
+                selectShownBtn.textContent = 'Select Shown';
+                return;
+            }
+
+            const allShownSelected = shownRows.every(row => row.classList.contains('selected'));
+            selectShownBtn.textContent = allShownSelected ? 'Deselect Shown' : 'Select Shown';
+        }
+
+        // Toggle select only systems shown on current page
+        function selectShown() {
+            const selectShownBtn = document.getElementById('select-shown-btn');
+
+            // Get rows that are visible (pass filters) AND displayed on current page
+            const allRows = Array.from(tableBody.querySelectorAll('tr'));
+            const shownRows = allRows.filter(row =>
+                !row.classList.contains('hidden') &&
+                row.style.display !== 'none'
+            );
+
+            if (shownRows.length === 0) {
+                return;
+            }
+
+            // Check if all shown rows are currently selected
+            const allShownSelected = shownRows.every(row => row.classList.contains('selected'));
+
+            if (allShownSelected) {
+                // Deselect all shown rows
+                shownRows.forEach(row => {
+                    row.classList.remove('selected');
+                    const rowIndex = selectedRows.indexOf(row);
+                    if (rowIndex > -1) {
+                        selectedRows.splice(rowIndex, 1);
+                        selectedSystems.splice(rowIndex, 1);
+                    }
+                });
+                selectShownBtn.textContent = 'Select Shown';
+
+                // Clear anchor if no rows left selected
+                if (selectedRows.length === 0) {
+                    shiftKeyAnchorRow = null;
+                    lastClickedRow = null;
+                }
+            } else {
+                // Clear current selection
+                selectedRows.forEach(r => r.classList.remove('selected'));
+                selectedRows = [];
+                selectedSystems = [];
+
+                // Select all shown rows
+                shownRows.forEach(row => {
+                    row.classList.add('selected');
+                    selectedRows.push(row);
+
+                    const cells = row.getElementsByTagName('td');
+                    selectedSystems.push({
+                        service_tag: cells[0].textContent,
+                        hostname: cells[1].textContent,
+                        model: cells[2].textContent
+                    });
+                });
+
+                selectShownBtn.textContent = 'Deselect Shown';
+
+                // Set anchor and lastClickedRow to first selected row
+                if (shownRows.length > 0) {
+                    shiftKeyAnchorRow = shownRows[0];
+                    lastClickedRow = shownRows[0];
+                }
+            }
+
+            // Update selected count immediately
+            const selectedCountEl = document.getElementById('selected-count');
+            if (selectedCountEl) {
+                selectedCountEl.textContent = selectedSystems.length;
+            }
+
+            // Update refresh button state immediately
+            const refreshBtn = document.getElementById('refresh-btn');
+            if (refreshBtn) {
+                refreshBtn.disabled = selectedSystems.length === 0;
+            }
+
+            // Update other button states (these may be slower)
+            updateBiosButtonState();
+            updateFirmwareButtonState();
+            updateJobQueueButtonState();
+            updateClearJobQueueButtonState();
+            updateSelectAllButtonText();
         }
 
         // Toggle select all visible systems
@@ -1794,6 +1958,10 @@
                 selectedRows = [];
                 selectedSystems = [];
                 selectAllBtn.textContent = 'Select All';
+
+                // Clear anchor when deselecting all
+                shiftKeyAnchorRow = null;
+                lastClickedRow = null;
             } else {
                 // Select all visible rows
                 selectedRows = [];
@@ -1812,6 +1980,12 @@
                 });
 
                 selectAllBtn.textContent = 'Deselect All';
+
+                // Set anchor and lastClickedRow to first selected row
+                if (visibleRows.length > 0) {
+                    shiftKeyAnchorRow = visibleRows[0];
+                    lastClickedRow = visibleRows[0];
+                }
             }
 
             // Update button states
@@ -1826,6 +2000,9 @@
             if (selectedCountEl) {
                 selectedCountEl.textContent = selectedSystems.length;
             }
+
+            // Update Select Shown button text
+            updateSelectShownButtonText();
         }
 
         // Refresh selected systems
@@ -1989,10 +2166,14 @@
                 // Remember the service tag of the last clicked row for range selection
                 const lastClickedTag = lastClickedRow ? lastClickedRow.getElementsByTagName('td')[0].textContent : null;
 
+                // Remember the service tag of the shift key anchor row
+                const shiftAnchorTag = shiftKeyAnchorRow ? shiftKeyAnchorRow.getElementsByTagName('td')[0].textContent : null;
+
                 // Clear selection arrays
                 selectedRows = [];
                 selectedSystems = [];
                 lastClickedRow = null;  // Will be restored below if found
+                shiftKeyAnchorRow = null;  // Will be restored below if found
 
                 // Clear current table before rebuilding
                 console.log('DRACS: Clearing table, current row count:', tableBodyEl.children.length);
@@ -2024,6 +2205,11 @@
                     // Restore lastClickedRow reference
                     if (lastClickedTag && system.svc_tag === lastClickedTag) {
                         lastClickedRow = row;
+                    }
+
+                    // Restore shiftKeyAnchorRow reference
+                    if (shiftAnchorTag && system.svc_tag === shiftAnchorTag) {
+                        shiftKeyAnchorRow = row;
                     }
                 });
 
@@ -2203,19 +2389,25 @@
                 const modelBiosVersions = biosVersionsByModel[model] || [];
                 const newestBios = modelBiosVersions.length > 0 ? modelBiosVersions[0] : null;
 
-                // Check if all selected hosts already have the newest BIOS
-                if (newestBios && highestSelectedBios && compareVersions(highestSelectedBios, newestBios) === 0) {
-                    // All selected hosts are already at the latest BIOS
+                // Check if ALL selected hosts already have the newest BIOS
+                const allAtNewestBios = selectedBiosVersions.every(v =>
+                    newestBios && compareVersions(v, newestBios) === 0
+                );
+
+                if (allAtNewestBios && newestBios) {
+                    // All selected hosts are already at the latest BIOS - disable
                     biosUpdateBtn.style.display = 'inline-block';
                     biosUpdateBtn.disabled = true;
                     biosUpdateBtn.classList.remove('unavailable');
                     biosUpdateBtn.innerHTML = 'Update BIOS';
                     biosVersionSelect.style.display = 'none';
                 } else {
-                    // Filter to versions strictly newer than highest among selected
+                    // At least one host needs updating - find available versions
+                    // Filter to versions newer than or equal to highest among selected
+                    // (equal is OK because we'll filter out hosts that already have it during update)
                     const availableBiosVersions = modelBiosVersions.filter(version => {
                         if (!highestSelectedBios) return true;
-                        return compareVersions(version, highestSelectedBios) > 0;
+                        return compareVersions(version, highestSelectedBios) >= 0;
                     });
 
                     if (availableBiosVersions && availableBiosVersions.length > 0) {
@@ -2224,7 +2416,7 @@
                         biosVersionSelect.style.display = 'inline-block';
                         populateBiosVersions(biosVersionSelect, availableBiosVersions);
                     } else {
-                        // No newer BIOS versions available
+                        // No BIOS versions available
                         biosUpdateBtn.style.display = 'inline-block';
                         biosUpdateBtn.disabled = true;
                         biosUpdateBtn.classList.remove('unavailable');
@@ -3624,6 +3816,7 @@
 
             // Update select all button text based on new visible rows
             updateSelectAllButtonText();
+            updateSelectShownButtonText();
         }
 
         // Pagination functions
@@ -3838,6 +4031,13 @@
         // Add row click handler to table body (for admin users)
         if (isAuthenticated) {
             document.getElementById('table-body').addEventListener('click', handleRowClick);
+
+            // Prevent text selection when shift-clicking for range selection
+            document.getElementById('table-body').addEventListener('mousedown', function(e) {
+                if (e.shiftKey) {
+                    e.preventDefault();
+                }
+            });
         }
 
         // Start auto-refresh if enabled
@@ -3853,6 +4053,80 @@
         let currentCellValue = '';
         let currentClickedRow = null;
         let currentCellIndex = -1;
+
+        // Keyboard navigation with shift+arrow keys for selection
+        document.addEventListener('keydown', function(e) {
+            if (!isAuthenticated || !shiftKeyAnchorRow) return;
+
+            // Only handle arrow keys with shift modifier
+            if (e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+                e.preventDefault();
+
+                const allRows = Array.from(tableBody.querySelectorAll('tr:not(.hidden)'));
+                const anchorIndex = allRows.indexOf(shiftKeyAnchorRow);
+                const currentIndex = allRows.indexOf(lastClickedRow || shiftKeyAnchorRow);
+
+                if (anchorIndex === -1 || currentIndex === -1) return;
+
+                let targetIndex = currentIndex;
+
+                if (e.key === 'ArrowUp' && currentIndex > 0) {
+                    targetIndex = currentIndex - 1;
+                } else if (e.key === 'ArrowDown' && currentIndex < allRows.length - 1) {
+                    targetIndex = currentIndex + 1;
+                } else {
+                    return; // Can't move further
+                }
+
+                // Clear all current selections
+                selectedRows.forEach(r => r.classList.remove('selected'));
+                selectedRows = [];
+                selectedSystems = [];
+
+                // Select all rows from anchor to target (inclusive)
+                const minIndex = Math.min(anchorIndex, targetIndex);
+                const maxIndex = Math.max(anchorIndex, targetIndex);
+
+                for (let i = minIndex; i <= maxIndex; i++) {
+                    const row = allRows[i];
+                    row.classList.add('selected');
+                    selectedRows.push(row);
+
+                    const cells = row.getElementsByTagName('td');
+                    selectedSystems.push({
+                        service_tag: cells[0].textContent,
+                        hostname: cells[1].textContent,
+                        model: cells[2].textContent
+                    });
+                }
+
+                // Update lastClickedRow to the new position
+                lastClickedRow = allRows[targetIndex];
+
+                // Scroll the target row into view
+                allRows[targetIndex].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+
+                // Update selected count immediately
+                const selectedCountEl = document.getElementById('selected-count');
+                if (selectedCountEl) {
+                    selectedCountEl.textContent = selectedSystems.length;
+                }
+
+                // Update refresh button immediately
+                const refreshBtn = document.getElementById('refresh-btn');
+                if (refreshBtn) {
+                    refreshBtn.disabled = selectedSystems.length === 0;
+                }
+
+                // Update other button states
+                updateBiosButtonState();
+                updateFirmwareButtonState();
+                updateJobQueueButtonState();
+                updateClearJobQueueButtonState();
+                updateSelectAllButtonText();
+                updateSelectShownButtonText();
+            }
+        });
 
         // Add right-click event listener to table body only (not headers)
         document.getElementById('table-body').addEventListener('contextmenu', function(e) {
