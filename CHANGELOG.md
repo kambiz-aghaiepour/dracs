@@ -1,5 +1,28 @@
 # CHANGELOG
 
+## v1.5.1 (2026-05-07)
+
+### Bug Fixes
+
+- UI bugs around multi-selection
+  ([`fde5b6f`](https://github.com/kambiz-aghaiepour/dracs/commit/fde5b6f))
+
+
+## v1.5.0 (2026-05-07)
+
+### Features
+
+- Add custom filtering capabilities
+  ([`a0c9348`](https://github.com/kambiz-aghaiepour/dracs/commit/a0c9348))
+
+
+## v1.4.3 (2026-05-07)
+
+### Bug Fixes
+
+- SNMP dispatcher not closed
+  ([`24c2237`](https://github.com/kambiz-aghaiepour/dracs/commit/24c2237))
+
 ## v1.4.2 (2026-05-07)
 
 ### Bug Fixes

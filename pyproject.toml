@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dracs"
-version = "1.5.1"
+version = "1.5.0"
 description = "Dell Rack & Asset Control System - CLI inventory tool for managing Dell bare-metal systems"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -44,6 +44,9 @@ version_toml = [
 ]
 build_command = "pip install uv && uv build"
 commit_message = "chore(release): v{version} [skip ci]"
+
+changelog_file = "CHANGELOG.md"
+changelog_sections = "feature,fix,breaking,documentation,performance"
 
 [tool.pytest.ini_options]
 addopts = "-v"
