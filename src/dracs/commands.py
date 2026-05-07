@@ -488,7 +488,7 @@ async def list_dell_warranty(
 
 
 async def refresh_dell_warranty(
-    service_tag: Optional[str], hostname: Optional[str], warranty: str
+    service_tag: Optional[str], hostname: Optional[str], warranty: str, verbose: bool = False
 ) -> None:
     db_initialize(warranty)
 
@@ -507,7 +507,13 @@ async def refresh_dell_warranty(
     existing = results[0]
     svc_tag = existing[0]
     name = existing[1]
-    model = existing[2]
+    old_model = existing[2]
+    old_idrac_version = existing[3]
+    old_bios_version = existing[4]
+    old_exp_date = existing[5]
+
+    if verbose:
+        print(f"Refreshing {name} ... ", end="", flush=True)
 
     logger.info(f"Refreshing data for {svc_tag} ({name})")
 
@@ -528,13 +534,29 @@ async def refresh_dell_warranty(
     logger.info(f"Updated warranty expiration: {exp_date}")
 
     upsert_system(
-        warranty, svc_tag, name, model, idrac_version, bios_version, exp_date, exp_epoch
+        warranty, svc_tag, name, old_model, idrac_version, bios_version, exp_date, exp_epoch
     )
 
     logger.info(f"Successfully refreshed record for {svc_tag}")
 
+    if verbose:
+        print("done.")
 
-async def refresh_by_model(model: str, warranty: str) -> None:
+    # Check for changes and report them
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    if old_idrac_version != idrac_version:
+        print(f"{timestamp} - dracs.cli - INFO - {name} updated: Firmware changed from {old_idrac_version} to {idrac_version}")
+
+    if old_bios_version != bios_version:
+        print(f"{timestamp} - dracs.cli - INFO - {name} updated: BIOS changed from {old_bios_version} to {bios_version}")
+
+    if old_exp_date != exp_date:
+        print(f"{timestamp} - dracs.cli - INFO - {name} updated: Warranty Expiration changed from {old_exp_date} to {exp_date}")
+
+
+async def refresh_by_model(model: str, warranty: str, verbose: bool = False) -> None:
     db_initialize(warranty)
     results = query_by_model(warranty, model)
 
@@ -544,19 +566,22 @@ async def refresh_by_model(model: str, warranty: str) -> None:
     success_count = 0
     for result in results:
         hostname = result[1]
-        print(f"Refreshing {hostname} ... ", end="", flush=True)
+        if verbose:
+            print(f"Refreshing {hostname} ... ", end="", flush=True)
         try:
-            await refresh_dell_warranty(None, hostname, warranty)
-            print("done.")
+            await refresh_dell_warranty(None, hostname, warranty, verbose=False)
+            if verbose:
+                print("done.")
             success_count += 1
         except Exception as e:
-            print(f"failed: {e}")
+            if verbose:
+                print(f"failed: {e}")
             logger.error(f"Failed to refresh {hostname}: {e}")
 
     print(f"Summary: A total of {success_count} hosts refreshed")
 
 
-async def refresh_all_systems(warranty: str) -> None:
+async def refresh_all_systems(warranty: str, verbose: bool = False) -> None:
     db_initialize(warranty)
     results = query_all_systems(warranty)
 
@@ -566,13 +591,16 @@ async def refresh_all_systems(warranty: str) -> None:
     success_count = 0
     for result in results:
         hostname = result[1]
-        print(f"Refreshing {hostname} ... ", end="", flush=True)
+        if verbose:
+            print(f"Refreshing {hostname} ... ", end="", flush=True)
         try:
-            await refresh_dell_warranty(None, hostname, warranty)
-            print("done.")
+            await refresh_dell_warranty(None, hostname, warranty, verbose=False)
+            if verbose:
+                print("done.")
             success_count += 1
         except Exception as e:
-            print(f"failed: {e}")
+            if verbose:
+                print(f"failed: {e}")
             logger.error(f"Failed to refresh {hostname}: {e}")
 
     print(f"Summary: A total of {success_count} hosts refreshed")
