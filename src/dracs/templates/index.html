@@ -183,6 +183,63 @@
             background-color: #1e7e34;
         }
 
+        .custom-filter-buttons {
+            display: flex;
+            flex-direction: row;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .custom-filter-btn, .clear-filter-btn, .clear-all-btn {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .custom-filter-btn {
+            background-color: #007bff;
+            color: white;
+        }
+
+        .custom-filter-btn:hover {
+            background-color: #0056b3;
+        }
+
+        .clear-filter-btn {
+            background-color: #ffc107;
+            color: #333;
+        }
+
+        .clear-filter-btn:hover {
+            background-color: #e0a800;
+        }
+
+        .clear-all-btn {
+            background-color: #dc3545;
+            color: white;
+        }
+
+        .clear-all-btn:hover {
+            background-color: #c82333;
+        }
+
+        #custom-filter-textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 13px;
+            resize: vertical;
+        }
+
         .table-scroll-container {
             max-height: 60vh;
             overflow-y: auto;
@@ -796,6 +853,37 @@
             background-color: #218838;
         }
 
+        body.dark-theme .custom-filter-btn {
+            background-color: #0056b3;
+        }
+
+        body.dark-theme .custom-filter-btn:hover {
+            background-color: #004494;
+        }
+
+        body.dark-theme .clear-filter-btn {
+            background-color: #e0a800;
+            color: #222;
+        }
+
+        body.dark-theme .clear-filter-btn:hover {
+            background-color: #c69500;
+        }
+
+        body.dark-theme .clear-all-btn {
+            background-color: #c82333;
+        }
+
+        body.dark-theme .clear-all-btn:hover {
+            background-color: #bd2130;
+        }
+
+        body.dark-theme #custom-filter-textarea {
+            background-color: #333;
+            color: #e0e0e0;
+            border-color: #555;
+        }
+
         body.dark-theme .table-scroll-container {
             border-color: #555;
         }
@@ -1110,6 +1198,15 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="filter-group">
+                    <label>Custom Filters</label>
+                    <div class="custom-filter-buttons">
+                        <button class="custom-filter-btn" onclick="showCustomFilterModal()">Custom Filter</button>
+                        <button class="clear-filter-btn" onclick="clearCustomFilter()">Clear Filter</button>
+                        <button class="clear-all-btn" onclick="clearAllFilters()">Clear All</button>
+                    </div>
+                </div>
             </div>
 
             <div class="filter-group">
@@ -1395,6 +1492,25 @@
                 </div>
             </div>
         </div>
+
+        <!-- Custom Filter Modal -->
+        <div id="custom-filter-modal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Custom Hostname Filter</h2>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="custom-filter-textarea">Enter hostnames (one per line)</label>
+                        <textarea id="custom-filter-textarea" placeholder="hostname1&#10;hostname2&#10;hostname3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="hideCustomFilterModal()">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="applyCustomFilter()">Apply Filter</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -1408,6 +1524,7 @@
         let autoRefreshTimer = null;
         let isRefreshing = false;  // Prevent concurrent refreshes
         let lastClickedRow = null;  // For shift-click range selection
+        let customFilterHostnames = [];  // Array of hostnames for custom filtering
         let pendingFirmwareUpdate = null;  // Store pending firmware update info
         let pendingBiosUpdate = null;  // Store pending BIOS update info
         let firmwareFirstConfirmation = false;  // Track two-stage confirmation for large batches
@@ -2954,6 +3071,81 @@
             document.getElementById('notification').classList.remove('active');
         }
 
+        // Custom Filter Functions
+        function showCustomFilterModal() {
+            document.getElementById('custom-filter-modal').classList.add('active');
+            document.getElementById('custom-filter-textarea').focus();
+        }
+
+        function hideCustomFilterModal() {
+            document.getElementById('custom-filter-modal').classList.remove('active');
+        }
+
+        function applyCustomFilter() {
+            const textarea = document.getElementById('custom-filter-textarea');
+            const input = textarea.value.trim();
+
+            if (input === '') {
+                customFilterHostnames = [];
+            } else {
+                // Split by newlines and filter out empty lines
+                customFilterHostnames = input.split('\n')
+                    .map(line => line.trim().toLowerCase())
+                    .filter(line => line.length > 0);
+            }
+
+            hideCustomFilterModal();
+            applyFilters();
+
+            if (customFilterHostnames.length > 0) {
+                showNotification(`Custom filter applied: ${customFilterHostnames.length} hostname${customFilterHostnames.length > 1 ? 's' : ''}`, 'success');
+            }
+        }
+
+        function clearCustomFilter() {
+            customFilterHostnames = [];
+            document.getElementById('custom-filter-textarea').value = '';
+            applyFilters();
+            showNotification('Custom filter cleared', 'success');
+        }
+
+        function clearAllFilters() {
+            // Clear text input filters
+            document.getElementById('hostname-filter').value = '';
+            document.getElementById('servicetag-filter').value = '';
+
+            // Clear model filter (multi-select)
+            const modelFilter = document.getElementById('model-filter');
+            for (let option of modelFilter.options) {
+                option.selected = false;
+            }
+
+            // Clear warranty filters
+            document.getElementById('warranty-expired').checked = false;
+            document.getElementById('warranty-expires').value = '';
+
+            // Clear firmware filters
+            document.getElementById('firmware-version').value = '';
+            document.getElementById('firmware-operator').value = '';
+            document.getElementById('firmware-current').checked = false;
+            document.getElementById('firmware-older').checked = false;
+            document.getElementById('firmware-oldest').checked = false;
+
+            // Clear BIOS filters
+            document.getElementById('bios-version').value = '';
+            document.getElementById('bios-operator').value = '';
+            document.getElementById('bios-current').checked = false;
+            document.getElementById('bios-older').checked = false;
+            document.getElementById('bios-oldest').checked = false;
+
+            // Clear custom filter
+            customFilterHostnames = [];
+            document.getElementById('custom-filter-textarea').value = '';
+
+            applyFilters();
+            showNotification('All filters cleared', 'success');
+        }
+
         // Close modal on background click
         document.getElementById('login-modal').addEventListener('click', function(event) {
             if (event.target === this) {
@@ -2979,6 +3171,13 @@
         document.getElementById('job-queue-modal').addEventListener('click', function(event) {
             if (event.target === this) {
                 dismissJobQueue();
+            }
+        });
+
+        // Close custom filter modal on background click
+        document.getElementById('custom-filter-modal').addEventListener('click', function(event) {
+            if (event.target === this) {
+                hideCustomFilterModal();
             }
         });
 
@@ -3317,6 +3516,9 @@
                 // Check service tag filter
                 const servicetagMatch = !servicetagText || servicetag.includes(servicetagText);
 
+                // Check custom hostname filter (if custom filter is active, hostname must be in the list)
+                const customFilterMatch = customFilterHostnames.length === 0 || customFilterHostnames.includes(hostname.toLowerCase());
+
                 // Check model filter (if any models selected, row model must be in the list)
                 const modelMatch = selectedModels.length === 0 || selectedModels.includes(rowModel);
 
@@ -3395,7 +3597,7 @@
                 }
 
                 // Show row if all filters match
-                if (hostnameMatch && servicetagMatch && modelMatch && biosMatch && firmwareMatch && firmwareAgeMatch && biosAgeMatch && warrantyMatch) {
+                if (hostnameMatch && servicetagMatch && customFilterMatch && modelMatch && biosMatch && firmwareMatch && firmwareAgeMatch && biosAgeMatch && warrantyMatch) {
                     row.classList.remove('hidden');
                     visibleCount++;
                 } else {
