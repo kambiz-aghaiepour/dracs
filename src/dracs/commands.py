@@ -135,15 +135,9 @@ async def edit_dell_warranty(
 
     with get_session() as session:
         if service_tag:
-            results = (
-                session.query(System)
-                .filter(System.svc_tag == service_tag)
-                .all()
-            )
+            results = session.query(System).filter(System.svc_tag == service_tag).all()
         elif hostname:
-            results = (
-                session.query(System).filter(System.name == hostname).all()
-            )
+            results = session.query(System).filter(System.name == hostname).all()
         else:
             results = []
 
@@ -205,15 +199,9 @@ async def lookup_dell_warranty(
 
     with get_session() as session:
         if service_tag:
-            results = (
-                session.query(System)
-                .filter(System.svc_tag == service_tag)
-                .all()
-            )
+            results = session.query(System).filter(System.svc_tag == service_tag).all()
         elif hostname:
-            results = (
-                session.query(System).filter(System.name == hostname).all()
-            )
+            results = session.query(System).filter(System.name == hostname).all()
         else:
             results = []
 
@@ -340,9 +328,7 @@ async def list_dell_warranty(
             query = query.filter(System.name == hostname)
         else:
             if model and regex:
-                query = query.filter(
-                    System.name.like(regex), System.model == model
-                )
+                query = query.filter(System.name.like(regex), System.model == model)
             elif model:
                 query = query.filter(System.model == model)
             elif regex:
@@ -488,7 +474,10 @@ async def list_dell_warranty(
 
 
 async def refresh_dell_warranty(
-    service_tag: Optional[str], hostname: Optional[str], warranty: str, verbose: bool = False
+    service_tag: Optional[str],
+    hostname: Optional[str],
+    warranty: str,
+    verbose: bool = False,
 ) -> None:
     db_initialize(warranty)
 
@@ -530,7 +519,9 @@ async def refresh_dell_warranty(
     if model and model.startswith("PowerEdge "):
         model = model.replace("PowerEdge ", "")
 
-    logger.debug(f"Updated SNMP values - Model: {model}, BIOS: {bios_version}, iDRAC: {idrac_version}")
+    logger.debug(
+        f"Updated SNMP values - Model: {model}, BIOS: {bios_version}, iDRAC: {idrac_version}"
+    )
 
     warranty_results = dell_api_warranty_date(svc_tag)
     exp_epoch, exp_date = warranty_results[svc_tag]
@@ -548,19 +539,28 @@ async def refresh_dell_warranty(
 
     # Check for changes and report them
     from datetime import datetime
+
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     if old_model != model:
-        print(f"{timestamp} - dracs.cli - INFO - {name} updated: Model changed from {old_model} to {model}")
+        print(
+            f"{timestamp} - dracs.cli - INFO - {name} updated: Model changed from {old_model} to {model}"
+        )
 
     if old_idrac_version != idrac_version:
-        print(f"{timestamp} - dracs.cli - INFO - {name} updated: Firmware changed from {old_idrac_version} to {idrac_version}")
+        print(
+            f"{timestamp} - dracs.cli - INFO - {name} updated: Firmware changed from {old_idrac_version} to {idrac_version}"
+        )
 
     if old_bios_version != bios_version:
-        print(f"{timestamp} - dracs.cli - INFO - {name} updated: BIOS changed from {old_bios_version} to {bios_version}")
+        print(
+            f"{timestamp} - dracs.cli - INFO - {name} updated: BIOS changed from {old_bios_version} to {bios_version}"
+        )
 
     if old_exp_date != exp_date:
-        print(f"{timestamp} - dracs.cli - INFO - {name} updated: Warranty Expiration changed from {old_exp_date} to {exp_date}")
+        print(
+            f"{timestamp} - dracs.cli - INFO - {name} updated: Warranty Expiration changed from {old_exp_date} to {exp_date}"
+        )
 
 
 async def refresh_by_model(model: str, warranty: str, verbose: bool = False) -> None:
@@ -650,9 +650,7 @@ async def discover_dell_system(hostname: str, warranty: str) -> Tuple[str, str]:
     return (service_tag, model)
 
 
-async def _discover_single_host(
-    hostname: str, warranty: str, auto_add: bool
-) -> dict:
+async def _discover_single_host(hostname: str, warranty: str, auto_add: bool) -> dict:
     result = {"hostname": hostname, "status": "ok", "error": None}
     try:
         service_tag, model = await discover_dell_system(hostname, warranty)
@@ -694,9 +692,7 @@ async def discover_dell_systems_batch(
                 )
                 for r in discovered
             ]
-            add_outcomes = await asyncio.gather(
-                *add_tasks, return_exceptions=True
-            )
+            add_outcomes = await asyncio.gather(*add_tasks, return_exceptions=True)
 
             for r, outcome in zip(discovered, add_outcomes):
                 if isinstance(outcome, Exception):
@@ -710,8 +706,12 @@ async def discover_dell_systems_batch(
 
     if succeeded and show_discovered:
         table_data = [
-            (r["hostname"], r["service_tag"], r["model"],
-             "Added" if r.get("added") else "Discovered")
+            (
+                r["hostname"],
+                r["service_tag"],
+                r["model"],
+                "Added" if r.get("added") else "Discovered",
+            )
             for r in succeeded
         ]
         headers = ["Hostname", "Service Tag", "Model", "Status"]
@@ -722,10 +722,7 @@ async def discover_dell_systems_batch(
 
     if failed:
         print(f"Failed: {len(failed)}")
-        table_data = [
-            (r['hostname'], r['error'])
-            for r in failed
-        ]
+        table_data = [(r["hostname"], r["error"]) for r in failed]
         headers = ["Hostname", "Error"]
         print(tabulate(table_data, headers=headers, tablefmt="grid"))
 
@@ -747,15 +744,9 @@ async def remove_dell_warranty(
 
     with get_session() as session:
         if service_tag:
-            results = (
-                session.query(System)
-                .filter(System.svc_tag == service_tag)
-                .all()
-            )
+            results = session.query(System).filter(System.svc_tag == service_tag).all()
         elif hostname:
-            results = (
-                session.query(System).filter(System.name == hostname).all()
-            )
+            results = session.query(System).filter(System.name == hostname).all()
         else:
             results = []
 

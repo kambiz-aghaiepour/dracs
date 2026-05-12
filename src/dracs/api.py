@@ -26,9 +26,7 @@ def dell_api_warranty_date(
             "Visit https://techdirect.dell.com to obtain API credentials"
         )
 
-    TOKEN_URL = (
-        "https://apigtwb2c.us.dell.com/auth/oauth/v2/token"
-    )
+    TOKEN_URL = "https://apigtwb2c.us.dell.com/auth/oauth/v2/token"
 
     auth_response = requests.post(
         TOKEN_URL,
@@ -54,9 +52,7 @@ def dell_api_warranty_date(
         batch = svctags[i : i + BATCH_SIZE]
         payload = {"servicetags": batch}
 
-        response = requests.get(
-            WARRANTY_API_URL, headers=headers, params=payload
-        )
+        response = requests.get(WARRANTY_API_URL, headers=headers, params=payload)
 
         if response.status_code == 200:
             warranty_data.extend(response.json())

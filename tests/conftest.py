@@ -6,7 +6,7 @@ import os
 @pytest.fixture
 def temp_db():
     """Create a temporary database for testing."""
-    fd, path = tempfile.mkstemp(suffix='.db')
+    fd, path = tempfile.mkstemp(suffix=".db")
     os.close(fd)
     yield path
     if os.path.exists(path):

@@ -50,7 +50,14 @@ def test_upsert_system_insert(temp_db):
     db_initialize(temp_db)
 
     upsert_system(
-        temp_db, "ABC1234", "server01", "R660", "7.0.0", "2.1.0", "Jan 1, 2027", 1735689600
+        temp_db,
+        "ABC1234",
+        "server01",
+        "R660",
+        "7.0.0",
+        "2.1.0",
+        "Jan 1, 2027",
+        1735689600,
     )
 
     results = query_by_service_tag(temp_db, "ABC1234")
@@ -64,10 +71,24 @@ def test_upsert_system_update(temp_db):
     db_initialize(temp_db)
 
     upsert_system(
-        temp_db, "ABC1234", "server01", "R660", "7.0.0", "2.1.0", "Jan 1, 2027", 1735689600
+        temp_db,
+        "ABC1234",
+        "server01",
+        "R660",
+        "7.0.0",
+        "2.1.0",
+        "Jan 1, 2027",
+        1735689600,
     )
     upsert_system(
-        temp_db, "ABC1234", "server01", "R760", "8.0.0", "3.0.0", "Jan 1, 2028", 1767225600
+        temp_db,
+        "ABC1234",
+        "server01",
+        "R760",
+        "8.0.0",
+        "3.0.0",
+        "Jan 1, 2028",
+        1767225600,
     )
 
     results = query_by_service_tag(temp_db, "ABC1234")
@@ -80,7 +101,14 @@ def test_query_by_hostname(temp_db):
     db_initialize(temp_db)
 
     upsert_system(
-        temp_db, "ABC1234", "server01", "R660", "7.0.0", "2.1.0", "Jan 1, 2027", 1735689600
+        temp_db,
+        "ABC1234",
+        "server01",
+        "R660",
+        "7.0.0",
+        "2.1.0",
+        "Jan 1, 2027",
+        1735689600,
     )
 
     results = query_by_hostname(temp_db, "server01")

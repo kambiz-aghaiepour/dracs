@@ -70,3 +70,7 @@ exclude = [
   "/.claude",
   "/claude.md",
 ]
+
+[tool.coverage.run]
+relative_files = true
+

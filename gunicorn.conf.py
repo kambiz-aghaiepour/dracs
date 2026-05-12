@@ -10,7 +10,7 @@ threads = 1
 
 # Logging
 accesslog = "-"  # Log to stdout
-errorlog = "-"   # Log to stderr
+errorlog = "-"  # Log to stderr
 loglevel = "info"
 
 # Application
@@ -31,7 +31,9 @@ webadmin_password = "admin"  # TODO: Change in production
 
 # Flask secret key for sessions (generate with: python -c "import secrets; print(secrets.token_hex(32))")
 # TODO: Change this in production!
-flask_secret_key = "dev-secret-key-change-in-production-12345678901234567890123456789012"
+flask_secret_key = (
+    "dev-secret-key-change-in-production-12345678901234567890123456789012"
+)
 
 # Auto-refresh frequency for webapp display (in seconds)
 # Set to 0 to disable auto-refresh

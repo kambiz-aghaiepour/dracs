@@ -87,7 +87,11 @@ def test_batch_discover_with_add(
     mock_add.return_value = None
 
     hosts = ["server01.example.com", "server02.example.com"]
-    asyncio.run(discover_dell_systems_batch(hosts, "/tmp/test.db", auto_add=True, show_discovered=True))
+    asyncio.run(
+        discover_dell_systems_batch(
+            hosts, "/tmp/test.db", auto_add=True, show_discovered=True
+        )
+    )
 
     assert mock_discover.call_count == 2
     mock_warranty.assert_called_once_with(["TAG0001", "TAG0002"])
@@ -108,7 +112,11 @@ def test_batch_discover_without_add(mock_add, mock_discover, capsys):
     ]
 
     hosts = ["server01.example.com"]
-    asyncio.run(discover_dell_systems_batch(hosts, "/tmp/test.db", auto_add=False, show_discovered=True))
+    asyncio.run(
+        discover_dell_systems_batch(
+            hosts, "/tmp/test.db", auto_add=False, show_discovered=True
+        )
+    )
 
     assert mock_discover.call_count == 1
     assert mock_add.call_count == 0
@@ -128,7 +136,11 @@ def test_batch_discover_partial_failure(mock_discover, capsys):
     ]
 
     hosts = ["server01.example.com", "server02.example.com"]
-    asyncio.run(discover_dell_systems_batch(hosts, "/tmp/test.db", auto_add=False, show_discovered=False))
+    asyncio.run(
+        discover_dell_systems_batch(
+            hosts, "/tmp/test.db", auto_add=False, show_discovered=False
+        )
+    )
 
     output = capsys.readouterr().out
     assert "Succeeded: 1" in output
@@ -142,12 +154,18 @@ def test_batch_discover_dns_resolution_failure(mock_discover, capsys):
     from dracs import SNMPError
 
     mock_discover.side_effect = [
-        SNMPError("DNS resolution failed for mgmt-nonexistent.invalid: [Errno -2] Name or service not known"),
+        SNMPError(
+            "DNS resolution failed for mgmt-nonexistent.invalid: [Errno -2] Name or service not known"
+        ),
         ("TAG0002", "R650"),
     ]
 
     hosts = ["nonexistent.invalid", "server02.example.com"]
-    asyncio.run(discover_dell_systems_batch(hosts, "/tmp/test.db", auto_add=False, show_discovered=False))
+    asyncio.run(
+        discover_dell_systems_batch(
+            hosts, "/tmp/test.db", auto_add=False, show_discovered=False
+        )
+    )
 
     output = capsys.readouterr().out
     assert "Succeeded: 1" in output
@@ -173,7 +191,11 @@ def test_batch_discover_without_show_discovered(
     mock_add.return_value = None
 
     hosts = ["server01.example.com", "server02.example.com"]
-    asyncio.run(discover_dell_systems_batch(hosts, "/tmp/test.db", auto_add=True, show_discovered=False))
+    asyncio.run(
+        discover_dell_systems_batch(
+            hosts, "/tmp/test.db", auto_add=True, show_discovered=False
+        )
+    )
 
     assert mock_discover.call_count == 2
     assert mock_add.call_count == 2

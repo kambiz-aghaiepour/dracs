@@ -2,7 +2,8 @@
 
 [![Run Tests](https://github.com/kambiz-aghaiepour/dracs/actions/workflows/run-tests.yml/badge.svg)](https://github.com/kambiz-aghaiepour/dracs/actions/workflows/run-tests.yml)
 [![Semantic Release](https://github.com/kambiz-aghaiepour/dracs/actions/workflows/semantic-release.yml/badge.svg)](https://github.com/kambiz-aghaiepour/dracs/actions/workflows/semantic-release.yml)
-[![Sync Back to Development](https://github.com/kambiz-aghaiepour/dracs/actions/workflows/sync-back.yml/badge.svg)](https://github.com/kambiz-aghaiepour/dracs/actions/workflows/sync-back.yml)
+[![Dev Sync](https://github.com/kambiz-aghaiepour/dracs/actions/workflows/sync-back.yml/badge.svg)](https://github.com/kambiz-aghaiepour/dracs/actions/workflows/sync-back.yml)
+[![codecov](https://codecov.io/gh/kambiz-aghaiepour/dracs/branch/main/graph/badge.svg)](https://codecov.io/gh/kambiz-aghaiepour/dracs)
 [![PyPI version](https://img.shields.io/pypi/v/dracs.svg)](https://pypi.org/project/dracs/)
 [![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
