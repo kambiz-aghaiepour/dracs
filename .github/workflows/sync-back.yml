@@ -1,4 +1,4 @@
-name: Sync Back to Development
+name: Dev Sync
 
 on:
   workflow_run:
