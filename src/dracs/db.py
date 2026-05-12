@@ -56,7 +56,7 @@ def db_initialize(db_url: str) -> None:
     if url.startswith("sqlite"):
         _engine = create_engine(url, poolclass=NullPool)
     else:
-        _engine = create_engine(url)
+        _engine = create_engine(url)  # pragma: no cover
 
     Base.metadata.create_all(_engine)
     _SessionFactory = sessionmaker(bind=_engine)

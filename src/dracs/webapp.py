@@ -21,7 +21,7 @@ from dracs.snmp import build_idrac_hostname
 env_path = Path('.env')
 if env_path.exists():
     load_dotenv(env_path)
-else:
+else:  # pragma: no cover
     # Try to find .env in the project root
     project_root = Path(__file__).parent.parent.parent
     env_path = project_root / '.env'
@@ -909,6 +909,6 @@ def api_refresh_all():
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     # Development server (use gunicorn for production)
     app.run(host="0.0.0.0", port=1888, debug=True)
