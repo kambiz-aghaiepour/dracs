@@ -18,13 +18,13 @@ from dracs.snmp import build_idrac_hostname
 
 # Load environment variables from .env file
 # Look for .env in current directory or parent directories
-env_path = Path('.env')
+env_path = Path(".env")
 if env_path.exists():
     load_dotenv(env_path)
 else:  # pragma: no cover
     # Try to find .env in the project root
     project_root = Path(__file__).parent.parent.parent
-    env_path = project_root / '.env'
+    env_path = project_root / ".env"
     if env_path.exists():
         load_dotenv(env_path)
 
@@ -35,12 +35,12 @@ app = Flask(__name__)
 # Default key is only for development - change in production!
 app.secret_key = os.environ.get(
     "FLASK_SECRET_KEY",
-    "dev-secret-key-change-in-production-12345678901234567890123456789012"
+    "dev-secret-key-change-in-production-12345678901234567890123456789012",
 )
 
 # Session security settings
-app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
 # Load admin credentials from environment or use defaults
 # Priority: 1) .env file (if exists), 2) environment variables, 3) defaults below
@@ -53,15 +53,27 @@ ADMIN_PASSWORD = os.environ.get("WEBADMIN_PASSWORD", "admin")
 REFRESH_FREQUENCY = int(os.environ.get("REFRESH_FREQUENCY", "10"))
 
 # Warranty expiration highlighting
-HIGHLIGHT_EXPIRED = os.environ.get("HIGHLIGHT_EXPIRED", "true").lower() in ("true", "1", "yes")
+HIGHLIGHT_EXPIRED = os.environ.get("HIGHLIGHT_EXPIRED", "true").lower() in (
+    "true",
+    "1",
+    "yes",
+)
 HIGHLIGHT_EXPIRING = int(os.environ.get("HIGHLIGHT_EXPIRING", "30"))
 
 # Pagination
 DEFAULT_PAGE_SIZE = int(os.environ.get("DEFAULT_PAGE_SIZE", "20"))
 
 # Firmware and BIOS version highlighting
-HIGHLIGHT_FIRMWARE = os.environ.get("HIGHLIGHT_FIRMWARE", "true").lower() in ("true", "1", "yes")
-HIGHLIGHT_BIOS = os.environ.get("HIGHLIGHT_BIOS", "true").lower() in ("true", "1", "yes")
+HIGHLIGHT_FIRMWARE = os.environ.get("HIGHLIGHT_FIRMWARE", "true").lower() in (
+    "true",
+    "1",
+    "yes",
+)
+HIGHLIGHT_BIOS = os.environ.get("HIGHLIGHT_BIOS", "true").lower() in (
+    "true",
+    "1",
+    "yes",
+)
 
 # Initialize database on app startup
 DB_PATH = os.environ.get("DRACS_DB", "warranty.db")
@@ -109,8 +121,12 @@ def get_idrac_credentials(hostname: str) -> tuple:
 
     # Check for host-specific section first
     if hostname in config:
-        username = config[hostname].get("username", config["DEFAULT"].get("username", "root"))
-        password = config[hostname].get("password", config["DEFAULT"].get("password", "calvin"))
+        username = config[hostname].get(
+            "username", config["DEFAULT"].get("username", "root")
+        )
+        password = config[hostname].get(
+            "password", config["DEFAULT"].get("password", "calvin")
+        )
     else:
         # Use DEFAULT section
         username = config["DEFAULT"].get("username", "root")
@@ -122,18 +138,13 @@ def get_idrac_credentials(hostname: str) -> tuple:
 def _run_command_thread(cmd: list, log_file_path: str) -> None:
     """Run a command in a background thread and properly wait for completion."""
     try:
-        with open(log_file_path, 'a') as log_file:
-            subprocess.run(
-                cmd,
-                stdout=log_file,
-                stderr=subprocess.STDOUT,
-                timeout=600
-            )
+        with open(log_file_path, "a") as log_file:
+            subprocess.run(cmd, stdout=log_file, stderr=subprocess.STDOUT, timeout=600)
     except subprocess.TimeoutExpired:
-        with open(log_file_path, 'a') as log_file:
+        with open(log_file_path, "a") as log_file:
             log_file.write("\nCommand timed out after 600 seconds\n")
     except Exception as e:
-        with open(log_file_path, 'a') as log_file:
+        with open(log_file_path, "a") as log_file:
             log_file.write(f"\nError running command: {str(e)}\n")
 
 
@@ -155,16 +166,14 @@ def run_command_background(cmd: list, log_file_path: str) -> bool:
             os.makedirs(log_dir, exist_ok=True)
 
         # Write initial log header
-        with open(log_file_path, 'w') as log_file:
+        with open(log_file_path, "w") as log_file:
             log_file.write(f"Command started at: {datetime.now().isoformat()}\n")
             log_file.write(f"Command: {' '.join(cmd)}\n")
             log_file.write("-" * 80 + "\n\n")
 
         # Start command in a daemon thread
         thread = threading.Thread(
-            target=_run_command_thread,
-            args=(cmd, log_file_path),
-            daemon=True
+            target=_run_command_thread, args=(cmd, log_file_path), daemon=True
         )
         thread.start()
 
@@ -173,7 +182,7 @@ def run_command_background(cmd: list, log_file_path: str) -> bool:
     except Exception as e:
         # Log the error
         try:
-            with open(log_file_path, 'a') as log_file:
+            with open(log_file_path, "a") as log_file:
                 log_file.write(f"\nError starting process: {str(e)}\n")
         except Exception:
             pass
@@ -220,40 +229,40 @@ def parse_job_queue(output: str) -> list:
     jobs = []
     current_job = {}
 
-    for line in output.split('\n'):
+    for line in output.split("\n"):
         line = line.strip()
 
         # Skip empty lines and separator lines
-        if not line or line.startswith('---') or 'JOB QUEUE' in line:
+        if not line or line.startswith("---") or "JOB QUEUE" in line:
             continue
 
         # New job starts with [Job ID=...]
-        if line.startswith('[Job ID='):
+        if line.startswith("[Job ID="):
             # Save previous job if it exists
             if current_job:
                 jobs.append(current_job)
             # Start new job
-            job_id = line.replace('[Job ID=', '').replace(']', '')
-            current_job = {'job_id': job_id}
-        elif '=' in line and current_job:
+            job_id = line.replace("[Job ID=", "").replace("]", "")
+            current_job = {"job_id": job_id}
+        elif "=" in line and current_job:
             # Parse key=value pairs
-            key, value = line.split('=', 1)
+            key, value = line.split("=", 1)
             key = key.strip()
-            value = value.strip().replace('[', '').replace(']', '')
+            value = value.strip().replace("[", "").replace("]", "")
 
             # Map to our field names
-            if key == 'Job Name':
-                current_job['job_name'] = value
-            elif key == 'Status':
-                current_job['status'] = value
-            elif key == 'Actual Start Time':
-                current_job['actual_start_time'] = value
-            elif key == 'Actual Completion Time':
-                current_job['actual_completion_time'] = value
-            elif key == 'Message':
-                current_job['message'] = value
-            elif key == 'Percent Complete':
-                current_job['percent_complete'] = value
+            if key == "Job Name":
+                current_job["job_name"] = value
+            elif key == "Status":
+                current_job["status"] = value
+            elif key == "Actual Start Time":
+                current_job["actual_start_time"] = value
+            elif key == "Actual Completion Time":
+                current_job["actual_completion_time"] = value
+            elif key == "Message":
+                current_job["message"] = value
+            elif key == "Percent Complete":
+                current_job["percent_complete"] = value
 
     # Don't forget the last job
     if current_job:
@@ -282,36 +291,45 @@ def test_idrac_connectivity(hostname: str) -> tuple:
         # Test SSH connectivity using sshpass
         cmd = [
             "sshpass",
-            "-p", password,
+            "-p",
+            password,
             "ssh",
-            "-o", "StrictHostKeyChecking=no",
-            "-o", "UserKnownHostsFile=/dev/null",
-            "-o", "ConnectTimeout=10",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "UserKnownHostsFile=/dev/null",
+            "-o",
+            "ConnectTimeout=10",
             f"{username}@{idrac_fqdn}",
-            "racadm", "getremoteservicesstatus"
+            "racadm",
+            "getremoteservicesstatus",
         ]
 
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=15
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
 
         # Check if command succeeded and output contains "Status.*Ready"
         if result.returncode == 0:
             # Use regex to check for "Status.*Ready" pattern
-            if re.search(r'Status.*Ready', result.stdout, re.IGNORECASE):
+            if re.search(r"Status.*Ready", result.stdout, re.IGNORECASE):
                 return (True, f"iDRAC Access Succeeded for {idrac_fqdn}")
             else:
-                return (False, f"iDRAC responded but status not ready: {result.stdout[:100]}")
+                return (
+                    False,
+                    f"iDRAC responded but status not ready: {result.stdout[:100]}",
+                )
         else:
-            return (False, f"iDRAC Access Failed: {result.stderr[:100] if result.stderr else 'Connection failed'}")
+            return (
+                False,
+                f"iDRAC Access Failed: {result.stderr[:100] if result.stderr else 'Connection failed'}",
+            )
 
     except subprocess.TimeoutExpired:
         return (False, "iDRAC Access Failed: Connection timeout")
     except FileNotFoundError:
-        return (False, "iDRAC Access Failed: sshpass command not found (please install sshpass)")
+        return (
+            False,
+            "iDRAC Access Failed: sshpass command not found (please install sshpass)",
+        )
     except Exception as e:
         return (False, f"iDRAC Access Failed: {str(e)}")
 
@@ -325,16 +343,10 @@ def index():
     systems_data = [system_to_dict(s) for s in systems]
 
     # Extract unique BIOS and firmware versions for dropdowns
-    bios_versions = sorted(set(
-        s.bios_version for s in systems if s.bios_version
-    ))
-    firmware_versions = sorted(set(
-        s.idrac_version for s in systems if s.idrac_version
-    ))
+    bios_versions = sorted(set(s.bios_version for s in systems if s.bios_version))
+    firmware_versions = sorted(set(s.idrac_version for s in systems if s.idrac_version))
     # Extract unique models (host types) for multi-select dropdown
-    models = sorted(set(
-        s.model for s in systems if s.model
-    ))
+    models = sorted(set(s.model for s in systems if s.model))
 
     # Add authentication status to template
     is_authenticated = session.get("authenticated", False)
@@ -371,23 +383,21 @@ def api_firmware_versions(model):
     try:
         # Check authentication
         if not session.get("authenticated", False):
-            return jsonify({"success": False, "message": "Authentication required"}), 401
+            return (
+                jsonify({"success": False, "message": "Authentication required"}),
+                401,
+            )
 
         # Get all systems with the specified model
         with get_session() as db_session:
             systems = db_session.query(System).filter(System.model == model).all()
 
         # Extract unique firmware versions (excluding None/empty)
-        firmware_versions = sorted(set(
-            s.idrac_version for s in systems
-            if s.idrac_version
-        ))
+        firmware_versions = sorted(
+            set(s.idrac_version for s in systems if s.idrac_version)
+        )
 
-        return jsonify({
-            "success": True,
-            "model": model,
-            "versions": firmware_versions
-        })
+        return jsonify({"success": True, "model": model, "versions": firmware_versions})
 
     except Exception as e:
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
@@ -399,23 +409,19 @@ def api_bios_versions(model):
     try:
         # Check authentication
         if not session.get("authenticated", False):
-            return jsonify({"success": False, "message": "Authentication required"}), 401
+            return (
+                jsonify({"success": False, "message": "Authentication required"}),
+                401,
+            )
 
         # Get all systems with the specified model
         with get_session() as db_session:
             systems = db_session.query(System).filter(System.model == model).all()
 
         # Extract unique BIOS versions (excluding None/empty)
-        bios_versions = sorted(set(
-            s.bios_version for s in systems
-            if s.bios_version
-        ))
+        bios_versions = sorted(set(s.bios_version for s in systems if s.bios_version))
 
-        return jsonify({
-            "success": True,
-            "model": model,
-            "versions": bios_versions
-        })
+        return jsonify({"success": True, "model": model, "versions": bios_versions})
 
     except Exception as e:
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
@@ -452,10 +458,12 @@ def logout():
 @app.route("/api/auth-status")
 def auth_status():
     """Check if user is authenticated."""
-    return jsonify({
-        "authenticated": session.get("authenticated", False),
-        "username": session.get("username", None)
-    })
+    return jsonify(
+        {
+            "authenticated": session.get("authenticated", False),
+            "username": session.get("username", None),
+        }
+    )
 
 
 @app.route("/api/refresh", methods=["POST"])
@@ -464,29 +472,43 @@ def api_refresh():
     try:
         # Check authentication
         if not session.get("authenticated", False):
-            return jsonify({"success": False, "message": "Authentication required"}), 401
+            return (
+                jsonify({"success": False, "message": "Authentication required"}),
+                401,
+            )
 
         data = request.get_json()
         if not data:
             return jsonify({"success": False, "message": "Invalid request"}), 400
 
-        service_tag = data.get("service_tag", "").strip() if data.get("service_tag") else None
+        service_tag = (
+            data.get("service_tag", "").strip() if data.get("service_tag") else None
+        )
         hostname = data.get("hostname", "").strip() if data.get("hostname") else None
 
         if not service_tag and not hostname:
-            return jsonify({"success": False, "message": "Service tag or hostname required"}), 400
+            return (
+                jsonify(
+                    {"success": False, "message": "Service tag or hostname required"}
+                ),
+                400,
+            )
 
         # Run async refresh function
-        asyncio.run(refresh_dell_warranty(
-            service_tag=service_tag,
-            hostname=hostname if not service_tag else None,
-            warranty=DB_PATH
-        ))
+        asyncio.run(
+            refresh_dell_warranty(
+                service_tag=service_tag,
+                hostname=hostname if not service_tag else None,
+                warranty=DB_PATH,
+            )
+        )
 
-        return jsonify({
-            "success": True,
-            "message": f"Successfully refreshed data for {service_tag or hostname}"
-        })
+        return jsonify(
+            {
+                "success": True,
+                "message": f"Successfully refreshed data for {service_tag or hostname}",
+            }
+        )
 
     except Exception as e:
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
@@ -498,7 +520,10 @@ def api_refresh_multiple():
     try:
         # Check authentication
         if not session.get("authenticated", False):
-            return jsonify({"success": False, "message": "Authentication required"}), 401
+            return (
+                jsonify({"success": False, "message": "Authentication required"}),
+                401,
+            )
 
         data = request.get_json()
         if not data:
@@ -513,18 +538,26 @@ def api_refresh_multiple():
         failed_systems = []
 
         for system in systems:
-            service_tag = system.get("service_tag", "").strip() if system.get("service_tag") else None
-            hostname = system.get("hostname", "").strip() if system.get("hostname") else None
+            service_tag = (
+                system.get("service_tag", "").strip()
+                if system.get("service_tag")
+                else None
+            )
+            hostname = (
+                system.get("hostname", "").strip() if system.get("hostname") else None
+            )
 
             if not service_tag and not hostname:
                 continue
 
             try:
-                asyncio.run(refresh_dell_warranty(
-                    service_tag=service_tag,
-                    hostname=hostname if not service_tag else None,
-                    warranty=DB_PATH
-                ))
+                asyncio.run(
+                    refresh_dell_warranty(
+                        service_tag=service_tag,
+                        hostname=hostname if not service_tag else None,
+                        warranty=DB_PATH,
+                    )
+                )
                 success_count += 1
             except Exception as e:
                 failed_systems.append(f"{service_tag or hostname}: {str(e)}")
@@ -535,12 +568,14 @@ def api_refresh_multiple():
             if len(failed_systems) > 3:
                 message += f" and {len(failed_systems) - 3} more"
 
-        return jsonify({
-            "success": True,
-            "message": message,
-            "refreshed": success_count,
-            "total": len(systems)
-        })
+        return jsonify(
+            {
+                "success": True,
+                "message": message,
+                "refreshed": success_count,
+                "total": len(systems),
+            }
+        )
 
     except Exception as e:
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
@@ -552,7 +587,10 @@ def api_test_idrac():
     try:
         # Check authentication
         if not session.get("authenticated", False):
-            return jsonify({"success": False, "message": "Authentication required"}), 401
+            return (
+                jsonify({"success": False, "message": "Authentication required"}),
+                401,
+            )
 
         data = request.get_json()
         if not data:
@@ -565,10 +603,7 @@ def api_test_idrac():
         # Test iDRAC connectivity
         success, message = test_idrac_connectivity(hostname)
 
-        return jsonify({
-            "success": success,
-            "message": message
-        })
+        return jsonify({"success": success, "message": message})
 
     except Exception as e:
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
@@ -580,7 +615,10 @@ def api_firmware_update():
     try:
         # Check authentication
         if not session.get("authenticated", False):
-            return jsonify({"success": False, "message": "Authentication required"}), 401
+            return (
+                jsonify({"success": False, "message": "Authentication required"}),
+                401,
+            )
 
         data = request.get_json()
         if not data:
@@ -591,12 +629,28 @@ def api_firmware_update():
         model = data.get("model", "").strip()
 
         if not hostname or not target_version or not model:
-            return jsonify({"success": False, "message": "Hostname, target version, and model required"}), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": "Hostname, target version, and model required",
+                    }
+                ),
+                400,
+            )
 
         # Get FTP server from environment
         ftp_server = os.environ.get("DRACS_FTP_SERVER")
         if not ftp_server:
-            return jsonify({"success": False, "message": "DRACS_FTP_SERVER environment variable not set"}), 500
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": "DRACS_FTP_SERVER environment variable not set",
+                    }
+                ),
+                500,
+            )
 
         # Build iDRAC FQDN
         idrac_fqdn = build_idrac_hostname(hostname)
@@ -615,28 +669,43 @@ def api_firmware_update():
         # Build firmware update command
         cmd = [
             "sshpass",
-            "-p", password,
+            "-p",
+            password,
             "ssh",
-            "-o", "StrictHostKeyChecking=no",
-            "-o", "UserKnownHostsFile=/dev/null",
-            "-o", "ConnectTimeout=10",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "UserKnownHostsFile=/dev/null",
+            "-o",
+            "ConnectTimeout=10",
             f"{username}@{idrac_fqdn}",
-            "racadm", "fwupdate", "-f", ftp_server, "ftp", "user", "-d", f"pub/{firmware_file}"
+            "racadm",
+            "fwupdate",
+            "-f",
+            ftp_server,
+            "ftp",
+            "user",
+            "-d",
+            f"pub/{firmware_file}",
         ]
 
         # Run firmware update command in background
         success = run_command_background(cmd, str(log_file))
 
         if success:
-            return jsonify({
-                "success": True,
-                "message": f"Firmware update initiated for {hostname} to version {target_version}. Check logs/{log_file.relative_to('logs')} for progress."
-            })
+            return jsonify(
+                {
+                    "success": True,
+                    "message": f"Firmware update initiated for {hostname} to version {target_version}. Check logs/{log_file.relative_to('logs')} for progress.",
+                }
+            )
         else:
-            return jsonify({
-                "success": False,
-                "message": f"Failed to start firmware update process. Check {log_file} for details."
-            })
+            return jsonify(
+                {
+                    "success": False,
+                    "message": f"Failed to start firmware update process. Check {log_file} for details.",
+                }
+            )
 
     except FileNotFoundError:
         return jsonify({"success": False, "message": "sshpass command not found"}), 500
@@ -650,7 +719,10 @@ def api_bios_update():
     try:
         # Check authentication
         if not session.get("authenticated", False):
-            return jsonify({"success": False, "message": "Authentication required"}), 401
+            return (
+                jsonify({"success": False, "message": "Authentication required"}),
+                401,
+            )
 
         data = request.get_json()
         if not data:
@@ -661,21 +733,42 @@ def api_bios_update():
         model = data.get("model", "").strip()
 
         if not hostname or not target_bios or not model:
-            return jsonify({"success": False, "message": "Hostname, target BIOS version, and model required"}), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": "Hostname, target BIOS version, and model required",
+                    }
+                ),
+                400,
+            )
 
         # Get NFS server and path from environment
         nfs_server = os.environ.get("DRACS_NFS_SERVER")
         nfs_path = os.environ.get("DRACS_NFS_PATH")
         if not nfs_server or not nfs_path:
-            return jsonify({"success": False, "message": "DRACS_NFS_SERVER or DRACS_NFS_PATH environment variable not set"}), 500
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": "DRACS_NFS_SERVER or DRACS_NFS_PATH environment variable not set",
+                    }
+                ),
+                500,
+            )
 
         # Look up BIOS filename
         nfs_filename = get_bios_filename(model, target_bios)
         if not nfs_filename:
-            return jsonify({
-                "success": False,
-                "message": f"BIOS filename not found for model {model} version {target_bios} in BIOS-filename.ini"
-            }), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": f"BIOS filename not found for model {model} version {target_bios} in BIOS-filename.ini",
+                    }
+                ),
+                400,
+            )
 
         # Build iDRAC FQDN
         idrac_fqdn = build_idrac_hostname(hostname)
@@ -694,28 +787,41 @@ def api_bios_update():
         # Build BIOS update command
         cmd = [
             "sshpass",
-            "-p", password,
+            "-p",
+            password,
             "ssh",
-            "-o", "StrictHostKeyChecking=no",
-            "-o", "UserKnownHostsFile=/dev/null",
-            "-o", "ConnectTimeout=10",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "UserKnownHostsFile=/dev/null",
+            "-o",
+            "ConnectTimeout=10",
             f"{username}@{idrac_fqdn}",
-            "racadm", "update", "-f", nfs_filename, "-l", nfs_location
+            "racadm",
+            "update",
+            "-f",
+            nfs_filename,
+            "-l",
+            nfs_location,
         ]
 
         # Run BIOS update command in background
         success = run_command_background(cmd, str(log_file))
 
         if success:
-            return jsonify({
-                "success": True,
-                "message": f"BIOS update initiated for {hostname} to version {target_bios}. Check logs/{log_file.relative_to('logs')} for progress."
-            })
+            return jsonify(
+                {
+                    "success": True,
+                    "message": f"BIOS update initiated for {hostname} to version {target_bios}. Check logs/{log_file.relative_to('logs')} for progress.",
+                }
+            )
         else:
-            return jsonify({
-                "success": False,
-                "message": f"Failed to start BIOS update process. Check {log_file} for details."
-            })
+            return jsonify(
+                {
+                    "success": False,
+                    "message": f"Failed to start BIOS update process. Check {log_file} for details.",
+                }
+            )
 
     except FileNotFoundError:
         return jsonify({"success": False, "message": "sshpass command not found"}), 500
@@ -729,7 +835,10 @@ def api_job_queue():
     try:
         # Check authentication
         if not session.get("authenticated", False):
-            return jsonify({"success": False, "message": "Authentication required"}), 401
+            return (
+                jsonify({"success": False, "message": "Authentication required"}),
+                401,
+            )
 
         data = request.get_json()
         if not data:
@@ -749,36 +858,39 @@ def api_job_queue():
         # Build job queue command
         cmd = [
             "sshpass",
-            "-p", password,
+            "-p",
+            password,
             "ssh",
-            "-o", "StrictHostKeyChecking=no",
-            "-o", "UserKnownHostsFile=/dev/null",
-            "-o", "ConnectTimeout=10",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "UserKnownHostsFile=/dev/null",
+            "-o",
+            "ConnectTimeout=10",
             f"{username}@{idrac_fqdn}",
-            "racadm", "jobqueue", "view"
+            "racadm",
+            "jobqueue",
+            "view",
         ]
 
         # Run command and capture output
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
 
         if result.returncode != 0:
-            return jsonify({
-                "success": False,
-                "message": f"Command failed with exit code {result.returncode}: {result.stderr}"
-            }), 500
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": f"Command failed with exit code {result.returncode}: {result.stderr}",
+                    }
+                ),
+                500,
+            )
 
         # Parse job queue output
         jobs = parse_job_queue(result.stdout)
 
-        return jsonify({
-            "success": True,
-            "jobs": jobs
-        })
+        return jsonify({"success": True, "jobs": jobs})
 
     except FileNotFoundError:
         return jsonify({"success": False, "message": "sshpass command not found"}), 500
@@ -803,21 +915,25 @@ def _clear_single_job_queue(hostname: str) -> None:
         # Build clear job queue command
         cmd = [
             "sshpass",
-            "-p", password,
+            "-p",
+            password,
             "ssh",
-            "-o", "StrictHostKeyChecking=no",
-            "-o", "UserKnownHostsFile=/dev/null",
-            "-o", "ConnectTimeout=10",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "UserKnownHostsFile=/dev/null",
+            "-o",
+            "ConnectTimeout=10",
             f"{username}@{idrac_fqdn}",
-            "racadm", "jobqueue", "delete", "--all"
+            "racadm",
+            "jobqueue",
+            "delete",
+            "--all",
         ]
 
         # Run command and wait for completion (prevents zombie processes)
         subprocess.run(
-            cmd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            timeout=30
+            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30
         )
 
     except Exception as e:
@@ -830,7 +946,10 @@ def api_clear_job_queue():
     try:
         # Check authentication
         if not session.get("authenticated", False):
-            return jsonify({"success": False, "message": "Authentication required"}), 401
+            return (
+                jsonify({"success": False, "message": "Authentication required"}),
+                401,
+            )
 
         data = request.get_json()
         if not data:
@@ -839,24 +958,27 @@ def api_clear_job_queue():
         hostnames = data.get("hostnames", [])
 
         if not hostnames or not isinstance(hostnames, list):
-            return jsonify({"success": False, "message": "Hostnames list required"}), 400
+            return (
+                jsonify({"success": False, "message": "Hostnames list required"}),
+                400,
+            )
 
         # Spawn a thread for each host to clear job queue
         # Threads will properly clean up subprocess resources
         threads = []
         for hostname in hostnames:
             thread = threading.Thread(
-                target=_clear_single_job_queue,
-                args=(hostname,),
-                daemon=True
+                target=_clear_single_job_queue, args=(hostname,), daemon=True
             )
             thread.start()
             threads.append(thread)
 
-        return jsonify({
-            "success": True,
-            "message": f"Clear job queue initiated for {len(hostnames)} host(s)"
-        })
+        return jsonify(
+            {
+                "success": True,
+                "message": f"Clear job queue initiated for {len(hostnames)} host(s)",
+            }
+        )
 
     except Exception as e:
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
@@ -868,7 +990,10 @@ def api_refresh_all():
     try:
         # Check authentication
         if not session.get("authenticated", False):
-            return jsonify({"success": False, "message": "Authentication required"}), 401
+            return (
+                jsonify({"success": False, "message": "Authentication required"}),
+                401,
+            )
 
         # Get all systems from database
         systems = get_all_systems()
@@ -883,11 +1008,11 @@ def api_refresh_all():
 
         for system in systems:
             try:
-                asyncio.run(refresh_dell_warranty(
-                    service_tag=system.svc_tag,
-                    hostname=None,
-                    warranty=DB_PATH
-                ))
+                asyncio.run(
+                    refresh_dell_warranty(
+                        service_tag=system.svc_tag, hostname=None, warranty=DB_PATH
+                    )
+                )
                 success_count += 1
             except Exception as e:
                 failed_systems.append(f"{system.svc_tag}: {str(e)}")
@@ -898,12 +1023,14 @@ def api_refresh_all():
             if len(failed_systems) > 3:
                 message += f" and {len(failed_systems) - 3} more"
 
-        return jsonify({
-            "success": True,
-            "message": message,
-            "refreshed": success_count,
-            "total": total_systems
-        })
+        return jsonify(
+            {
+                "success": True,
+                "message": message,
+                "refreshed": success_count,
+                "total": total_systems,
+            }
+        )
 
     except Exception as e:
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500

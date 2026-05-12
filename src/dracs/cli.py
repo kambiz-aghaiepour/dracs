@@ -274,11 +274,13 @@ async def main() -> None:
             show_discovered = hasattr(args, "show_discovered") and args.show_discovered
             if not auto_add:
                 print(f"Discovering {len(hosts)} hosts from {args.host_list}...")
-                response = input(
-                    "Add discovered systems to database? (y/n): "
-                ).strip().lower()
+                response = (
+                    input("Add discovered systems to database? (y/n): ").strip().lower()
+                )
                 auto_add = response in ["y", "yes"]
-            await commands.discover_dell_systems_batch(hosts, warranty, auto_add, show_discovered)
+            await commands.discover_dell_systems_batch(
+                hosts, warranty, auto_add, show_discovered
+            )
         else:
             # Single host discover
             discovered_tag, discovered_model = await commands.discover_dell_system(
@@ -326,7 +328,9 @@ async def main() -> None:
         elif args.model:
             await commands.refresh_by_model(args.model, warranty, args.verbose)
         else:
-            await commands.refresh_dell_warranty(target_tag, args.target, warranty, args.verbose)
+            await commands.refresh_dell_warranty(
+                target_tag, args.target, warranty, args.verbose
+            )
     elif args.command in ["remove", "r"]:
         await commands.remove_dell_warranty(target_tag, args.target, warranty)
     elif args.command in ["list", "li"]:
