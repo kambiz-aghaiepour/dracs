@@ -484,6 +484,28 @@ The DRACS web interface can push BIOS updates to systems via an NFS server. Foll
 
 - After the BIOS is updated, **refresh** the host in DRACS (`dracs refresh -t host01.example.com`). The new BIOS version will then appear as available for all systems of the same model type in the DRACS web interface.
 
+## 🌐 Web Proxy (nginx)
+
+DRACS binds to `127.0.0.1:1888` by default, meaning it only accepts connections from localhost. For production deployments, use a reverse proxy such as [nginx](https://nginx.org/) to handle TLS termination and expose the web interface to clients.
+
+Sample nginx configuration files are provided in the `nginx/` directory:
+
+- **`dracs.conf.example`** — Redirects HTTP (port 80) to HTTPS
+- **`dracs_ssl.conf.example`** — HTTPS reverse proxy to the DRACS backend on `127.0.0.1:1888`
+
+To use them:
+
+```bash
+cp nginx/dracs.conf.example /etc/nginx/conf.d/dracs.conf
+cp nginx/dracs_ssl.conf.example /etc/nginx/conf.d/dracs_ssl.conf
+```
+
+Edit both files to replace `dracs.example.com` with your actual hostname and update the `ssl_certificate` / `ssl_certificate_key` paths to point to your TLS certificate and key. Then reload nginx:
+
+```bash
+nginx -t && systemctl reload nginx
+```
+
 ## 📝 Tips & Troubleshooting
 
 **Using Verbose Output:**
