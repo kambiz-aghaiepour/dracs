@@ -2,7 +2,9 @@ import argparse
 import asyncio
 import logging
 import os
+import shutil
 import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -61,6 +63,7 @@ class CustomParser(argparse.ArgumentParser):
             print("    add (a)         Add a system")
             print("    discover (d)    Discover system via SNMP")
             print("    edit (e)        Edit a system")
+            print("    init (i)        Initialize config files")
             print("    lookup (l)      Lookup a system")
             print("    refresh (rf)    Refresh SNMP and warranty data")
             print("    remove (r)      Remove a system")
@@ -69,6 +72,47 @@ class CustomParser(argparse.ArgumentParser):
             sys.exit(2)
         # Fall back to default behavior for other errors
         super().error(message)
+
+
+EXAMPLE_FILES = {
+    ".env.example": ".env.example",
+    "drac-passwords.ini.example": "drac-passwords.ini.example",
+    "BIOS-filename.ini.example": "BIOS-filename.ini.example",
+}
+
+
+def init_config_files() -> None:
+    examples_dir = Path(__file__).parent / "examples"
+    created = []
+    skipped = []
+
+    for src_name, dst_name in EXAMPLE_FILES.items():
+        src = examples_dir / src_name
+        dst = Path(dst_name)
+
+        if dst.exists():
+            skipped.append(dst_name)
+            continue
+
+        if not src.exists():
+            print(f"Warning: bundled example {src_name} not found", file=sys.stderr)
+            continue
+
+        shutil.copy2(src, dst)
+        created.append(dst_name)
+
+    if created:
+        print("Created:")
+        for f in created:
+            print(f"  {f}")
+
+    if skipped:
+        print("Skipped (already exist):")
+        for f in skipped:
+            print(f"  {f}")
+
+    if created:
+        print("\nCopy .env.example to .env and configure it before starting.")
 
 
 async def main() -> None:
@@ -231,6 +275,13 @@ async def main() -> None:
     remove_group.add_argument("-s", "--svctag", help="Service tag to remove")
     remove_group.add_argument("-t", "--target", help="Target hostname to remove")
 
+    # --- INIT COMMAND ---
+    subparsers.add_parser(
+        "init",
+        aliases=["i"],
+        help="Initialize config files in current directory",
+    )
+
     args = parser.parse_args()
 
     # Set up logging based on command-line flags
@@ -257,6 +308,10 @@ async def main() -> None:
                 f"Invalid hostname format: {args.target}. "
                 "Hostnames should contain only letters, numbers, hyphens, and periods"
             )
+
+    if args.command in ["init", "i"]:
+        init_config_files()
+        return
 
     if args.warranty:
         warranty = args.warranty

@@ -94,7 +94,7 @@ def _login(client):
 # get_idrac_credentials with real config file (lines 105, 112-113)
 # ---------------------------------------------------------------------------
 class TestGetIdracCredentialsWithConfig:
-    def test_host_specific_credentials(self, tmp_path):
+    def test_host_specific_credentials(self, tmp_path, monkeypatch):
         from dracs.webapp import get_idrac_credentials
 
         ini = tmp_path / "drac-passwords.ini"
@@ -106,36 +106,20 @@ class TestGetIdracCredentialsWithConfig:
             "username = admin\n"
             "password = secret123\n"
         )
-        with patch(
-            "dracs.webapp.Path.__truediv__",
-            return_value=ini,
-        ):
-            with patch("dracs.webapp.Path") as mock_path_cls:
-                mock_parent = MagicMock()
-                mock_parent.parent.parent.__truediv__ = lambda s, n: ini
-                mock_path_cls.return_value = mock_parent
-                # Need to patch the actual config_file construction
-                pass
+        monkeypatch.chdir(tmp_path)
+        user, pwd = get_idrac_credentials("myhost")
+        assert user == "admin"
+        assert pwd == "secret123"
 
-        config = configparser.ConfigParser()
-        config.read(str(ini))
-        assert config["myhost"]["username"] == "admin"
-        assert config["DEFAULT"]["username"] == "root"
-
-    def test_default_section_credentials(self, tmp_path):
+    def test_default_section_credentials(self, tmp_path, monkeypatch):
         from dracs.webapp import get_idrac_credentials
 
         ini = tmp_path / "drac-passwords.ini"
         ini.write_text("[DEFAULT]\n" "username = superuser\n" "password = superpass\n")
-        with patch(
-            "dracs.webapp.Path",
-            return_value=MagicMock(
-                parent=MagicMock(
-                    parent=MagicMock(parent=MagicMock(__truediv__=lambda s, n: ini))
-                ),
-            ),
-        ):
-            pass
+        monkeypatch.chdir(tmp_path)
+        user, pwd = get_idrac_credentials("unknown-host")
+        assert user == "superuser"
+        assert pwd == "superpass"
 
 
 # ---------------------------------------------------------------------------
@@ -196,40 +180,31 @@ class TestRunCommandBackgroundFailure:
 # get_bios_filename with real config (lines 197, 207)
 # ---------------------------------------------------------------------------
 class TestGetBiosFilenameWithConfig:
-    def test_model_found_version_found(self, tmp_path):
+    def test_model_found_version_found(self, tmp_path, monkeypatch):
         from dracs.webapp import get_bios_filename
 
         ini = tmp_path / "BIOS-filename.ini"
         ini.write_text("[R660]\n2.1.0 = BIOS_R660_2.1.0.EXE\n")
-        with patch("dracs.webapp.Path") as mock_path_cls:
-            mock_path_cls.return_value.parent.parent.parent.__truediv__ = (
-                lambda self, n: ini
-            )
-            result = get_bios_filename("R660", "2.1.0")
+        monkeypatch.chdir(tmp_path)
+        result = get_bios_filename("R660", "2.1.0")
         assert result == "BIOS_R660_2.1.0.EXE"
 
-    def test_model_found_version_missing(self, tmp_path):
+    def test_model_found_version_missing(self, tmp_path, monkeypatch):
         from dracs.webapp import get_bios_filename
 
         ini = tmp_path / "BIOS-filename.ini"
         ini.write_text("[R660]\n2.1.0 = BIOS_R660_2.1.0.EXE\n")
-        with patch("dracs.webapp.Path") as mock_path_cls:
-            mock_path_cls.return_value.parent.parent.parent.__truediv__ = (
-                lambda self, n: ini
-            )
-            result = get_bios_filename("R660", "9.9.9")
+        monkeypatch.chdir(tmp_path)
+        result = get_bios_filename("R660", "9.9.9")
         assert result is None
 
-    def test_model_not_found(self, tmp_path):
+    def test_model_not_found(self, tmp_path, monkeypatch):
         from dracs.webapp import get_bios_filename
 
         ini = tmp_path / "BIOS-filename.ini"
         ini.write_text("[R660]\n2.1.0 = BIOS_R660_2.1.0.EXE\n")
-        with patch("dracs.webapp.Path") as mock_path_cls:
-            mock_path_cls.return_value.parent.parent.parent.__truediv__ = (
-                lambda self, n: ini
-            )
-            result = get_bios_filename("R999", "2.1.0")
+        monkeypatch.chdir(tmp_path)
+        result = get_bios_filename("R999", "2.1.0")
         assert result is None
 
 
@@ -697,37 +672,24 @@ class TestBiosUpdateStartFailure:
 # get_idrac_credentials: config file doesn't exist (line 105)
 # ---------------------------------------------------------------------------
 class TestCredentialsNoConfigFile:
-    def test_returns_defaults_when_no_config(self, tmp_path):
+    def test_returns_defaults_when_no_config(self, tmp_path, monkeypatch):
         from dracs.webapp import get_idrac_credentials
 
-        fake_file = tmp_path / "webapp.py"
-        with patch("dracs.webapp.Path") as mock_path_cls:
-            mock_config = MagicMock()
-            mock_config.exists.return_value = False
-            mock_path_cls.return_value.parent.parent.parent.__truediv__.return_value = (
-                mock_config
-            )
-            user, pwd = get_idrac_credentials("server01")
+        monkeypatch.chdir(tmp_path)
+        user, pwd = get_idrac_credentials("server01")
         assert user == "root"
         assert pwd == "calvin"
 
-    def test_host_specific_credentials(self):
+    def test_host_specific_credentials(self, tmp_path, monkeypatch):
         from dracs.webapp import get_idrac_credentials
 
-        ini_content = "[DEFAULT]\nusername = admin\npassword = secret\n\n[myhost]\nusername = hostuser\npassword = hostpass\n"
-        mock_config_file = MagicMock()
-        mock_config_file.exists.return_value = True
-
-        real_config = configparser.ConfigParser()
-        real_config.read_string(ini_content)
-
-        with patch("dracs.webapp.Path") as mock_path_cls:
-            mock_path_cls.return_value.parent.parent.parent.__truediv__.return_value = (
-                mock_config_file
-            )
-            with patch("dracs.webapp.configparser.ConfigParser") as mock_cp_cls:
-                mock_cp_cls.return_value = real_config
-                user, pwd = get_idrac_credentials("myhost")
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text(
+            "[DEFAULT]\nusername = admin\npassword = secret\n\n"
+            "[myhost]\nusername = hostuser\npassword = hostpass\n"
+        )
+        monkeypatch.chdir(tmp_path)
+        user, pwd = get_idrac_credentials("myhost")
         assert user == "hostuser"
         assert pwd == "hostpass"
 
@@ -736,27 +698,11 @@ class TestCredentialsNoConfigFile:
 # get_bios_filename: config file doesn't exist (line 197)
 # ---------------------------------------------------------------------------
 class TestBiosFilenameNoConfig:
-    def test_returns_none_when_no_config(self):
+    def test_returns_none_when_no_config(self, tmp_path, monkeypatch):
         from dracs.webapp import get_bios_filename
 
-        with patch("dracs.webapp.Path") as mock_path_cls:
-            mock_file = MagicMock()
-            mock_file.exists.return_value = False
-            mock_path_cls.return_value.parent.parent.parent.__truediv__.return_value = (
-                mock_file
-            )
-            result = get_bios_filename("R660", "2.10.0")
-        assert result is None
-
-    def test_returns_none_for_nonexistent_path(self, tmp_path):
-        from dracs.webapp import get_bios_filename
-
-        with patch("dracs.webapp.Path") as mock_path_cls:
-            mock_file = tmp_path / "nonexistent.ini"
-            mock_path_cls.return_value.parent.parent.parent.__truediv__.return_value = (
-                mock_file
-            )
-            result = get_bios_filename("R660", "2.10.0")
+        monkeypatch.chdir(tmp_path)
+        result = get_bios_filename("R660", "2.10.0")
         assert result is None
 
 

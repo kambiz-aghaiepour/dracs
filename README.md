@@ -65,23 +65,46 @@ git clone https://github.com/kambiz-aghaiepour/dracs.git
 cd dracs
 ```
 
-**2) Install with [uv](https://docs.astral.sh/uv/):**
+**2) Install:**
+
+**Option A: Install with [uv](https://docs.astral.sh/uv/) (from cloned repo):**
 
 ```bash
 uv sync
+source .venv/bin/activate
 ```
 
 For development (includes pytest, black, etc.):
 
 ```bash
 uv sync --group dev
-```
-
-Source the virtual environment
-
-```bash
 source .venv/bin/activate
 ```
+
+**Option B: Install with pip:**
+
+```bash
+mkdir -p ~/dracs && cd ~/dracs
+python3 -m venv venv
+source venv/bin/activate
+pip install dracs
+dracs init
+```
+
+The `dracs init` command creates example configuration files in the current directory:
+- `.env.example` — environment variable template
+- `drac-passwords.ini.example` — iDRAC credentials template
+- `BIOS-filename.ini.example` — BIOS filename mapping template
+
+After running `dracs init`, copy and configure the environment file:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` with your Dell API credentials and other settings (see step 3 below).
+
+To start the web interface, run `dracs-webapp` from the same directory as your `.env` file.
 
 **3) Configure environment variables:**
 Create a .env file in the root directory:
@@ -385,6 +408,7 @@ dracs -d add -s ABC1234 -t server01 -m R660
 | `add`        | `a`   | `-s/--svctag` `-t/--target` `-m/--model` | None                                                                                                   |
 | `discover`   | `d`   | `-t/--target`                            | `--add`                                                                                                |
 | `edit`       | `e`   | `-s/--svctag` OR `-t/--target`           | `--bios` `--idrac` `--model`                                                                           |
+| `init`       | `i`   | None                                     | None                                                                                                   |
 | `lookup`     | `l`   | `-s/--svctag` OR `-t/--target`           | `--full` `--bios` `--idrac`                                                                            |
 | `list`       | `li`  | None                                     | `--model` `--regex` `--expires_in` `--expired` `--svctag` `--target` `--bios_*` `--idrac_*` `--json` `--host-only` |
 | `refresh`    | `rf`  | `-s/--svctag` OR `-t/--target`           | None                                                                                                   |

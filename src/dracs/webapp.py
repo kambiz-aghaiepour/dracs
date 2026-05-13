@@ -112,7 +112,7 @@ def get_idrac_credentials(hostname: str) -> tuple:
     Returns:
         tuple: (username, password)
     """
-    config_file = Path(__file__).parent.parent.parent / "drac-passwords.ini"
+    config_file = Path("drac-passwords.ini")
 
     if not config_file.exists():
         # Return default credentials if file doesn't exist
@@ -205,7 +205,7 @@ def get_bios_filename(model: str, bios_version: str) -> str:
     Returns:
         str: The BIOS filename if found, None otherwise
     """
-    config_file = Path(__file__).parent.parent.parent / "BIOS-filename.ini"
+    config_file = Path("BIOS-filename.ini")
 
     if not config_file.exists():
         return None
