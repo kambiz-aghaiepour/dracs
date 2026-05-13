@@ -3,7 +3,6 @@ import asyncio
 import logging
 import os
 import sys
-from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -262,7 +261,7 @@ async def main() -> None:
     if args.warranty:
         warranty = args.warranty
     else:
-        warranty = str(Path(__file__).resolve().parent) + "/warranty.db"
+        warranty = "warranty.db"
 
     db_initialize(warranty)
 
