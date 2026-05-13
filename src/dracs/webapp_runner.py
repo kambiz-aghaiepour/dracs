@@ -6,7 +6,6 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-
 REQUIRED_ENV_VARS = [
     "CLIENT_ID",
     "CLIENT_SECRET",
