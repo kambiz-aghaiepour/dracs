@@ -6,6 +6,7 @@ from datetime import datetime
 import json
 import os
 import re
+import sys
 import subprocess
 import threading
 from pathlib import Path
@@ -185,8 +186,11 @@ def run_command_background(cmd: list, log_file_path: str) -> bool:
         try:
             with open(log_file_path, "a") as log_file:
                 log_file.write(f"\nError starting process: {str(e)}\n")
-        except Exception:
-            pass
+        except Exception as log_err:
+            print(
+                f"Failed to write to log file {log_file_path}: {log_err}",
+                file=sys.stderr,
+            )
         return False
 
 
@@ -1069,6 +1073,17 @@ def api_refresh_all():
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
 
 
+def _parse_debug_env() -> bool:
+    value = os.getenv("DEBUG", "false")
+    if value in ("true", "True", "TRUE", "1"):
+        return True
+    if value in ("false", "False", "FALSE", "0"):
+        return False
+    raise ValueError(
+        f"Invalid DEBUG value '{value}' in .env file. "
+        "Must be one of: true, True, TRUE, 1, false, False, FALSE, 0"
+    )
+
+
 if __name__ == "__main__":  # pragma: no cover
-    # Development server (use gunicorn for production)
-    app.run(host="127.0.0.1", port=1888, debug=True)
+    app.run(host="127.0.0.1", port=1888, debug=_parse_debug_env())
