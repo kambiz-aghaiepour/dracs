@@ -18,6 +18,15 @@ class TestDellApiWarrantyDate:
             with pytest.raises(APIError, match="Dell API credentials not found"):
                 dell_api_warranty_date("ABC1234")
 
+    def test_missing_token_url_raises(self):
+        with patch.dict(
+            os.environ,
+            {"CLIENT_ID": "test-id", "CLIENT_SECRET": "test-secret"},
+            clear=True,
+        ):
+            with pytest.raises(APIError, match="Dell API credentials not found"):
+                dell_api_warranty_date("ABC1234")
+
     @patch("dracs.api.requests.get")
     @patch("dracs.api.requests.post")
     def test_single_tag_success(self, mock_post, mock_get):
@@ -37,7 +46,11 @@ class TestDellApiWarrantyDate:
 
         with patch.dict(
             os.environ,
-            {"CLIENT_ID": "test-id", "CLIENT_SECRET": "test-secret"},
+            {
+                "CLIENT_ID": "test-id",
+                "CLIENT_SECRET": "test-secret",
+                "TOKEN_URL": "https://api.example.com/auth/token",
+            },
         ):
             results = dell_api_warranty_date("ABC1234")
 
@@ -70,7 +83,11 @@ class TestDellApiWarrantyDate:
 
         with patch.dict(
             os.environ,
-            {"CLIENT_ID": "test-id", "CLIENT_SECRET": "test-secret"},
+            {
+                "CLIENT_ID": "test-id",
+                "CLIENT_SECRET": "test-secret",
+                "TOKEN_URL": "https://api.example.com/auth/token",
+            },
         ):
             results = dell_api_warranty_date(["TAG0001", "TAG0002"])
 
@@ -89,7 +106,11 @@ class TestDellApiWarrantyDate:
 
         with patch.dict(
             os.environ,
-            {"CLIENT_ID": "test-id", "CLIENT_SECRET": "test-secret"},
+            {
+                "CLIENT_ID": "test-id",
+                "CLIENT_SECRET": "test-secret",
+                "TOKEN_URL": "https://api.example.com/auth/token",
+            },
         ):
             with pytest.raises(APIError, match="Dell API request failed"):
                 dell_api_warranty_date("ABC1234")
@@ -114,7 +135,11 @@ class TestDellApiWarrantyDate:
 
         with patch.dict(
             os.environ,
-            {"CLIENT_ID": "test-id", "CLIENT_SECRET": "test-secret"},
+            {
+                "CLIENT_ID": "test-id",
+                "CLIENT_SECRET": "test-secret",
+                "TOKEN_URL": "https://api.example.com/auth/token",
+            },
         ):
             results = dell_api_warranty_date("ABC1234")
 
@@ -128,7 +153,11 @@ class TestDellApiWarrantyDate:
     def test_auth_timeout_raises(self, mock_post):
         with patch.dict(
             os.environ,
-            {"CLIENT_ID": "test-id", "CLIENT_SECRET": "test-secret"},
+            {
+                "CLIENT_ID": "test-id",
+                "CLIENT_SECRET": "test-secret",
+                "TOKEN_URL": "https://api.example.com/auth/token",
+            },
         ):
             with pytest.raises(
                 APIError, match="Dell API authentication request timed out"
@@ -142,7 +171,11 @@ class TestDellApiWarrantyDate:
     def test_auth_connection_error_raises(self, mock_post):
         with patch.dict(
             os.environ,
-            {"CLIENT_ID": "test-id", "CLIENT_SECRET": "test-secret"},
+            {
+                "CLIENT_ID": "test-id",
+                "CLIENT_SECRET": "test-secret",
+                "TOKEN_URL": "https://api.example.com/auth/token",
+            },
         ):
             with pytest.raises(
                 APIError,
@@ -160,7 +193,11 @@ class TestDellApiWarrantyDate:
 
         with patch.dict(
             os.environ,
-            {"CLIENT_ID": "test-id", "CLIENT_SECRET": "test-secret"},
+            {
+                "CLIENT_ID": "test-id",
+                "CLIENT_SECRET": "test-secret",
+                "TOKEN_URL": "https://api.example.com/auth/token",
+            },
         ):
             with pytest.raises(APIError, match="Dell API warranty request timed out"):
                 dell_api_warranty_date("ABC1234")
@@ -175,7 +212,11 @@ class TestDellApiWarrantyDate:
 
         with patch.dict(
             os.environ,
-            {"CLIENT_ID": "test-id", "CLIENT_SECRET": "test-secret"},
+            {
+                "CLIENT_ID": "test-id",
+                "CLIENT_SECRET": "test-secret",
+                "TOKEN_URL": "https://api.example.com/auth/token",
+            },
         ):
             with pytest.raises(
                 APIError,

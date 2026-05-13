@@ -19,14 +19,14 @@ def dell_api_warranty_date(
     CLIENT_ID = os.getenv("CLIENT_ID")
     CLIENT_SECRET = os.getenv("CLIENT_SECRET")
 
-    if not CLIENT_ID or not CLIENT_SECRET:
+    TOKEN_URL = os.getenv("TOKEN_URL")
+
+    if not CLIENT_ID or not CLIENT_SECRET or not TOKEN_URL:
         raise APIError(
             "Dell API credentials not found! "
-            "Please set CLIENT_ID and CLIENT_SECRET in your .env file. "
+            "Please set CLIENT_ID, CLIENT_SECRET, and TOKEN_URL in your .env file. "
             "Visit https://techdirect.dell.com to obtain API credentials"
         )
-
-    TOKEN_URL = "https://apigtwb2c.us.dell.com/auth/oauth/v2/token"
 
     try:
         auth_response = requests.post(
