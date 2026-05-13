@@ -2,6 +2,7 @@ import os
 from unittest.mock import patch, MagicMock
 
 import pytest
+import requests
 
 from dracs.api import dell_api_warranty_date
 from dracs.exceptions import APIError, ValidationError
@@ -119,3 +120,65 @@ class TestDellApiWarrantyDate:
 
         epoch, date_str = results["ABC1234"]
         assert "2030" in date_str
+
+    @patch(
+        "dracs.api.requests.post",
+        side_effect=requests.exceptions.Timeout("Connection timed out"),
+    )
+    def test_auth_timeout_raises(self, mock_post):
+        with patch.dict(
+            os.environ,
+            {"CLIENT_ID": "test-id", "CLIENT_SECRET": "test-secret"},
+        ):
+            with pytest.raises(
+                APIError, match="Dell API authentication request timed out"
+            ):
+                dell_api_warranty_date("ABC1234")
+
+    @patch(
+        "dracs.api.requests.post",
+        side_effect=requests.exceptions.ConnectionError("Connection refused"),
+    )
+    def test_auth_connection_error_raises(self, mock_post):
+        with patch.dict(
+            os.environ,
+            {"CLIENT_ID": "test-id", "CLIENT_SECRET": "test-secret"},
+        ):
+            with pytest.raises(
+                APIError,
+                match="Failed to connect to Dell API authentication server",
+            ):
+                dell_api_warranty_date("ABC1234")
+
+    @patch(
+        "dracs.api.requests.get",
+        side_effect=requests.exceptions.Timeout("Connection timed out"),
+    )
+    @patch("dracs.api.requests.post")
+    def test_warranty_timeout_raises(self, mock_post, mock_get):
+        mock_post.return_value = MagicMock(json=lambda: {"access_token": "fake-token"})
+
+        with patch.dict(
+            os.environ,
+            {"CLIENT_ID": "test-id", "CLIENT_SECRET": "test-secret"},
+        ):
+            with pytest.raises(APIError, match="Dell API warranty request timed out"):
+                dell_api_warranty_date("ABC1234")
+
+    @patch(
+        "dracs.api.requests.get",
+        side_effect=requests.exceptions.ConnectionError("Connection refused"),
+    )
+    @patch("dracs.api.requests.post")
+    def test_warranty_connection_error_raises(self, mock_post, mock_get):
+        mock_post.return_value = MagicMock(json=lambda: {"access_token": "fake-token"})
+
+        with patch.dict(
+            os.environ,
+            {"CLIENT_ID": "test-id", "CLIENT_SECRET": "test-secret"},
+        ):
+            with pytest.raises(
+                APIError,
+                match="Failed to connect to Dell API warranty server",
+            ):
+                dell_api_warranty_date("ABC1234")
