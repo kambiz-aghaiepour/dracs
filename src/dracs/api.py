@@ -90,3 +90,4 @@ def dell_api_warranty_date(
         results[tag] = (cur_eed, cur_eed_string)
 
     return results
+
