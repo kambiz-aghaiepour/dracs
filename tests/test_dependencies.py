@@ -17,8 +17,14 @@ def _get_dependencies():
 
 
 def _assert_dependency(deps, expected):
-    matches = [d for d in deps if d.split(">")[0].split("=")[0] == expected.split(">")[0].split("=")[0]]
-    assert len(matches) == 1, f"Expected exactly one entry for {expected}, found {matches}"
+    matches = [
+        d
+        for d in deps
+        if d.split(">")[0].split("=")[0] == expected.split(">")[0].split("=")[0]
+    ]
+    assert (
+        len(matches) == 1
+    ), f"Expected exactly one entry for {expected}, found {matches}"
     assert matches[0] == expected
 
 
