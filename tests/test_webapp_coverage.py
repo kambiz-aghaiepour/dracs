@@ -798,3 +798,118 @@ class TestRefreshAllManyFailures:
         resp = client.post("/api/refresh-all")
         data = resp.get_json()
         assert "more" in data["message"]
+
+
+# ---------------------------------------------------------------------------
+# Input validation on subprocess-facing endpoints
+# ---------------------------------------------------------------------------
+class TestSubprocessInputValidation:
+    def test_test_idrac_invalid_hostname(self):
+        from dracs.webapp import test_idrac_connectivity
+
+        with patch.dict(
+            os.environ,
+            {"DRACS_DNS_STRING": "mgmt-", "DRACS_DNS_MODE": "prefix"},
+        ):
+            success, msg = test_idrac_connectivity("-oProxyCommand=evil")
+        assert success is False
+        assert "Invalid hostname" in msg
+
+    def test_firmware_update_invalid_hostname(self, client):
+        _login(client)
+        resp = client.post(
+            "/api/firmware-update",
+            data=json.dumps(
+                {"hostname": "-evil", "target_version": "7.0.0", "model": "R660"}
+            ),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "Invalid hostname" in resp.get_json()["message"]
+
+    def test_firmware_update_invalid_version(self, client):
+        _login(client)
+        resp = client.post(
+            "/api/firmware-update",
+            data=json.dumps(
+                {"hostname": "server01", "target_version": "evil;cmd", "model": "R660"}
+            ),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "Invalid version" in resp.get_json()["message"]
+
+    def test_firmware_update_invalid_model(self, client):
+        _login(client)
+        resp = client.post(
+            "/api/firmware-update",
+            data=json.dumps(
+                {"hostname": "server01", "target_version": "7.0.0", "model": "R660;rm"}
+            ),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "Invalid model" in resp.get_json()["message"]
+
+    def test_bios_update_invalid_hostname(self, client):
+        _login(client)
+        resp = client.post(
+            "/api/bios-update",
+            data=json.dumps(
+                {"hostname": "-evil", "target_bios": "2.1.0", "model": "R660"}
+            ),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "Invalid hostname" in resp.get_json()["message"]
+
+    def test_bios_update_invalid_version(self, client):
+        _login(client)
+        resp = client.post(
+            "/api/bios-update",
+            data=json.dumps(
+                {"hostname": "server01", "target_bios": "bad!", "model": "R660"}
+            ),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "Invalid BIOS version" in resp.get_json()["message"]
+
+    def test_bios_update_invalid_model(self, client):
+        _login(client)
+        resp = client.post(
+            "/api/bios-update",
+            data=json.dumps(
+                {"hostname": "server01", "target_bios": "2.1.0", "model": "R660;rm"}
+            ),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "Invalid model" in resp.get_json()["message"]
+
+    def test_job_queue_invalid_hostname(self, client):
+        _login(client)
+        resp = client.post(
+            "/api/job-queue",
+            data=json.dumps({"hostname": "-evil"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "Invalid hostname" in resp.get_json()["message"]
+
+    def test_clear_job_queue_invalid_hostname(self, client):
+        _login(client)
+        resp = client.post(
+            "/api/clear-job-queue",
+            data=json.dumps({"hostnames": ["server01", "-evil"]}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "Invalid hostname" in resp.get_json()["message"]
+
+    def test_clear_single_job_queue_invalid_hostname(self, capsys):
+        from dracs.webapp import _clear_single_job_queue
+
+        _clear_single_job_queue("-evil")
+        output = capsys.readouterr().out
+        assert "Invalid hostname" in output
