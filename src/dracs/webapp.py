@@ -15,6 +15,7 @@ from flask import Flask, render_template, jsonify, session, request
 from dracs.db import db_initialize, get_session, System
 from dracs.commands import refresh_dell_warranty
 from dracs.snmp import build_idrac_hostname
+from dracs.validation import validate_hostname, validate_version
 
 # Load environment variables from .env file
 # Look for .env in current directory or parent directories
@@ -281,6 +282,8 @@ def test_idrac_connectivity(hostname: str) -> tuple:
     Returns:
         tuple: (success: bool, message: str)
     """
+    if not validate_hostname(hostname):
+        return (False, f"Invalid hostname: {hostname}")
     try:
         # Build iDRAC FQDN
         idrac_fqdn = build_idrac_hostname(hostname)
@@ -639,6 +642,13 @@ def api_firmware_update():
                 400,
             )
 
+        if not validate_hostname(hostname):
+            return jsonify({"success": False, "message": "Invalid hostname"}), 400
+        if not validate_version(target_version):
+            return jsonify({"success": False, "message": "Invalid version format"}), 400
+        if not re.match(r"^[A-Za-z0-9\-]+$", model):
+            return jsonify({"success": False, "message": "Invalid model format"}), 400
+
         # Get FTP server from environment
         ftp_server = os.environ.get("DRACS_FTP_SERVER")
         if not ftp_server:
@@ -742,6 +752,16 @@ def api_bios_update():
                 ),
                 400,
             )
+
+        if not validate_hostname(hostname):
+            return jsonify({"success": False, "message": "Invalid hostname"}), 400
+        if not validate_version(target_bios):
+            return (
+                jsonify({"success": False, "message": "Invalid BIOS version format"}),
+                400,
+            )
+        if not re.match(r"^[A-Za-z0-9\-]+$", model):
+            return jsonify({"success": False, "message": "Invalid model format"}), 400
 
         # Get NFS server and path from environment
         nfs_server = os.environ.get("DRACS_NFS_SERVER")
@@ -848,6 +868,8 @@ def api_job_queue():
 
         if not hostname:
             return jsonify({"success": False, "message": "Hostname required"}), 400
+        if not validate_hostname(hostname):
+            return jsonify({"success": False, "message": "Invalid hostname"}), 400
 
         # Build iDRAC FQDN
         idrac_fqdn = build_idrac_hostname(hostname)
@@ -906,6 +928,10 @@ def _clear_single_job_queue(hostname: str) -> None:
     This function properly waits for the command to complete, avoiding zombie processes.
     """
     try:
+        if not validate_hostname(hostname):
+            print(f"Invalid hostname: {hostname}")
+            return
+
         # Build iDRAC FQDN
         idrac_fqdn = build_idrac_hostname(hostname)
 
@@ -962,6 +988,13 @@ def api_clear_job_queue():
                 jsonify({"success": False, "message": "Hostnames list required"}),
                 400,
             )
+
+        for h in hostnames:
+            if not validate_hostname(h):
+                return (
+                    jsonify({"success": False, "message": f"Invalid hostname: {h}"}),
+                    400,
+                )
 
         # Spawn a thread for each host to clear job queue
         # Threads will properly clean up subprocess resources
