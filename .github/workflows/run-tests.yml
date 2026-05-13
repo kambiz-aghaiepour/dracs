@@ -12,10 +12,6 @@ name: Run Tests
     branches:
       - development
       - main
-    paths:
-      - "**/*.py"
-      - "tests/**"
-      - ".github/workflows/run-tests.yml"
 
 jobs:
   test:
