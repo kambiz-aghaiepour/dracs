@@ -60,9 +60,7 @@ class TestInitConfigFiles:
         output = capsys.readouterr().out
         assert "Copy .env.example to .env" in output
 
-    def test_no_copy_reminder_when_nothing_created(
-        self, tmp_path, monkeypatch, capsys
-    ):
+    def test_no_copy_reminder_when_nothing_created(self, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(tmp_path)
         for dst_name in EXAMPLE_FILES.values():
             (tmp_path / dst_name).write_text("existing")
