@@ -85,4 +85,6 @@ def main():  # pragma: no cover
         print("Error: gunicorn not found in PATH.", file=sys.stderr)
         sys.exit(1)
 
-    os.execvp(gunicorn_path, ["gunicorn", "-c", str(conf_path), "dracs.webapp:app"])  # nosemgrep: python.lang.security.audit.dangerous-spawn-process.dangerous-spawn-process
+    os.execvp(
+        gunicorn_path, ["gunicorn", "-c", str(conf_path), "dracs.webapp:app"]
+    )  # nosemgrep: python.lang.security.audit.dangerous-spawn-process.dangerous-spawn-process
