@@ -74,10 +74,10 @@ def main():  # pragma: no cover
         )
         sys.exit(1)
 
-    db_path = os.environ.get("DRACS_DB", "./warranty.db")
     print("Starting DRACS web application...")
-    print(f"Database: {db_path}")
-    print("Server: http://127.0.0.1:1888")
+    print(f"Using virtualenv: {os.environ.get('VIRTUAL_ENV', 'none')}")
+    print(f"Database: {os.environ.get('DRACS_DB', './warranty.db')}")
+    print(f"Server: http://{os.environ.get('DRACS_BIND', '127.0.0.1:1888')}")
     print()
 
     gunicorn_path = shutil.which("gunicorn")

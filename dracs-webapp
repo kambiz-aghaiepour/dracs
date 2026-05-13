@@ -1,0 +1,6 @@
+#!/usr/bin/env python3
+"""Launch the DRACS web application."""
+
+from dracs.webapp_runner import main
+
+main()

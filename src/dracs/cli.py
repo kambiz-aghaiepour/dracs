@@ -262,7 +262,7 @@ async def main() -> None:
     if args.warranty:
         warranty = args.warranty
     else:
-        warranty = str(Path(__file__).resolve().parent) + "/warranty.db"
+        warranty = "warranty.db"
 
     db_initialize(warranty)
 
