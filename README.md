@@ -109,9 +109,51 @@ SNMP_COMMUNITY=public
 
 # Optional: Enable debug logging via environment (can also use -d flag)
 DEBUG=false
+
+# Flask secret key for session cookie signing (used by the web interface)
+# IMPORTANT: For production, generate a secure key with:
+#   python -c "import secrets; print(secrets.token_hex(32))"
+FLASK_SECRET_KEY=dev-secret-key-change-in-production-12345678901234567890123456789012
+
+# Web interface admin credentials
+# Change these from the defaults for production use
+WEBADMIN_USER=admin
+WEBADMIN_PASSWORD=admin
 ```
 
 **Note:** Obtain Dell API credentials from [Dell TechDirect](https://techdirect.dell.com)
+
+**Security:** The `WEBADMIN_USER` and `WEBADMIN_PASSWORD` control access to the web interface. Change these from the defaults before deploying to production.
+
+The `FLASK_SECRET_KEY` is used to cryptographically sign session cookies. The default value is for development only. For production, generate a secure key:
+
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+Copy the output and set it as `FLASK_SECRET_KEY` in your `.env` file. Anyone who knows this key can forge session cookies and bypass authentication.
+
+**4) Configure iDRAC credentials (optional, for web interface):**
+
+The web interface uses SSH to connect to iDRAC for firmware updates, BIOS updates, and job queue management. By default it uses `root`/`calvin`. To customize credentials, copy the example file to the same directory where the webapp runs:
+
+```bash
+cp drac-passwords.ini.example drac-passwords.ini
+```
+
+Edit `drac-passwords.ini` to set default credentials and optional per-host overrides:
+
+```ini
+[DEFAULT]
+username = root
+password = calvin
+
+[host01.example.com]
+username = admin
+password = admin
+```
+
+The `[DEFAULT]` section applies to all hosts. Add a section named after a specific hostname to override credentials for that host. This file contains sensitive credentials and is excluded from version control via `.gitignore`.
 
 ## 📖 Usage
 
@@ -377,6 +419,70 @@ dracs -d add -s ABC1234 -t server01 -m R660
 
 - `--json` - Output results as JSON instead of table
 - `--host-only` - Output only hostnames, one per line (useful for scripting)
+
+## 📡 FTP Server Setup for Firmware Updates
+
+The DRACS web interface can push iDRAC firmware updates to systems via an anonymous FTP server. Follow these steps to set up the FTP server and make firmware available.
+
+- Set up an anonymous FTP server (e.g. `vsftpd`) as a service. This can run on the same host as DRACS. Ensure the `DRACS_FTP_SERVER` variable in your `.env` file points to the FTP server's IP address.
+
+- Download the desired iDRAC firmware from Dell support, e.g. `iDRAC-with-Lifecycle-Controller_Firmware_924YT_WN64_7.30.10.50_A00.EXE`
+
+- Extract the firmware `.EXE` file using `unzip` to view its contents:
+
+  ```bash
+  unzip iDRAC-with-Lifecycle-Controller_Firmware_924YT_WN64_7.30.10.50_A00.EXE -d firmware_extracted
+  ```
+
+- Locate the firmware payload file inside the extracted directory at `payload/firmimgFIT.d9`
+
+- Copy the `firmimgFIT.d9` file to the FTP server's public directory, renaming it to match the `<MODEL>-<VERSION>.d9` convention:
+
+  ```bash
+  cp firmware_extracted/payload/firmimgFIT.d9 /var/ftp/pub/R660-7.30.10.50.d9
+  chmod 444 /var/ftp/pub/R660-7.30.10.50.d9
+  ```
+
+- To make the new firmware version available for a model within DRACS, it must first be manually installed on at least one system using `racadm`. SSH to the iDRAC and issue the update command:
+
+  ```bash
+  ssh admin@mgmt-host01.example.com
+  racadm fwupdate -f <FTP_SERVER_IP> ftp user -d pub/R660-7.30.10.50.d9
+  ```
+
+- Once the manual update is complete, **refresh** that system in DRACS (`dracs refresh -t host01.example.com`). The new firmware version will then appear as available for all systems of the same model type in the DRACS web interface.
+
+## 💾 NFS Server Setup for BIOS Updates
+
+The DRACS web interface can push BIOS updates to systems via an NFS server. Follow these steps to set up the NFS server and make BIOS images available.
+
+- Set up an NFS server in your environment. This can be the DRACS host, an existing host, or any other host in your deployment. The NFS share must be accessible for read access from all iDRAC interfaces in your environment.
+
+- Download the desired Dell BIOS image from Dell support, e.g. `BIOS_G93PH_WN64_2.10.1.EXE`
+
+- Place the image on your NFS server under a model-specific subdirectory:
+
+  ```bash
+  cp BIOS_G93PH_WN64_2.10.1.EXE /path/to/nfs/R660/
+  ```
+
+- Ensure your `.env` file includes both NFS variables:
+
+  ```bash
+  DRACS_NFS_SERVER=192.168.1.100
+  DRACS_NFS_PATH=/path/to/nfs
+  ```
+
+- To make the new BIOS version available for a model within DRACS, it must first be manually installed on at least one system using `racadm`. SSH to the iDRAC and issue the update command:
+
+  ```bash
+  ssh admin@mgmt-host01.example.com
+  racadm update -f BIOS_G93PH_WN64_2.10.1.EXE -l 192.168.1.100:/srv/nfs/dell_bios/R660
+  ```
+
+- Connect to the console of the system and reboot to ensure the BIOS update completes.
+
+- After the BIOS is updated, **refresh** the host in DRACS (`dracs refresh -t host01.example.com`). The new BIOS version will then appear as available for all systems of the same model type in the DRACS web interface.
 
 ## 📝 Tips & Troubleshooting
 
