@@ -28,11 +28,17 @@ def dell_api_warranty_date(
 
     TOKEN_URL = "https://apigtwb2c.us.dell.com/auth/oauth/v2/token"
 
-    auth_response = requests.post(
-        TOKEN_URL,
-        data={"grant_type": "client_credentials"},
-        auth=(CLIENT_ID, CLIENT_SECRET),
-    )
+    try:
+        auth_response = requests.post(
+            TOKEN_URL,
+            data={"grant_type": "client_credentials"},
+            auth=(CLIENT_ID, CLIENT_SECRET),
+            timeout=30,
+        )
+    except requests.exceptions.Timeout:
+        raise APIError("Dell API authentication request timed out")
+    except requests.exceptions.ConnectionError:
+        raise APIError("Failed to connect to Dell API authentication server")
 
     token = auth_response.json().get("access_token")
 
@@ -52,7 +58,14 @@ def dell_api_warranty_date(
         batch = svctags[i : i + BATCH_SIZE]
         payload = {"servicetags": batch}
 
-        response = requests.get(WARRANTY_API_URL, headers=headers, params=payload)
+        try:
+            response = requests.get(
+                WARRANTY_API_URL, headers=headers, params=payload, timeout=30
+            )
+        except requests.exceptions.Timeout:
+            raise APIError("Dell API warranty request timed out")
+        except requests.exceptions.ConnectionError:
+            raise APIError("Failed to connect to Dell API warranty server")
 
         if response.status_code == 200:
             warranty_data.extend(response.json())
