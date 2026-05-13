@@ -4,70 +4,56 @@
 # Change to project directory
 cd "$(dirname "$0")"
 
-# Load .env file if it exists (so local settings take precedence over defaults below)
-if [ -f .env ]; then
-    echo "Loading settings from .env file..."
-    # Export all variables from .env
-    set -a
-    source .env
-    set +a
-fi
-
-# Set database path (default to current directory)
-export DRACS_DB="${DRACS_DB:-./warranty.db}"
-
-# Check if virtualenv is activated
-if [ -z "$VIRTUAL_ENV" ]; then
-    echo "Warning: No virtualenv activated!"
-    echo "Please run: uv sync && source .venv/bin/activate"
-    echo "Or use: uv run gunicorn -c gunicorn.conf.py dracs.webapp:app"
+# Require .env file
+if [ ! -f .env ]; then
+    echo "Error: .env file not found in $(pwd)" >&2
+    echo "Copy .env.example to .env and configure it before starting." >&2
     exit 1
 fi
 
-# Set Flask secret key from gunicorn config (unless already set)
-if [ -z "$FLASK_SECRET_KEY" ]; then
-    export FLASK_SECRET_KEY="dev-secret-key-change-in-production-12345678901234567890123456789012"
+# Load .env file
+echo "Loading settings from .env file..."
+set -a
+source .env
+set +a
+
+# Check if virtualenv is activated
+if [ -z "$VIRTUAL_ENV" ]; then
+    echo "Error: No virtualenv activated!" >&2
+    echo "Please run: uv sync && source .venv/bin/activate" >&2
+    exit 1
 fi
 
-# Set admin credentials from gunicorn config (unless already set)
-# Note: .env file values (loaded above) take precedence over these defaults
-if [ -z "$WEBADMIN_USER" ]; then
-    export WEBADMIN_USER="admin"
-fi
-if [ -z "$WEBADMIN_PASSWORD" ]; then
-    export WEBADMIN_PASSWORD="admin"
+# Validate required environment variables
+MISSING=""
+for VAR in CLIENT_ID CLIENT_SECRET TOKEN_URL FLASK_SECRET_KEY WEBADMIN_USER WEBADMIN_PASSWORD DRACS_DNS_STRING DRACS_DNS_MODE; do
+    if [ -z "${!VAR}" ]; then
+        MISSING="$MISSING  - $VAR\n"
+    fi
+done
+
+if [ -n "$MISSING" ]; then
+    echo "Error: required environment variables not set:" >&2
+    echo -e "$MISSING" >&2
+    echo "Please configure these in your .env file." >&2
+    exit 1
 fi
 
-# Set refresh frequency from gunicorn config (unless already set)
-if [ -z "$REFRESH_FREQUENCY" ]; then
-    export REFRESH_FREQUENCY="10"
-fi
-
-# Set warranty expiration highlighting from gunicorn config (unless already set)
-if [ -z "$HIGHLIGHT_EXPIRED" ]; then
-    export HIGHLIGHT_EXPIRED="true"
-fi
-if [ -z "$HIGHLIGHT_EXPIRING" ]; then
-    export HIGHLIGHT_EXPIRING="30"
-fi
-
-# Set pagination from gunicorn config (unless already set)
-if [ -z "$DEFAULT_PAGE_SIZE" ]; then
-    export DEFAULT_PAGE_SIZE="20"
-fi
-
-# Set firmware and BIOS highlighting from gunicorn config (unless already set)
-if [ -z "$HIGHLIGHT_FIRMWARE" ]; then
-    export HIGHLIGHT_FIRMWARE="true"
-fi
-if [ -z "$HIGHLIGHT_BIOS" ]; then
-    export HIGHLIGHT_BIOS="true"
-fi
+# Set optional defaults
+export DRACS_DB="${DRACS_DB:-./warranty.db}"
+export REFRESH_FREQUENCY="${REFRESH_FREQUENCY:-10}"
+export HIGHLIGHT_EXPIRED="${HIGHLIGHT_EXPIRED:-true}"
+export HIGHLIGHT_EXPIRING="${HIGHLIGHT_EXPIRING:-30}"
+export DEFAULT_PAGE_SIZE="${DEFAULT_PAGE_SIZE:-20}"
+export HIGHLIGHT_FIRMWARE="${HIGHLIGHT_FIRMWARE:-true}"
+export HIGHLIGHT_BIOS="${HIGHLIGHT_BIOS:-true}"
+export SNMP_COMMUNITY="${SNMP_COMMUNITY:-public}"
+export DEBUG="${DEBUG:-false}"
 
 echo "Starting DRACS web application..."
 echo "Using virtualenv: $VIRTUAL_ENV"
 echo "Database: $DRACS_DB"
-echo "Server: http://0.0.0.0:1888"
+echo "Server: http://127.0.0.1:1888"
 echo ""
 
 # Launch gunicorn from activated virtualenv

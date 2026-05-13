@@ -25,6 +25,7 @@ dependencies = [
 
 [project.scripts]
 dracs = "dracs.cli:main_cli"
+dracs-webapp = "dracs.webapp_runner:main"
 
 [dependency-groups]
 dev = [
