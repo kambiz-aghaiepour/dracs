@@ -1,8 +1,10 @@
 """Tests for the dracs init command."""
 
+import asyncio
 from pathlib import Path
+from unittest.mock import patch
 
-from dracs.cli import EXAMPLE_FILES, init_config_files
+from dracs.cli import EXAMPLE_FILES, init_config_files, main
 
 
 class TestExampleFilesBundled:
@@ -60,7 +62,9 @@ class TestInitConfigFiles:
         output = capsys.readouterr().out
         assert "Copy .env.example to .env" in output
 
-    def test_no_copy_reminder_when_nothing_created(self, tmp_path, monkeypatch, capsys):
+    def test_no_copy_reminder_when_nothing_created(
+        self, tmp_path, monkeypatch, capsys
+    ):
         monkeypatch.chdir(tmp_path)
         for dst_name in EXAMPLE_FILES.values():
             (tmp_path / dst_name).write_text("existing")
@@ -77,3 +81,28 @@ class TestInitConfigFiles:
         assert "Skipped" in output
         assert "drac-passwords.ini.example" in output
         assert "BIOS-filename.ini.example" in output
+
+    def test_warns_when_bundled_file_missing(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        empty_dir = tmp_path / "empty_examples"
+        empty_dir.mkdir()
+        with patch("dracs.cli.EXAMPLES_DIR", empty_dir):
+            init_config_files()
+        output = capsys.readouterr().err
+        assert "Warning: bundled example" in output
+
+
+class TestInitViaMain:
+    def test_init_command_routing(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        with patch("sys.argv", ["dracs", "init"]):
+            asyncio.run(main())
+        for dst_name in EXAMPLE_FILES.values():
+            assert (tmp_path / dst_name).exists()
+
+    def test_init_alias_routing(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        with patch("sys.argv", ["dracs", "i"]):
+            asyncio.run(main())
+        for dst_name in EXAMPLE_FILES.values():
+            assert (tmp_path / dst_name).exists()

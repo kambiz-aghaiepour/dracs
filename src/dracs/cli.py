@@ -74,6 +74,8 @@ class CustomParser(argparse.ArgumentParser):
         super().error(message)
 
 
+EXAMPLES_DIR = Path(__file__).parent / "examples"
+
 EXAMPLE_FILES = {
     ".env.example": ".env.example",
     "drac-passwords.ini.example": "drac-passwords.ini.example",
@@ -82,7 +84,7 @@ EXAMPLE_FILES = {
 
 
 def init_config_files() -> None:
-    examples_dir = Path(__file__).parent / "examples"
+    examples_dir = EXAMPLES_DIR
     created = []
     skipped = []
 
