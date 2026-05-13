@@ -913,3 +913,32 @@ class TestSubprocessInputValidation:
         _clear_single_job_queue("-evil")
         output = capsys.readouterr().out
         assert "Invalid hostname" in output
+
+
+class TestParseDebugEnv:
+    def test_true_values(self):
+        from dracs.webapp import _parse_debug_env
+
+        for val in ("true", "True", "TRUE", "1"):
+            with patch.dict(os.environ, {"DEBUG": val}):
+                assert _parse_debug_env() is True
+
+    def test_false_values(self):
+        from dracs.webapp import _parse_debug_env
+
+        for val in ("false", "False", "FALSE", "0"):
+            with patch.dict(os.environ, {"DEBUG": val}):
+                assert _parse_debug_env() is False
+
+    def test_default_is_false(self):
+        from dracs.webapp import _parse_debug_env
+
+        with patch.dict(os.environ, {}, clear=True):
+            assert _parse_debug_env() is False
+
+    def test_invalid_value_raises(self):
+        from dracs.webapp import _parse_debug_env
+
+        with patch.dict(os.environ, {"DEBUG": "yes"}):
+            with pytest.raises(ValueError, match="Invalid DEBUG value"):
+                _parse_debug_env()
