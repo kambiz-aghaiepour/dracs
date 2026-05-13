@@ -1,0 +1,7 @@
+server {
+    listen 80;
+    server_name dracs.example.com;
+
+    # Redirect all HTTP requests to HTTPS
+    return 301 https://$host$request_uri;
+}
