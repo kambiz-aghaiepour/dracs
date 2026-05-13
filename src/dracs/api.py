@@ -32,6 +32,7 @@ def dell_api_warranty_date(
         TOKEN_URL,
         data={"grant_type": "client_credentials"},
         auth=(CLIENT_ID, CLIENT_SECRET),
+        timeout=30,
     )
 
     token = auth_response.json().get("access_token")
@@ -52,7 +53,7 @@ def dell_api_warranty_date(
         batch = svctags[i : i + BATCH_SIZE]
         payload = {"servicetags": batch}
 
-        response = requests.get(WARRANTY_API_URL, headers=headers, params=payload)
+        response = requests.get(WARRANTY_API_URL, headers=headers, params=payload, timeout=30)
 
         if response.status_code == 200:
             warranty_data.extend(response.json())
