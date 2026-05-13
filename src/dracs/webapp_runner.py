@@ -1,6 +1,7 @@
 """Entry point for launching the DRACS web application via gunicorn."""
 
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -27,6 +28,7 @@ OPTIONAL_ENV_DEFAULTS = {
     "HIGHLIGHT_BIOS": "true",
     "SNMP_COMMUNITY": "public",
     "DEBUG": "false",
+    "DRACS_BIND": "127.0.0.1:1888",
 }
 
 
@@ -48,18 +50,8 @@ def apply_optional_defaults():
 
 def main():  # pragma: no cover
     env_path = Path(".env")
-    if not env_path.exists():
-        print(
-            "Error: .env file not found in current directory.",
-            file=sys.stderr,
-        )
-        print(
-            "Copy .env.example to .env and configure it before starting.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    load_dotenv(env_path)
+    if env_path.exists():
+        load_dotenv(env_path)
 
     missing = validate_env()
     if missing:
@@ -88,4 +80,9 @@ def main():  # pragma: no cover
     print("Server: http://127.0.0.1:1888")
     print()
 
-    os.execvp("gunicorn", ["gunicorn", "-c", str(conf_path), "dracs.webapp:app"])
+    gunicorn_path = shutil.which("gunicorn")
+    if not gunicorn_path:
+        print("Error: gunicorn not found in PATH.", file=sys.stderr)
+        sys.exit(1)
+
+    os.execvp(gunicorn_path, ["gunicorn", "-c", str(conf_path), "dracs.webapp:app"])

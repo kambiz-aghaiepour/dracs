@@ -96,5 +96,6 @@ class TestRequiredEnvVarsList:
             "HIGHLIGHT_BIOS",
             "SNMP_COMMUNITY",
             "DEBUG",
+            "DRACS_BIND",
         ]
         assert list(OPTIONAL_ENV_DEFAULTS.keys()) == expected_keys

@@ -57,4 +57,4 @@ echo "Server: http://127.0.0.1:1888"
 echo ""
 
 # Launch gunicorn from activated virtualenv
-gunicorn -c gunicorn.conf.py "dracs.webapp:app"
+gunicorn -c src/dracs/gunicorn.conf.py "dracs.webapp:app"
