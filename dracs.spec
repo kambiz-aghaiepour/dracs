@@ -19,10 +19,10 @@ and utilizes a portable SQLite database.}
 
 %description %_description
 
-%package -n     dracs
+%package -n     python3-dracs
 Summary:        %{summary}
 
-%description -n dracs %_description
+%description -n python3-dracs %_description
 
 
 %prep
