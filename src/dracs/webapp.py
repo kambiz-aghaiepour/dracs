@@ -677,7 +677,8 @@ def api_firmware_update():
 
         # Prepare log file path
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_dir = Path("logs/firmware-updates")
+        log_base = Path(os.environ.get("DRACS_LOG_DIR", "logs"))
+        log_dir = log_base / "firmware-updates"
         log_file = log_dir / f"{hostname}_{target_version}_{timestamp}.log"
 
         # Build firmware update command
@@ -710,7 +711,7 @@ def api_firmware_update():
             return jsonify(
                 {
                     "success": True,
-                    "message": f"Firmware update initiated for {hostname} to version {target_version}. Check logs/{log_file.relative_to('logs')} for progress.",
+                    "message": f"Firmware update initiated for {hostname} to version {target_version}. Check {log_file} for progress.",
                 }
             )
         else:
@@ -805,7 +806,8 @@ def api_bios_update():
 
         # Prepare log file path
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_dir = Path("logs/bios-updates")
+        log_base = Path(os.environ.get("DRACS_LOG_DIR", "logs"))
+        log_dir = log_base / "bios-updates"
         log_file = log_dir / f"{hostname}_{target_bios}_{timestamp}.log"
 
         # Build BIOS update command
@@ -836,7 +838,7 @@ def api_bios_update():
             return jsonify(
                 {
                     "success": True,
-                    "message": f"BIOS update initiated for {hostname} to version {target_bios}. Check logs/{log_file.relative_to('logs')} for progress.",
+                    "message": f"BIOS update initiated for {hostname} to version {target_bios}. Check {log_file} for progress.",
                 }
             )
         else:

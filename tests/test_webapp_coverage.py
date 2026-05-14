@@ -888,3 +888,111 @@ class TestParseDebugEnv:
         with patch.dict(os.environ, {"DEBUG": "yes"}):
             with pytest.raises(ValueError, match="Invalid DEBUG value"):
                 _parse_debug_env()
+
+
+# ---------------------------------------------------------------------------
+# DRACS_LOG_DIR support for firmware/BIOS update log paths
+# ---------------------------------------------------------------------------
+class TestDracsLogDir:
+    def test_firmware_log_uses_env_var(self, client):
+        _login(client)
+        with patch.dict(
+            os.environ,
+            {
+                "DRACS_FTP_SERVER": "ftp.example.com",
+                "DRACS_LOG_DIR": "/var/log/dracs",
+            },
+        ):
+            with patch(
+                "dracs.webapp.run_command_background", return_value=True
+            ) as mock:
+                resp = client.post(
+                    "/api/firmware-update",
+                    data=json.dumps(
+                        {
+                            "hostname": "server01",
+                            "target_version": "8.0.0",
+                            "model": "R660",
+                        }
+                    ),
+                    content_type="application/json",
+                )
+            log_path = mock.call_args[0][1]
+            assert log_path.startswith("/var/log/dracs/firmware-updates/")
+            data = resp.get_json()
+            assert "/var/log/dracs/firmware-updates/" in data["message"]
+
+    def test_firmware_log_defaults_to_logs(self, client):
+        _login(client)
+        env = {"DRACS_FTP_SERVER": "ftp.example.com"}
+        with patch.dict(os.environ, env):
+            os.environ.pop("DRACS_LOG_DIR", None)
+            with patch(
+                "dracs.webapp.run_command_background", return_value=True
+            ) as mock:
+                resp = client.post(
+                    "/api/firmware-update",
+                    data=json.dumps(
+                        {
+                            "hostname": "server01",
+                            "target_version": "8.0.0",
+                            "model": "R660",
+                        }
+                    ),
+                    content_type="application/json",
+                )
+            log_path = mock.call_args[0][1]
+            assert log_path.startswith("logs/firmware-updates/")
+
+    def test_bios_log_uses_env_var(self, client):
+        _login(client)
+        with patch.dict(
+            os.environ,
+            {
+                "DRACS_NFS_SERVER": "nfs.example.com",
+                "DRACS_NFS_PATH": "/img",
+                "DRACS_LOG_DIR": "/var/log/dracs",
+            },
+        ):
+            with patch("dracs.webapp.get_bios_filename", return_value="BIOS.EXE"):
+                with patch(
+                    "dracs.webapp.run_command_background", return_value=True
+                ) as mock:
+                    resp = client.post(
+                        "/api/bios-update",
+                        data=json.dumps(
+                            {
+                                "hostname": "server01",
+                                "target_bios": "3.0.0",
+                                "model": "R660",
+                            }
+                        ),
+                        content_type="application/json",
+                    )
+            log_path = mock.call_args[0][1]
+            assert log_path.startswith("/var/log/dracs/bios-updates/")
+            data = resp.get_json()
+            assert "/var/log/dracs/bios-updates/" in data["message"]
+
+    def test_bios_log_defaults_to_logs(self, client):
+        _login(client)
+        env = {"DRACS_NFS_SERVER": "nfs.example.com", "DRACS_NFS_PATH": "/img"}
+        with patch.dict(os.environ, env):
+            os.environ.pop("DRACS_LOG_DIR", None)
+            with patch("dracs.webapp.get_bios_filename", return_value="BIOS.EXE"):
+                with patch(
+                    "dracs.webapp.run_command_background", return_value=True
+                ) as mock:
+                    resp = client.post(
+                        "/api/bios-update",
+                        data=json.dumps(
+                            {
+                                "hostname": "server01",
+                                "target_bios": "3.0.0",
+                                "model": "R660",
+                            }
+                        ),
+                        content_type="application/json",
+                    )
+            log_path = mock.call_args[0][1]
+            assert log_path.startswith("logs/bios-updates/")

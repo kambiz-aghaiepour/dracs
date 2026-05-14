@@ -97,5 +97,6 @@ class TestRequiredEnvVarsList:
             "SNMP_COMMUNITY",
             "DEBUG",
             "DRACS_BIND",
+            "DRACS_LOG_DIR",
         ]
         assert list(OPTIONAL_ENV_DEFAULTS.keys()) == expected_keys
