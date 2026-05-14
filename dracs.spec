@@ -23,6 +23,7 @@ and utilizes a portable SQLite database.}
 %package -n     python3-dracs
 Summary:        %{summary}
 Requires:       nginx
+Requires:       openssl
 Provides:       user(dracs)
 Provides:       group(dracs)
 
@@ -100,6 +101,16 @@ if [ $1 -eq 1 ]; then
             cp "${EXAMPLES_DIR}/dracs_ssl.conf.example" "${NGINX_DIR}/dracs_ssl.conf"
             sed -i "s/dracs\.example\.com/${FQDN}/g" "${NGINX_DIR}/dracs_ssl.conf"
         fi
+    fi
+
+    # Generate self-signed SSL certificate if not present
+    CERT_DIR=/etc/pki/tls/certs
+    if [ ! -f "${CERT_DIR}/${FQDN}.pem" ] || [ ! -f "${CERT_DIR}/${FQDN}.key" ]; then
+        openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+            -keyout "${CERT_DIR}/${FQDN}.key" \
+            -out "${CERT_DIR}/${FQDN}.pem" \
+            -subj "/CN=${FQDN}" 2>/dev/null || :
+        chmod 0600 "${CERT_DIR}/${FQDN}.key" 2>/dev/null || :
     fi
 fi
 
