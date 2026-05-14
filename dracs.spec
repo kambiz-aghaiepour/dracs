@@ -23,6 +23,8 @@ and utilizes a portable SQLite database.}
 %package -n     python3-dracs
 Summary:        %{summary}
 Requires:       nginx
+Provides:       user(dracs)
+Provides:       group(dracs)
 
 %description -n python3-dracs %_description
 
