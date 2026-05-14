@@ -79,6 +79,11 @@ if [ $1 -eq 1 ]; then
             mv "${CONF_DIR}/BIOS-filename.ini.example" "${CONF_DIR}/BIOS-filename.ini"
 
         chown dracs:dracs "${CONF_DIR}"/.env "${CONF_DIR}"/drac-passwords.ini "${CONF_DIR}"/BIOS-filename.ini 2>/dev/null || :
+
+        # Create system-wide config from .env
+        [ -f "${CONF_DIR}/.env" ] && [ ! -f "${CONF_DIR}/dracs.conf" ] && \
+            cp "${CONF_DIR}/.env" "${CONF_DIR}/dracs.conf" && \
+            chown dracs:dracs "${CONF_DIR}/dracs.conf"
     fi
 
     # Deploy nginx configs on first install only

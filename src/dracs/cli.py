@@ -6,8 +6,6 @@ import shutil
 import sys
 from pathlib import Path
 
-from dotenv import load_dotenv
-
 import dracs.commands as commands
 from dracs.db import db_initialize
 from dracs.exceptions import (
@@ -318,7 +316,7 @@ async def main() -> None:
     if args.warranty:
         warranty = args.warranty
     else:
-        warranty = "warranty.db"
+        warranty = os.environ.get("DRACS_DB", "warranty.db")
 
     db_initialize(warranty)
 
@@ -414,7 +412,9 @@ async def main() -> None:
 
 
 def main_cli() -> None:
-    load_dotenv()
+    from dracs.config import load_config
+
+    load_config()
     commands.debug_output = False
     try:
         debug = os.environ["DEBUG"]
