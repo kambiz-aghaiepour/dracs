@@ -903,7 +903,9 @@ class TestDracsLogDir:
                 "DRACS_LOG_DIR": "/var/log/dracs",
             },
         ):
-            with patch("dracs.webapp.run_command_background", return_value=True) as mock:
+            with patch(
+                "dracs.webapp.run_command_background", return_value=True
+            ) as mock:
                 resp = client.post(
                     "/api/firmware-update",
                     data=json.dumps(
@@ -925,7 +927,9 @@ class TestDracsLogDir:
         env = {"DRACS_FTP_SERVER": "ftp.example.com"}
         with patch.dict(os.environ, env):
             os.environ.pop("DRACS_LOG_DIR", None)
-            with patch("dracs.webapp.run_command_background", return_value=True) as mock:
+            with patch(
+                "dracs.webapp.run_command_background", return_value=True
+            ) as mock:
                 resp = client.post(
                     "/api/firmware-update",
                     data=json.dumps(
