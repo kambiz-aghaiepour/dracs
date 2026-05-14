@@ -41,10 +41,10 @@ jobs:
         if: hashFiles('dist/*') != ''
         run: |
           NEW_VERSION=$(grep '^version' pyproject.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
-          sed -i "s/^Version:.*/Version:        ${NEW_VERSION}/" python-dracs.spec
+          sed -i "s/^Version:.*/Version:        ${NEW_VERSION}/" dracs.spec
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add python-dracs.spec
+          git add dracs.spec
           git diff --cached --quiet || git commit -m "chore: sync spec file version to ${NEW_VERSION} [skip ci]"
           git push
 
