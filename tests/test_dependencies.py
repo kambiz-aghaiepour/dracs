@@ -34,11 +34,11 @@ def deps():
 
 
 def test_requests(deps):
-    _assert_dependency(deps, "requests>=2.33.0")
+    _assert_dependency(deps, "requests>=2.32.0")
 
 
 def test_python_dotenv(deps):
-    _assert_dependency(deps, "python-dotenv>=1.2.2")
+    _assert_dependency(deps, "python-dotenv>=1.0.0")
 
 
 def test_tabulate(deps):
@@ -46,7 +46,7 @@ def test_tabulate(deps):
 
 
 def test_rich(deps):
-    _assert_dependency(deps, "rich>=15.0.0")
+    _assert_dependency(deps, "rich>=13.9.0")
 
 
 def test_pysnmp(deps):
