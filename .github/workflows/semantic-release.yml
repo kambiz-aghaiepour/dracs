@@ -37,6 +37,17 @@ jobs:
         # This calculates the version, updates files, commits, tags, and runs `uv build` to populate the dist/ folder
         run: uv tool run --from python-semantic-release semantic-release version
 
+      - name: Sync spec file version
+        if: hashFiles('dist/*') != ''
+        run: |
+          NEW_VERSION=$(grep '^version' pyproject.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          sed -i "s/^Version:.*/Version:        ${NEW_VERSION}/" python-dracs.spec
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add python-dracs.spec
+          git diff --cached --quiet || git commit -m "chore: sync spec file version to ${NEW_VERSION} [skip ci]"
+          git push
+
       - name: Publish package to PyPI
         # 👇 Only run if the dist directory exists and has files
         if: hashFiles('dist/*') != ''
