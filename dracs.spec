@@ -1,4 +1,4 @@
-Name:           python-dracs
+Name:           dracs
 Version:        1.9.5
 Release:        %autorelease
 Summary:        Dell Rack & Asset Control System - CLI inventory tool for managing Dell bare-metal systems
@@ -19,10 +19,10 @@ and utilizes a portable SQLite database.}
 
 %description %_description
 
-%package -n     python3-dracs
+%package -n     dracs
 Summary:        %{summary}
 
-%description -n python3-dracs %_description
+%description -n dracs %_description
 
 
 %prep
