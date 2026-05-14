@@ -46,7 +46,7 @@ def test_tabulate(deps):
 
 
 def test_rich(deps):
-    _assert_dependency(deps, "rich>=15.0.0")
+    _assert_dependency(deps, "rich>=13.9.0")
 
 
 def test_pysnmp(deps):
