@@ -1,4 +1,5 @@
 import asyncio
+import os
 import sys
 from unittest.mock import patch, AsyncMock
 
@@ -302,6 +303,22 @@ class TestMainGlobalArgs:
         run_main_with_args(["list"])
         call_arg = mock_db.call_args[0][0]
         assert call_arg.endswith("warranty.db")
+
+    @patch("dracs.commands.list_dell_warranty", new_callable=AsyncMock)
+    @patch("dracs.cli.db_initialize")
+    def test_dracs_db_env_var_used(self, mock_db, mock_list, temp_db):
+        mock_list.return_value = None
+        with patch.dict(os.environ, {"DRACS_DB": "/var/lib/dracs/warranty.db"}):
+            run_main_with_args(["list"])
+        mock_db.assert_called_once_with("/var/lib/dracs/warranty.db")
+
+    @patch("dracs.commands.list_dell_warranty", new_callable=AsyncMock)
+    @patch("dracs.cli.db_initialize")
+    def test_w_flag_overrides_dracs_db_env(self, mock_db, mock_list, temp_db):
+        mock_list.return_value = None
+        with patch.dict(os.environ, {"DRACS_DB": "/var/lib/dracs/warranty.db"}):
+            run_main_with_args(["-w", "/tmp/custom.db", "list"])
+        mock_db.assert_called_once_with("/tmp/custom.db")
 
     @patch("dracs.commands.list_dell_warranty", new_callable=AsyncMock)
     @patch("dracs.cli.db_initialize")

@@ -45,7 +45,7 @@ class TestCustomParser:
 
 class TestMainCli:
     @patch("dracs.cli.asyncio.run")
-    @patch("dracs.cli.load_dotenv")
+    @patch("dracs.config.load_config")
     def test_main_cli_debug_env(self, mock_dotenv, mock_run):
         with patch.dict("os.environ", {"DEBUG": "true"}):
             import dracs.commands as commands
@@ -56,7 +56,7 @@ class TestMainCli:
             assert commands.debug_output is True
 
     @patch("dracs.cli.asyncio.run")
-    @patch("dracs.cli.load_dotenv")
+    @patch("dracs.config.load_config")
     def test_main_cli_no_debug_env(self, mock_dotenv, mock_run):
         with patch.dict("os.environ", {}, clear=True):
             import dracs.commands as commands
@@ -72,7 +72,7 @@ class TestMainCli:
             "dracs.exceptions", fromlist=["ValidationError"]
         ).ValidationError("bad input"),
     )
-    @patch("dracs.cli.load_dotenv")
+    @patch("dracs.config.load_config")
     def test_main_cli_validation_error_exits(self, mock_dotenv, mock_run):
         from dracs.cli import main_cli
 
@@ -86,7 +86,7 @@ class TestMainCli:
             "dracs.exceptions", fromlist=["DatabaseError"]
         ).DatabaseError("db fail"),
     )
-    @patch("dracs.cli.load_dotenv")
+    @patch("dracs.config.load_config")
     def test_main_cli_database_error_exits(self, mock_dotenv, mock_run):
         from dracs.cli import main_cli
 
@@ -100,7 +100,7 @@ class TestMainCli:
             "api fail"
         ),
     )
-    @patch("dracs.cli.load_dotenv")
+    @patch("dracs.config.load_config")
     def test_main_cli_api_error_exits(self, mock_dotenv, mock_run):
         from dracs.cli import main_cli
 
@@ -114,7 +114,7 @@ class TestMainCli:
             "snmp fail"
         ),
     )
-    @patch("dracs.cli.load_dotenv")
+    @patch("dracs.config.load_config")
     def test_main_cli_snmp_error_exits(self, mock_dotenv, mock_run):
         from dracs.cli import main_cli
 
@@ -128,7 +128,7 @@ class TestMainCli:
             "generic"
         ),
     )
-    @patch("dracs.cli.load_dotenv")
+    @patch("dracs.config.load_config")
     def test_main_cli_dracs_error_exits(self, mock_dotenv, mock_run):
         from dracs.cli import main_cli
 

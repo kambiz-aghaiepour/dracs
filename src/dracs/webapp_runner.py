@@ -5,7 +5,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from dotenv import load_dotenv
+from dracs.config import load_config
 
 REQUIRED_ENV_VARS = [
     "CLIENT_ID",
@@ -50,9 +50,7 @@ def apply_optional_defaults():
 
 
 def main():  # pragma: no cover
-    env_path = Path(".env")
-    if env_path.exists():
-        load_dotenv(env_path)
+    load_config()
 
     missing = validate_env()
     if missing:
