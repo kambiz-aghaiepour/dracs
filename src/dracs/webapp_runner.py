@@ -29,6 +29,7 @@ OPTIONAL_ENV_DEFAULTS = {
     "SNMP_COMMUNITY": "public",
     "DEBUG": "false",
     "DRACS_BIND": "127.0.0.1:1888",
+    "DRACS_LOG_DIR": "logs",
 }
 
 

@@ -1,0 +1,18 @@
+[Unit]
+Description=DRACS Web Application
+After=network.target
+
+[Service]
+Type=exec
+User=dracs
+Group=dracs
+WorkingDirectory=/etc/dracs
+Environment=DRACS_DB=/var/lib/dracs/warranty.db
+Environment=DRACS_LOG_DIR=/var/log/dracs
+ExecStart=/usr/bin/dracs-webapp
+Restart=on-failure
+RestartSec=5
+SyslogIdentifier=dracs-webapp
+
+[Install]
+WantedBy=multi-user.target
