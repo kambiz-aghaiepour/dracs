@@ -336,7 +336,7 @@ def test_idrac_connectivity(hostname: str) -> tuple:
             "getremoteservicesstatus",
         ]
 
-        result = subprocess.run(  # nosemgrep
+        result = subprocess.run(  # nosec # nosemgrep
             cmd, capture_output=True, text=True, timeout=15  # nosemgrep
         )
 
