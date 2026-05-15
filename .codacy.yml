@@ -4,3 +4,4 @@ exclude_paths:
   - 'src/dracs/static/novnc/app/**'
   - 'src/dracs/static/novnc/core/**'
   - 'src/dracs/static/novnc/vendor/**'
+  - 'src/dracs/vnc.py'
