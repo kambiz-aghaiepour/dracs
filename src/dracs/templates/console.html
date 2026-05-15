@@ -43,6 +43,36 @@
         } catch (e) { /* use empty defaults */ }
 
         UI.start({ settings: { defaults: defaults, mandatory: mandatory } });
+
+        const KeyTable = (await import(base + "core/input/keysym.js")).default;
+
+        document.getElementById("noVNC_clipboard_send_button")
+            .addEventListener("click", async function() {
+                if (!UI.rfb) return;
+                const btn = this;
+                const text = document.getElementById("noVNC_clipboard_text").value;
+                if (!text) return;
+                btn.disabled = true;
+                const total = text.length;
+                btn.value = "Sending 0%";
+                for (let i = 0; i < total; i++) {
+                    const ch = text.charAt(i);
+                    if (ch === "\n" || ch === "\r") {
+                        UI.rfb.sendKey(KeyTable.XK_Return, "Enter");
+                    } else if (ch === "\t") {
+                        UI.rfb.sendKey(KeyTable.XK_Tab, "Tab");
+                    } else {
+                        UI.rfb.sendKey(ch.charCodeAt(0), "Unidentified");
+                    }
+                    if (i % 20 === 19) {
+                        btn.value = "Sending " + Math.round(((i + 1) / total) * 100) + "%";
+                        await new Promise(r => setTimeout(r, 10));
+                    }
+                }
+                document.getElementById("noVNC_clipboard_text").value = "";
+                btn.value = "Send";
+                btn.disabled = false;
+            });
     </script>
 </head>
 
@@ -125,9 +155,11 @@
                     <img alt="" src="{{ url_for('static', filename='novnc/app/images/clipboard.svg') }}"> Clipboard
                 </div>
                 <p class="noVNC_subheading">
-                    Edit clipboard content in the textarea below.
+                    Paste text below and click Send to type it into the console.
                 </p>
                 <textarea id="noVNC_clipboard_text" rows=5></textarea>
+                <input type="button" id="noVNC_clipboard_send_button" value="Send"
+                    style="margin-top: 4px; width: 100%;">
             </div>
             </div>
 
