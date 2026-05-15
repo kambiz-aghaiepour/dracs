@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 
 import dracs.commands as commands
+
+debug = False
 from dracs.db import db_initialize
 from dracs.exceptions import (
     APIError,
