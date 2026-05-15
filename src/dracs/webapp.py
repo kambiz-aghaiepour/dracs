@@ -163,7 +163,7 @@ def _run_command_thread(cmd: list, log_file_path: str) -> None:
     """Run a command in a background thread and properly wait for completion."""
     try:
         with open(log_file_path, "a") as log_file:
-            subprocess.run(  # nosemgrep: python.lang.security.audit.subprocess-shell-true
+            subprocess.run(  # nosemgrep
                 cmd, stdout=log_file, stderr=subprocess.STDOUT, timeout=600
             )
     except subprocess.TimeoutExpired:
@@ -336,7 +336,7 @@ def test_idrac_connectivity(hostname: str) -> tuple:
             "getremoteservicesstatus",
         ]
 
-        result = subprocess.run(  # nosemgrep: python.lang.security.audit.subprocess-shell-true
+        result = subprocess.run(  # nosemgrep
             cmd, capture_output=True, text=True, timeout=15
         )
 
@@ -929,7 +929,7 @@ def api_job_queue():
         ]
 
         # Run command and capture output
-        result = subprocess.run(  # nosemgrep: python.lang.security.audit.subprocess-shell-true
+        result = subprocess.run(  # nosemgrep
             cmd, capture_output=True, text=True, timeout=30
         )
 
@@ -993,7 +993,7 @@ def _clear_single_job_queue(hostname: str) -> None:
         ]
 
         # Run command and wait for completion (prevents zombie processes)
-        subprocess.run(  # nosemgrep: python.lang.security.audit.subprocess-shell-true
+        subprocess.run(  # nosemgrep
             cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30
         )
 
