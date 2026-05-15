@@ -7,8 +7,6 @@ import sys
 from pathlib import Path
 
 import dracs.commands as commands
-
-debug = False
 from dracs.db import db_initialize
 from dracs.exceptions import (
     APIError,
@@ -22,6 +20,8 @@ from dracs.validation import (
     validate_hostname,
     validate_service_tag,
 )
+
+debug = False
 
 logger = logging.getLogger(__name__)
 
