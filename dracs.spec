@@ -84,8 +84,19 @@ if [ $1 -eq 1 ]; then
         # Create system-wide config from .env
         [ -f "${CONF_DIR}/.env" ] && [ ! -f "${CONF_DIR}/dracs.conf" ] && \
             cp "${CONF_DIR}/.env" "${CONF_DIR}/dracs.conf" && \
+            rm -f "${CONF_DIR}/.env" \
             chown dracs:dracs "${CONF_DIR}/dracs.conf"
     fi
+
+    # Edit config for flask secret and db path
+    FLASK_SECRET=$(python -c "import secrets; print(secrets.token_hex(32))")
+    sed -i "s/^FLASK_SECRET_KEY=.*/FLASK_SECRET_KEY=${FLASK_SECRET}/g" "${CONF_DIR}/dracs.conf"
+
+    DRACS_DB=%{_sharedstatedir}/dracs/warranty.db
+    sed -i "s/^DRACS_DB=.*/DRACS_DB=${DRACS_DB}/g" "${CONF_DIR}/dracs.conf"
+
+    # initialize db if non-existent
+    [ ! -f "$DRACS_DB" ] && sudo -u dracs %{_bindir}/dracs li 1>/dev/null 2>&1 || :
 
     # Deploy nginx configs on first install only
     EXAMPLES_DIR=%{python3_sitelib}/dracs/examples/nginx
@@ -112,6 +123,19 @@ if [ $1 -eq 1 ]; then
             -subj "/CN=${FQDN}" 2>/dev/null || :
         chmod 0600 "${CERT_DIR}/${FQDN}.key" 2>/dev/null || :
     fi
+fi
+
+# Open firewall ports 80 and 443
+if command -v firewall-cmd &>/dev/null && systemctl is-enabled firewalld &>/dev/null; then
+    firewall-cmd --permanent --add-port=80/tcp 2>/dev/null || :
+    firewall-cmd --permanent --add-port=443/tcp 2>/dev/null || :
+    firewall-cmd --reload 2>/dev/null || :
+elif systemctl is-enabled iptables &>/dev/null; then
+    iptables -C INPUT -p tcp --dport 80 -j ACCEPT 2>/dev/null || \
+        iptables -I INPUT -p tcp --dport 80 -j ACCEPT 2>/dev/null || :
+    iptables -C INPUT -p tcp --dport 443 -j ACCEPT 2>/dev/null || \
+        iptables -I INPUT -p tcp --dport 443 -j ACCEPT 2>/dev/null || :
+    service iptables save 2>/dev/null || :
 fi
 
 
