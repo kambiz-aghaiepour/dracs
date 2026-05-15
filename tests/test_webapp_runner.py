@@ -98,5 +98,9 @@ class TestRequiredEnvVarsList:
             "DEBUG",
             "DRACS_BIND",
             "DRACS_LOG_DIR",
+            "VNC_ENABLE",
+            "VNC_TIMEOUT",
+            "VNC_MAX_SESSIONS",
+            "VNC_WEBSOCKIFY_PORT",
         ]
         assert list(OPTIONAL_ENV_DEFAULTS.keys()) == expected_keys

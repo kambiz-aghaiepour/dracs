@@ -65,6 +65,10 @@ def test_gunicorn(deps):
     _assert_dependency(deps, "gunicorn>=21.2.0")
 
 
+def test_websockify(deps):
+    _assert_dependency(deps, "websockify>=0.12.0")
+
+
 def test_uv(deps):
     _assert_dependency(deps, "uv")
 
@@ -78,4 +82,4 @@ def test_twine(deps):
 
 
 def test_dependency_count(deps):
-    assert len(deps) == 11
+    assert len(deps) == 12

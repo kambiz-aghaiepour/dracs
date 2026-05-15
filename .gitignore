@@ -44,6 +44,7 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+!src/dracs/static/novnc/vendor/pako/lib/
 
 # --- Installer logs ---
 pip-log.txt

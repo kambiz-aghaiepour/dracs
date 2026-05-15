@@ -1352,6 +1352,14 @@
         </div>
         {% endif %}
 
+        {% if vnc_enabled and is_authenticated %}
+        <div style="margin-bottom: 10px;">
+            <button id="console-btn" class="btn btn-primary" disabled onclick="handleConsoleClick()">
+                Console
+            </button>
+        </div>
+        {% endif %}
+
         {% if is_authenticated %}
         <div style="margin-bottom: 10px;">
             <button id="select-all-btn" class="select-all-btn" onclick="toggleSelectAll()">Select All</button>
@@ -1816,6 +1824,7 @@
             updateFirmwareButtonState();
             updateJobQueueButtonState();
             updateClearJobQueueButtonState();
+            updateConsoleButtonState();
             updateSelectAllButtonText();
             updateSelectShownButtonText();
         }
@@ -1935,6 +1944,7 @@
             updateFirmwareButtonState();
             updateJobQueueButtonState();
             updateClearJobQueueButtonState();
+            updateConsoleButtonState();
             updateSelectAllButtonText();
         }
 
@@ -1994,6 +2004,7 @@
             updateFirmwareButtonState();
             updateJobQueueButtonState();
             updateClearJobQueueButtonState();
+            updateConsoleButtonState();
 
             // Update selected count if it exists
             const selectedCountEl = document.getElementById('selected-count');
@@ -2450,6 +2461,38 @@
             } else {
                 // 0 systems selected - disable button
                 clearJobQueueBtn.disabled = true;
+            }
+        }
+
+        function updateConsoleButtonState() {
+            const consoleBtn = document.getElementById('console-btn');
+            if (!consoleBtn) return;
+
+            if (selectedSystems.length === 1) {
+                consoleBtn.disabled = false;
+            } else {
+                consoleBtn.disabled = true;
+            }
+        }
+
+        async function handleConsoleClick() {
+            if (selectedSystems.length !== 1) return;
+
+            const hostname = selectedSystems[0].hostname;
+            try {
+                const response = await fetch('/api/vnc-session', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ hostname: hostname })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    window.open('/console/' + data.token, '_blank');
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            } catch (error) {
+                showNotification('Failed to open console: ' + error.message, 'error');
             }
         }
 

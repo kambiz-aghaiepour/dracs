@@ -30,6 +30,10 @@ OPTIONAL_ENV_DEFAULTS = {
     "DEBUG": "false",
     "DRACS_BIND": "127.0.0.1:1888",
     "DRACS_LOG_DIR": "logs",
+    "VNC_ENABLE": "false",
+    "VNC_TIMEOUT": "30",
+    "VNC_MAX_SESSIONS": "20",
+    "VNC_WEBSOCKIFY_PORT": "6080",
 }
 
 

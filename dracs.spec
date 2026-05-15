@@ -24,6 +24,7 @@ and utilizes a portable SQLite database.}
 Summary:        %{summary}
 Requires:       nginx
 Requires:       openssl
+Requires:       python3-websockify
 Provides:       user(dracs)
 Provides:       group(dracs)
 
