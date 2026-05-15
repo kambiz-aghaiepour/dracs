@@ -163,7 +163,9 @@ def _run_command_thread(cmd: list, log_file_path: str) -> None:
     """Run a command in a background thread and properly wait for completion."""
     try:
         with open(log_file_path, "a") as log_file:
-            subprocess.run(cmd, stdout=log_file, stderr=subprocess.STDOUT, timeout=600)  # nosec - cmd is a list, no shell injection risk
+            subprocess.run(
+                cmd, stdout=log_file, stderr=subprocess.STDOUT, timeout=600
+            )  # nosec - cmd is a list, no shell injection risk
     except subprocess.TimeoutExpired:
         with open(log_file_path, "a") as log_file:
             log_file.write("\nCommand timed out after 600 seconds\n")
@@ -334,7 +336,9 @@ def test_idrac_connectivity(hostname: str) -> tuple:
             "getremoteservicesstatus",
         ]
 
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)  # nosec - cmd is a list, no shell injection risk
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=15
+        )  # nosec - cmd is a list, no shell injection risk
 
         # Check if command succeeded and output contains "Status.*Ready"
         if result.returncode == 0:
@@ -925,7 +929,9 @@ def api_job_queue():
         ]
 
         # Run command and capture output
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)  # nosec - cmd is a list, no shell injection risk
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=30
+        )  # nosec - cmd is a list, no shell injection risk
 
         if result.returncode != 0:
             return (
