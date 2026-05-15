@@ -7,6 +7,7 @@ import shutil
 import signal
 import socket
 import subprocess
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -140,14 +141,25 @@ def check_vnc_connectivity(host: str, port: int, timeout: int = 5) -> tuple:
 
 
 _websockify_process = None
-_pid_file = Path("/tmp/dracs-websockify.pid")
+_runtime_dir = Path(tempfile.gettempdir()) / "dracs"
+_pid_file = _runtime_dir / "websockify.pid"
 
 
-def start_websockify(port: int, token_dir: str) -> subprocess.Popen | None:
+def get_token_dir() -> str:
+    """Return the path to the VNC token directory, created securely."""
+    token_dir = _runtime_dir / "vnc-tokens"
+    token_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    return str(token_dir)
+
+
+def start_websockify(
+    port: int, token_dir: str | None = None
+) -> subprocess.Popen | None:
     global _websockify_process
 
-    token_path = Path(token_dir)
-    token_path.mkdir(parents=True, exist_ok=True)
+    token_path = Path(token_dir) if token_dir else Path(get_token_dir())
+    token_path.mkdir(parents=True, exist_ok=True, mode=0o700)
+    _runtime_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
 
     websockify_bin = shutil.which("websockify")
     if not websockify_bin:

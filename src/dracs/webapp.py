@@ -95,9 +95,9 @@ VNC_WEBSOCKIFY_PORT = int(os.environ.get("VNC_WEBSOCKIFY_PORT", "6080"))
 
 vnc_manager = None
 if VNC_ENABLE:
-    vnc_manager = VncSessionManager(
-        "/tmp/dracs-vnc-tokens", VNC_TIMEOUT, VNC_MAX_SESSIONS
-    )
+    from dracs.vnc import get_token_dir
+
+    vnc_manager = VncSessionManager(get_token_dir(), VNC_TIMEOUT, VNC_MAX_SESSIONS)
 
 # Initialize database on app startup
 DB_PATH = os.environ.get("DRACS_DB", "warranty.db")
