@@ -9,6 +9,17 @@ server {
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;
 
+    # VNC Console WebSocket proxy (requires VNC_ENABLE=true)
+    location /websockify {
+        proxy_pass http://127.0.0.1:6080;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_read_timeout 1800;
+    }
+
     location / {
         proxy_pass http://127.0.0.1:1888;
 

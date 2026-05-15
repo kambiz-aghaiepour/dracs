@@ -17,6 +17,12 @@ from dracs.db import db_initialize, get_session, System
 from dracs.commands import refresh_dell_warranty
 from dracs.snmp import build_idrac_hostname
 from dracs.validation import validate_hostname, validate_version
+from dracs.vnc import (
+    VncSessionManager,
+    MaxSessionsError,
+    get_vnc_credentials,
+    check_vnc_connectivity,
+)
 
 # Load environment variables from .env file
 # Look for .env in current directory or parent directories
@@ -76,6 +82,22 @@ HIGHLIGHT_BIOS = os.environ.get("HIGHLIGHT_BIOS", "true").lower() in (
     "1",
     "yes",
 )
+
+# VNC Console configuration
+VNC_ENABLE = os.environ.get("VNC_ENABLE", "false").lower() in (
+    "true",
+    "1",
+    "yes",
+)
+VNC_TIMEOUT = int(os.environ.get("VNC_TIMEOUT", "30"))
+VNC_MAX_SESSIONS = int(os.environ.get("VNC_MAX_SESSIONS", "20"))
+VNC_WEBSOCKIFY_PORT = int(os.environ.get("VNC_WEBSOCKIFY_PORT", "6080"))
+
+vnc_manager = None
+if VNC_ENABLE:
+    vnc_manager = VncSessionManager(
+        "/tmp/dracs-vnc-tokens", VNC_TIMEOUT, VNC_MAX_SESSIONS
+    )
 
 # Initialize database on app startup
 DB_PATH = os.environ.get("DRACS_DB", "warranty.db")
@@ -373,6 +395,7 @@ def index():
         default_page_size=DEFAULT_PAGE_SIZE,
         highlight_firmware=HIGHLIGHT_FIRMWARE,
         highlight_bios=HIGHLIGHT_BIOS,
+        vnc_enabled=VNC_ENABLE,
     )
 
 
@@ -1073,6 +1096,110 @@ def api_refresh_all():
 
     except Exception as e:
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+
+@app.route("/api/vnc-session", methods=["POST"])
+def api_vnc_session_create():
+    """Create a VNC console session for a host."""
+    try:
+        if not session.get("authenticated", False):
+            return (
+                jsonify({"success": False, "message": "Authentication required"}),
+                401,
+            )
+
+        if not VNC_ENABLE or vnc_manager is None:
+            return (
+                jsonify({"success": False, "message": "VNC console is not enabled"}),
+                404,
+            )
+
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({"success": False, "message": "Invalid request"}), 400
+
+        hostname = data.get("hostname", "").strip()
+        if not hostname:
+            return (
+                jsonify({"success": False, "message": "Hostname is required"}),
+                400,
+            )
+
+        idrac_fqdn = build_idrac_hostname(hostname)
+        vnc_port, vnc_password = get_vnc_credentials(hostname)
+
+        reachable, error_msg = check_vnc_connectivity(idrac_fqdn, int(vnc_port))
+        if not reachable:
+            return (
+                jsonify({"success": False, "message": error_msg}),
+                503,
+            )
+
+        token = vnc_manager.create_session(hostname, idrac_fqdn, int(vnc_port))
+        return jsonify({"success": True, "token": token})
+
+    except MaxSessionsError as e:
+        return jsonify({"success": False, "message": str(e)}), 429
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+
+@app.route("/api/vnc-session/<token>", methods=["DELETE"])
+def api_vnc_session_delete(token):
+    """Destroy a VNC console session."""
+    try:
+        if not session.get("authenticated", False):
+            return (
+                jsonify({"success": False, "message": "Authentication required"}),
+                401,
+            )
+
+        if not VNC_ENABLE or vnc_manager is None:
+            return (
+                jsonify({"success": False, "message": "VNC console is not enabled"}),
+                404,
+            )
+
+        vnc_manager.remove_session(token)
+        return jsonify({"success": True, "message": "Session closed"})
+
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+
+@app.route("/console/<token>")
+def console_view(token):
+    """Serve the noVNC console viewer for a session."""
+    if not session.get("authenticated", False):
+        return (
+            jsonify({"success": False, "message": "Authentication required"}),
+            401,
+        )
+
+    if not VNC_ENABLE or vnc_manager is None:
+        return (
+            jsonify({"success": False, "message": "VNC console is not enabled"}),
+            404,
+        )
+
+    session_info = vnc_manager.get_session_info(token)
+    if not session_info:
+        return (
+            jsonify(
+                {"success": False, "message": "Console session not found or expired"}
+            ),
+            404,
+        )
+
+    hostname = session_info["hostname"]
+    _, vnc_password = get_vnc_credentials(hostname)
+
+    return render_template(
+        "console.html",
+        token=token,
+        hostname=hostname,
+        vnc_password=vnc_password,
+    )
 
 
 def _parse_debug_env() -> bool:
