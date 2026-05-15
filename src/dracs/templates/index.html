@@ -2487,7 +2487,8 @@
                 });
                 const data = await response.json();
                 if (data.success) {
-                    window.open('/console/' + data.token, '_blank');
+                    window.open('/console/' + data.token, '_blank',
+                        'width={{ vnc_console_width }},height={{ vnc_console_height }},menubar=no,toolbar=no,location=no,status=no,scrollbars=no');
                 } else {
                     showNotification(data.message, 'error');
                 }

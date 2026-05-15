@@ -102,5 +102,6 @@ class TestRequiredEnvVarsList:
             "VNC_TIMEOUT",
             "VNC_MAX_SESSIONS",
             "VNC_WEBSOCKIFY_PORT",
+            "VNC_CONSOLE_SIZE",
         ]
         assert list(OPTIONAL_ENV_DEFAULTS.keys()) == expected_keys

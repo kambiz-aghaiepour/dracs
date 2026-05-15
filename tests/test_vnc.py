@@ -526,3 +526,45 @@ class TestVncButtonVisibility:
         _login(vnc_disabled_client)
         resp = vnc_disabled_client.get("/")
         assert b'id="console-btn"' not in resp.data
+
+
+class TestParseConsoleSize:
+    def test_valid_size(self):
+        from dracs.webapp import _parse_console_size
+
+        assert _parse_console_size("1024x768") == (1024, 768)
+
+    def test_default_size(self):
+        from dracs.webapp import _parse_console_size
+
+        assert _parse_console_size("800x600") == (800, 600)
+
+    def test_invalid_no_x(self):
+        from dracs.webapp import _parse_console_size
+
+        assert _parse_console_size("800") == (800, 600)
+
+    def test_invalid_non_numeric(self):
+        from dracs.webapp import _parse_console_size
+
+        assert _parse_console_size("abcxdef") == (800, 600)
+
+    def test_invalid_zero_width(self):
+        from dracs.webapp import _parse_console_size
+
+        assert _parse_console_size("0x600") == (800, 600)
+
+    def test_invalid_negative(self):
+        from dracs.webapp import _parse_console_size
+
+        assert _parse_console_size("-1x600") == (800, 600)
+
+    def test_invalid_empty(self):
+        from dracs.webapp import _parse_console_size
+
+        assert _parse_console_size("") == (800, 600)
+
+    def test_invalid_none(self):
+        from dracs.webapp import _parse_console_size
+
+        assert _parse_console_size(None) == (800, 600)
