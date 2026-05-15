@@ -21,6 +21,8 @@ from dracs.validation import (
     validate_service_tag,
 )
 
+debug = False
+
 logger = logging.getLogger(__name__)
 
 
