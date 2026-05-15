@@ -1126,7 +1126,7 @@ def api_vnc_session_create():
             )
 
         idrac_fqdn = build_idrac_hostname(hostname)
-        vnc_port, vnc_password = get_vnc_credentials(hostname)
+        vnc_port, _ = get_vnc_credentials(hostname)
 
         reachable, error_msg = check_vnc_connectivity(idrac_fqdn, int(vnc_port))
         if not reachable:
