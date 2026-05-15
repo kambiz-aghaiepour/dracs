@@ -2,3 +2,5 @@
 exclude_paths:
   - 'tests/**'
   - 'src/dracs/static/novnc/app/**'
+  - 'src/dracs/static/novnc/core/**'
+  - 'src/dracs/static/novnc/vendor/**'
