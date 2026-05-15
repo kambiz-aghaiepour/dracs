@@ -69,7 +69,7 @@ if [ $1 -eq 1 ]; then
 
     # Seed config files on first install only
     if [ ! -f "${CONF_DIR}/.env" ] && [ ! -f "${CONF_DIR}/drac-passwords.ini" ] && [ ! -f "${CONF_DIR}/BIOS-filename.ini" ]; then
-        cd "${CONF_DIR}" && sudo -u dracs %{_bindir}/dracs init 2>/dev/null || :
+        cd "${CONF_DIR}" && sudo -u dracs %{_bindir}/dracs init 1>/dev/null 2>&1 || :
 
         # Rename example files to active config files
         [ -f "${CONF_DIR}/.env.example" ] && [ ! -f "${CONF_DIR}/.env" ] && \
@@ -95,7 +95,7 @@ if [ $1 -eq 1 ]; then
     sed -i "s/^FLASK_SECRET_KEY=.*/FLASK_SECRET_KEY=${FLASK_SECRET}/g" "${CONF_DIR}/dracs.conf"
 
     DRACS_DB=%{_sharedstatedir}/dracs/warranty.db
-    sed -i "s/^DRACS_DB=.*/DRACS_DB=${DRACS_DB}/g" "${CONF_DIR}/dracs.conf"
+    sed -i "s,^DRACS_DB=.*,DRACS_DB=${DRACS_DB},g" "${CONF_DIR}/dracs.conf"
 
     # initialize db if non-existent
     [ ! -f "$DRACS_DB" ] && sudo -u dracs %{_bindir}/dracs li 1>/dev/null 2>&1 || :
