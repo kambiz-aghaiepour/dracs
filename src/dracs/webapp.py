@@ -93,6 +93,25 @@ VNC_TIMEOUT = int(os.environ.get("VNC_TIMEOUT", "30"))
 VNC_MAX_SESSIONS = int(os.environ.get("VNC_MAX_SESSIONS", "20"))
 VNC_WEBSOCKIFY_PORT = int(os.environ.get("VNC_WEBSOCKIFY_PORT", "6080"))
 
+_DEFAULT_CONSOLE_WIDTH = 800
+_DEFAULT_CONSOLE_HEIGHT = 600
+
+
+def _parse_console_size(value: str) -> tuple:
+    try:
+        w, h = value.lower().split("x")
+        w, h = int(w), int(h)
+        if w > 0 and h > 0:
+            return (w, h)
+    except (ValueError, AttributeError):
+        pass
+    return (_DEFAULT_CONSOLE_WIDTH, _DEFAULT_CONSOLE_HEIGHT)
+
+
+VNC_CONSOLE_WIDTH, VNC_CONSOLE_HEIGHT = _parse_console_size(
+    os.environ.get("VNC_CONSOLE_SIZE", "800x600")
+)
+
 vnc_manager = None
 if VNC_ENABLE:
     from dracs.vnc import get_token_dir
@@ -400,6 +419,8 @@ def index():
         highlight_firmware=HIGHLIGHT_FIRMWARE,
         highlight_bios=HIGHLIGHT_BIOS,
         vnc_enabled=VNC_ENABLE,
+        vnc_console_width=VNC_CONSOLE_WIDTH,
+        vnc_console_height=VNC_CONSOLE_HEIGHT,
     )
 
 
