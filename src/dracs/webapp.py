@@ -337,7 +337,7 @@ def test_idrac_connectivity(hostname: str) -> tuple:
         ]
 
         result = subprocess.run(  # nosemgrep
-            cmd, capture_output=True, text=True, timeout=15
+            cmd, capture_output=True, text=True, timeout=15  # nosemgrep
         )
 
         # Check if command succeeded and output contains "Status.*Ready"
@@ -930,7 +930,7 @@ def api_job_queue():
 
         # Run command and capture output
         result = subprocess.run(  # nosemgrep
-            cmd, capture_output=True, text=True, timeout=30
+            cmd, capture_output=True, text=True, timeout=30  # nosemgrep
         )
 
         if result.returncode != 0:
