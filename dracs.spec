@@ -84,8 +84,10 @@ if [ $1 -eq 1 ]; then
         # Create system-wide config from .env
         [ -f "${CONF_DIR}/.env" ] && [ ! -f "${CONF_DIR}/dracs.conf" ] && \
             cp "${CONF_DIR}/.env" "${CONF_DIR}/dracs.conf" && \
-            rm -f "${CONF_DIR}/.env" \
             chown dracs:dracs "${CONF_DIR}/dracs.conf"
+        # cleanup .env
+        [ -f "${CONF_DIR}/dracs.conf" ] && [ -f "${CONF_DIR}/.env" ] && \
+            rm -f "${CONF_DIR}/.env"
     fi
 
     # Edit config for flask secret and db path
