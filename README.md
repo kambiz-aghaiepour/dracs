@@ -445,11 +445,9 @@ dracs -d add -s ABC1234 -t server01 -m R660
 - `--json` - Output results as JSON instead of table
 - `--host-only` - Output only hostnames, one per line (useful for scripting)
 
-## 📡 FTP Server Setup for Firmware Updates
+## 📡 Firmware Image Setup
 
-The DRACS web interface can push iDRAC firmware updates to systems via an anonymous FTP server. Follow these steps to set up the FTP server and make firmware available.
-
-- Set up an anonymous FTP server (e.g. `vsftpd`) as a service. This can run on the same host as DRACS. Ensure the `DRACS_FTP_SERVER` variable in your `.env` file points to the FTP server's IP address.
+The DRACS web interface can push iDRAC firmware updates to systems via HTTP. Firmware images are served by nginx from `/var/lib/dracs/web/firmware/` on the DRACS host. No external FTP server is required.
 
 - Download the desired iDRAC firmware from Dell support, e.g. `iDRAC-with-Lifecycle-Controller_Firmware_924YT_WN64_7.30.10.50_A00.EXE`
 
@@ -461,53 +459,67 @@ The DRACS web interface can push iDRAC firmware updates to systems via an anonym
 
 - Locate the firmware payload file inside the extracted directory at `payload/firmimgFIT.d9`
 
-- Copy the `firmimgFIT.d9` file to the FTP server's public directory, renaming it to match the `<MODEL>-<VERSION>.d9` convention:
+- Copy the `firmimgFIT.d9` file to the DRACS firmware directory, renaming it to match the `<MODEL>-<VERSION>.d9` convention:
 
   ```bash
-  cp firmware_extracted/payload/firmimgFIT.d9 /var/ftp/pub/R660-7.30.10.50.d9
-  chmod 444 /var/ftp/pub/R660-7.30.10.50.d9
+  cp firmware_extracted/payload/firmimgFIT.d9 /var/lib/dracs/web/firmware/R660-7.30.10.50.d9
+  chmod 444 /var/lib/dracs/web/firmware/R660-7.30.10.50.d9
   ```
 
 - To make the new firmware version available for a model within DRACS, it must first be manually installed on at least one system using `racadm`. SSH to the iDRAC and issue the update command:
 
   ```bash
   ssh admin@mgmt-host01.example.com
-  racadm fwupdate -f <FTP_SERVER_IP> ftp user -d pub/R660-7.30.10.50.d9
+  racadm update -f R660-7.30.10.50.d9 -l http://dracs.example.com/firmware/
   ```
 
 - Once the manual update is complete, **refresh** that system in DRACS (`dracs refresh -t host01.example.com`). The new firmware version will then appear as available for all systems of the same model type in the DRACS web interface.
 
-## 💾 NFS Server Setup for BIOS Updates
+## 💾 BIOS Image Setup
 
-The DRACS web interface can push BIOS updates to systems via an NFS server. Follow these steps to set up the NFS server and make BIOS images available.
-
-- Set up an NFS server in your environment. This can be the DRACS host, an existing host, or any other host in your deployment. The NFS share must be accessible for read access from all iDRAC interfaces in your environment.
+The DRACS web interface can push BIOS updates to systems via HTTP. BIOS images are served by nginx from `/var/lib/dracs/web/bios/` on the DRACS host. No external NFS server is required.
 
 - Download the desired Dell BIOS image from Dell support, e.g. `BIOS_G93PH_WN64_2.10.1.EXE`
 
-- Place the image on your NFS server under a model-specific subdirectory:
+- Copy the image to the DRACS BIOS directory:
 
   ```bash
-  cp BIOS_G93PH_WN64_2.10.1.EXE /path/to/nfs/R660/
-  ```
-
-- Ensure your `.env` file includes both NFS variables:
-
-  ```bash
-  DRACS_NFS_SERVER=192.168.1.100
-  DRACS_NFS_PATH=/path/to/nfs
+  cp BIOS_G93PH_WN64_2.10.1.EXE /var/lib/dracs/web/bios/
+  chmod 444 /var/lib/dracs/web/bios/BIOS_G93PH_WN64_2.10.1.EXE
   ```
 
 - To make the new BIOS version available for a model within DRACS, it must first be manually installed on at least one system using `racadm`. SSH to the iDRAC and issue the update command:
 
   ```bash
   ssh admin@mgmt-host01.example.com
-  racadm update -f BIOS_G93PH_WN64_2.10.1.EXE -l 192.168.1.100:/srv/nfs/dell_bios/R660
+  racadm update -f BIOS_G93PH_WN64_2.10.1.EXE -l http://dracs.example.com/bios/
   ```
 
 - Connect to the console of the system and reboot to ensure the BIOS update completes.
 
 - After the BIOS is updated, **refresh** the host in DRACS (`dracs refresh -t host01.example.com`). The new BIOS version will then appear as available for all systems of the same model type in the DRACS web interface.
+
+### Custom Image Server Configuration
+
+By default, DRACS tells iDRACs to download firmware and BIOS images from the DRACS host itself using its FQDN (e.g. `http://dracs.example.com/firmware/`). If you need to serve images from a different server or URL path, the following optional environment variables can be set in your `.env` file:
+
+| Variable | Default | Description |
+|---|---|---|
+| `DRACS_FIRMWARE_SERVER` | System FQDN | Hostname or IP of the server serving firmware images |
+| `DRACS_FIRMWARE_URI` | `/firmware/` | URI path to the firmware images on the server |
+| `DRACS_BIOS_SERVER` | System FQDN | Hostname or IP of the server serving BIOS images |
+| `DRACS_BIOS_URI` | `/bios/` | URI path to the BIOS images on the server |
+
+The resulting URL sent to iDRAC is constructed as `http://<SERVER><URI>`. For example, to serve images from a dedicated host:
+
+```bash
+DRACS_FIRMWARE_SERVER=images.example.com
+DRACS_FIRMWARE_URI=/dell/firmware/
+DRACS_BIOS_SERVER=images.example.com
+DRACS_BIOS_URI=/dell/bios/
+```
+
+This would produce `racadm update -f R660-7.30.10.50.d9 -l http://images.example.com/dell/firmware/` for firmware updates.
 
 ## 🌐 Web Proxy (nginx)
 

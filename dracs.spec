@@ -50,6 +50,8 @@ Provides:       group(dracs)
 install -D -m 0644 systemd/dracs-webapp.service %{buildroot}%{_unitdir}/dracs-webapp.service
 install -d -m 0755 %{buildroot}%{_sysconfdir}/dracs
 install -d -m 0755 %{buildroot}%{_sharedstatedir}/dracs
+install -d -m 0755 %{buildroot}%{_sharedstatedir}/dracs/web/firmware
+install -d -m 0755 %{buildroot}%{_sharedstatedir}/dracs/web/bios
 install -d -m 0755 %{buildroot}%{_localstatedir}/log/dracs
 
 
@@ -160,6 +162,9 @@ fi
 %{_unitdir}/dracs-webapp.service
 %dir %attr(0755, dracs, dracs) %{_sysconfdir}/dracs
 %dir %attr(0755, dracs, dracs) %{_sharedstatedir}/dracs
+%dir %attr(0755, dracs, dracs) %{_sharedstatedir}/dracs/web
+%dir %attr(0755, dracs, dracs) %{_sharedstatedir}/dracs/web/firmware
+%dir %attr(0755, dracs, dracs) %{_sharedstatedir}/dracs/web/bios
 %dir %attr(0755, dracs, dracs) %{_localstatedir}/log/dracs
 
 

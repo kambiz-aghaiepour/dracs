@@ -343,38 +343,20 @@ class TestFirmwareUpdateEndpoint:
         )
         assert resp.status_code == 400
 
-    def test_firmware_update_no_ftp_server(self, client):
-        _login(client)
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("DRACS_FTP_SERVER", None)
-            resp = client.post(
-                "/api/firmware-update",
-                data=json.dumps(
-                    {
-                        "hostname": "server01",
-                        "target_version": "8.0.0",
-                        "model": "R660",
-                    }
-                ),
-                content_type="application/json",
-            )
-        assert resp.status_code == 500
-
     @patch("dracs.webapp.run_command_background", return_value=True)
     def test_firmware_update_success(self, mock_run, client):
         _login(client)
-        with patch.dict(os.environ, {"DRACS_FTP_SERVER": "ftp.example.com"}):
-            resp = client.post(
-                "/api/firmware-update",
-                data=json.dumps(
-                    {
-                        "hostname": "server01",
-                        "target_version": "8.0.0",
-                        "model": "R660",
-                    }
-                ),
-                content_type="application/json",
-            )
+        resp = client.post(
+            "/api/firmware-update",
+            data=json.dumps(
+                {
+                    "hostname": "server01",
+                    "target_version": "8.0.0",
+                    "model": "R660",
+                }
+            ),
+            content_type="application/json",
+        )
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["success"] is True
@@ -382,18 +364,17 @@ class TestFirmwareUpdateEndpoint:
     @patch("dracs.webapp.run_command_background", return_value=False)
     def test_firmware_update_fail_to_start(self, mock_run, client):
         _login(client)
-        with patch.dict(os.environ, {"DRACS_FTP_SERVER": "ftp.example.com"}):
-            resp = client.post(
-                "/api/firmware-update",
-                data=json.dumps(
-                    {
-                        "hostname": "server01",
-                        "target_version": "8.0.0",
-                        "model": "R660",
-                    }
-                ),
-                content_type="application/json",
-            )
+        resp = client.post(
+            "/api/firmware-update",
+            data=json.dumps(
+                {
+                    "hostname": "server01",
+                    "target_version": "8.0.0",
+                    "model": "R660",
+                }
+            ),
+            content_type="application/json",
+        )
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["success"] is False
@@ -414,63 +395,37 @@ class TestBiosUpdateEndpoint:
         )
         assert resp.status_code == 400
 
-    def test_bios_update_no_nfs_server(self, client):
-        _login(client)
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("DRACS_NFS_SERVER", None)
-            os.environ.pop("DRACS_NFS_PATH", None)
-            resp = client.post(
-                "/api/bios-update",
-                data=json.dumps(
-                    {
-                        "hostname": "server01",
-                        "target_bios": "3.0.0",
-                        "model": "R660",
-                    }
-                ),
-                content_type="application/json",
-            )
-        assert resp.status_code == 500
-
     @patch("dracs.webapp.get_bios_filename", return_value=None)
     def test_bios_update_no_filename(self, mock_fn, client):
         _login(client)
-        with patch.dict(
-            os.environ,
-            {"DRACS_NFS_SERVER": "nfs.example.com", "DRACS_NFS_PATH": "/images"},
-        ):
-            resp = client.post(
-                "/api/bios-update",
-                data=json.dumps(
-                    {
-                        "hostname": "server01",
-                        "target_bios": "3.0.0",
-                        "model": "R660",
-                    }
-                ),
-                content_type="application/json",
-            )
+        resp = client.post(
+            "/api/bios-update",
+            data=json.dumps(
+                {
+                    "hostname": "server01",
+                    "target_bios": "3.0.0",
+                    "model": "R660",
+                }
+            ),
+            content_type="application/json",
+        )
         assert resp.status_code == 400
 
     @patch("dracs.webapp.run_command_background", return_value=True)
     @patch("dracs.webapp.get_bios_filename", return_value="BIOS_R660_3.0.0.EXE")
     def test_bios_update_success(self, mock_fn, mock_run, client):
         _login(client)
-        with patch.dict(
-            os.environ,
-            {"DRACS_NFS_SERVER": "nfs.example.com", "DRACS_NFS_PATH": "/images"},
-        ):
-            resp = client.post(
-                "/api/bios-update",
-                data=json.dumps(
-                    {
-                        "hostname": "server01",
-                        "target_bios": "3.0.0",
-                        "model": "R660",
-                    }
-                ),
-                content_type="application/json",
-            )
+        resp = client.post(
+            "/api/bios-update",
+            data=json.dumps(
+                {
+                    "hostname": "server01",
+                    "target_bios": "3.0.0",
+                    "model": "R660",
+                }
+            ),
+            content_type="application/json",
+        )
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["success"] is True

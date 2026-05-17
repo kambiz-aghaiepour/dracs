@@ -611,13 +611,31 @@
         }
 
         .btn-success:disabled {
-            background-color: #94d3a2;
+            background-color: #6c757d;
             cursor: not-allowed;
         }
 
         .btn-primary:disabled {
             background-color: #6c757d;
             cursor: not-allowed;
+        }
+
+        .btn-power-on {
+            background-color: #28a745;
+            color: white;
+        }
+
+        .btn-power-on:hover {
+            background-color: #218838;
+        }
+
+        .btn-power-off {
+            background-color: #dc3545;
+            color: white;
+        }
+
+        .btn-power-off:hover {
+            background-color: #c82333;
         }
 
         /* Row selection */
@@ -983,6 +1001,66 @@
 
         body.dark-theme .btn-secondary:hover {
             background-color: #666;
+        }
+
+        body.dark-theme .btn-primary:disabled {
+            background-color: #555;
+            border-color: #555;
+        }
+
+        body.dark-theme .btn-success {
+            background-color: #1e7e34;
+            border-color: #1e7e34;
+        }
+
+        body.dark-theme .btn-success:hover:not(:disabled) {
+            background-color: #28a745;
+        }
+
+        body.dark-theme .btn-success:disabled {
+            background-color: #555;
+            border-color: #555;
+        }
+
+        body.dark-theme .btn-power-on {
+            background-color: #1e7e34;
+            border-color: #1e7e34;
+        }
+
+        body.dark-theme .btn-power-on:hover {
+            background-color: #28a745;
+        }
+
+        body.dark-theme .btn-power-off {
+            background-color: #c82333;
+            border-color: #c82333;
+        }
+
+        body.dark-theme .btn-power-off:hover {
+            background-color: #dc3545;
+        }
+
+        body.dark-theme .firmware-version-select,
+        body.dark-theme .bios-version-select {
+            background-color: #1e5a8e;
+            color: #e0e0e0;
+            border-color: #1e5a8e;
+        }
+
+        body.dark-theme .firmware-version-select:hover,
+        body.dark-theme .bios-version-select:hover {
+            background-color: #2a6ba8;
+        }
+
+        body.dark-theme .firmware-version-select:disabled,
+        body.dark-theme .bios-version-select:disabled {
+            background-color: #555;
+            border-color: #555;
+        }
+
+        body.dark-theme #update-bios-btn.unavailable {
+            background-color: #555;
+            border-color: #555;
         }
 
         body.dark-theme .modal-overlay {
@@ -1357,6 +1435,9 @@
             <button id="console-btn" class="btn btn-primary" disabled onclick="handleConsoleClick()">
                 Console
             </button>
+            <button id="power-btn" class="btn btn-primary" disabled onclick="handlePowerClick()">
+                Power
+            </button>
         </div>
         {% endif %}
 
@@ -1507,6 +1588,39 @@
             </div>
         </div>
 
+        <!-- Power Off Confirmation Modal -->
+        <div id="power-off-modal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Confirm Power Off</h2>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to power off <strong id="power-off-hostname"></strong>?</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="cancelPowerAction()">Cancel</button>
+                    <button type="button" class="btn btn-power-on" onclick="confirmPowerAction('graceshutdown')">Graceful Shutdown</button>
+                    <button type="button" class="btn btn-power-off" onclick="confirmPowerAction('powerdown')">Hard Power Off</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Power On Confirmation Modal -->
+        <div id="power-on-modal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Confirm Power On</h2>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to power on <strong id="power-on-hostname"></strong>?</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="cancelPowerAction()">Cancel</button>
+                    <button type="button" class="btn btn-power-on" onclick="confirmPowerAction('powerup')">Yes, Power On</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Job Queue Modal -->
         <div id="job-queue-modal" class="modal-overlay">
             <div class="modal-content modal-large">
@@ -1575,6 +1689,8 @@
         let pendingBiosUpdate = null;  // Store pending BIOS update info
         let firmwareFirstConfirmation = false;  // Track two-stage confirmation for large batches
         let biosFirstConfirmation = false;  // Track two-stage confirmation for large batches
+        let currentPowerState = null;
+        let currentPowerHostname = null;
 
         // Pagination state
         let currentPage = 1;
@@ -1825,6 +1941,7 @@
             updateJobQueueButtonState();
             updateClearJobQueueButtonState();
             updateConsoleButtonState();
+            updatePowerButtonState();
             updateSelectAllButtonText();
             updateSelectShownButtonText();
         }
@@ -1945,6 +2062,7 @@
             updateJobQueueButtonState();
             updateClearJobQueueButtonState();
             updateConsoleButtonState();
+            updatePowerButtonState();
             updateSelectAllButtonText();
         }
 
@@ -2005,6 +2123,7 @@
             updateJobQueueButtonState();
             updateClearJobQueueButtonState();
             updateConsoleButtonState();
+            updatePowerButtonState();
 
             // Update selected count if it exists
             const selectedCountEl = document.getElementById('selected-count');
@@ -2252,6 +2371,7 @@
                     updateFirmwareButtonState();
                     updateJobQueueButtonState();
                     updateClearJobQueueButtonState();
+                    updatePowerButtonState();
                 }
 
                 console.log('DRACS: Table refresh complete, visible rows:', document.querySelectorAll('#table-body tr:not(.hidden)').length);
@@ -2495,6 +2615,127 @@
             } catch (error) {
                 showNotification('Failed to open console: ' + error.message, 'error');
             }
+        }
+
+        function updatePowerButtonState() {
+            const powerBtn = document.getElementById('power-btn');
+            if (!powerBtn) return;
+
+            if (selectedSystems.length === 1) {
+                const hostname = selectedSystems[0].hostname;
+                if (hostname !== currentPowerHostname) {
+                    powerBtn.classList.remove('btn-power-on', 'btn-power-off');
+                    currentPowerState = null;
+                    currentPowerHostname = hostname;
+                    powerBtn.textContent = 'Power ...';
+                    powerBtn.disabled = true;
+                }
+                checkPowerStatus(hostname);
+            } else {
+                powerBtn.classList.remove('btn-power-on', 'btn-power-off');
+                currentPowerState = null;
+                currentPowerHostname = null;
+                powerBtn.textContent = 'Power';
+                powerBtn.disabled = true;
+            }
+        }
+
+        async function checkPowerStatus(hostname) {
+            const powerBtn = document.getElementById('power-btn');
+            if (!powerBtn) return;
+
+            try {
+                const response = await fetch('/api/power-status', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ hostname: hostname })
+                });
+                const data = await response.json();
+
+                if (selectedSystems.length !== 1 || selectedSystems[0].hostname !== hostname) return;
+
+                powerBtn.classList.remove('btn-power-on', 'btn-power-off');
+
+                if (data.success) {
+                    currentPowerState = data.status;
+                    if (data.status === 'on') {
+                        powerBtn.textContent = 'Power Off';
+                        powerBtn.classList.add('btn-power-on');
+                        powerBtn.disabled = false;
+                    } else {
+                        powerBtn.textContent = 'Power On';
+                        powerBtn.classList.add('btn-power-off');
+                        powerBtn.disabled = false;
+                    }
+                } else {
+                    currentPowerState = null;
+                    powerBtn.textContent = 'Power Unknown';
+                    powerBtn.disabled = true;
+                }
+            } catch (error) {
+                if (selectedSystems.length === 1 && selectedSystems[0].hostname === hostname) {
+                    currentPowerState = null;
+                    powerBtn.classList.remove('btn-power-on', 'btn-power-off');
+                    powerBtn.textContent = 'Power Unknown';
+                    powerBtn.disabled = true;
+                }
+            }
+        }
+
+        function handlePowerClick() {
+            if (selectedSystems.length !== 1 || !currentPowerState) return;
+
+            const hostname = selectedSystems[0].hostname;
+
+            if (currentPowerState === 'on') {
+                document.getElementById('power-off-hostname').textContent = hostname;
+                document.getElementById('power-off-modal').classList.add('active');
+            } else {
+                document.getElementById('power-on-hostname').textContent = hostname;
+                document.getElementById('power-on-modal').classList.add('active');
+            }
+        }
+
+        async function confirmPowerAction(action) {
+            cancelPowerAction();
+
+            if (selectedSystems.length !== 1) return;
+
+            const hostname = selectedSystems[0].hostname;
+            const powerBtn = document.getElementById('power-btn');
+            if (powerBtn) {
+                powerBtn.disabled = true;
+                powerBtn.textContent = 'Power ...';
+                powerBtn.classList.remove('btn-power-on', 'btn-power-off');
+            }
+
+            try {
+                const response = await fetch('/api/power-action', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ hostname: hostname, action: action })
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            } catch (error) {
+                showNotification('Power action failed: ' + error.message, 'error');
+            }
+
+            setTimeout(() => {
+                if (selectedSystems.length === 1) {
+                    checkPowerStatus(selectedSystems[0].hostname);
+                }
+            }, 3000);
+        }
+
+        function cancelPowerAction() {
+            document.getElementById('power-off-modal').classList.remove('active');
+            document.getElementById('power-on-modal').classList.remove('active');
         }
 
         // Fetch firmware versions for the selected system's model
@@ -4167,6 +4408,7 @@
                 updateFirmwareButtonState();
                 updateJobQueueButtonState();
                 updateClearJobQueueButtonState();
+                updatePowerButtonState();
                 updateSelectAllButtonText();
                 updateSelectShownButtonText();
             }

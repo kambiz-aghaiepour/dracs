@@ -373,17 +373,55 @@ class TestEndpointExceptionHandlers:
 
     def test_firmware_update_exception(self, client):
         _login(client)
-        with patch.dict(os.environ, {"DRACS_FTP_SERVER": "ftp.example.com"}):
+        with patch(
+            "dracs.webapp.build_idrac_hostname",
+            side_effect=RuntimeError("boom"),
+        ):
+            resp = client.post(
+                "/api/firmware-update",
+                data=json.dumps(
+                    {
+                        "hostname": "server01",
+                        "target_version": "8.0.0",
+                        "model": "R660",
+                    }
+                ),
+                content_type="application/json",
+            )
+        assert resp.status_code == 500
+
+    def test_firmware_update_sshpass_not_found(self, client):
+        _login(client)
+        with patch(
+            "dracs.webapp.build_idrac_hostname",
+            side_effect=FileNotFoundError("sshpass"),
+        ):
+            resp = client.post(
+                "/api/firmware-update",
+                data=json.dumps(
+                    {
+                        "hostname": "server01",
+                        "target_version": "8.0.0",
+                        "model": "R660",
+                    }
+                ),
+                content_type="application/json",
+            )
+        assert resp.status_code == 500
+
+    def test_bios_update_exception(self, client):
+        _login(client)
+        with patch("dracs.webapp.get_bios_filename", return_value="BIOS.EXE"):
             with patch(
                 "dracs.webapp.build_idrac_hostname",
                 side_effect=RuntimeError("boom"),
             ):
                 resp = client.post(
-                    "/api/firmware-update",
+                    "/api/bios-update",
                     data=json.dumps(
                         {
                             "hostname": "server01",
-                            "target_version": "8.0.0",
+                            "target_bios": "3.0.0",
                             "model": "R660",
                         }
                     ),
@@ -391,72 +429,24 @@ class TestEndpointExceptionHandlers:
                 )
         assert resp.status_code == 500
 
-    def test_firmware_update_sshpass_not_found(self, client):
+    def test_bios_update_sshpass_not_found(self, client):
         _login(client)
-        with patch.dict(os.environ, {"DRACS_FTP_SERVER": "ftp.example.com"}):
+        with patch("dracs.webapp.get_bios_filename", return_value="BIOS.EXE"):
             with patch(
                 "dracs.webapp.build_idrac_hostname",
                 side_effect=FileNotFoundError("sshpass"),
             ):
                 resp = client.post(
-                    "/api/firmware-update",
+                    "/api/bios-update",
                     data=json.dumps(
                         {
                             "hostname": "server01",
-                            "target_version": "8.0.0",
+                            "target_bios": "3.0.0",
                             "model": "R660",
                         }
                     ),
                     content_type="application/json",
                 )
-        assert resp.status_code == 500
-
-    def test_bios_update_exception(self, client):
-        _login(client)
-        with patch.dict(
-            os.environ,
-            {"DRACS_NFS_SERVER": "nfs.example.com", "DRACS_NFS_PATH": "/img"},
-        ):
-            with patch("dracs.webapp.get_bios_filename", return_value="BIOS.EXE"):
-                with patch(
-                    "dracs.webapp.build_idrac_hostname",
-                    side_effect=RuntimeError("boom"),
-                ):
-                    resp = client.post(
-                        "/api/bios-update",
-                        data=json.dumps(
-                            {
-                                "hostname": "server01",
-                                "target_bios": "3.0.0",
-                                "model": "R660",
-                            }
-                        ),
-                        content_type="application/json",
-                    )
-        assert resp.status_code == 500
-
-    def test_bios_update_sshpass_not_found(self, client):
-        _login(client)
-        with patch.dict(
-            os.environ,
-            {"DRACS_NFS_SERVER": "nfs.example.com", "DRACS_NFS_PATH": "/img"},
-        ):
-            with patch("dracs.webapp.get_bios_filename", return_value="BIOS.EXE"):
-                with patch(
-                    "dracs.webapp.build_idrac_hostname",
-                    side_effect=FileNotFoundError("sshpass"),
-                ):
-                    resp = client.post(
-                        "/api/bios-update",
-                        data=json.dumps(
-                            {
-                                "hostname": "server01",
-                                "target_bios": "3.0.0",
-                                "model": "R660",
-                            }
-                        ),
-                        content_type="application/json",
-                    )
         assert resp.status_code == 500
 
     def test_job_queue_timeout(self, client):
@@ -648,21 +638,17 @@ class TestBiosUpdateStartFailure:
     @patch("dracs.webapp.get_bios_filename", return_value="BIOS_GWMTK_WN64_2.21.1.EXE")
     def test_bios_update_process_fails_to_start(self, mock_bios, mock_run, client):
         _login(client)
-        with patch.dict(
-            os.environ,
-            {"DRACS_NFS_SERVER": "nfs01", "DRACS_NFS_PATH": "/share/bios"},
-        ):
-            resp = client.post(
-                "/api/bios-update",
-                data=json.dumps(
-                    {
-                        "hostname": "server01",
-                        "target_bios": "2.21.1",
-                        "model": "R660",
-                    }
-                ),
-                content_type="application/json",
-            )
+        resp = client.post(
+            "/api/bios-update",
+            data=json.dumps(
+                {
+                    "hostname": "server01",
+                    "target_bios": "2.21.1",
+                    "model": "R660",
+                }
+            ),
+            content_type="application/json",
+        )
         data = resp.get_json()
         assert data["success"] is False
         assert "Failed to start" in data["message"]
@@ -896,13 +882,7 @@ class TestParseDebugEnv:
 class TestDracsLogDir:
     def test_firmware_log_uses_env_var(self, client):
         _login(client)
-        with patch.dict(
-            os.environ,
-            {
-                "DRACS_FTP_SERVER": "ftp.example.com",
-                "DRACS_LOG_DIR": "/var/log/dracs",
-            },
-        ):
+        with patch.dict(os.environ, {"DRACS_LOG_DIR": "/var/log/dracs"}):
             with patch(
                 "dracs.webapp.run_command_background", return_value=True
             ) as mock:
@@ -924,8 +904,7 @@ class TestDracsLogDir:
 
     def test_firmware_log_defaults_to_logs(self, client):
         _login(client)
-        env = {"DRACS_FTP_SERVER": "ftp.example.com"}
-        with patch.dict(os.environ, env):
+        with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("DRACS_LOG_DIR", None)
             with patch(
                 "dracs.webapp.run_command_background", return_value=True
@@ -946,14 +925,7 @@ class TestDracsLogDir:
 
     def test_bios_log_uses_env_var(self, client):
         _login(client)
-        with patch.dict(
-            os.environ,
-            {
-                "DRACS_NFS_SERVER": "nfs.example.com",
-                "DRACS_NFS_PATH": "/img",
-                "DRACS_LOG_DIR": "/var/log/dracs",
-            },
-        ):
+        with patch.dict(os.environ, {"DRACS_LOG_DIR": "/var/log/dracs"}):
             with patch("dracs.webapp.get_bios_filename", return_value="BIOS.EXE"):
                 with patch(
                     "dracs.webapp.run_command_background", return_value=True
@@ -976,8 +948,7 @@ class TestDracsLogDir:
 
     def test_bios_log_defaults_to_logs(self, client):
         _login(client)
-        env = {"DRACS_NFS_SERVER": "nfs.example.com", "DRACS_NFS_PATH": "/img"}
-        with patch.dict(os.environ, env):
+        with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("DRACS_LOG_DIR", None)
             with patch("dracs.webapp.get_bios_filename", return_value="BIOS.EXE"):
                 with patch(

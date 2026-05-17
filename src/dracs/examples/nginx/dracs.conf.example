@@ -2,6 +2,16 @@ server {
     listen 80;
     server_name dracs.example.com;
 
+    location /firmware {
+        alias /var/lib/dracs/web/firmware/;
+        autoindex off;
+    }
+
+    location /bios {
+        alias /var/lib/dracs/web/bios/;
+        autoindex off;
+    }
+
     # Redirect all HTTP requests to HTTPS
     return 301 https://$host$request_uri;
 }

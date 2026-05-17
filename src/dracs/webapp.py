@@ -6,6 +6,7 @@ from datetime import datetime
 import json
 import os
 import re
+import socket
 import sys
 import subprocess
 import threading
@@ -701,19 +702,6 @@ def api_firmware_update():
         if not re.match(r"^[A-Za-z0-9\-]+$", model):
             return jsonify({"success": False, "message": "Invalid model format"}), 400
 
-        # Get FTP server from environment
-        ftp_server = os.environ.get("DRACS_FTP_SERVER")
-        if not ftp_server:
-            return (
-                jsonify(
-                    {
-                        "success": False,
-                        "message": "DRACS_FTP_SERVER environment variable not set",
-                    }
-                ),
-                500,
-            )
-
         # Build iDRAC FQDN
         idrac_fqdn = build_idrac_hostname(hostname)
 
@@ -722,6 +710,11 @@ def api_firmware_update():
 
         # Build firmware filename: MODEL-TARGET_VERSION.d9
         firmware_file = f"{model}-{target_version}.d9"
+
+        # Build HTTP URL for firmware image
+        fw_server = os.environ.get("DRACS_FIRMWARE_SERVER") or socket.getfqdn()
+        fw_uri = os.environ.get("DRACS_FIRMWARE_URI", "/firmware/")
+        firmware_url = f"http://{fw_server}{fw_uri}"
 
         # Prepare log file path
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -743,13 +736,11 @@ def api_firmware_update():
             "ConnectTimeout=10",
             f"{username}@{idrac_fqdn}",
             "racadm",
-            "fwupdate",
+            "update",
             "-f",
-            ftp_server,
-            "ftp",
-            "user",
-            "-d",
-            f"pub/{firmware_file}",
+            firmware_file,
+            "-l",
+            firmware_url,
         ]
 
         # Run firmware update command in background
@@ -816,23 +807,9 @@ def api_bios_update():
         if not re.match(r"^[A-Za-z0-9\-]+$", model):
             return jsonify({"success": False, "message": "Invalid model format"}), 400
 
-        # Get NFS server and path from environment
-        nfs_server = os.environ.get("DRACS_NFS_SERVER")
-        nfs_path = os.environ.get("DRACS_NFS_PATH")
-        if not nfs_server or not nfs_path:
-            return (
-                jsonify(
-                    {
-                        "success": False,
-                        "message": "DRACS_NFS_SERVER or DRACS_NFS_PATH environment variable not set",
-                    }
-                ),
-                500,
-            )
-
         # Look up BIOS filename
-        nfs_filename = get_bios_filename(model, target_bios)
-        if not nfs_filename:
+        bios_filename = get_bios_filename(model, target_bios)
+        if not bios_filename:
             return (
                 jsonify(
                     {
@@ -849,8 +826,10 @@ def api_bios_update():
         # Get credentials
         username, password = get_idrac_credentials(hostname)
 
-        # Build NFS path: DRACS_NFS_SERVER:DRACS_NFS_PATH/MODEL
-        nfs_location = f"{nfs_server}:{nfs_path}/{model}"
+        # Build HTTP URL for BIOS image
+        bios_server = os.environ.get("DRACS_BIOS_SERVER") or socket.getfqdn()
+        bios_uri = os.environ.get("DRACS_BIOS_URI", "/bios/")
+        bios_url = f"http://{bios_server}{bios_uri}"
 
         # Prepare log file path
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -874,9 +853,9 @@ def api_bios_update():
             "racadm",
             "update",
             "-f",
-            nfs_filename,
+            bios_filename,
             "-l",
-            nfs_location,
+            bios_url,
         ]
 
         # Run BIOS update command in background
@@ -1121,6 +1100,192 @@ def api_refresh_all():
             }
         )
 
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+
+@app.route("/api/power-status", methods=["POST"])
+def api_power_status():
+    """Check system power status via racadm."""
+    try:
+        if not session.get("authenticated", False):
+            return (
+                jsonify({"success": False, "message": "Authentication required"}),
+                401,
+            )
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "message": "Invalid request"}), 400
+
+        hostname = data.get("hostname", "").strip()
+        if not hostname:
+            return jsonify({"success": False, "message": "Hostname required"}), 400
+
+        if not validate_hostname(hostname):
+            return (
+                jsonify({"success": False, "message": f"Invalid hostname: {hostname}"}),
+                400,
+            )
+
+        idrac_fqdn = build_idrac_hostname(hostname)
+        username, password = get_idrac_credentials(hostname)
+
+        cmd = [
+            "sshpass",
+            "-p",
+            password,
+            "ssh",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "UserKnownHostsFile=/dev/null",
+            "-o",
+            "ConnectTimeout=10",
+            f"{username}@{idrac_fqdn}",
+            "racadm",
+            "serveraction",
+            "powerstatus",
+        ]
+
+        result = subprocess.run(  # nosec # nosemgrep
+            cmd, capture_output=True, text=True, timeout=15  # nosemgrep
+        )
+
+        if result.returncode == 0:
+            output = result.stdout.upper()
+            if "ON" in output:
+                return jsonify({"success": True, "status": "on"})
+            elif "OFF" in output:
+                return jsonify({"success": True, "status": "off"})
+            else:
+                return jsonify(
+                    {
+                        "success": False,
+                        "message": f"Unexpected power status: {result.stdout[:100]}",
+                    }
+                )
+        else:
+            return jsonify(
+                {
+                    "success": False,
+                    "message": f"Power status check failed: "
+                    f"{result.stderr[:100] if result.stderr else 'Unknown error'}",
+                }
+            )
+
+    except subprocess.TimeoutExpired:
+        return jsonify({"success": False, "message": "Connection timeout"}), 500
+    except FileNotFoundError:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "message": "sshpass command not found (please install sshpass)",
+                }
+            ),
+            500,
+        )
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+
+@app.route("/api/power-action", methods=["POST"])
+def api_power_action():
+    """Execute power action on a system via racadm."""
+    VALID_ACTIONS = {"powerup", "powerdown", "graceshutdown"}
+
+    try:
+        if not session.get("authenticated", False):
+            return (
+                jsonify({"success": False, "message": "Authentication required"}),
+                401,
+            )
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "message": "Invalid request"}), 400
+
+        hostname = data.get("hostname", "").strip()
+        if not hostname:
+            return jsonify({"success": False, "message": "Hostname required"}), 400
+
+        if not validate_hostname(hostname):
+            return (
+                jsonify({"success": False, "message": f"Invalid hostname: {hostname}"}),
+                400,
+            )
+
+        action = data.get("action", "").strip()
+        if action not in VALID_ACTIONS:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": f"Invalid action: {action}. "
+                        f"Must be one of: {', '.join(sorted(VALID_ACTIONS))}",
+                    }
+                ),
+                400,
+            )
+
+        idrac_fqdn = build_idrac_hostname(hostname)
+        username, password = get_idrac_credentials(hostname)
+
+        cmd = [
+            "sshpass",
+            "-p",
+            password,
+            "ssh",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "UserKnownHostsFile=/dev/null",
+            "-o",
+            "ConnectTimeout=10",
+            f"{username}@{idrac_fqdn}",
+            "racadm",
+            "serveraction",
+            action,
+        ]
+
+        result = subprocess.run(  # nosec # nosemgrep
+            cmd, capture_output=True, text=True, timeout=30  # nosemgrep
+        )
+
+        if result.returncode == 0:
+            action_label = {
+                "powerup": "Power on",
+                "powerdown": "Hard power off",
+                "graceshutdown": "Graceful shutdown",
+            }[action]
+            return jsonify(
+                {
+                    "success": True,
+                    "message": f"{action_label} command sent to {hostname}",
+                }
+            )
+        else:
+            return jsonify(
+                {
+                    "success": False,
+                    "message": f"Power action failed: "
+                    f"{result.stderr[:100] if result.stderr else result.stdout[:100]}",
+                }
+            )
+
+    except subprocess.TimeoutExpired:
+        return jsonify({"success": False, "message": "Connection timeout"}), 500
+    except FileNotFoundError:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "message": "sshpass command not found (please install sshpass)",
+                }
+            ),
+            500,
+        )
     except Exception as e:
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
 
