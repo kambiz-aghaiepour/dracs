@@ -1905,17 +1905,20 @@ def _get_tsr_job_status(hostname: str) -> dict:
 
     jobs = parse_job_queue(result.stdout)
 
-    for job in jobs:
-        if job.get("job_name") != "SupportAssist Collection":
-            continue
-        status = job.get("status", "")
-        message = job.get("message", "")
-        pct = job.get("percent_complete", "0")
+    sa_jobs = [j for j in jobs if j.get("job_name") == "SupportAssist Collection"]
 
-        if status == "Running":
-            return {"state": "running", "percent_complete": pct}
+    for job in sa_jobs:
+        if job.get("status") == "Running":
+            return {
+                "state": "running",
+                "percent_complete": job.get("percent_complete", "0"),
+            }
 
-        if status == "Completed" and "completed successfully" in message.lower():
+    for job in sa_jobs:
+        if (
+            job.get("status") == "Completed"
+            and "completed successfully" in job.get("message", "").lower()
+        ):
             return {"state": "completed"}
 
     return {"state": "none"}

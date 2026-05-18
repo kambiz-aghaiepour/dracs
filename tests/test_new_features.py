@@ -288,6 +288,40 @@ class TestGetTsrJobStatus:
                 status = _get_tsr_job_status("server01")
         assert status["state"] == "none"
 
+    def test_running_job_found_despite_old_completed(self):
+        from dracs.webapp import _get_tsr_job_status
+
+        mock_output = (
+            "[Job ID=JID_001]\n"
+            "Job Name=SupportAssist Collection\n"
+            "Status=Completed\n"
+            "Percent Complete=100\n"
+            "Message=The SupportAssist Collection Operation"
+            " is completed successfully\n"
+            "\n"
+            "[Job ID=JID_002]\n"
+            "Job Name=SupportAssist Collection\n"
+            "Status=Completed\n"
+            "Percent Complete=100\n"
+            "Message=The SupportAssist Transmission Operation"
+            " is completed successfully\n"
+            "\n"
+            "[Job ID=JID_003]\n"
+            "Job Name=SupportAssist Collection\n"
+            "Status=Running\n"
+            "Percent Complete=90\n"
+            "Message=The SupportAssist Collection operation started\n"
+        )
+        mock_result = MagicMock(returncode=0, stdout=mock_output)
+        with patch("dracs.webapp.subprocess.run", return_value=mock_result):
+            with patch.dict(
+                os.environ,
+                {"DRACS_DNS_STRING": "mgmt-", "DRACS_DNS_MODE": "prefix"},
+            ):
+                status = _get_tsr_job_status("server01")
+        assert status["state"] == "running"
+        assert status["percent_complete"] == "90"
+
     def test_command_failure(self):
         from dracs.webapp import _get_tsr_job_status
 
