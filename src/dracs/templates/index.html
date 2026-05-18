@@ -1471,11 +1471,13 @@
         </div>
         {% endif %}
 
-        {% if vnc_enabled and is_authenticated %}
+        {% if is_authenticated %}
         <div style="margin-bottom: 10px;">
+            {% if vnc_enabled %}
             <button id="console-btn" class="btn btn-primary" disabled onclick="handleConsoleClick()">
                 Console
             </button>
+            {% endif %}
             <button id="power-btn" class="btn btn-primary" disabled onclick="handlePowerClick()">
                 Power
             </button>
@@ -1487,6 +1489,15 @@
             </button>
             <button id="generate-tsr-btn" class="btn btn-primary" disabled onclick="handleGenerateTsrClick()">
                 Generate TSR
+            </button>
+            <button id="view-tsr-btn" class="btn btn-primary" disabled onclick="handleViewTsrClick()">
+                View TSRs
+            </button>
+        </div>
+        {% else %}
+        <div style="margin-bottom: 10px;">
+            <button id="view-tsr-btn" class="btn btn-primary" disabled onclick="handleViewTsrClick()">
+                View TSRs
             </button>
         </div>
         {% endif %}
@@ -1962,14 +1973,12 @@
 
         // Row selection handler (supports multi-select with Ctrl/Cmd+Click and Shift+Click for range)
         function handleRowClick(event) {
-            if (!isAuthenticated) return;
-
             const row = event.target.closest('tr');
             if (!row) return;
 
-            // Check modifier keys
-            const isMultiSelect = event.ctrlKey || event.metaKey;
-            const isRangeSelect = event.shiftKey;
+            // Check modifier keys (multi-select only for authenticated users)
+            const isMultiSelect = isAuthenticated && (event.ctrlKey || event.metaKey);
+            const isRangeSelect = isAuthenticated && event.shiftKey;
 
             // Prevent text selection when shift-clicking for range selection
             if (isRangeSelect) {
@@ -2072,8 +2081,10 @@
             // Update button state and count
             const selectedCount = selectedSystems.length;
             console.log('DRACS: Updated selection - count:', selectedCount, 'systems:', selectedSystems);
-            document.getElementById('selected-count').textContent = selectedCount;
-            document.getElementById('refresh-btn').disabled = selectedCount === 0;
+            const selectedCountEl = document.getElementById('selected-count');
+            if (selectedCountEl) selectedCountEl.textContent = selectedCount;
+            const refreshBtnEl = document.getElementById('refresh-btn');
+            if (refreshBtnEl) refreshBtnEl.disabled = selectedCount === 0;
 
             // Update firmware and job queue button states
             updateFirmwareButtonState();
@@ -2084,6 +2095,7 @@
             updateLatestFirmwareButtonState();
             updateLatestBiosButtonState();
             updateGenerateTsrButtonState();
+            updateViewTsrButtonState();
             updateSelectAllButtonText();
             updateSelectShownButtonText();
         }
@@ -2208,6 +2220,7 @@
             updateLatestFirmwareButtonState();
             updateLatestBiosButtonState();
             updateGenerateTsrButtonState();
+            updateViewTsrButtonState();
             updateSelectAllButtonText();
         }
 
@@ -2272,6 +2285,7 @@
             updateLatestFirmwareButtonState();
             updateLatestBiosButtonState();
             updateGenerateTsrButtonState();
+            updateViewTsrButtonState();
 
             // Update selected count if it exists
             const selectedCountEl = document.getElementById('selected-count');
@@ -2523,6 +2537,7 @@
                     updateLatestFirmwareButtonState();
                     updateLatestBiosButtonState();
                     updateGenerateTsrButtonState();
+                    updateViewTsrButtonState();
                 }
 
                 console.log('DRACS: Table refresh complete, visible rows:', document.querySelectorAll('#table-body tr:not(.hidden)').length);
@@ -3166,6 +3181,18 @@
             const hostname = selectedSystems[0].hostname;
             document.getElementById('tsr-confirm-hostname').textContent = hostname;
             document.getElementById('tsr-confirm-modal').classList.add('active');
+        }
+
+        function updateViewTsrButtonState() {
+            const btn = document.getElementById('view-tsr-btn');
+            if (!btn) return;
+            btn.disabled = selectedSystems.length !== 1;
+        }
+
+        function handleViewTsrClick() {
+            if (selectedSystems.length !== 1) return;
+            const hostname = selectedSystems[0].hostname;
+            window.open(window.location.origin + '/tsr/' + hostname + '/', '_blank');
         }
 
         function cancelTsr() {
@@ -4900,10 +4927,10 @@
         // Initialize on page load
         initTable();
 
-        // Add row click handler to table body (for admin users)
-        if (isAuthenticated) {
-            document.getElementById('table-body').addEventListener('click', handleRowClick);
+        // Add row click handler to table body
+        document.getElementById('table-body').addEventListener('click', handleRowClick);
 
+        if (isAuthenticated) {
             // Prevent text selection when shift-clicking for range selection
             document.getElementById('table-body').addEventListener('mousedown', function(e) {
                 if (e.shiftKey) {
@@ -4999,9 +5026,54 @@
                 updateLatestFirmwareButtonState();
                 updateLatestBiosButtonState();
                 updateGenerateTsrButtonState();
+                updateViewTsrButtonState();
                 updateSelectAllButtonText();
                 updateSelectShownButtonText();
             }
+        });
+
+        // Arrow key navigation for single-row selection
+        document.addEventListener('keydown', function(e) {
+            if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+            if (e.shiftKey || e.ctrlKey || e.metaKey) return;
+            if (selectedRows.length !== 1) return;
+
+            e.preventDefault();
+
+            const allRows = Array.from(tableBody.querySelectorAll('tr:not(.hidden)'));
+            const currentIndex = allRows.indexOf(selectedRows[0]);
+            if (currentIndex === -1) return;
+
+            let targetIndex;
+            if (e.key === 'ArrowUp' && currentIndex > 0) {
+                targetIndex = currentIndex - 1;
+            } else if (e.key === 'ArrowDown' && currentIndex < allRows.length - 1) {
+                targetIndex = currentIndex + 1;
+            } else {
+                return;
+            }
+
+            selectedRows[0].classList.remove('selected');
+            selectedRows = [];
+            selectedSystems = [];
+
+            const targetRow = allRows[targetIndex];
+            targetRow.classList.add('selected');
+            selectedRows.push(targetRow);
+
+            const cells = targetRow.getElementsByTagName('td');
+            selectedSystems.push({
+                service_tag: cells[0].textContent,
+                hostname: cells[1].textContent,
+                model: cells[2].textContent
+            });
+
+            lastClickedRow = targetRow;
+            shiftKeyAnchorRow = targetRow;
+            targetRow.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+
+            updateViewTsrButtonState();
+            updateGenerateTsrButtonState();
         });
 
         // Add right-click event listener to table body only (not headers)
