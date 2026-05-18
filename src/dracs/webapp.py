@@ -23,6 +23,7 @@ import defusedxml.ElementTree as defused_ET
 from pathlib import Path
 from dotenv import load_dotenv
 from flask import Flask, render_template, jsonify, session, request, Response
+from markupsafe import Markup
 
 from dracs.db import db_initialize, get_session, System
 from dracs.commands import refresh_dell_warranty
@@ -383,7 +384,8 @@ def test_idrac_connectivity(hostname: str) -> tuple:
         else:
             return (
                 False,
-                f"iDRAC Access Failed: {result.stderr[:100] if result.stderr else 'Connection failed'}",
+                "iDRAC Access Failed: "
+                f"{result.stderr[:100] if result.stderr else 'Connection failed'}",
             )
 
     except subprocess.TimeoutExpired:
@@ -760,14 +762,17 @@ def api_firmware_update():
             return jsonify(
                 {
                     "success": True,
-                    "message": f"Firmware update initiated for {hostname} to version {target_version}. Check {log_file} for progress.",
+                    "message": f"Firmware update initiated for {hostname}"
+                    f" to version {target_version}."
+                    f" Check {log_file} for progress.",
                 }
             )
         else:
             return jsonify(
                 {
                     "success": False,
-                    "message": f"Failed to start firmware update process. Check {log_file} for details.",
+                    "message": "Failed to start firmware update"
+                    f" process. Check {log_file} for details.",
                 }
             )
 
@@ -824,7 +829,9 @@ def api_bios_update():
                 jsonify(
                     {
                         "success": False,
-                        "message": f"BIOS filename not found for model {model} version {target_bios} in BIOS-filename.ini",
+                        "message": f"BIOS filename not found for"
+                        f" model {model} version {target_bios}"
+                        " in BIOS-filename.ini",
                     }
                 ),
                 400,
@@ -877,14 +884,17 @@ def api_bios_update():
             return jsonify(
                 {
                     "success": True,
-                    "message": f"BIOS update initiated for {hostname} to version {target_bios}. Check {log_file} for progress.",
+                    "message": f"BIOS update initiated for {hostname}"
+                    f" to version {target_bios}."
+                    f" Check {log_file} for progress.",
                 }
             )
         else:
             return jsonify(
                 {
                     "success": False,
-                    "message": f"Failed to start BIOS update process. Check {log_file} for details.",
+                    "message": "Failed to start BIOS update"
+                    f" process. Check {log_file} for details.",
                 }
             )
 
@@ -950,7 +960,8 @@ def api_job_queue():
                 jsonify(
                     {
                         "success": False,
-                        "message": f"Command failed with exit code {result.returncode}: {result.stderr}",
+                        "message": "Command failed with exit code"
+                        f" {result.returncode}: {result.stderr}",
                     }
                 ),
                 500,
@@ -1450,6 +1461,77 @@ def _stage_tsr_files(zip_path: str, hostname: str, service_tag: str) -> None:
     index_path.write_text(
         '<html><head><meta http-equiv="refresh" '
         'content="0;url=tsr/viewer.html"></head></html>\n'
+    )
+
+    _generate_tsr_index(hostname)
+
+
+def _generate_tsr_index(hostname: str) -> None:
+    host_dir = TSR_IMAGE_DIR / hostname
+    if not host_dir.is_dir():
+        return
+
+    entries = []
+    for zip_file in host_dir.glob("TSR*.zip"):
+        fname = zip_file.name
+        ts_part = fname.replace("TSR", "").split("_")[0]
+        try:
+            dt = datetime.strptime(ts_part, "%Y%m%d%H%M%S")
+            entries.append((dt, fname))
+        except ValueError:
+            continue
+
+    entries.sort(key=lambda e: e[0], reverse=True)
+
+    row_tpl = Markup(
+        '<tr style="background:{}">'
+        '<td style="padding:10px 16px">{}</td>'
+        '<td style="padding:10px 16px;text-align:center">'
+        '<a href="{}" download '
+        'style="display:inline-block;padding:6px 18px;'
+        "background:#0d6efd;color:#fff;border-radius:4px;"
+        'text-decoration:none;font-size:14px">Download</a>'
+        "</td></tr>"
+    )
+
+    rows = []
+    for i, (dt, fname) in enumerate(entries):
+        bg = "#ffffff" if i % 2 == 0 else "#f5f5f5"
+        date_str = dt.strftime("%Y/%m/%d %H:%M:%S")
+        rows.append(row_tpl.format(bg, date_str, fname))
+
+    table_rows = (
+        "\n".join(rows)
+        if rows
+        else (
+            '<tr><td colspan="2" style="padding:20px;text-align:center;'
+            'color:#666">No TSR collections found.</td></tr>'
+        )
+    )
+
+    page_tpl = Markup(
+        "<!DOCTYPE html>\n"
+        "<html>\n<head>\n"
+        '<meta charset="utf-8">\n'
+        "<title>TSR Collection for {}</title>\n"
+        "<style>\n"
+        "body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;\n"
+        "       margin: 40px auto; max-width: 720px; color: #333; }}\n"
+        "h1 {{ font-size: 24px; font-weight: 600; margin-bottom: 24px; }}\n"
+        "table {{ width: 100%; border-collapse: collapse; }}\n"
+        "th {{ text-align: left; padding: 10px 16px;"
+        " border-bottom: 2px solid #dee2e6;\n"
+        "      font-size: 14px; color: #555; }}\n"
+        "</style>\n</head>\n<body>\n"
+        "<h1>TSR Collection for {}</h1>\n"
+        "<table>\n"
+        "<tr><th>Date Collected</th><th></th></tr>\n"
+        "{}\n"
+        "</table>\n</body>\n</html>\n"
+    )
+
+    (host_dir / "index.html").write_text(
+        page_tpl.format(hostname, hostname, table_rows)
     )
 
 
@@ -1966,6 +2048,27 @@ def api_tsr_status():
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
 
 
+@app.route("/api/tsr-ensure-index", methods=["POST"])
+def api_tsr_ensure_index():
+    """Regenerate the TSR index page for a host."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "message": "Invalid request"}), 400
+
+        hostname = data.get("hostname", "").strip()
+        if not hostname:
+            return jsonify({"success": False, "message": "Hostname required"}), 400
+        if not validate_hostname(hostname):
+            return jsonify({"success": False, "message": "Invalid hostname"}), 400
+
+        _generate_tsr_index(hostname)
+        return jsonify({"success": True})
+
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+
 @app.route("/api/tsr-collect", methods=["POST"])
 def api_tsr_collect():
     """Initiate a TSR collection on a host."""
@@ -2001,8 +2104,12 @@ def api_tsr_collect():
                 jsonify(
                     {
                         "success": False,
-                        "message": f"Failed to start TSR: "
-                        f"{result.stderr[:200] if result.stderr else result.stdout[:200]}",
+                        "message": "Failed to start TSR: "
+                        + (
+                            result.stderr[:200]
+                            if result.stderr
+                            else result.stdout[:200]
+                        ),
                     }
                 ),
                 500,
