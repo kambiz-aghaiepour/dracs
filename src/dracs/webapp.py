@@ -5,6 +5,7 @@ import configparser
 from datetime import datetime
 import glob
 import gzip
+import html
 import json
 import os
 import re
@@ -1476,11 +1477,12 @@ def _generate_tsr_index(hostname: str) -> None:
     for i, (dt, fname) in enumerate(entries):
         bg = "#ffffff" if i % 2 == 0 else "#f5f5f5"
         date_str = dt.strftime("%Y/%m/%d %H:%M:%S")
+        safe_fname = html.escape(fname, quote=True)
         rows.append(
             f'<tr style="background:{bg}">'
             f'<td style="padding:10px 16px">{date_str}</td>'
             f'<td style="padding:10px 16px;text-align:center">'
-            f'<a href="{fname}" download '
+            f'<a href="{safe_fname}" download '
             f'style="display:inline-block;padding:6px 18px;'
             f"background:#0d6efd;color:#fff;border-radius:4px;"
             f'text-decoration:none;font-size:14px">Download</a>'
@@ -1496,11 +1498,13 @@ def _generate_tsr_index(hostname: str) -> None:
         )
     )
 
-    html = f"""<!DOCTYPE html>
+    safe_hostname = html.escape(hostname)
+
+    page = f"""<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
-<title>TSR Collection for {hostname}</title>
+<title>TSR Collection for {safe_hostname}</title>
 <style>
 body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
        margin: 40px auto; max-width: 720px; color: #333; }}
@@ -1511,7 +1515,7 @@ th {{ text-align: left; padding: 10px 16px; border-bottom: 2px solid #dee2e6;
 </style>
 </head>
 <body>
-<h1>TSR Collection for {hostname}</h1>
+<h1>TSR Collection for {safe_hostname}</h1>
 <table>
 <tr><th>Date Collected</th><th></th></tr>
 {table_rows}
@@ -1520,7 +1524,7 @@ th {{ text-align: left; padding: 10px 16px; border-bottom: 2px solid #dee2e6;
 </html>
 """
 
-    (host_dir / "index.html").write_text(html)
+    (host_dir / "index.html").write_text(page)
 
 
 @app.route("/api/latest-firmware", methods=["POST"])

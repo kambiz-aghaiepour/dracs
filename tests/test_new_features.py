@@ -478,6 +478,16 @@ class TestTsrEnsureIndexEndpoint:
         )
         assert resp.status_code == 400
 
+    def test_empty_hostname(self, client):
+        resp = client.post(
+            "/api/tsr-ensure-index",
+            data=json.dumps({"hostname": ""}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        data = json.loads(resp.data)
+        assert data["message"] == "Hostname required"
+
     def test_invalid_hostname(self, client):
         resp = client.post(
             "/api/tsr-ensure-index",
