@@ -1872,6 +1872,8 @@ def api_latest_bios():
 TSR_IMAGE_DIR = Path("/var/lib/dracs/web/tsr")
 TFTPBOOT_DIR = Path("/var/lib/tftpboot")
 
+_tsr_monitors = {}
+
 
 def _build_ssh_racadm_cmd(hostname: str, *racadm_args: str) -> list:
     idrac_fqdn = build_idrac_hostname(hostname)
@@ -1969,42 +1971,88 @@ def _extract_tsr(zip_path: str, dest_dir: str) -> None:
             os.chmod(fp, st.st_mode | 0o044)
 
 
+def _get_sa_jobs(hostname: str) -> list | None:
+    cmd = _build_ssh_racadm_cmd(hostname, "jobqueue", "view")
+    result = subprocess.run(  # nosec # nosemgrep
+        cmd, capture_output=True, text=True, timeout=30  # nosemgrep
+    )
+    if result.returncode != 0:
+        return None
+    return [
+        j
+        for j in parse_job_queue(result.stdout)
+        if j.get("job_name") == "SupportAssist Collection"
+    ]
+
+
 def _tsr_monitor_thread(hostname: str, service_tag: str) -> None:
     fqdn = socket.getfqdn()
     max_wait = 1800
     poll_interval = 20
     elapsed = 0
 
-    while elapsed < max_wait:
-        time.sleep(poll_interval)
-        elapsed += poll_interval
-        try:
-            cmd = _build_ssh_racadm_cmd(hostname, "jobqueue", "view")
-            result = subprocess.run(  # nosec # nosemgrep
-                cmd, capture_output=True, text=True, timeout=30  # nosemgrep
-            )
-            if result.returncode != 0:
+    try:
+        # Phase 1: wait for a Running collection job
+        while elapsed < max_wait:
+            time.sleep(poll_interval)
+            elapsed += poll_interval
+            try:
+                jobs = _get_sa_jobs(hostname)
+                if jobs is None:
+                    continue
+                if any(j.get("status") == "Running" for j in jobs):
+                    break
+            except Exception as exc:
+                print(
+                    f"TSR monitor error: {exc}",
+                    file=sys.stderr,
+                )
+                continue
+        else:
+            return
+
+        # Phase 2: wait for collection to finish
+        while elapsed < max_wait:
+            time.sleep(poll_interval)
+            elapsed += poll_interval
+            try:
+                jobs = _get_sa_jobs(hostname)
+                if jobs is None:
+                    continue
+                still_running = any(j.get("status") == "Running" for j in jobs)
+                if still_running:
+                    continue
+                collection_done = any(
+                    "collection operation is completed successfully"
+                    in j.get("message", "").lower()
+                    for j in jobs
+                    if j.get("status") == "Completed"
+                )
+                if not collection_done:
+                    continue
+            except Exception as exc:
+                print(
+                    f"TSR monitor error: {exc}",
+                    file=sys.stderr,
+                )
                 continue
 
-            jobs = parse_job_queue(result.stdout)
-            collection_done = any(
-                job.get("status") == "Completed"
-                and "collection operation is completed successfully"
-                in job.get("message", "").lower()
-                for job in jobs
-                if job.get("job_name") == "SupportAssist Collection"
-            )
-
-            if not collection_done:
-                continue
-
+            # Trigger export
             export_cmd = _build_ssh_racadm_cmd(
-                hostname, "techsupreport", "export", "-l", f"tftp://{fqdn}"
+                hostname,
+                "techsupreport",
+                "export",
+                "-l",
+                f"tftp://{fqdn}",
             )
             subprocess.run(  # nosec # nosemgrep
-                export_cmd, capture_output=True, text=True, timeout=30  # nosemgrep
+                export_cmd,
+                capture_output=True,
+                text=True,
+                timeout=30,  # nosemgrep
             )
 
+            cmd = _build_ssh_racadm_cmd(hostname, "jobqueue", "view")
             if not _wait_for_tsr_export(cmd, poll_interval, max_wait):
                 return
 
@@ -2017,9 +2065,8 @@ def _tsr_monitor_thread(hostname: str, service_tag: str) -> None:
             _stage_tsr_files(zip_path, hostname, service_tag)
             return
 
-        except Exception as exc:
-            print(f"TSR monitor error: {exc}", file=sys.stderr)
-            continue
+    finally:
+        _tsr_monitors.pop(hostname, None)
 
 
 @app.route("/api/tsr-status", methods=["POST"])
@@ -2122,12 +2169,15 @@ def api_tsr_collect():
                 500,
             )
 
-        thread = threading.Thread(
-            target=_tsr_monitor_thread,
-            args=(hostname, service_tag),
-            daemon=True,
-        )
-        thread.start()
+        existing = _tsr_monitors.get(hostname)
+        if not (existing and existing.is_alive()):
+            thread = threading.Thread(
+                target=_tsr_monitor_thread,
+                args=(hostname, service_tag),
+                daemon=True,
+            )
+            thread.start()
+            _tsr_monitors[hostname] = thread
 
         return jsonify({"success": True, "message": f"TSR initiated for {hostname}"})
 
