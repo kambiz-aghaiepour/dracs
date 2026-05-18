@@ -377,6 +377,125 @@ class TestExtractTsr:
 
 
 # ---------------------------------------------------------------------------
+# _generate_tsr_index
+# ---------------------------------------------------------------------------
+class TestGenerateTsrIndex:
+    def test_generates_index_with_entries(self, tmp_path):
+        from dracs.webapp import _generate_tsr_index
+
+        host_dir = tmp_path / "server01.example.com"
+        host_dir.mkdir()
+        (host_dir / "TSR20260115143000_TAG001.zip").write_bytes(b"fake")
+        (host_dir / "TSR20260210093000_TAG001.zip").write_bytes(b"fake")
+        (host_dir / "somedir").mkdir()
+        (host_dir / "latest").symlink_to("somedir")
+
+        with patch("dracs.webapp.TSR_IMAGE_DIR", tmp_path):
+            _generate_tsr_index("server01.example.com")
+
+        index = host_dir / "index.html"
+        assert index.exists()
+        content = index.read_text()
+        assert "TSR Collection for server01.example.com" in content
+        assert "2026/02/10 09:30:00" in content
+        assert "2026/01/15 14:30:00" in content
+        assert "TSR20260210093000_TAG001.zip" in content
+        assert "TSR20260115143000_TAG001.zip" in content
+        newer_pos = content.index("2026/02/10")
+        older_pos = content.index("2026/01/15")
+        assert newer_pos < older_pos
+
+    def test_empty_directory(self, tmp_path):
+        from dracs.webapp import _generate_tsr_index
+
+        host_dir = tmp_path / "empty-host"
+        host_dir.mkdir()
+
+        with patch("dracs.webapp.TSR_IMAGE_DIR", tmp_path):
+            _generate_tsr_index("empty-host")
+
+        content = (host_dir / "index.html").read_text()
+        assert "No TSR collections found" in content
+
+    def test_nonexistent_directory(self, tmp_path):
+        from dracs.webapp import _generate_tsr_index
+
+        with patch("dracs.webapp.TSR_IMAGE_DIR", tmp_path):
+            _generate_tsr_index("no-such-host")
+
+        assert not (tmp_path / "no-such-host" / "index.html").exists()
+
+    def test_skips_malformed_filenames(self, tmp_path):
+        from dracs.webapp import _generate_tsr_index
+
+        host_dir = tmp_path / "host1"
+        host_dir.mkdir()
+        (host_dir / "TSRbadtime_TAG.zip").write_bytes(b"fake")
+        (host_dir / "TSR20260301120000_TAG.zip").write_bytes(b"fake")
+
+        with patch("dracs.webapp.TSR_IMAGE_DIR", tmp_path):
+            _generate_tsr_index("host1")
+
+        content = (host_dir / "index.html").read_text()
+        assert "2026/03/01 12:00:00" in content
+        assert "TSRbadtime_TAG.zip" not in content
+
+
+# ---------------------------------------------------------------------------
+# /api/tsr-ensure-index Endpoint
+# ---------------------------------------------------------------------------
+class TestTsrEnsureIndexEndpoint:
+    def test_success(self, client, tmp_path):
+        host_dir = tmp_path / "server01"
+        host_dir.mkdir()
+        (host_dir / "TSR20260101120000_TAG001.zip").write_bytes(b"fake")
+        with patch("dracs.webapp.TSR_IMAGE_DIR", tmp_path):
+            resp = client.post(
+                "/api/tsr-ensure-index",
+                data=json.dumps({"hostname": "server01"}),
+                content_type="application/json",
+            )
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data["success"] is True
+
+    def test_no_auth_required(self, client, tmp_path):
+        host_dir = tmp_path / "server01"
+        host_dir.mkdir()
+        with patch("dracs.webapp.TSR_IMAGE_DIR", tmp_path):
+            resp = client.post(
+                "/api/tsr-ensure-index",
+                data=json.dumps({"hostname": "server01"}),
+                content_type="application/json",
+            )
+        assert resp.status_code == 200
+
+    def test_missing_hostname(self, client):
+        resp = client.post(
+            "/api/tsr-ensure-index",
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+    def test_invalid_hostname(self, client):
+        resp = client.post(
+            "/api/tsr-ensure-index",
+            data=json.dumps({"hostname": "../../etc/passwd"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+    def test_no_json(self, client):
+        resp = client.post(
+            "/api/tsr-ensure-index",
+            data="bad",
+            content_type="text/plain",
+        )
+        assert resp.status_code in (400, 500)
+
+
+# ---------------------------------------------------------------------------
 # Power Status Endpoint
 # ---------------------------------------------------------------------------
 class TestPowerStatusEndpoint:

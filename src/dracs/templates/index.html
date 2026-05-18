@@ -3192,7 +3192,14 @@
         function handleViewTsrClick() {
             if (selectedSystems.length !== 1) return;
             const hostname = selectedSystems[0].hostname;
-            window.open(window.location.origin + '/tsr/' + hostname + '/', '_blank');
+            const url = window.location.origin + '/tsr/' + hostname + '/';
+            fetch('/api/tsr-ensure-index', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({hostname: hostname})
+            }).finally(function() {
+                window.open(url, '_blank');
+            });
         }
 
         function cancelTsr() {

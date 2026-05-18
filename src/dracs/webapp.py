@@ -1452,6 +1452,76 @@ def _stage_tsr_files(zip_path: str, hostname: str, service_tag: str) -> None:
         'content="0;url=tsr/viewer.html"></head></html>\n'
     )
 
+    _generate_tsr_index(hostname)
+
+
+def _generate_tsr_index(hostname: str) -> None:
+    host_dir = TSR_IMAGE_DIR / hostname
+    if not host_dir.is_dir():
+        return
+
+    entries = []
+    for zip_file in host_dir.glob("TSR*.zip"):
+        fname = zip_file.name
+        ts_part = fname.replace("TSR", "").split("_")[0]
+        try:
+            dt = datetime.strptime(ts_part, "%Y%m%d%H%M%S")
+            entries.append((dt, fname))
+        except ValueError:
+            continue
+
+    entries.sort(key=lambda e: e[0], reverse=True)
+
+    rows = []
+    for i, (dt, fname) in enumerate(entries):
+        bg = "#ffffff" if i % 2 == 0 else "#f5f5f5"
+        date_str = dt.strftime("%Y/%m/%d %H:%M:%S")
+        rows.append(
+            f'<tr style="background:{bg}">'
+            f'<td style="padding:10px 16px">{date_str}</td>'
+            f'<td style="padding:10px 16px;text-align:center">'
+            f'<a href="{fname}" download '
+            f'style="display:inline-block;padding:6px 18px;'
+            f"background:#0d6efd;color:#fff;border-radius:4px;"
+            f'text-decoration:none;font-size:14px">Download</a>'
+            f"</td></tr>"
+        )
+
+    table_rows = (
+        "\n".join(rows)
+        if rows
+        else (
+            '<tr><td colspan="2" style="padding:20px;text-align:center;'
+            'color:#666">No TSR collections found.</td></tr>'
+        )
+    )
+
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>TSR Collection for {hostname}</title>
+<style>
+body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+       margin: 40px auto; max-width: 720px; color: #333; }}
+h1 {{ font-size: 24px; font-weight: 600; margin-bottom: 24px; }}
+table {{ width: 100%; border-collapse: collapse; }}
+th {{ text-align: left; padding: 10px 16px; border-bottom: 2px solid #dee2e6;
+      font-size: 14px; color: #555; }}
+</style>
+</head>
+<body>
+<h1>TSR Collection for {hostname}</h1>
+<table>
+<tr><th>Date Collected</th><th></th></tr>
+{table_rows}
+</table>
+</body>
+</html>
+"""
+
+    (host_dir / "index.html").write_text(html)
+
 
 @app.route("/api/latest-firmware", methods=["POST"])
 def api_latest_firmware():
@@ -1962,6 +2032,27 @@ def api_tsr_status():
 
     except subprocess.TimeoutExpired:
         return jsonify({"success": False, "message": "Connection timeout"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+
+@app.route("/api/tsr-ensure-index", methods=["POST"])
+def api_tsr_ensure_index():
+    """Regenerate the TSR index page for a host."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "message": "Invalid request"}), 400
+
+        hostname = data.get("hostname", "").strip()
+        if not hostname:
+            return jsonify({"success": False, "message": "Hostname required"}), 400
+        if not validate_hostname(hostname):
+            return jsonify({"success": False, "message": "Invalid hostname"}), 400
+
+        _generate_tsr_index(hostname)
+        return jsonify({"success": True})
+
     except Exception as e:
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
 
