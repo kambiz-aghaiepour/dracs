@@ -16,8 +16,9 @@ import tempfile
 import threading
 import time
 import urllib.request
-import xml.etree.ElementTree as ET
 import zipfile
+
+import defusedxml.ElementTree as defused_ET
 from pathlib import Path
 from dotenv import load_dotenv
 from flask import Flask, render_template, jsonify, session, request, Response
@@ -837,7 +838,7 @@ def api_bios_update():
         # Build HTTP URL for BIOS image (model-specific subdirectory)
         bios_server = os.environ.get("DRACS_BIOS_SERVER") or socket.getfqdn()
         bios_uri = os.environ.get("DRACS_BIOS_URI", "/bios/")
-        bios_url = f"http://{bios_server}{bios_uri}{model}/"
+        bios_url = f"http://{bios_server}{bios_uri}{model}/"  # nosec — server-controlled values
 
         # Prepare log file path
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1323,7 +1324,7 @@ def _parse_catalog_datetime(dt_str: str) -> datetime:
 
 def _find_latest_idrac_firmware(xml_bytes: bytes, model: str) -> dict | None:
     text = xml_bytes.decode("utf-16")
-    root = ET.fromstring(text)
+    root = defused_ET.fromstring(text)
     target = model.lower()
     best = None
     best_dt = None
@@ -1367,6 +1368,86 @@ def _sse_event(event_type: str, message: str, **kwargs) -> str:
     payload = {"type": event_type, "message": message}
     payload.update(kwargs)
     return f"data: {json.dumps(payload)}\n\n"
+
+
+def _extract_firmware_version(extract_dir: str, fallback_version: str) -> str:
+    pkg_xml_path = os.path.join(extract_dir, "package.xml")
+    if not os.path.exists(pkg_xml_path):
+        return fallback_version
+    pkg_tree = defused_ET.parse(pkg_xml_path)
+    pkg_root = pkg_tree.getroot()
+    sc = pkg_root.find(".//SoftwareComponent")
+    if sc is None and pkg_root.tag == "SoftwareComponent":
+        sc = pkg_root
+    if sc is not None:
+        vv = sc.get("vendorVersion", "")
+        if vv:
+            return vv
+    return fallback_version
+
+
+def _find_d9_file(extract_dir: str) -> str | None:
+    payload_dir = os.path.join(extract_dir, "payload")
+    if os.path.isdir(payload_dir):
+        for fname in os.listdir(payload_dir):
+            if fname.lower().endswith(".d9"):
+                return os.path.join(payload_dir, fname)
+    for root_dir, _dirs, files in os.walk(extract_dir):
+        for fname in files:
+            if fname.lower().endswith(".d9"):
+                return os.path.join(root_dir, fname)
+    return None
+
+
+def _wait_for_tsr_export(cmd: list, poll_interval: int, max_wait: int) -> bool:
+    elapsed = 0
+    while elapsed < max_wait:
+        time.sleep(poll_interval)
+        elapsed += poll_interval
+        try:
+            result = subprocess.run(  # nosec # nosemgrep
+                cmd, capture_output=True, text=True, timeout=30  # nosemgrep
+            )
+            if result.returncode != 0:
+                continue
+            jobs = parse_job_queue(result.stdout)
+            for job in jobs:
+                if job.get("job_name") != "SupportAssist Collection":
+                    continue
+                if (
+                    job.get("status") == "Completed"
+                    and "transmission operation is completed successfully"
+                    in job.get("message", "").lower()
+                ):
+                    return True
+        except Exception as exc:
+            print(f"TSR export poll error: {exc}", file=sys.stderr)
+            continue
+    return False
+
+
+def _stage_tsr_files(zip_path: str, hostname: str, service_tag: str) -> None:
+    zip_fname = os.path.basename(zip_path)
+    ts_part = zip_fname.replace("TSR", "").split("_")[0]
+
+    host_dir = TSR_IMAGE_DIR / hostname
+    host_dir.mkdir(parents=True, exist_ok=True)
+
+    shutil.copy2(zip_path, host_dir / zip_fname)
+
+    ts_dir = host_dir / ts_part
+    _extract_tsr(str(host_dir / zip_fname), str(ts_dir))
+
+    latest_link = host_dir / "latest"
+    if latest_link.is_symlink() or latest_link.exists():
+        latest_link.unlink()
+    latest_link.symlink_to(ts_part)
+
+    index_path = ts_dir / "index.html"
+    index_path.write_text(
+        '<html><head><meta http-equiv="refresh" '
+        'content="0;url=tsr/viewer.html"></head></html>\n'
+    )
 
 
 @app.route("/api/latest-firmware", methods=["POST"])
@@ -1446,45 +1527,14 @@ def api_latest_firmware():
 
             yield _sse_event("append", "done.")
 
-            pkg_xml_path = os.path.join(extract_dir, "package.xml")
-            pkg_version = version
-            if os.path.exists(pkg_xml_path):
-                pkg_tree = ET.parse(pkg_xml_path)
-                pkg_root = pkg_tree.getroot()
-                sc = pkg_root.find(".//SoftwareComponent")
-                if sc is None:
-                    sc = pkg_root
-                    if sc.tag == "SoftwareComponent":
-                        pass
-                    else:
-                        sc = None
-                if sc is not None:
-                    vv = sc.get("vendorVersion", "")
-                    if vv:
-                        pkg_version = vv
+            pkg_version = _extract_firmware_version(extract_dir, version)
 
             yield _sse_event(
                 "status",
                 f"Latest Firmware version for {model} found: {pkg_version}",
             )
 
-            d9_file = None
-            payload_dir = os.path.join(extract_dir, "payload")
-            if os.path.isdir(payload_dir):
-                for fname in os.listdir(payload_dir):
-                    if fname.lower().endswith(".d9"):
-                        d9_file = os.path.join(payload_dir, fname)
-                        break
-
-            if not d9_file:
-                for root_dir, _dirs, files in os.walk(extract_dir):
-                    for fname in files:
-                        if fname.lower().endswith(".d9"):
-                            d9_file = os.path.join(root_dir, fname)
-                            break
-                    if d9_file:
-                        break
-
+            d9_file = _find_d9_file(extract_dir)
             if not d9_file:
                 yield _sse_event("error", "No .d9 firmware image found in package.")
                 return
@@ -1544,7 +1594,7 @@ def api_latest_firmware():
 
 def _find_latest_bios(xml_bytes: bytes, model: str) -> dict | None:
     text = xml_bytes.decode("utf-16")
-    root = ET.fromstring(text)
+    root = defused_ET.fromstring(text)
     target = model.lower()
     best = None
     best_dt = None
@@ -1666,7 +1716,7 @@ def api_latest_bios():
 
             model_dir = BIOS_IMAGE_DIR / model
             model_dir.mkdir(parents=True, exist_ok=True)
-            os.chmod(model_dir, 0o755)
+            os.chmod(model_dir, 0o755)  # nosec — nginx needs read access to serve files
 
             dest_path = model_dir / exe_filename
             file_exists = dest_path.exists()
@@ -1686,8 +1736,11 @@ def api_latest_bios():
 
             try:
                 _update_bios_filename_ini(model, version, exe_filename)
-            except Exception:
-                pass
+            except Exception as exc:
+                print(
+                    f"Warning: failed to update BIOS-filename.ini: {exc}",
+                    file=sys.stderr,
+                )
 
             already_current = current_version == version
 
@@ -1842,17 +1895,13 @@ def _tsr_monitor_thread(hostname: str, service_tag: str) -> None:
                 continue
 
             jobs = parse_job_queue(result.stdout)
-            collection_done = False
-            for job in jobs:
-                if job.get("job_name") != "SupportAssist Collection":
-                    continue
-                if (
-                    job.get("status") == "Completed"
-                    and "collection operation is completed successfully"
-                    in job.get("message", "").lower()
-                ):
-                    collection_done = True
-                    break
+            collection_done = any(
+                job.get("status") == "Completed"
+                and "collection operation is completed successfully"
+                in job.get("message", "").lower()
+                for job in jobs
+                if job.get("job_name") == "SupportAssist Collection"
+            )
 
             if not collection_done:
                 continue
@@ -1864,34 +1913,7 @@ def _tsr_monitor_thread(hostname: str, service_tag: str) -> None:
                 export_cmd, capture_output=True, text=True, timeout=30  # nosemgrep
             )
 
-            export_elapsed = 0
-            export_done = False
-            while export_elapsed < max_wait:
-                time.sleep(poll_interval)
-                export_elapsed += poll_interval
-                try:
-                    result2 = subprocess.run(  # nosec # nosemgrep
-                        cmd, capture_output=True, text=True, timeout=30  # nosemgrep
-                    )
-                    if result2.returncode != 0:
-                        continue
-                    jobs2 = parse_job_queue(result2.stdout)
-                    for job2 in jobs2:
-                        if job2.get("job_name") != "SupportAssist Collection":
-                            continue
-                        if (
-                            job2.get("status") == "Completed"
-                            and "transmission operation is completed successfully"
-                            in job2.get("message", "").lower()
-                        ):
-                            export_done = True
-                            break
-                    if export_done:
-                        break
-                except Exception:
-                    continue
-
-            if not export_done:
+            if not _wait_for_tsr_export(cmd, poll_interval, max_wait):
                 return
 
             approx_time = datetime.now()
@@ -1900,31 +1922,11 @@ def _tsr_monitor_thread(hostname: str, service_tag: str) -> None:
             if not zip_path:
                 return
 
-            zip_fname = os.path.basename(zip_path)
-            ts_part = zip_fname.replace("TSR", "").split("_")[0]
-
-            host_dir = TSR_IMAGE_DIR / hostname
-            host_dir.mkdir(parents=True, exist_ok=True)
-
-            shutil.copy2(zip_path, host_dir / zip_fname)
-
-            ts_dir = host_dir / ts_part
-            _extract_tsr(str(host_dir / zip_fname), str(ts_dir))
-
-            latest_link = host_dir / "latest"
-            if latest_link.is_symlink() or latest_link.exists():
-                latest_link.unlink()
-            latest_link.symlink_to(ts_part)
-
-            index_path = ts_dir / "index.html"
-            index_path.write_text(
-                '<html><head><meta http-equiv="refresh" '
-                'content="0;url=tsr/viewer.html"></head></html>\n'
-            )
-
+            _stage_tsr_files(zip_path, hostname, service_tag)
             return
 
-        except Exception:
+        except Exception as exc:
+            print(f"TSR monitor error: {exc}", file=sys.stderr)
             continue
 
 
@@ -1950,7 +1952,9 @@ def api_tsr_status():
 
         status = _get_tsr_job_status(hostname)
         fqdn = socket.getfqdn()
-        status["tsr_url"] = f"http://{fqdn}/tsr/{hostname}/"
+        status["tsr_url"] = (
+            f"http://{fqdn}/tsr/{hostname}/"  # nosec — server FQDN, not user input
+        )
         return jsonify({"success": True, **status})
 
     except subprocess.TimeoutExpired:

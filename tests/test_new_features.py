@@ -935,7 +935,7 @@ class TestLatestFirmwareStreaming:
         with (
             patch("dracs.webapp.urllib.request.urlopen", side_effect=fake_urlopen),
             patch("dracs.webapp.shutil.copyfileobj", side_effect=fake_copyfileobj),
-            patch("dracs.webapp.ET.parse", side_effect=fake_et_parse),
+            patch("dracs.webapp.defused_ET.parse", side_effect=fake_et_parse),
             patch("dracs.webapp.FIRMWARE_IMAGE_DIR", fw_dir),
         ):
             resp = client.post(
@@ -1041,7 +1041,7 @@ class TestLatestFirmwareStreaming:
         with (
             patch("dracs.webapp.urllib.request.urlopen", side_effect=fake_urlopen),
             patch("dracs.webapp.shutil.copyfileobj", side_effect=fake_copyfileobj),
-            patch("dracs.webapp.ET.parse", side_effect=fake_et_parse),
+            patch("dracs.webapp.defused_ET.parse", side_effect=fake_et_parse),
             patch("dracs.webapp.FIRMWARE_IMAGE_DIR", fw_dir),
         ):
             resp = client.post(
@@ -1549,7 +1549,7 @@ class TestFirmwareStreamEdgeCases:
         with (
             patch("dracs.webapp.urllib.request.urlopen", side_effect=fake_urlopen),
             patch("dracs.webapp.shutil.copyfileobj", side_effect=fake_copyfileobj),
-            patch("dracs.webapp.ET.parse", side_effect=fake_et_parse),
+            patch("dracs.webapp.defused_ET.parse", side_effect=fake_et_parse),
             patch("dracs.webapp.FIRMWARE_IMAGE_DIR", fw_dir),
         ):
             resp = client.post(
@@ -1616,7 +1616,7 @@ class TestFirmwareStreamEdgeCases:
         with (
             patch("dracs.webapp.urllib.request.urlopen", side_effect=fake_urlopen),
             patch("dracs.webapp.shutil.copyfileobj", side_effect=fake_copyfileobj),
-            patch("dracs.webapp.ET.parse", side_effect=fake_et_parse),
+            patch("dracs.webapp.defused_ET.parse", side_effect=fake_et_parse),
             patch("dracs.webapp.FIRMWARE_IMAGE_DIR", fw_dir),
         ):
             resp = client.post(
@@ -1851,7 +1851,7 @@ class TestFirmwareD9FallbackSearch:
         with (
             patch("dracs.webapp.urllib.request.urlopen", side_effect=fake_urlopen),
             patch("dracs.webapp.shutil.copyfileobj", side_effect=fake_copyfileobj),
-            patch("dracs.webapp.ET.parse", side_effect=fake_et_parse),
+            patch("dracs.webapp.defused_ET.parse", side_effect=fake_et_parse),
             patch("dracs.webapp.FIRMWARE_IMAGE_DIR", fw_dir),
         ):
             resp = client.post(
