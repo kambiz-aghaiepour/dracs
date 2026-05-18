@@ -942,7 +942,8 @@ class TestTsrCollectEndpoint:
         mock_result = MagicMock(returncode=0, stdout="TSR collection started")
         with patch("dracs.webapp.subprocess.run", return_value=mock_result):
             with patch("dracs.webapp.threading.Thread") as mock_thread:
-                mock_thread.return_value = MagicMock()
+                mock_instance = MagicMock()
+                mock_thread.return_value = mock_instance
                 resp = client.post(
                     "/api/tsr-collect",
                     data=json.dumps({"hostname": "server01", "service_tag": "TAG001"}),
@@ -950,7 +951,32 @@ class TestTsrCollectEndpoint:
                 )
         data = resp.get_json()
         assert data["success"] is True
-        mock_thread.return_value.start.assert_called_once()
+        mock_instance.start.assert_called_once()
+
+    def test_duplicate_monitor_not_spawned(self, client):
+        _login(client)
+        from dracs.webapp import _tsr_monitors
+
+        alive_thread = MagicMock()
+        alive_thread.is_alive.return_value = True
+        _tsr_monitors["server01"] = alive_thread
+
+        mock_result = MagicMock(returncode=0, stdout="TSR collection started")
+        try:
+            with patch("dracs.webapp.subprocess.run", return_value=mock_result):
+                with patch("dracs.webapp.threading.Thread") as mock_thread:
+                    resp = client.post(
+                        "/api/tsr-collect",
+                        data=json.dumps(
+                            {"hostname": "server01", "service_tag": "TAG001"}
+                        ),
+                        content_type="application/json",
+                    )
+            data = resp.get_json()
+            assert data["success"] is True
+            mock_thread.assert_not_called()
+        finally:
+            _tsr_monitors.pop("server01", None)
 
     def test_command_failure(self, client):
         _login(client)
@@ -1344,6 +1370,15 @@ class TestLatestBiosStreaming:
 # ---------------------------------------------------------------------------
 # TSR monitor thread
 # ---------------------------------------------------------------------------
+_RUNNING_OUTPUT = (
+    "[Job ID=JID_000]\n"
+    "Job Name=SupportAssist Collection\n"
+    "Status=Running\n"
+    "Percent Complete=50\n"
+    "Message=Collecting...\n"
+)
+
+
 class TestTsrMonitorThread:
     def test_monitor_exits_on_no_collection(self):
         from dracs.webapp import _tsr_monitor_thread
@@ -1403,9 +1438,11 @@ class TestTsrMonitorThread:
 
         def fake_run(*args, **kwargs):
             call_count[0] += 1
-            if call_count[0] <= 1:
-                return MagicMock(returncode=0, stdout=collection_output)
+            if call_count[0] == 1:
+                return MagicMock(returncode=0, stdout=_RUNNING_OUTPUT)
             if call_count[0] == 2:
+                return MagicMock(returncode=0, stdout=collection_output)
+            if call_count[0] == 3:
                 return MagicMock(returncode=0, stdout="export started")
             return MagicMock(returncode=0, stdout=transmission_output)
 
@@ -1469,8 +1506,10 @@ class TestTsrMonitorThread:
         def fake_run(*args, **kwargs):
             call_count[0] += 1
             if call_count[0] == 1:
-                return MagicMock(returncode=0, stdout=collection_output)
+                return MagicMock(returncode=0, stdout=_RUNNING_OUTPUT)
             if call_count[0] == 2:
+                return MagicMock(returncode=0, stdout=collection_output)
+            if call_count[0] == 3:
                 return MagicMock(returncode=0, stdout="export started")
             return MagicMock(returncode=0, stdout=not_done_output)
 
@@ -1516,9 +1555,11 @@ class TestTsrMonitorThread:
 
         def fake_run(*args, **kwargs):
             call_count[0] += 1
-            if call_count[0] <= 1:
-                return MagicMock(returncode=0, stdout=collection_output)
+            if call_count[0] == 1:
+                return MagicMock(returncode=0, stdout=_RUNNING_OUTPUT)
             if call_count[0] == 2:
+                return MagicMock(returncode=0, stdout=collection_output)
+            if call_count[0] == 3:
                 return MagicMock(returncode=0, stdout="ok")
             return MagicMock(returncode=0, stdout=transmission_output)
 
@@ -1532,6 +1573,133 @@ class TestTsrMonitorThread:
             ),
         ):
             _tsr_monitor_thread("server01", "TAG001")
+
+    def test_old_completed_job_does_not_trigger_premature_export(self):
+        from dracs.webapp import _tsr_monitor_thread
+
+        old_completed = (
+            "[Job ID=JID_OLD]\n"
+            "Job Name=SupportAssist Collection\n"
+            "Status=Completed\n"
+            "Percent Complete=100\n"
+            "Message=The SupportAssist Collection Operation"
+            " is completed successfully\n"
+        )
+
+        sleep_count = [0]
+
+        def fake_sleep(secs):
+            sleep_count[0] += 1
+            if sleep_count[0] > 5:
+                raise StopIteration
+
+        with (
+            patch(
+                "dracs.webapp.subprocess.run",
+                return_value=MagicMock(returncode=0, stdout=old_completed),
+            ),
+            patch("dracs.webapp.time.sleep", side_effect=fake_sleep),
+            patch.dict(
+                os.environ,
+                {
+                    "DRACS_DNS_STRING": "mgmt-",
+                    "DRACS_DNS_MODE": "prefix",
+                },
+            ),
+        ):
+            try:
+                _tsr_monitor_thread("server01", "TAG001")
+            except StopIteration:
+                pass
+        assert sleep_count[0] > 3
+
+    def test_phase1_exception_continues(self):
+        from dracs.webapp import _tsr_monitor_thread
+
+        call_count = [0]
+
+        def fake_get_sa_jobs(hostname):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                raise RuntimeError("network error")
+            if call_count[0] == 2:
+                return [{"job_name": "SupportAssist Collection", "status": "Running"}]
+            return []
+
+        with (
+            patch("dracs.webapp._get_sa_jobs", side_effect=fake_get_sa_jobs),
+            patch("dracs.webapp.time.sleep"),
+            patch.dict(
+                os.environ,
+                {"DRACS_DNS_STRING": "mgmt-", "DRACS_DNS_MODE": "prefix"},
+            ),
+        ):
+            _tsr_monitor_thread("server01", "TAG001")
+        assert call_count[0] >= 2
+
+    def test_phase2_exception_and_null_jobs(self):
+        from dracs.webapp import _tsr_monitor_thread
+
+        call_count = [0]
+
+        def fake_get_sa_jobs(hostname):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return [{"job_name": "SupportAssist Collection", "status": "Running"}]
+            if call_count[0] == 2:
+                return None
+            if call_count[0] == 3:
+                raise RuntimeError("network error")
+            return [
+                {
+                    "job_name": "SupportAssist Collection",
+                    "status": "Completed",
+                    "message": "Not the right message",
+                }
+            ]
+
+        sleep_count = [0]
+
+        def fake_sleep(secs):
+            sleep_count[0] += 1
+            if sleep_count[0] > 10:
+                raise StopIteration
+
+        with (
+            patch("dracs.webapp._get_sa_jobs", side_effect=fake_get_sa_jobs),
+            patch("dracs.webapp.time.sleep", side_effect=fake_sleep),
+            patch.dict(
+                os.environ,
+                {"DRACS_DNS_STRING": "mgmt-", "DRACS_DNS_MODE": "prefix"},
+            ),
+        ):
+            try:
+                _tsr_monitor_thread("server01", "TAG001")
+            except StopIteration:
+                pass
+
+    def test_registry_cleanup_on_exit(self):
+        from dracs.webapp import _tsr_monitor_thread, _tsr_monitors
+
+        _tsr_monitors["server01"] = MagicMock(is_alive=lambda: True)
+
+        with (
+            patch(
+                "dracs.webapp.subprocess.run",
+                return_value=MagicMock(returncode=0, stdout=""),
+            ),
+            patch("dracs.webapp.time.sleep"),
+            patch.dict(
+                os.environ,
+                {
+                    "DRACS_DNS_STRING": "mgmt-",
+                    "DRACS_DNS_MODE": "prefix",
+                },
+            ),
+        ):
+            _tsr_monitor_thread("server01", "TAG001")
+
+        assert "server01" not in _tsr_monitors
 
 
 # ---------------------------------------------------------------------------
@@ -2033,12 +2201,14 @@ class TestTsrMonitorExportEdgeCases:
         def fake_run(*args, **kwargs):
             call_count[0] += 1
             if call_count[0] == 1:
-                return MagicMock(returncode=0, stdout=collection_output)
+                return MagicMock(returncode=0, stdout=_RUNNING_OUTPUT)
             if call_count[0] == 2:
-                return MagicMock(returncode=0, stdout="export started")
+                return MagicMock(returncode=0, stdout=collection_output)
             if call_count[0] == 3:
-                return MagicMock(returncode=1, stdout="", stderr="fail")
+                return MagicMock(returncode=0, stdout="export started")
             if call_count[0] == 4:
+                return MagicMock(returncode=1, stdout="", stderr="fail")
+            if call_count[0] == 5:
                 raise Exception("network error")
             return MagicMock(returncode=0, stdout=transmission_output)
 
@@ -2070,7 +2240,20 @@ class TestTsrMonitorExportEdgeCases:
     def test_monitor_with_non_tsr_jobs(self, tmp_path):
         from dracs.webapp import _tsr_monitor_thread
 
-        mixed_output = (
+        mixed_running = (
+            "[Job ID=JID_001]\n"
+            "Job Name=Firmware Update\n"
+            "Status=Completed\n"
+            "Percent Complete=100\n"
+            "Message=Job completed\n"
+            "\n"
+            "[Job ID=JID_002]\n"
+            "Job Name=SupportAssist Collection\n"
+            "Status=Running\n"
+            "Percent Complete=50\n"
+            "Message=Collecting...\n"
+        )
+        mixed_done = (
             "[Job ID=JID_001]\n"
             "Job Name=Firmware Update\n"
             "Status=Completed\n"
@@ -2102,8 +2285,10 @@ class TestTsrMonitorExportEdgeCases:
         def fake_run(*args, **kwargs):
             call_count[0] += 1
             if call_count[0] == 1:
-                return MagicMock(returncode=0, stdout=mixed_output)
+                return MagicMock(returncode=0, stdout=mixed_running)
             if call_count[0] == 2:
+                return MagicMock(returncode=0, stdout=mixed_done)
+            if call_count[0] == 3:
                 return MagicMock(returncode=0, stdout="ok")
             return MagicMock(returncode=0, stdout=transmission_output)
 
@@ -2155,8 +2340,10 @@ class TestTsrMonitorExportEdgeCases:
         def fake_run(*args, **kwargs):
             call_count[0] += 1
             if call_count[0] == 1:
-                return MagicMock(returncode=0, stdout=collection_output)
+                return MagicMock(returncode=0, stdout=_RUNNING_OUTPUT)
             if call_count[0] == 2:
+                return MagicMock(returncode=0, stdout=collection_output)
+            if call_count[0] == 3:
                 return MagicMock(returncode=0, stdout="ok")
             return MagicMock(returncode=0, stdout=transmission_output)
 
