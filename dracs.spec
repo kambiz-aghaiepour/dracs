@@ -25,6 +25,8 @@ Summary:        %{summary}
 Requires:       nginx
 Requires:       openssl
 Requires:       python3-websockify
+Requires:       tftp-server
+Requires:       tftp
 Provides:       user(dracs)
 Provides:       group(dracs)
 
@@ -50,6 +52,9 @@ Provides:       group(dracs)
 install -D -m 0644 systemd/dracs-webapp.service %{buildroot}%{_unitdir}/dracs-webapp.service
 install -d -m 0755 %{buildroot}%{_sysconfdir}/dracs
 install -d -m 0755 %{buildroot}%{_sharedstatedir}/dracs
+install -d -m 0755 %{buildroot}%{_sharedstatedir}/dracs/web/firmware
+install -d -m 0755 %{buildroot}%{_sharedstatedir}/dracs/web/bios
+install -d -m 0755 %{buildroot}%{_sharedstatedir}/dracs/web/tsr
 install -d -m 0755 %{buildroot}%{_localstatedir}/log/dracs
 
 
@@ -126,18 +131,39 @@ if [ $1 -eq 1 ]; then
             -subj "/CN=${FQDN}" 2>/dev/null || :
         chmod 0600 "${CERT_DIR}/${FQDN}.key" 2>/dev/null || :
     fi
+
+    # Configure TFTP server for iDRAC write access
+    if [ -f /usr/lib/systemd/system/tftp.service ] && [ ! -f /etc/systemd/system/tftp.service ]; then
+        cp /usr/lib/systemd/system/tftp.service /etc/systemd/system/tftp.service
+        sed -i 's|^ExecStart=.*|ExecStart=/usr/sbin/in.tftpd -c -p -s /var/lib/tftpboot|' \
+            /etc/systemd/system/tftp.service
+    fi
+    systemctl daemon-reload 2>/dev/null || :
+    systemctl enable --now tftp.socket 2>/dev/null || :
+    systemctl restart tftp.service 2>/dev/null || :
+    chmod 777 /var/lib/tftpboot 2>/dev/null || :
+
+    # SELinux booleans for TFTP
+    setsebool -P tftp_home_dir 1 2>/dev/null || :
+    setsebool -P tftp_anon_write 1 2>/dev/null || :
 fi
 
-# Open firewall ports 80 and 443
+# Open firewall ports 80, 443, and TFTP
 if command -v firewall-cmd &>/dev/null && systemctl is-enabled firewalld &>/dev/null; then
     firewall-cmd --permanent --add-port=80/tcp 2>/dev/null || :
     firewall-cmd --permanent --add-port=443/tcp 2>/dev/null || :
+    firewall-cmd --permanent --add-service=tftp 2>/dev/null || :
     firewall-cmd --reload 2>/dev/null || :
 elif systemctl is-enabled iptables &>/dev/null; then
     iptables -C INPUT -p tcp --dport 80 -j ACCEPT 2>/dev/null || \
         iptables -I INPUT -p tcp --dport 80 -j ACCEPT 2>/dev/null || :
     iptables -C INPUT -p tcp --dport 443 -j ACCEPT 2>/dev/null || \
         iptables -I INPUT -p tcp --dport 443 -j ACCEPT 2>/dev/null || :
+    modprobe nf_conntrack_tftp 2>/dev/null || :
+    iptables -C INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || \
+        iptables -I INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || :
+    iptables -C INPUT -p udp --dport 69 -j ACCEPT 2>/dev/null || \
+        iptables -I INPUT -p udp --dport 69 -j ACCEPT 2>/dev/null || :
     service iptables save 2>/dev/null || :
 fi
 
@@ -160,6 +186,10 @@ fi
 %{_unitdir}/dracs-webapp.service
 %dir %attr(0755, dracs, dracs) %{_sysconfdir}/dracs
 %dir %attr(0755, dracs, dracs) %{_sharedstatedir}/dracs
+%dir %attr(0755, dracs, dracs) %{_sharedstatedir}/dracs/web
+%dir %attr(0755, dracs, dracs) %{_sharedstatedir}/dracs/web/firmware
+%dir %attr(0755, dracs, dracs) %{_sharedstatedir}/dracs/web/bios
+%dir %attr(0755, dracs, dracs) %{_sharedstatedir}/dracs/web/tsr
 %dir %attr(0755, dracs, dracs) %{_localstatedir}/log/dracs
 
 

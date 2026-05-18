@@ -82,4 +82,4 @@ def test_twine(deps):
 
 
 def test_dependency_count(deps):
-    assert len(deps) == 12
+    assert len(deps) == 13

@@ -574,6 +574,33 @@
             justify-content: flex-end;
         }
 
+        .firmware-log {
+            font-family: monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            background-color: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .tsr-progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .tsr-progress-fill {
+            height: 100%;
+            background-color: #007bff;
+            transition: width 0.5s ease;
+        }
+
         .btn {
             padding: 8px 16px;
             border: none;
@@ -611,13 +638,31 @@
         }
 
         .btn-success:disabled {
-            background-color: #94d3a2;
+            background-color: #6c757d;
             cursor: not-allowed;
         }
 
         .btn-primary:disabled {
             background-color: #6c757d;
             cursor: not-allowed;
+        }
+
+        .btn-power-on {
+            background-color: #28a745;
+            color: white;
+        }
+
+        .btn-power-on:hover {
+            background-color: #218838;
+        }
+
+        .btn-power-off {
+            background-color: #dc3545;
+            color: white;
+        }
+
+        .btn-power-off:hover {
+            background-color: #c82333;
         }
 
         /* Row selection */
@@ -985,6 +1030,66 @@
             background-color: #666;
         }
 
+        body.dark-theme .btn-primary:disabled {
+            background-color: #555;
+            border-color: #555;
+        }
+
+        body.dark-theme .btn-success {
+            background-color: #1e7e34;
+            border-color: #1e7e34;
+        }
+
+        body.dark-theme .btn-success:hover:not(:disabled) {
+            background-color: #28a745;
+        }
+
+        body.dark-theme .btn-success:disabled {
+            background-color: #555;
+            border-color: #555;
+        }
+
+        body.dark-theme .btn-power-on {
+            background-color: #1e7e34;
+            border-color: #1e7e34;
+        }
+
+        body.dark-theme .btn-power-on:hover {
+            background-color: #28a745;
+        }
+
+        body.dark-theme .btn-power-off {
+            background-color: #c82333;
+            border-color: #c82333;
+        }
+
+        body.dark-theme .btn-power-off:hover {
+            background-color: #dc3545;
+        }
+
+        body.dark-theme .firmware-version-select,
+        body.dark-theme .bios-version-select {
+            background-color: #1e5a8e;
+            color: #e0e0e0;
+            border-color: #1e5a8e;
+        }
+
+        body.dark-theme .firmware-version-select:hover,
+        body.dark-theme .bios-version-select:hover {
+            background-color: #2a6ba8;
+        }
+
+        body.dark-theme .firmware-version-select:disabled,
+        body.dark-theme .bios-version-select:disabled {
+            background-color: #555;
+            border-color: #555;
+        }
+
+        body.dark-theme #update-bios-btn.unavailable {
+            background-color: #555;
+            border-color: #555;
+        }
+
         body.dark-theme .modal-overlay {
             background-color: rgba(0, 0, 0, 0.8);
         }
@@ -1085,6 +1190,20 @@
 
         body.dark-theme .modal-body {
             color: #e0e0e0;
+        }
+
+        body.dark-theme .firmware-log {
+            background-color: #1a1a1a;
+            border-color: #555;
+            color: #e0e0e0;
+        }
+
+        body.dark-theme .tsr-progress-bar {
+            background-color: #3a3a3a;
+        }
+
+        body.dark-theme .tsr-progress-fill {
+            background-color: #1e5a8e;
         }
 
         body.dark-theme .firmware-details {
@@ -1357,6 +1476,18 @@
             <button id="console-btn" class="btn btn-primary" disabled onclick="handleConsoleClick()">
                 Console
             </button>
+            <button id="power-btn" class="btn btn-primary" disabled onclick="handlePowerClick()">
+                Power
+            </button>
+            <button id="latest-firmware-btn" class="btn btn-primary" disabled onclick="handleLatestFirmwareClick()">
+                Latest Firmware
+            </button>
+            <button id="latest-bios-btn" class="btn btn-primary" disabled onclick="handleLatestBiosClick()">
+                Latest BIOS
+            </button>
+            <button id="generate-tsr-btn" class="btn btn-primary" disabled onclick="handleGenerateTsrClick()">
+                Generate TSR
+            </button>
         </div>
         {% endif %}
 
@@ -1507,6 +1638,128 @@
             </div>
         </div>
 
+        <!-- Power Off Confirmation Modal -->
+        <div id="power-off-modal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Confirm Power Off</h2>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to power off <strong id="power-off-hostname"></strong>?</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="cancelPowerAction()">Cancel</button>
+                    <button type="button" class="btn btn-power-on" onclick="confirmPowerAction('graceshutdown')">Graceful Shutdown</button>
+                    <button type="button" class="btn btn-power-off" onclick="confirmPowerAction('powerdown')">Hard Power Off</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Power On Confirmation Modal -->
+        <div id="power-on-modal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Confirm Power On</h2>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to power on <strong id="power-on-hostname"></strong>?</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="cancelPowerAction()">Cancel</button>
+                    <button type="button" class="btn btn-power-on" onclick="confirmPowerAction('powerup')">Yes, Power On</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Latest Firmware Confirm Modal -->
+        <div id="latest-firmware-confirm-modal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Check Latest Firmware</h2>
+                </div>
+                <div class="modal-body">
+                    <p>Check for the latest firmware for <strong id="latest-firmware-model"></strong>?</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="cancelLatestFirmware()">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="proceedLatestFirmware()">Proceed</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Latest Firmware Status Modal -->
+        <div id="latest-firmware-status-modal" class="modal-overlay">
+            <div class="modal-content modal-large">
+                <div class="modal-header">
+                    <h2>Latest Firmware Check</h2>
+                </div>
+                <div class="modal-body">
+                    <div id="latest-firmware-log" class="firmware-log"></div>
+                </div>
+                <div class="modal-footer" id="latest-firmware-footer" style="display: none;">
+                </div>
+            </div>
+        </div>
+
+        <!-- Latest BIOS Confirm Modal -->
+        <div id="latest-bios-confirm-modal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Check Latest BIOS</h2>
+                </div>
+                <div class="modal-body">
+                    <p>Check for the latest BIOS for <strong id="latest-bios-model"></strong>?</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="cancelLatestBios()">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="proceedLatestBios()">Proceed</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Latest BIOS Status Modal -->
+        <div id="latest-bios-status-modal" class="modal-overlay">
+            <div class="modal-content modal-large">
+                <div class="modal-header">
+                    <h2>Latest BIOS Check</h2>
+                </div>
+                <div class="modal-body">
+                    <div id="latest-bios-log" class="firmware-log"></div>
+                </div>
+                <div class="modal-footer" id="latest-bios-footer" style="display: none;">
+                </div>
+            </div>
+        </div>
+
+        <!-- TSR Confirm Modal -->
+        <div id="tsr-confirm-modal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Generate TSR</h2>
+                </div>
+                <div class="modal-body">
+                    <p>Generate a Tech Support Report for <strong id="tsr-confirm-hostname"></strong>?</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="cancelTsr()">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="proceedTsr()">Proceed</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- TSR Status Modal -->
+        <div id="tsr-status-modal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>TSR — <span id="tsr-status-hostname"></span></h2>
+                </div>
+                <div class="modal-body" id="tsr-status-body">
+                </div>
+                <div class="modal-footer" id="tsr-status-footer">
+                </div>
+            </div>
+        </div>
+
         <!-- Job Queue Modal -->
         <div id="job-queue-modal" class="modal-overlay">
             <div class="modal-content modal-large">
@@ -1575,6 +1828,8 @@
         let pendingBiosUpdate = null;  // Store pending BIOS update info
         let firmwareFirstConfirmation = false;  // Track two-stage confirmation for large batches
         let biosFirstConfirmation = false;  // Track two-stage confirmation for large batches
+        let currentPowerState = null;
+        let currentPowerHostname = null;
 
         // Pagination state
         let currentPage = 1;
@@ -1825,6 +2080,10 @@
             updateJobQueueButtonState();
             updateClearJobQueueButtonState();
             updateConsoleButtonState();
+            updatePowerButtonState();
+            updateLatestFirmwareButtonState();
+            updateLatestBiosButtonState();
+            updateGenerateTsrButtonState();
             updateSelectAllButtonText();
             updateSelectShownButtonText();
         }
@@ -1945,6 +2204,10 @@
             updateJobQueueButtonState();
             updateClearJobQueueButtonState();
             updateConsoleButtonState();
+            updatePowerButtonState();
+            updateLatestFirmwareButtonState();
+            updateLatestBiosButtonState();
+            updateGenerateTsrButtonState();
             updateSelectAllButtonText();
         }
 
@@ -2005,6 +2268,10 @@
             updateJobQueueButtonState();
             updateClearJobQueueButtonState();
             updateConsoleButtonState();
+            updatePowerButtonState();
+            updateLatestFirmwareButtonState();
+            updateLatestBiosButtonState();
+            updateGenerateTsrButtonState();
 
             // Update selected count if it exists
             const selectedCountEl = document.getElementById('selected-count');
@@ -2252,6 +2519,10 @@
                     updateFirmwareButtonState();
                     updateJobQueueButtonState();
                     updateClearJobQueueButtonState();
+                    updatePowerButtonState();
+                    updateLatestFirmwareButtonState();
+                    updateLatestBiosButtonState();
+                    updateGenerateTsrButtonState();
                 }
 
                 console.log('DRACS: Table refresh complete, visible rows:', document.querySelectorAll('#table-body tr:not(.hidden)').length);
@@ -2495,6 +2766,563 @@
             } catch (error) {
                 showNotification('Failed to open console: ' + error.message, 'error');
             }
+        }
+
+        function updatePowerButtonState() {
+            const powerBtn = document.getElementById('power-btn');
+            if (!powerBtn) return;
+
+            if (selectedSystems.length === 1) {
+                const hostname = selectedSystems[0].hostname;
+                if (hostname !== currentPowerHostname) {
+                    powerBtn.classList.remove('btn-power-on', 'btn-power-off');
+                    currentPowerState = null;
+                    currentPowerHostname = hostname;
+                    powerBtn.textContent = 'Power ...';
+                    powerBtn.disabled = true;
+                }
+                checkPowerStatus(hostname);
+            } else {
+                powerBtn.classList.remove('btn-power-on', 'btn-power-off');
+                currentPowerState = null;
+                currentPowerHostname = null;
+                powerBtn.textContent = 'Power';
+                powerBtn.disabled = true;
+            }
+        }
+
+        async function checkPowerStatus(hostname) {
+            const powerBtn = document.getElementById('power-btn');
+            if (!powerBtn) return;
+
+            try {
+                const response = await fetch('/api/power-status', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ hostname: hostname })
+                });
+                const data = await response.json();
+
+                if (selectedSystems.length !== 1 || selectedSystems[0].hostname !== hostname) return;
+
+                powerBtn.classList.remove('btn-power-on', 'btn-power-off');
+
+                if (data.success) {
+                    currentPowerState = data.status;
+                    if (data.status === 'on') {
+                        powerBtn.textContent = 'Power Off';
+                        powerBtn.classList.add('btn-power-on');
+                        powerBtn.disabled = false;
+                    } else {
+                        powerBtn.textContent = 'Power On';
+                        powerBtn.classList.add('btn-power-off');
+                        powerBtn.disabled = false;
+                    }
+                } else {
+                    currentPowerState = null;
+                    powerBtn.textContent = 'Power Unknown';
+                    powerBtn.disabled = true;
+                }
+            } catch (error) {
+                if (selectedSystems.length === 1 && selectedSystems[0].hostname === hostname) {
+                    currentPowerState = null;
+                    powerBtn.classList.remove('btn-power-on', 'btn-power-off');
+                    powerBtn.textContent = 'Power Unknown';
+                    powerBtn.disabled = true;
+                }
+            }
+        }
+
+        function handlePowerClick() {
+            if (selectedSystems.length !== 1 || !currentPowerState) return;
+
+            const hostname = selectedSystems[0].hostname;
+
+            if (currentPowerState === 'on') {
+                document.getElementById('power-off-hostname').textContent = hostname;
+                document.getElementById('power-off-modal').classList.add('active');
+            } else {
+                document.getElementById('power-on-hostname').textContent = hostname;
+                document.getElementById('power-on-modal').classList.add('active');
+            }
+        }
+
+        async function confirmPowerAction(action) {
+            cancelPowerAction();
+
+            if (selectedSystems.length !== 1) return;
+
+            const hostname = selectedSystems[0].hostname;
+            const powerBtn = document.getElementById('power-btn');
+            if (powerBtn) {
+                powerBtn.disabled = true;
+                powerBtn.textContent = 'Power ...';
+                powerBtn.classList.remove('btn-power-on', 'btn-power-off');
+            }
+
+            try {
+                const response = await fetch('/api/power-action', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ hostname: hostname, action: action })
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            } catch (error) {
+                showNotification('Power action failed: ' + error.message, 'error');
+            }
+
+            setTimeout(() => {
+                if (selectedSystems.length === 1) {
+                    checkPowerStatus(selectedSystems[0].hostname);
+                }
+            }, 3000);
+        }
+
+        function cancelPowerAction() {
+            document.getElementById('power-off-modal').classList.remove('active');
+            document.getElementById('power-on-modal').classList.remove('active');
+        }
+
+        function updateLatestFirmwareButtonState() {
+            const btn = document.getElementById('latest-firmware-btn');
+            if (!btn) return;
+            btn.disabled = selectedSystems.length !== 1;
+        }
+
+        function handleLatestFirmwareClick() {
+            if (selectedSystems.length !== 1) return;
+            const model = selectedSystems[0].model;
+            document.getElementById('latest-firmware-model').textContent = model;
+            document.getElementById('latest-firmware-confirm-modal').classList.add('active');
+        }
+
+        function cancelLatestFirmware() {
+            document.getElementById('latest-firmware-confirm-modal').classList.remove('active');
+        }
+
+        async function proceedLatestFirmware() {
+            document.getElementById('latest-firmware-confirm-modal').classList.remove('active');
+
+            const hostname = selectedSystems[0].hostname;
+            const model = selectedSystems[0].model;
+
+            const selectedRow = selectedRows[0];
+            let currentVersion = '';
+            if (selectedRow) {
+                currentVersion = selectedRow.dataset.firmwareVersion || '';
+            }
+
+            const logEl = document.getElementById('latest-firmware-log');
+            const footerEl = document.getElementById('latest-firmware-footer');
+            logEl.innerHTML = '';
+            footerEl.style.display = 'none';
+            footerEl.innerHTML = '';
+            document.getElementById('latest-firmware-status-modal').classList.add('active');
+
+            try {
+                const response = await fetch('/api/latest-firmware', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ model: model, hostname: hostname, current_version: currentVersion })
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop();
+
+                    for (const line of lines) {
+                        if (!line.startsWith('data: ')) continue;
+                        const data = JSON.parse(line.substring(6));
+
+                        if (data.type === 'status') {
+                            const div = document.createElement('div');
+                            div.textContent = data.message;
+                            logEl.appendChild(div);
+                            logEl.scrollTop = logEl.scrollHeight;
+                        } else if (data.type === 'append') {
+                            const lastDiv = logEl.lastElementChild;
+                            if (lastDiv) {
+                                lastDiv.textContent += data.message;
+                            }
+                        } else if (data.type === 'error') {
+                            const div = document.createElement('div');
+                            div.style.color = '#dc3545';
+                            div.textContent = data.message;
+                            logEl.appendChild(div);
+                            logEl.scrollTop = logEl.scrollHeight;
+                            footerEl.innerHTML = '<button type="button" class="btn btn-secondary" onclick="closeLatestFirmwareDialog()">OK</button>';
+                            footerEl.style.display = 'flex';
+                        } else if (data.type === 'complete') {
+                            footerEl.style.display = 'flex';
+                            if (data.already_current) {
+                                footerEl.innerHTML = '<button type="button" class="btn btn-secondary" onclick="closeLatestFirmwareDialog()">OK</button>';
+                            } else {
+                                const div = document.createElement('div');
+                                div.textContent = 'Update ' + data.hostname + ' to firmware version ' + data.version + '?';
+                                div.style.fontWeight = '600';
+                                div.style.marginTop = '8px';
+                                logEl.appendChild(div);
+                                logEl.scrollTop = logEl.scrollHeight;
+                                footerEl.innerHTML =
+                                    '<button type="button" class="btn btn-secondary" onclick="closeLatestFirmwareDialog()">Cancel</button>' +
+                                    '<button type="button" class="btn btn-primary" onclick="confirmLatestFirmwareUpdate(\'' +
+                                    data.version.replace(/'/g, "\\'") + '\', \'' +
+                                    data.hostname.replace(/'/g, "\\'") + '\', \'' +
+                                    data.model.replace(/'/g, "\\'") + '\')">Proceed</button>';
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                const div = document.createElement('div');
+                div.style.color = '#dc3545';
+                div.textContent = 'Connection error: ' + error.message;
+                logEl.appendChild(div);
+                footerEl.innerHTML = '<button type="button" class="btn btn-secondary" onclick="closeLatestFirmwareDialog()">OK</button>';
+                footerEl.style.display = 'flex';
+            }
+        }
+
+        async function confirmLatestFirmwareUpdate(version, hostname, model) {
+            closeLatestFirmwareDialog();
+
+            try {
+                const response = await fetch('/api/firmware-update', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ hostname: hostname, target_version: version, model: model })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            } catch (error) {
+                showNotification('Firmware update failed: ' + error.message, 'error');
+            }
+        }
+
+        function closeLatestFirmwareDialog() {
+            document.getElementById('latest-firmware-status-modal').classList.remove('active');
+        }
+
+        function updateLatestBiosButtonState() {
+            const btn = document.getElementById('latest-bios-btn');
+            if (!btn) return;
+            btn.disabled = selectedSystems.length !== 1;
+        }
+
+        function handleLatestBiosClick() {
+            if (selectedSystems.length !== 1) return;
+            const model = selectedSystems[0].model;
+            document.getElementById('latest-bios-model').textContent = model;
+            document.getElementById('latest-bios-confirm-modal').classList.add('active');
+        }
+
+        function cancelLatestBios() {
+            document.getElementById('latest-bios-confirm-modal').classList.remove('active');
+        }
+
+        async function proceedLatestBios() {
+            document.getElementById('latest-bios-confirm-modal').classList.remove('active');
+
+            const hostname = selectedSystems[0].hostname;
+            const model = selectedSystems[0].model;
+
+            const selectedRow = selectedRows[0];
+            let currentVersion = '';
+            if (selectedRow) {
+                currentVersion = selectedRow.dataset.biosVersion || '';
+            }
+
+            const logEl = document.getElementById('latest-bios-log');
+            const footerEl = document.getElementById('latest-bios-footer');
+            logEl.innerHTML = '';
+            footerEl.style.display = 'none';
+            footerEl.innerHTML = '';
+            document.getElementById('latest-bios-status-modal').classList.add('active');
+
+            try {
+                const response = await fetch('/api/latest-bios', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ model: model, hostname: hostname, current_version: currentVersion })
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop();
+
+                    for (const line of lines) {
+                        if (!line.startsWith('data: ')) continue;
+                        const data = JSON.parse(line.substring(6));
+
+                        if (data.type === 'status') {
+                            const div = document.createElement('div');
+                            div.textContent = data.message;
+                            logEl.appendChild(div);
+                            logEl.scrollTop = logEl.scrollHeight;
+                        } else if (data.type === 'append') {
+                            const lastDiv = logEl.lastElementChild;
+                            if (lastDiv) {
+                                lastDiv.textContent += data.message;
+                            }
+                        } else if (data.type === 'error') {
+                            const div = document.createElement('div');
+                            div.style.color = '#dc3545';
+                            div.textContent = data.message;
+                            logEl.appendChild(div);
+                            logEl.scrollTop = logEl.scrollHeight;
+                            footerEl.innerHTML = '<button type="button" class="btn btn-secondary" onclick="closeLatestBiosDialog()">OK</button>';
+                            footerEl.style.display = 'flex';
+                        } else if (data.type === 'complete') {
+                            footerEl.style.display = 'flex';
+                            if (data.already_current) {
+                                footerEl.innerHTML = '<button type="button" class="btn btn-secondary" onclick="closeLatestBiosDialog()">OK</button>';
+                            } else {
+                                const div = document.createElement('div');
+                                div.textContent = 'Update ' + data.hostname + ' to BIOS version ' + data.version + '?';
+                                div.style.fontWeight = '600';
+                                div.style.marginTop = '8px';
+                                logEl.appendChild(div);
+                                logEl.scrollTop = logEl.scrollHeight;
+                                footerEl.innerHTML =
+                                    '<button type="button" class="btn btn-secondary" onclick="closeLatestBiosDialog()">Cancel</button>' +
+                                    '<button type="button" class="btn btn-primary" onclick="confirmLatestBiosUpdate(\'' +
+                                    data.version.replace(/'/g, "\\'") + '\', \'' +
+                                    data.hostname.replace(/'/g, "\\'") + '\', \'' +
+                                    data.model.replace(/'/g, "\\'") + '\')">Proceed</button>';
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                const div = document.createElement('div');
+                div.style.color = '#dc3545';
+                div.textContent = 'Connection error: ' + error.message;
+                logEl.appendChild(div);
+                footerEl.innerHTML = '<button type="button" class="btn btn-secondary" onclick="closeLatestBiosDialog()">OK</button>';
+                footerEl.style.display = 'flex';
+            }
+        }
+
+        async function confirmLatestBiosUpdate(version, hostname, model) {
+            closeLatestBiosDialog();
+
+            try {
+                const response = await fetch('/api/bios-update', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ hostname: hostname, target_bios: version, model: model })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            } catch (error) {
+                showNotification('BIOS update failed: ' + error.message, 'error');
+            }
+        }
+
+        function closeLatestBiosDialog() {
+            document.getElementById('latest-bios-status-modal').classList.remove('active');
+        }
+
+        let tsrPollTimer = null;
+
+        function updateGenerateTsrButtonState() {
+            const btn = document.getElementById('generate-tsr-btn');
+            if (!btn) return;
+            btn.disabled = selectedSystems.length !== 1;
+        }
+
+        function handleGenerateTsrClick() {
+            if (selectedSystems.length !== 1) return;
+            const hostname = selectedSystems[0].hostname;
+            document.getElementById('tsr-confirm-hostname').textContent = hostname;
+            document.getElementById('tsr-confirm-modal').classList.add('active');
+        }
+
+        function cancelTsr() {
+            document.getElementById('tsr-confirm-modal').classList.remove('active');
+        }
+
+        async function proceedTsr() {
+            document.getElementById('tsr-confirm-modal').classList.remove('active');
+
+            const hostname = selectedSystems[0].hostname;
+            const serviceTag = selectedSystems[0].service_tag;
+
+            document.getElementById('tsr-status-hostname').textContent = hostname;
+            const bodyEl = document.getElementById('tsr-status-body');
+            const footerEl = document.getElementById('tsr-status-footer');
+            bodyEl.innerHTML = '<p>Checking TSR status...</p>';
+            footerEl.innerHTML = '<button type="button" class="btn btn-secondary" onclick="closeTsrDialog()">Close</button>';
+            document.getElementById('tsr-status-modal').classList.add('active');
+
+            try {
+                const response = await fetch('/api/tsr-status', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ hostname: hostname })
+                });
+                const data = await response.json();
+
+                if (!data.success) {
+                    bodyEl.innerHTML = '<p style="color: #dc3545;">' + (data.message || 'Failed to check TSR status') + '</p>';
+                    return;
+                }
+
+                if (data.state === 'running') {
+                    showTsrRunning(hostname, data.percent_complete || '0');
+                } else if (data.state === 'completed') {
+                    showTsrCompleted(hostname, data.tsr_url, serviceTag);
+                } else {
+                    showTsrNone(hostname, serviceTag);
+                }
+            } catch (error) {
+                bodyEl.innerHTML = '<p style="color: #dc3545;">Error: ' + error.message + '</p>';
+            }
+        }
+
+        function showTsrRunning(hostname, pct) {
+            const bodyEl = document.getElementById('tsr-status-body');
+            const footerEl = document.getElementById('tsr-status-footer');
+            const pctNum = parseInt(pct, 10) || 0;
+
+            bodyEl.innerHTML =
+                '<p>TSR currently running for ' + hostname + '. ' + pctNum + '% completed.</p>' +
+                '<div class="tsr-progress-bar"><div class="tsr-progress-fill" style="width: ' + pctNum + '%;"></div></div>';
+            footerEl.innerHTML = '<button type="button" class="btn btn-secondary" onclick="closeTsrDialog()">Close</button>';
+
+            startTsrPolling(hostname);
+        }
+
+        function showTsrCompleted(hostname, tsrUrl, serviceTag) {
+            const bodyEl = document.getElementById('tsr-status-body');
+            const footerEl = document.getElementById('tsr-status-footer');
+
+            bodyEl.innerHTML =
+                '<p>View completed TSR collections <a href="' + tsrUrl + '" target="_blank">here</a>.</p>';
+            footerEl.innerHTML =
+                '<button type="button" class="btn btn-secondary" onclick="closeTsrDialog()">Close</button>' +
+                '<button type="button" class="btn btn-primary" onclick="startNewTsr(\'' +
+                hostname.replace(/'/g, "\\'") + '\', \'' +
+                serviceTag.replace(/'/g, "\\'") + '\')">Start New Collection</button>';
+        }
+
+        function showTsrNone(hostname, serviceTag) {
+            const bodyEl = document.getElementById('tsr-status-body');
+            const footerEl = document.getElementById('tsr-status-footer');
+
+            bodyEl.innerHTML = '<p>No active or completed TSR collections found for ' + hostname + '.</p>';
+            footerEl.innerHTML =
+                '<button type="button" class="btn btn-secondary" onclick="closeTsrDialog()">Close</button>' +
+                '<button type="button" class="btn btn-primary" onclick="startNewTsr(\'' +
+                hostname.replace(/'/g, "\\'") + '\', \'' +
+                serviceTag.replace(/'/g, "\\'") + '\')">Start New Collection</button>';
+        }
+
+        async function startNewTsr(hostname, serviceTag) {
+            const bodyEl = document.getElementById('tsr-status-body');
+            const footerEl = document.getElementById('tsr-status-footer');
+
+            bodyEl.innerHTML = '<p>Initiating TSR collection...</p>';
+            footerEl.innerHTML = '<button type="button" class="btn btn-secondary" onclick="closeTsrDialog()">Close</button>';
+
+            try {
+                const response = await fetch('/api/tsr-collect', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ hostname: hostname, service_tag: serviceTag })
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    bodyEl.innerHTML =
+                        '<p>TSR initiated for ' + hostname + '.</p>' +
+                        '<p>TSR currently running for ' + hostname + '. 0% completed.</p>' +
+                        '<div class="tsr-progress-bar"><div class="tsr-progress-fill" style="width: 0%;"></div></div>';
+                    startTsrPolling(hostname);
+                } else {
+                    bodyEl.innerHTML = '<p style="color: #dc3545;">' + data.message + '</p>';
+                }
+            } catch (error) {
+                bodyEl.innerHTML = '<p style="color: #dc3545;">Error: ' + error.message + '</p>';
+            }
+        }
+
+        function startTsrPolling(hostname) {
+            stopTsrPolling();
+            tsrPollTimer = setInterval(async () => {
+                try {
+                    const response = await fetch('/api/tsr-status', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ hostname: hostname })
+                    });
+                    const data = await response.json();
+                    if (!data.success) return;
+
+                    const bodyEl = document.getElementById('tsr-status-body');
+                    if (!bodyEl) { stopTsrPolling(); return; }
+
+                    if (data.state === 'running') {
+                        const pctNum = parseInt(data.percent_complete, 10) || 0;
+                        bodyEl.innerHTML =
+                            '<p>TSR currently running for ' + hostname + '. ' + pctNum + '% completed.</p>' +
+                            '<div class="tsr-progress-bar"><div class="tsr-progress-fill" style="width: ' + pctNum + '%;"></div></div>';
+                    } else if (data.state === 'completed') {
+                        stopTsrPolling();
+                        const footerEl = document.getElementById('tsr-status-footer');
+                        bodyEl.innerHTML =
+                            '<p>TSR collection complete for ' + hostname + '.</p>' +
+                            '<p>View completed TSR collections <a href="' + data.tsr_url + '" target="_blank">here</a>.</p>';
+                        footerEl.innerHTML = '<button type="button" class="btn btn-secondary" onclick="closeTsrDialog()">Close</button>';
+                    } else if (data.state === 'none') {
+                        stopTsrPolling();
+                    }
+                } catch (error) {
+                    // ignore polling errors
+                }
+            }, 15000);
+        }
+
+        function stopTsrPolling() {
+            if (tsrPollTimer) {
+                clearInterval(tsrPollTimer);
+                tsrPollTimer = null;
+            }
+        }
+
+        function closeTsrDialog() {
+            stopTsrPolling();
+            document.getElementById('tsr-status-modal').classList.remove('active');
         }
 
         // Fetch firmware versions for the selected system's model
@@ -4167,6 +4995,10 @@
                 updateFirmwareButtonState();
                 updateJobQueueButtonState();
                 updateClearJobQueueButtonState();
+                updatePowerButtonState();
+                updateLatestFirmwareButtonState();
+                updateLatestBiosButtonState();
+                updateGenerateTsrButtonState();
                 updateSelectAllButtonText();
                 updateSelectShownButtonText();
             }
