@@ -2551,12 +2551,12 @@
         // Update Firmware button state and populate versions
         async function updateFirmwareButtonState() {
             const updateBtn = document.getElementById('update-firmware-btn');
+            if (!updateBtn) return;
             const versionSelect = document.getElementById('firmware-version-select');
             const biosUpdateBtn = document.getElementById('update-bios-btn');
             const biosVersionSelect = document.getElementById('bios-version-select');
 
             if (selectedSystems.length === 0) {
-                // No selection - disable both buttons
                 updateBtn.style.display = 'inline-block';
                 updateBtn.disabled = true;
                 versionSelect.style.display = 'none';
@@ -2727,12 +2727,11 @@
         // Update Job Queue button state
         function updateJobQueueButtonState() {
             const jobQueueBtn = document.getElementById('job-queue-btn');
+            if (!jobQueueBtn) return;
 
             if (selectedSystems.length === 1) {
-                // Exactly 1 system selected - enable button
                 jobQueueBtn.disabled = false;
             } else {
-                // 0 or more than 1 system selected - disable button
                 jobQueueBtn.disabled = true;
             }
         }
@@ -2740,12 +2739,11 @@
         // Update Clear Job Queue button state
         function updateClearJobQueueButtonState() {
             const clearJobQueueBtn = document.getElementById('clear-job-queue-btn');
+            if (!clearJobQueueBtn) return;
 
             if (selectedSystems.length >= 1) {
-                // 1 or more systems selected - enable button
                 clearJobQueueBtn.disabled = false;
             } else {
-                // 0 systems selected - disable button
                 clearJobQueueBtn.disabled = true;
             }
         }
