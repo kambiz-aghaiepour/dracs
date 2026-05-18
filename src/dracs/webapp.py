@@ -1393,7 +1393,6 @@ def api_latest_firmware():
         )
 
     def generate():
-        tmp_file = None
         tmp_dir = None
         try:
             yield _sse_event("status", "Downloading Dell Catalog ....")
