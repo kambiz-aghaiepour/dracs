@@ -23,7 +23,7 @@ import defusedxml.ElementTree as defused_ET
 from pathlib import Path
 from dotenv import load_dotenv
 from flask import Flask, render_template, jsonify, session, request, Response
-from markupsafe import Markup, escape as markup_escape
+from markupsafe import Markup
 
 from dracs.db import db_initialize, get_session, System
 from dracs.commands import refresh_dell_warranty
@@ -384,7 +384,8 @@ def test_idrac_connectivity(hostname: str) -> tuple:
         else:
             return (
                 False,
-                f"iDRAC Access Failed: {result.stderr[:100] if result.stderr else 'Connection failed'}",
+                "iDRAC Access Failed: "
+                f"{result.stderr[:100] if result.stderr else 'Connection failed'}",
             )
 
     except subprocess.TimeoutExpired:
@@ -761,14 +762,17 @@ def api_firmware_update():
             return jsonify(
                 {
                     "success": True,
-                    "message": f"Firmware update initiated for {hostname} to version {target_version}. Check {log_file} for progress.",
+                    "message": f"Firmware update initiated for {hostname}"
+                    f" to version {target_version}."
+                    f" Check {log_file} for progress.",
                 }
             )
         else:
             return jsonify(
                 {
                     "success": False,
-                    "message": f"Failed to start firmware update process. Check {log_file} for details.",
+                    "message": "Failed to start firmware update"
+                    f" process. Check {log_file} for details.",
                 }
             )
 
@@ -825,7 +829,9 @@ def api_bios_update():
                 jsonify(
                     {
                         "success": False,
-                        "message": f"BIOS filename not found for model {model} version {target_bios} in BIOS-filename.ini",
+                        "message": f"BIOS filename not found for"
+                        f" model {model} version {target_bios}"
+                        " in BIOS-filename.ini",
                     }
                 ),
                 400,
@@ -878,14 +884,17 @@ def api_bios_update():
             return jsonify(
                 {
                     "success": True,
-                    "message": f"BIOS update initiated for {hostname} to version {target_bios}. Check {log_file} for progress.",
+                    "message": f"BIOS update initiated for {hostname}"
+                    f" to version {target_bios}."
+                    f" Check {log_file} for progress.",
                 }
             )
         else:
             return jsonify(
                 {
                     "success": False,
-                    "message": f"Failed to start BIOS update process. Check {log_file} for details.",
+                    "message": "Failed to start BIOS update"
+                    f" process. Check {log_file} for details.",
                 }
             )
 
@@ -951,7 +960,8 @@ def api_job_queue():
                 jsonify(
                     {
                         "success": False,
-                        "message": f"Command failed with exit code {result.returncode}: {result.stderr}",
+                        "message": "Command failed with exit code"
+                        f" {result.returncode}: {result.stderr}",
                     }
                 ),
                 500,
@@ -2094,8 +2104,12 @@ def api_tsr_collect():
                 jsonify(
                     {
                         "success": False,
-                        "message": f"Failed to start TSR: "
-                        f"{result.stderr[:200] if result.stderr else result.stdout[:200]}",
+                        "message": "Failed to start TSR: "
+                        + (
+                            result.stderr[:200]
+                            if result.stderr
+                            else result.stdout[:200]
+                        ),
                     }
                 ),
                 500,
