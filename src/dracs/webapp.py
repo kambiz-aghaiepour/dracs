@@ -3,16 +3,24 @@
 import asyncio
 import configparser
 from datetime import datetime
+import glob
+import gzip
 import json
 import os
 import re
+import shutil
 import socket
 import sys
 import subprocess
+import tempfile
 import threading
+import time
+import urllib.request
+import xml.etree.ElementTree as ET
+import zipfile
 from pathlib import Path
 from dotenv import load_dotenv
-from flask import Flask, render_template, jsonify, session, request
+from flask import Flask, render_template, jsonify, session, request, Response
 
 from dracs.db import db_initialize, get_session, System
 from dracs.commands import refresh_dell_warranty
@@ -826,10 +834,10 @@ def api_bios_update():
         # Get credentials
         username, password = get_idrac_credentials(hostname)
 
-        # Build HTTP URL for BIOS image
+        # Build HTTP URL for BIOS image (model-specific subdirectory)
         bios_server = os.environ.get("DRACS_BIOS_SERVER") or socket.getfqdn()
         bios_uri = os.environ.get("DRACS_BIOS_URI", "/bios/")
-        bios_url = f"http://{bios_server}{bios_uri}"
+        bios_url = f"http://{bios_server}{bios_uri}{model}/"
 
         # Prepare log file path
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1284,6 +1292,732 @@ def api_power_action():
                     "message": "sshpass command not found (please install sshpass)",
                 }
             ),
+            500,
+        )
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+
+CATALOG_URL = "https://downloads.dell.com/catalog/Catalog.xml.gz"
+CATALOG_BASE_URL = "https://downloads.dell.com"
+FIRMWARE_IMAGE_DIR = Path("/var/lib/dracs/web/firmware")
+BIOS_IMAGE_DIR = Path("/var/lib/dracs/web/bios")
+
+
+def _parse_catalog_datetime(dt_str: str) -> datetime:
+    dt_str = dt_str.strip()
+    if dt_str.endswith("Z"):
+        dt_str = dt_str[:-1] + "+00:00"
+    sign_pos = max(dt_str.rfind("+"), dt_str.rfind("-", 11))
+    if sign_pos > 0 and ":" in dt_str[sign_pos:]:
+        colon_in_tz = dt_str.rfind(":")
+        if colon_in_tz > sign_pos:
+            naive_part = dt_str[:sign_pos]
+            tz_part = dt_str[sign_pos:].replace(":", "")
+            dt_str = naive_part + tz_part
+    try:
+        return datetime.strptime(dt_str, "%Y-%m-%dT%H:%M:%S%z")
+    except ValueError:
+        return datetime.strptime(dt_str, "%Y-%m-%dT%H:%M:%S")
+
+
+def _find_latest_idrac_firmware(xml_bytes: bytes, model: str) -> dict | None:
+    text = xml_bytes.decode("utf-16")
+    root = ET.fromstring(text)
+    target = model.lower()
+    best = None
+    best_dt = None
+
+    for comp in root.iter("SoftwareComponent"):
+        comp_type_node = comp.find("ComponentType")
+        if comp_type_node is None or comp_type_node.get("value", "") != "FRMW":
+            continue
+
+        cat_display = comp.find(".//Category/Display")
+        if cat_display is None or not cat_display.text:
+            continue
+        if cat_display.text.strip() != "iDRAC with Lifecycle Controller":
+            continue
+
+        models_in_comp = []
+        for display in comp.findall(".//SupportedSystems/Brand/Model/Display"):
+            if display.text:
+                models_in_comp.append(display.text.strip())
+        if not any(m.lower() == target for m in models_in_comp):
+            continue
+
+        path = comp.get("path", "")
+        dt_str = comp.get("dateTime", "")
+        if not path or not dt_str:
+            continue
+
+        dt = _parse_catalog_datetime(dt_str)
+        if best_dt is None or dt > best_dt:
+            best_dt = dt
+            best = {
+                "version": comp.get("vendorVersion", ""),
+                "path": path,
+                "url": f"{CATALOG_BASE_URL}/{path}",
+            }
+
+    return best
+
+
+def _sse_event(event_type: str, message: str, **kwargs) -> str:
+    payload = {"type": event_type, "message": message}
+    payload.update(kwargs)
+    return f"data: {json.dumps(payload)}\n\n"
+
+
+@app.route("/api/latest-firmware", methods=["POST"])
+def api_latest_firmware():
+    """Stream latest firmware check and download progress via SSE."""
+    if not session.get("authenticated", False):
+        return (
+            jsonify({"success": False, "message": "Authentication required"}),
+            401,
+        )
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"success": False, "message": "Invalid request"}), 400
+
+    model = data.get("model", "").strip()
+    hostname = data.get("hostname", "").strip()
+    current_version = data.get("current_version", "").strip()
+
+    if not model or not hostname:
+        return (
+            jsonify({"success": False, "message": "Model and hostname required"}),
+            400,
+        )
+
+    def generate():
+        tmp_file = None
+        tmp_dir = None
+        try:
+            yield _sse_event("status", "Downloading Dell Catalog ....")
+
+            req = urllib.request.Request(
+                CATALOG_URL,
+                headers={"User-Agent": "dracs-webapp/1.0"},
+            )
+            with urllib.request.urlopen(req, timeout=120) as resp:  # nosec
+                compressed = resp.read()
+            xml_bytes = gzip.decompress(compressed)
+
+            yield _sse_event("append", "done.")
+
+            yield _sse_event("status", "Checking for the latest available version...")
+
+            result = _find_latest_idrac_firmware(xml_bytes, model)
+            if not result:
+                yield _sse_event(
+                    "error",
+                    f"No iDRAC firmware found in Dell catalog for model {model}.",
+                )
+                return
+
+            version = result["version"]
+            download_url = result["url"]
+
+            yield _sse_event("append", "done.")
+
+            yield _sse_event("status", f"Downloading {download_url}...")
+
+            tmp_dir = tempfile.mkdtemp(prefix="dracs_fw_")
+            exe_filename = download_url.rsplit("/", 1)[-1]
+            exe_path = os.path.join(tmp_dir, exe_filename)
+
+            dl_req = urllib.request.Request(
+                download_url,
+                headers={"User-Agent": "dracs-webapp/1.0"},
+            )
+            with urllib.request.urlopen(dl_req, timeout=300) as resp:  # nosec
+                with open(exe_path, "wb") as f:
+                    shutil.copyfileobj(resp, f)
+
+            yield _sse_event("append", "done.")
+
+            yield _sse_event("status", "Extracting firmware package...")
+
+            extract_dir = os.path.join(tmp_dir, "extracted")
+            with zipfile.ZipFile(exe_path, "r") as zf:
+                zf.extractall(extract_dir)
+
+            yield _sse_event("append", "done.")
+
+            pkg_xml_path = os.path.join(extract_dir, "package.xml")
+            pkg_version = version
+            if os.path.exists(pkg_xml_path):
+                pkg_tree = ET.parse(pkg_xml_path)
+                pkg_root = pkg_tree.getroot()
+                sc = pkg_root.find(".//SoftwareComponent")
+                if sc is None:
+                    sc = pkg_root
+                    if sc.tag == "SoftwareComponent":
+                        pass
+                    else:
+                        sc = None
+                if sc is not None:
+                    vv = sc.get("vendorVersion", "")
+                    if vv:
+                        pkg_version = vv
+
+            yield _sse_event(
+                "status",
+                f"Latest Firmware version for {model} found: {pkg_version}",
+            )
+
+            d9_file = None
+            payload_dir = os.path.join(extract_dir, "payload")
+            if os.path.isdir(payload_dir):
+                for fname in os.listdir(payload_dir):
+                    if fname.lower().endswith(".d9"):
+                        d9_file = os.path.join(payload_dir, fname)
+                        break
+
+            if not d9_file:
+                for root_dir, _dirs, files in os.walk(extract_dir):
+                    for fname in files:
+                        if fname.lower().endswith(".d9"):
+                            d9_file = os.path.join(root_dir, fname)
+                            break
+                    if d9_file:
+                        break
+
+            if not d9_file:
+                yield _sse_event("error", "No .d9 firmware image found in package.")
+                return
+
+            dest_filename = f"{model}-{pkg_version}.d9"
+            dest_path = FIRMWARE_IMAGE_DIR / dest_filename
+            file_exists = dest_path.exists()
+
+            if file_exists:
+                yield _sse_event(
+                    "status",
+                    f"{dest_path} already exists!",
+                )
+            else:
+                FIRMWARE_IMAGE_DIR.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(d9_file, dest_path)
+                os.chmod(dest_path, 0o444)
+                yield _sse_event(
+                    "status",
+                    f"Firmware image staged at {dest_path}",
+                )
+
+            already_current = current_version == pkg_version
+
+            if already_current:
+                yield _sse_event(
+                    "status",
+                    f"{hostname} already running firmware version {pkg_version}.",
+                )
+
+            yield _sse_event(
+                "complete",
+                "",
+                version=pkg_version,
+                file_exists=file_exists,
+                already_current=already_current,
+                hostname=hostname,
+                model=model,
+            )
+
+        except Exception as e:
+            yield _sse_event("error", f"Error: {str(e)}")
+
+        finally:
+            if tmp_dir and os.path.isdir(tmp_dir):
+                shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    return Response(
+        generate(),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+def _find_latest_bios(xml_bytes: bytes, model: str) -> dict | None:
+    text = xml_bytes.decode("utf-16")
+    root = ET.fromstring(text)
+    target = model.lower()
+    best = None
+    best_dt = None
+
+    for comp in root.iter("SoftwareComponent"):
+        comp_type_node = comp.find("ComponentType")
+        if comp_type_node is None or comp_type_node.get("value", "") != "BIOS":
+            continue
+
+        models_in_comp = []
+        for display in comp.findall(".//SupportedSystems/Brand/Model/Display"):
+            if display.text:
+                models_in_comp.append(display.text.strip())
+        if not any(m.lower() == target for m in models_in_comp):
+            continue
+
+        path = comp.get("path", "")
+        dt_str = comp.get("dateTime", "")
+        if not path or not dt_str:
+            continue
+
+        dt = _parse_catalog_datetime(dt_str)
+        if best_dt is None or dt > best_dt:
+            best_dt = dt
+            best = {
+                "version": comp.get("vendorVersion", ""),
+                "path": path,
+                "url": f"{CATALOG_BASE_URL}/{path}",
+            }
+
+    return best
+
+
+def _update_bios_filename_ini(model: str, version: str, filename: str) -> None:
+    config_file = Path("BIOS-filename.ini")
+    config = configparser.ConfigParser()
+    if config_file.exists():
+        config.read(config_file)
+    if model not in config:
+        config[model] = {}
+    config[model][version] = filename
+    with open(config_file, "w") as f:
+        config.write(f)
+
+
+@app.route("/api/latest-bios", methods=["POST"])
+def api_latest_bios():
+    """Stream latest BIOS check and download progress via SSE."""
+    if not session.get("authenticated", False):
+        return (
+            jsonify({"success": False, "message": "Authentication required"}),
+            401,
+        )
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"success": False, "message": "Invalid request"}), 400
+
+    model = data.get("model", "").strip()
+    hostname = data.get("hostname", "").strip()
+    current_version = data.get("current_version", "").strip()
+
+    if not model or not hostname:
+        return (
+            jsonify({"success": False, "message": "Model and hostname required"}),
+            400,
+        )
+
+    def generate():
+        tmp_dir = None
+        try:
+            yield _sse_event("status", "Downloading Dell Catalog ....")
+
+            req = urllib.request.Request(
+                CATALOG_URL,
+                headers={"User-Agent": "dracs-webapp/1.0"},
+            )
+            with urllib.request.urlopen(req, timeout=120) as resp:  # nosec
+                compressed = resp.read()
+            xml_bytes = gzip.decompress(compressed)
+
+            yield _sse_event("append", "done.")
+
+            yield _sse_event("status", "Checking for the latest available version...")
+
+            result = _find_latest_bios(xml_bytes, model)
+            if not result:
+                yield _sse_event(
+                    "error",
+                    f"No BIOS found in Dell catalog for model {model}.",
+                )
+                return
+
+            version = result["version"]
+            download_url = result["url"]
+
+            yield _sse_event("append", "done.")
+
+            yield _sse_event("status", f"Downloading {download_url}...")
+
+            tmp_dir = tempfile.mkdtemp(prefix="dracs_bios_")
+            exe_filename = download_url.rsplit("/", 1)[-1]
+            exe_path = os.path.join(tmp_dir, exe_filename)
+
+            dl_req = urllib.request.Request(
+                download_url,
+                headers={"User-Agent": "dracs-webapp/1.0"},
+            )
+            with urllib.request.urlopen(dl_req, timeout=300) as resp:  # nosec
+                with open(exe_path, "wb") as f:
+                    shutil.copyfileobj(resp, f)
+
+            yield _sse_event("append", "done.")
+
+            yield _sse_event(
+                "status",
+                f"Latest BIOS version for {model} found: {version}",
+            )
+
+            model_dir = BIOS_IMAGE_DIR / model
+            model_dir.mkdir(parents=True, exist_ok=True)
+            os.chmod(model_dir, 0o755)
+
+            dest_path = model_dir / exe_filename
+            file_exists = dest_path.exists()
+
+            if file_exists:
+                yield _sse_event(
+                    "status",
+                    f"{dest_path} already exists!",
+                )
+            else:
+                shutil.copy2(exe_path, dest_path)
+                os.chmod(dest_path, 0o644)
+                yield _sse_event(
+                    "status",
+                    f"BIOS image staged at {dest_path}",
+                )
+
+            try:
+                _update_bios_filename_ini(model, version, exe_filename)
+            except Exception:
+                pass
+
+            already_current = current_version == version
+
+            if already_current:
+                yield _sse_event(
+                    "status",
+                    f"{hostname} already running BIOS version {version}.",
+                )
+
+            yield _sse_event(
+                "complete",
+                "",
+                version=version,
+                file_exists=file_exists,
+                already_current=already_current,
+                hostname=hostname,
+                model=model,
+            )
+
+        except Exception as e:
+            yield _sse_event("error", f"Error: {str(e)}")
+
+        finally:
+            if tmp_dir and os.path.isdir(tmp_dir):
+                shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    return Response(
+        generate(),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+TSR_IMAGE_DIR = Path("/var/lib/dracs/web/tsr")
+TFTPBOOT_DIR = Path("/var/lib/tftpboot")
+
+
+def _build_ssh_racadm_cmd(hostname: str, *racadm_args: str) -> list:
+    idrac_fqdn = build_idrac_hostname(hostname)
+    username, password = get_idrac_credentials(hostname)
+    return [
+        "sshpass",
+        "-p",
+        password,
+        "ssh",
+        "-o",
+        "StrictHostKeyChecking=no",
+        "-o",
+        "UserKnownHostsFile=/dev/null",
+        "-o",
+        "ConnectTimeout=10",
+        f"{username}@{idrac_fqdn}",
+        "racadm",
+        *racadm_args,
+    ]
+
+
+def _get_tsr_job_status(hostname: str) -> dict:
+    cmd = _build_ssh_racadm_cmd(hostname, "jobqueue", "view")
+    result = subprocess.run(  # nosec # nosemgrep
+        cmd, capture_output=True, text=True, timeout=30  # nosemgrep
+    )
+    if result.returncode != 0:
+        return {"state": "error", "message": "Failed to query job queue"}
+
+    jobs = parse_job_queue(result.stdout)
+
+    for job in jobs:
+        if job.get("job_name") != "SupportAssist Collection":
+            continue
+        status = job.get("status", "")
+        message = job.get("message", "")
+        pct = job.get("percent_complete", "0")
+
+        if status == "Running":
+            return {"state": "running", "percent_complete": pct}
+
+        if status == "Completed" and "completed successfully" in message.lower():
+            return {"state": "completed"}
+
+    return {"state": "none"}
+
+
+def _find_tsr_zip(service_tag: str, approx_time: datetime, fudge_seconds: int = 300):
+    pattern = str(TFTPBOOT_DIR / f"TSR*_{service_tag}.zip")
+    candidates = glob.glob(pattern)
+    if not candidates:
+        return None
+
+    best = None
+    best_diff = None
+    for path in candidates:
+        fname = os.path.basename(path)
+        ts_part = fname.replace("TSR", "").split("_")[0]
+        try:
+            file_dt = datetime.strptime(ts_part, "%Y%m%d%H%M%S")
+            diff = abs((file_dt - approx_time.replace(tzinfo=None)).total_seconds())
+            if diff <= fudge_seconds and (best_diff is None or diff < best_diff):
+                best = path
+                best_diff = diff
+        except ValueError:
+            continue
+
+    if best is None and candidates:
+        candidates.sort(key=os.path.getmtime, reverse=True)
+        best = candidates[0]
+
+    return best
+
+
+def _extract_tsr(zip_path: str, dest_dir: str) -> None:
+    os.makedirs(dest_dir, exist_ok=True)
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        zf.extractall(dest_dir)
+
+    for fname in os.listdir(dest_dir):
+        if fname.lower().endswith(".pl.zip"):
+            pl_zip_path = os.path.join(dest_dir, fname)
+            with zipfile.ZipFile(pl_zip_path, "r") as zf:
+                zf.extractall(dest_dir)
+            break
+
+    for root_dir, dirs, files in os.walk(dest_dir):
+        for d in dirs:
+            dp = os.path.join(root_dir, d)
+            st = os.stat(dp)
+            os.chmod(dp, st.st_mode | 0o055)
+        for f in files:
+            fp = os.path.join(root_dir, f)
+            st = os.stat(fp)
+            os.chmod(fp, st.st_mode | 0o044)
+
+
+def _tsr_monitor_thread(hostname: str, service_tag: str) -> None:
+    fqdn = socket.getfqdn()
+    max_wait = 1800
+    poll_interval = 20
+    elapsed = 0
+
+    while elapsed < max_wait:
+        time.sleep(poll_interval)
+        elapsed += poll_interval
+        try:
+            cmd = _build_ssh_racadm_cmd(hostname, "jobqueue", "view")
+            result = subprocess.run(  # nosec # nosemgrep
+                cmd, capture_output=True, text=True, timeout=30  # nosemgrep
+            )
+            if result.returncode != 0:
+                continue
+
+            jobs = parse_job_queue(result.stdout)
+            collection_done = False
+            for job in jobs:
+                if job.get("job_name") != "SupportAssist Collection":
+                    continue
+                if (
+                    job.get("status") == "Completed"
+                    and "collection operation is completed successfully"
+                    in job.get("message", "").lower()
+                ):
+                    collection_done = True
+                    break
+
+            if not collection_done:
+                continue
+
+            export_cmd = _build_ssh_racadm_cmd(
+                hostname, "techsupreport", "export", "-l", f"tftp://{fqdn}"
+            )
+            subprocess.run(  # nosec # nosemgrep
+                export_cmd, capture_output=True, text=True, timeout=30  # nosemgrep
+            )
+
+            export_elapsed = 0
+            export_done = False
+            while export_elapsed < max_wait:
+                time.sleep(poll_interval)
+                export_elapsed += poll_interval
+                try:
+                    result2 = subprocess.run(  # nosec # nosemgrep
+                        cmd, capture_output=True, text=True, timeout=30  # nosemgrep
+                    )
+                    if result2.returncode != 0:
+                        continue
+                    jobs2 = parse_job_queue(result2.stdout)
+                    for job2 in jobs2:
+                        if job2.get("job_name") != "SupportAssist Collection":
+                            continue
+                        if (
+                            job2.get("status") == "Completed"
+                            and "transmission operation is completed successfully"
+                            in job2.get("message", "").lower()
+                        ):
+                            export_done = True
+                            break
+                    if export_done:
+                        break
+                except Exception:
+                    continue
+
+            if not export_done:
+                return
+
+            approx_time = datetime.now()
+            time.sleep(5)
+            zip_path = _find_tsr_zip(service_tag, approx_time)
+            if not zip_path:
+                return
+
+            zip_fname = os.path.basename(zip_path)
+            ts_part = zip_fname.replace("TSR", "").split("_")[0]
+
+            host_dir = TSR_IMAGE_DIR / hostname
+            host_dir.mkdir(parents=True, exist_ok=True)
+
+            shutil.copy2(zip_path, host_dir / zip_fname)
+
+            ts_dir = host_dir / ts_part
+            _extract_tsr(str(host_dir / zip_fname), str(ts_dir))
+
+            latest_link = host_dir / "latest"
+            if latest_link.is_symlink() or latest_link.exists():
+                latest_link.unlink()
+            latest_link.symlink_to(ts_part)
+
+            index_path = ts_dir / "index.html"
+            index_path.write_text(
+                '<html><head><meta http-equiv="refresh" '
+                'content="0;url=tsr/viewer.html"></head></html>\n'
+            )
+
+            return
+
+        except Exception:
+            continue
+
+
+@app.route("/api/tsr-status", methods=["POST"])
+def api_tsr_status():
+    """Check TSR job status for a host."""
+    try:
+        if not session.get("authenticated", False):
+            return (
+                jsonify({"success": False, "message": "Authentication required"}),
+                401,
+            )
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "message": "Invalid request"}), 400
+
+        hostname = data.get("hostname", "").strip()
+        if not hostname:
+            return jsonify({"success": False, "message": "Hostname required"}), 400
+        if not validate_hostname(hostname):
+            return jsonify({"success": False, "message": "Invalid hostname"}), 400
+
+        status = _get_tsr_job_status(hostname)
+        fqdn = socket.getfqdn()
+        status["tsr_url"] = f"http://{fqdn}/tsr/{hostname}/"
+        return jsonify({"success": True, **status})
+
+    except subprocess.TimeoutExpired:
+        return jsonify({"success": False, "message": "Connection timeout"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+
+@app.route("/api/tsr-collect", methods=["POST"])
+def api_tsr_collect():
+    """Initiate a TSR collection on a host."""
+    try:
+        if not session.get("authenticated", False):
+            return (
+                jsonify({"success": False, "message": "Authentication required"}),
+                401,
+            )
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "message": "Invalid request"}), 400
+
+        hostname = data.get("hostname", "").strip()
+        service_tag = data.get("service_tag", "").strip()
+        if not hostname:
+            return jsonify({"success": False, "message": "Hostname required"}), 400
+        if not validate_hostname(hostname):
+            return jsonify({"success": False, "message": "Invalid hostname"}), 400
+        if not service_tag:
+            return jsonify({"success": False, "message": "Service tag required"}), 400
+
+        cmd = _build_ssh_racadm_cmd(
+            hostname, "techsupreport", "collect", "-t", "SysInfo,TTYLog"
+        )
+        result = subprocess.run(  # nosec # nosemgrep
+            cmd, capture_output=True, text=True, timeout=30  # nosemgrep
+        )
+
+        if result.returncode != 0:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": f"Failed to start TSR: "
+                        f"{result.stderr[:200] if result.stderr else result.stdout[:200]}",
+                    }
+                ),
+                500,
+            )
+
+        thread = threading.Thread(
+            target=_tsr_monitor_thread,
+            args=(hostname, service_tag),
+            daemon=True,
+        )
+        thread.start()
+
+        return jsonify(
+            {"success": True, "message": f"TSR initiated for {hostname}"}
+        )
+
+    except subprocess.TimeoutExpired:
+        return jsonify({"success": False, "message": "Connection timeout"}), 500
+    except FileNotFoundError:
+        return (
+            jsonify({"success": False, "message": "sshpass command not found"}),
             500,
         )
     except Exception as e:

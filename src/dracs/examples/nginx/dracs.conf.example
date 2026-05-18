@@ -12,6 +12,13 @@ server {
         autoindex off;
     }
 
+    location /tsr {
+        alias /var/lib/dracs/web/tsr/;
+        autoindex on;
+        autoindex_exact_size off;
+        autoindex_localtime on;
+    }
+
     # Redirect all HTTP requests to HTTPS
     return 301 https://$host$request_uri;
 }
