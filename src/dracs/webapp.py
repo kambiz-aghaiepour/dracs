@@ -1501,9 +1501,9 @@ def _generate_tsr_index(hostname: str) -> None:
         rows.append(row_tpl.format(bg, date_str, fname))
 
     table_rows = (
-        "\n".join(rows)
+        Markup("\n").join(rows)
         if rows
-        else (
+        else Markup(
             '<tr><td colspan="2" style="padding:20px;text-align:center;'
             'color:#666">No TSR collections found.</td></tr>'
         )
