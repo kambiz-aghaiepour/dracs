@@ -1242,3 +1242,563 @@ class TestTsrMonitorThread:
                         _tsr_monitor_thread("server01", "TAG001")
                     except StopIteration:
                         pass
+
+    def test_monitor_full_lifecycle(self, tmp_path):
+        from dracs.webapp import _tsr_monitor_thread
+
+        collection_output = (
+            "[Job ID=JID_001]\n"
+            "Job Name=SupportAssist Collection\n"
+            "Status=Completed\n"
+            "Percent Complete=100\n"
+            "Message=The SupportAssist Collection Operation is completed successfully\n"
+        )
+        transmission_output = (
+            "[Job ID=JID_002]\n"
+            "Job Name=SupportAssist Collection\n"
+            "Status=Completed\n"
+            "Percent Complete=100\n"
+            "Message=The SupportAssist Transmission Operation is completed successfully\n"
+        )
+
+        call_count = [0]
+
+        def fake_run(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] <= 1:
+                return MagicMock(returncode=0, stdout=collection_output)
+            if call_count[0] == 2:
+                return MagicMock(returncode=0, stdout="export started")
+            return MagicMock(returncode=0, stdout=transmission_output)
+
+        tsr_dir = tmp_path / "tsr"
+        tsr_dir.mkdir()
+        tftpboot = tmp_path / "tftpboot"
+        tftpboot.mkdir()
+
+        ts = "20250518120000"
+        zip_name = f"TSR{ts}_TAG001.zip"
+        inner_name = f"TSR{ts}_TAG001.pl.zip"
+        inner_zip = tftpboot / inner_name
+        with zipfile.ZipFile(inner_zip, "w") as zf:
+            zf.writestr("inner.txt", "data")
+        outer_zip = tftpboot / zip_name
+        with zipfile.ZipFile(outer_zip, "w") as zf:
+            zf.write(inner_zip, inner_name)
+            zf.writestr("outer.txt", "data")
+
+        with (
+            patch("dracs.webapp.subprocess.run", side_effect=fake_run),
+            patch("dracs.webapp.time.sleep"),
+            patch("dracs.webapp.TSR_IMAGE_DIR", tsr_dir),
+            patch("dracs.webapp.TFTPBOOT_DIR", tftpboot),
+            patch.dict(
+                os.environ,
+                {"DRACS_DNS_STRING": "mgmt-", "DRACS_DNS_MODE": "prefix"},
+            ),
+        ):
+            _tsr_monitor_thread("server01", "TAG001")
+
+        host_dir = tsr_dir / "server01"
+        assert host_dir.exists()
+        assert (host_dir / "latest").is_symlink()
+        ts_dir = host_dir / ts
+        assert ts_dir.exists()
+        assert (ts_dir / "index.html").exists()
+        assert (ts_dir / "outer.txt").exists()
+        assert (ts_dir / "inner.txt").exists()
+
+    def test_monitor_export_not_done(self):
+        from dracs.webapp import _tsr_monitor_thread
+
+        collection_output = (
+            "[Job ID=JID_001]\n"
+            "Job Name=SupportAssist Collection\n"
+            "Status=Completed\n"
+            "Percent Complete=100\n"
+            "Message=The SupportAssist Collection Operation is completed successfully\n"
+        )
+        not_done_output = (
+            "[Job ID=JID_002]\n"
+            "Job Name=SupportAssist Collection\n"
+            "Status=Running\n"
+            "Percent Complete=50\n"
+            "Message=Exporting...\n"
+        )
+
+        call_count = [0]
+
+        def fake_run(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return MagicMock(returncode=0, stdout=collection_output)
+            if call_count[0] == 2:
+                return MagicMock(returncode=0, stdout="export started")
+            return MagicMock(returncode=0, stdout=not_done_output)
+
+        sleep_count = [0]
+
+        def fake_sleep(secs):
+            sleep_count[0] += 1
+            if sleep_count[0] > 5:
+                raise StopIteration
+
+        with (
+            patch("dracs.webapp.subprocess.run", side_effect=fake_run),
+            patch("dracs.webapp.time.sleep", side_effect=fake_sleep),
+            patch.dict(
+                os.environ,
+                {"DRACS_DNS_STRING": "mgmt-", "DRACS_DNS_MODE": "prefix"},
+            ),
+        ):
+            try:
+                _tsr_monitor_thread("server01", "TAG001")
+            except StopIteration:
+                pass
+
+    def test_monitor_no_zip_found(self):
+        from dracs.webapp import _tsr_monitor_thread
+
+        collection_output = (
+            "[Job ID=JID_001]\n"
+            "Job Name=SupportAssist Collection\n"
+            "Status=Completed\n"
+            "Percent Complete=100\n"
+            "Message=The SupportAssist Collection Operation is completed successfully\n"
+        )
+        transmission_output = (
+            "[Job ID=JID_002]\n"
+            "Job Name=SupportAssist Collection\n"
+            "Status=Completed\n"
+            "Percent Complete=100\n"
+            "Message=The SupportAssist Transmission Operation is completed successfully\n"
+        )
+
+        call_count = [0]
+
+        def fake_run(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] <= 1:
+                return MagicMock(returncode=0, stdout=collection_output)
+            if call_count[0] == 2:
+                return MagicMock(returncode=0, stdout="ok")
+            return MagicMock(returncode=0, stdout=transmission_output)
+
+        with (
+            patch("dracs.webapp.subprocess.run", side_effect=fake_run),
+            patch("dracs.webapp.time.sleep"),
+            patch("dracs.webapp._find_tsr_zip", return_value=None),
+            patch.dict(
+                os.environ,
+                {"DRACS_DNS_STRING": "mgmt-", "DRACS_DNS_MODE": "prefix"},
+            ),
+        ):
+            _tsr_monitor_thread("server01", "TAG001")
+
+
+# ---------------------------------------------------------------------------
+# Additional coverage for edge cases
+# ---------------------------------------------------------------------------
+class TestCatalogEdgeCases:
+    def test_firmware_component_missing_category(self):
+        from dracs.webapp import _find_latest_idrac_firmware
+
+        xml = """<?xml version="1.0" encoding="utf-16"?>
+        <Manifest>
+          <SoftwareComponent path="p" vendorVersion="1.0" dateTime="2025-01-01T00:00:00Z">
+            <ComponentType value="FRMW"/>
+            <SupportedSystems><Brand><Model><Display>R660</Display></Model></Brand></SupportedSystems>
+          </SoftwareComponent>
+        </Manifest>"""
+        result = _find_latest_idrac_firmware(xml.encode("utf-16"), "R660")
+        assert result is None
+
+    def test_firmware_component_wrong_category(self):
+        from dracs.webapp import _find_latest_idrac_firmware
+
+        xml = """<?xml version="1.0" encoding="utf-16"?>
+        <Manifest>
+          <SoftwareComponent path="p" vendorVersion="1.0" dateTime="2025-01-01T00:00:00Z">
+            <ComponentType value="FRMW"/>
+            <Category><Display>Network Adapter</Display></Category>
+            <SupportedSystems><Brand><Model><Display>R660</Display></Model></Brand></SupportedSystems>
+          </SoftwareComponent>
+        </Manifest>"""
+        result = _find_latest_idrac_firmware(xml.encode("utf-16"), "R660")
+        assert result is None
+
+    def test_firmware_component_missing_path(self):
+        from dracs.webapp import _find_latest_idrac_firmware
+
+        xml = """<?xml version="1.0" encoding="utf-16"?>
+        <Manifest>
+          <SoftwareComponent vendorVersion="1.0" dateTime="2025-01-01T00:00:00Z">
+            <ComponentType value="FRMW"/>
+            <Category><Display>iDRAC with Lifecycle Controller</Display></Category>
+            <SupportedSystems><Brand><Model><Display>R660</Display></Model></Brand></SupportedSystems>
+          </SoftwareComponent>
+        </Manifest>"""
+        result = _find_latest_idrac_firmware(xml.encode("utf-16"), "R660")
+        assert result is None
+
+    def test_bios_component_missing_path(self):
+        from dracs.webapp import _find_latest_bios
+
+        xml = """<?xml version="1.0" encoding="utf-16"?>
+        <Manifest>
+          <SoftwareComponent vendorVersion="1.0" dateTime="2025-01-01T00:00:00Z">
+            <ComponentType value="BIOS"/>
+            <SupportedSystems><Brand><Model><Display>R660</Display></Model></Brand></SupportedSystems>
+          </SoftwareComponent>
+        </Manifest>"""
+        result = _find_latest_bios(xml.encode("utf-16"), "R660")
+        assert result is None
+
+
+class TestPowerStatusEdgeCases:
+    def test_empty_hostname(self, client):
+        _login(client)
+        resp = client.post(
+            "/api/power-status",
+            data=json.dumps({"hostname": ""}),
+            content_type="application/json",
+        )
+        assert resp.status_code in (400, 500)
+
+    def test_general_exception(self, client):
+        _login(client)
+        with patch(
+            "dracs.webapp.build_idrac_hostname",
+            side_effect=RuntimeError("boom"),
+        ):
+            resp = client.post(
+                "/api/power-status",
+                data=json.dumps({"hostname": "server01"}),
+                content_type="application/json",
+            )
+        assert resp.status_code == 500
+        assert "boom" in resp.get_json()["message"]
+
+
+class TestPowerActionEdgeCases:
+    def test_empty_hostname(self, client):
+        _login(client)
+        resp = client.post(
+            "/api/power-action",
+            data=json.dumps({"hostname": "", "action": "powerup"}),
+            content_type="application/json",
+        )
+        assert resp.status_code in (400, 500)
+
+    def test_no_json_body(self, client):
+        _login(client)
+        resp = client.post(
+            "/api/power-action",
+            data=json.dumps(None),
+            content_type="application/json",
+        )
+        assert resp.status_code in (400, 500)
+
+
+class TestFirmwareStreamEdgeCases:
+    def test_no_d9_in_package(self, client, tmp_path):
+        _login(client)
+        import gzip
+
+        catalog_gz = gzip.compress(SAMPLE_CATALOG_XML.encode("utf-16"))
+
+        mock_catalog_resp = MagicMock()
+        mock_catalog_resp.read.return_value = catalog_gz
+        mock_catalog_resp.__enter__ = lambda s: s
+        mock_catalog_resp.__exit__ = MagicMock(return_value=False)
+
+        mock_exe_resp = MagicMock()
+        mock_exe_resp.__enter__ = lambda s: s
+        mock_exe_resp.__exit__ = MagicMock(return_value=False)
+
+        no_d9_zip = tmp_path / "no_d9.zip"
+        with zipfile.ZipFile(no_d9_zip, "w") as zf:
+            zf.writestr("some_other_file.bin", b"data")
+        exe_bytes = no_d9_zip.read_bytes()
+
+        def fake_urlopen(req, timeout=None):
+            if "Catalog" in req.full_url:
+                return mock_catalog_resp
+            return mock_exe_resp
+
+        def fake_copyfileobj(src, dst):
+            dst.write(exe_bytes)
+
+        import xml.etree.ElementTree as real_ET
+
+        orig_parse = real_ET.parse
+
+        def fake_et_parse(path):
+            if "package.xml" in str(path):
+                root = real_ET.fromstring(
+                    '<SoftwareComponent vendorVersion="7.30.10.50"/>'
+                )
+                tree = MagicMock()
+                tree.getroot.return_value = root
+                return tree
+            return orig_parse(path)
+
+        fw_dir = tmp_path / "fw"
+        fw_dir.mkdir()
+
+        with (
+            patch("dracs.webapp.urllib.request.urlopen", side_effect=fake_urlopen),
+            patch("dracs.webapp.shutil.copyfileobj", side_effect=fake_copyfileobj),
+            patch("dracs.webapp.ET.parse", side_effect=fake_et_parse),
+            patch("dracs.webapp.FIRMWARE_IMAGE_DIR", fw_dir),
+        ):
+            resp = client.post(
+                "/api/latest-firmware",
+                data=json.dumps(
+                    {
+                        "model": "R660",
+                        "hostname": "server01",
+                        "current_version": "",
+                    }
+                ),
+                content_type="application/json",
+            )
+            data_str = resp.get_data(as_text=True)
+
+        assert "No .d9 firmware image found" in data_str
+
+    def test_firmware_file_already_exists(self, client, tmp_path):
+        _login(client)
+        import gzip
+
+        catalog_gz = gzip.compress(SAMPLE_CATALOG_XML.encode("utf-16"))
+
+        mock_catalog_resp = MagicMock()
+        mock_catalog_resp.read.return_value = catalog_gz
+        mock_catalog_resp.__enter__ = lambda s: s
+        mock_catalog_resp.__exit__ = MagicMock(return_value=False)
+
+        mock_exe_resp = MagicMock()
+        mock_exe_resp.__enter__ = lambda s: s
+        mock_exe_resp.__exit__ = MagicMock(return_value=False)
+
+        src_zip = tmp_path / "fw.zip"
+        with zipfile.ZipFile(src_zip, "w") as zf:
+            zf.writestr("payload/firmimgFIT.d9", b"firmware")
+        exe_bytes = src_zip.read_bytes()
+
+        def fake_urlopen(req, timeout=None):
+            if "Catalog" in req.full_url:
+                return mock_catalog_resp
+            return mock_exe_resp
+
+        def fake_copyfileobj(src, dst):
+            dst.write(exe_bytes)
+
+        import xml.etree.ElementTree as real_ET
+
+        orig_parse = real_ET.parse
+
+        def fake_et_parse(path):
+            if "package.xml" in str(path):
+                root = real_ET.fromstring(
+                    '<SoftwareComponent vendorVersion="7.30.10.50"/>'
+                )
+                tree = MagicMock()
+                tree.getroot.return_value = root
+                return tree
+            return orig_parse(path)
+
+        fw_dir = tmp_path / "fw_dest"
+        fw_dir.mkdir()
+        (fw_dir / "R660-7.30.10.50.d9").write_bytes(b"existing")
+
+        with (
+            patch("dracs.webapp.urllib.request.urlopen", side_effect=fake_urlopen),
+            patch("dracs.webapp.shutil.copyfileobj", side_effect=fake_copyfileobj),
+            patch("dracs.webapp.ET.parse", side_effect=fake_et_parse),
+            patch("dracs.webapp.FIRMWARE_IMAGE_DIR", fw_dir),
+        ):
+            resp = client.post(
+                "/api/latest-firmware",
+                data=json.dumps(
+                    {
+                        "model": "R660",
+                        "hostname": "server01",
+                        "current_version": "",
+                    }
+                ),
+                content_type="application/json",
+            )
+            data_str = resp.get_data(as_text=True)
+
+        assert "already exists!" in data_str
+
+
+class TestBiosStreamEdgeCases:
+    def test_bios_file_already_exists(self, client, tmp_path):
+        _login(client)
+        import gzip
+
+        catalog_gz = gzip.compress(SAMPLE_CATALOG_XML.encode("utf-16"))
+
+        mock_catalog_resp = MagicMock()
+        mock_catalog_resp.read.return_value = catalog_gz
+        mock_catalog_resp.__enter__ = lambda s: s
+        mock_catalog_resp.__exit__ = MagicMock(return_value=False)
+
+        mock_exe_resp = MagicMock()
+        mock_exe_resp.__enter__ = lambda s: s
+        mock_exe_resp.__exit__ = MagicMock(return_value=False)
+
+        def fake_urlopen(req, timeout=None):
+            if "Catalog" in req.full_url:
+                return mock_catalog_resp
+            return mock_exe_resp
+
+        def fake_copyfileobj(src, dst):
+            dst.write(b"BIOS data")
+
+        bios_dir = tmp_path / "bios_dest"
+        model_dir = bios_dir / "R660"
+        model_dir.mkdir(parents=True)
+        (model_dir / "bios.EXE").write_bytes(b"existing")
+
+        with (
+            patch("dracs.webapp.urllib.request.urlopen", side_effect=fake_urlopen),
+            patch("dracs.webapp.shutil.copyfileobj", side_effect=fake_copyfileobj),
+            patch("dracs.webapp.BIOS_IMAGE_DIR", bios_dir),
+            patch("dracs.webapp._update_bios_filename_ini"),
+        ):
+            resp = client.post(
+                "/api/latest-bios",
+                data=json.dumps(
+                    {
+                        "model": "R660",
+                        "hostname": "server01",
+                        "current_version": "",
+                    }
+                ),
+                content_type="application/json",
+            )
+            data_str = resp.get_data(as_text=True)
+
+        assert "already exists!" in data_str
+
+    def test_bios_ini_update_exception(self, client, tmp_path):
+        _login(client)
+        import gzip
+
+        catalog_gz = gzip.compress(SAMPLE_CATALOG_XML.encode("utf-16"))
+
+        mock_catalog_resp = MagicMock()
+        mock_catalog_resp.read.return_value = catalog_gz
+        mock_catalog_resp.__enter__ = lambda s: s
+        mock_catalog_resp.__exit__ = MagicMock(return_value=False)
+
+        mock_exe_resp = MagicMock()
+        mock_exe_resp.__enter__ = lambda s: s
+        mock_exe_resp.__exit__ = MagicMock(return_value=False)
+
+        def fake_urlopen(req, timeout=None):
+            if "Catalog" in req.full_url:
+                return mock_catalog_resp
+            return mock_exe_resp
+
+        def fake_copyfileobj(src, dst):
+            dst.write(b"BIOS data")
+
+        bios_dir = tmp_path / "bios_dest"
+        bios_dir.mkdir()
+
+        with (
+            patch("dracs.webapp.urllib.request.urlopen", side_effect=fake_urlopen),
+            patch("dracs.webapp.shutil.copyfileobj", side_effect=fake_copyfileobj),
+            patch("dracs.webapp.BIOS_IMAGE_DIR", bios_dir),
+            patch(
+                "dracs.webapp._update_bios_filename_ini",
+                side_effect=OSError("disk full"),
+            ),
+        ):
+            resp = client.post(
+                "/api/latest-bios",
+                data=json.dumps(
+                    {
+                        "model": "R660",
+                        "hostname": "server01",
+                        "current_version": "1.0.0",
+                    }
+                ),
+                content_type="application/json",
+            )
+            data_str = resp.get_data(as_text=True)
+
+        assert '"type": "complete"' in data_str
+
+
+class TestTsrEndpointEdgeCases:
+    def test_tsr_status_empty_hostname(self, client):
+        _login(client)
+        resp = client.post(
+            "/api/tsr-status",
+            data=json.dumps({"hostname": ""}),
+            content_type="application/json",
+        )
+        assert resp.status_code in (400, 500)
+
+    def test_tsr_collect_empty_hostname(self, client):
+        _login(client)
+        resp = client.post(
+            "/api/tsr-collect",
+            data=json.dumps({"hostname": "", "service_tag": "TAG001"}),
+            content_type="application/json",
+        )
+        assert resp.status_code in (400, 500)
+
+    def test_tsr_status_general_exception(self, client):
+        _login(client)
+        with patch(
+            "dracs.webapp._get_tsr_job_status",
+            side_effect=RuntimeError("boom"),
+        ):
+            resp = client.post(
+                "/api/tsr-status",
+                data=json.dumps({"hostname": "server01"}),
+                content_type="application/json",
+            )
+        assert resp.status_code == 500
+
+    def test_tsr_collect_general_exception(self, client):
+        _login(client)
+        with patch(
+            "dracs.webapp.subprocess.run",
+            side_effect=RuntimeError("boom"),
+        ):
+            resp = client.post(
+                "/api/tsr-collect",
+                data=json.dumps({"hostname": "server01", "service_tag": "TAG001"}),
+                content_type="application/json",
+            )
+        assert resp.status_code == 500
+
+
+class TestLatestFirmwareNoJson:
+    def test_empty_json(self, client):
+        _login(client)
+        resp = client.post(
+            "/api/latest-firmware",
+            data=json.dumps(None),
+            content_type="application/json",
+        )
+        assert resp.status_code in (400, 500)
+
+
+class TestLatestBiosNoJson:
+    def test_empty_json(self, client):
+        _login(client)
+        resp = client.post(
+            "/api/latest-bios",
+            data=json.dumps(None),
+            content_type="application/json",
+        )
+        assert resp.status_code in (400, 500)
