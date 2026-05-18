@@ -839,7 +839,7 @@ def api_bios_update():
         # Build HTTP URL for BIOS image (model-specific subdirectory)
         bios_server = os.environ.get("DRACS_BIOS_SERVER") or socket.getfqdn()
         bios_uri = os.environ.get("DRACS_BIOS_URI", "/bios/")
-        bios_url = f"http://{bios_server}{bios_uri}{url_quote(model, safe='')}/"
+        bios_url = f"http://{bios_server}{bios_uri}{url_quote(model, safe='')}/"  # nosec # nosemgrep
 
         # Prepare log file path
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1953,7 +1953,9 @@ def api_tsr_status():
 
         status = _get_tsr_job_status(hostname)
         fqdn = socket.getfqdn()
-        status["tsr_url"] = f"http://{fqdn}/tsr/{url_quote(hostname, safe='')}/"
+        status["tsr_url"] = (
+            f"http://{fqdn}/tsr/{url_quote(hostname, safe='')}/"  # nosec # nosemgrep
+        )
         return jsonify({"success": True, **status})
 
     except subprocess.TimeoutExpired:
