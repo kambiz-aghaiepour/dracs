@@ -1469,7 +1469,8 @@ def _stage_tsr_files(zip_path: str, hostname: str, service_tag: str) -> None:
 def _generate_tsr_index(hostname: str) -> None:
     host_dir = TSR_IMAGE_DIR / hostname
     if not host_dir.is_dir():
-        return
+        host_dir.mkdir(parents=True, exist_ok=True)
+        os.chmod(host_dir, 0o755)  # nosec # nosemgrep
 
     entries = []
     for zip_file in host_dir.glob("TSR*.zip"):

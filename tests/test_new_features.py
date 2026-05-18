@@ -417,13 +417,18 @@ class TestGenerateTsrIndex:
         content = (host_dir / "index.html").read_text()
         assert "No TSR collections found" in content
 
-    def test_nonexistent_directory(self, tmp_path):
+    def test_nonexistent_directory_creates_it(self, tmp_path):
         from dracs.webapp import _generate_tsr_index
 
         with patch("dracs.webapp.TSR_IMAGE_DIR", tmp_path):
             _generate_tsr_index("no-such-host")
 
-        assert not (tmp_path / "no-such-host" / "index.html").exists()
+        host_dir = tmp_path / "no-such-host"
+        assert host_dir.is_dir()
+        assert (host_dir.stat().st_mode & 0o777) == 0o755
+        content = (host_dir / "index.html").read_text()
+        assert "TSR Collection for no-such-host" in content
+        assert "No TSR collections found" in content
 
     def test_skips_malformed_filenames(self, tmp_path):
         from dracs.webapp import _generate_tsr_index
