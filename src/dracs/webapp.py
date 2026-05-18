@@ -2009,9 +2009,7 @@ def api_tsr_collect():
         )
         thread.start()
 
-        return jsonify(
-            {"success": True, "message": f"TSR initiated for {hostname}"}
-        )
+        return jsonify({"success": True, "message": f"TSR initiated for {hostname}"})
 
     except subprocess.TimeoutExpired:
         return jsonify({"success": False, "message": "Connection timeout"}), 500

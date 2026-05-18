@@ -529,7 +529,9 @@ class TestPowerActionEndpoint:
 
     def test_powerup_success(self, client):
         _login(client)
-        mock_result = MagicMock(returncode=0, stdout="Server power operation successful")
+        mock_result = MagicMock(
+            returncode=0, stdout="Server power operation successful"
+        )
         with patch("dracs.webapp.subprocess.run", return_value=mock_result):
             resp = client.post(
                 "/api/power-action",
@@ -659,9 +661,7 @@ class TestLatestBiosEndpoint:
 
     def test_no_json(self, client):
         _login(client)
-        resp = client.post(
-            "/api/latest-bios", data="bad", content_type="text/plain"
-        )
+        resp = client.post("/api/latest-bios", data="bad", content_type="text/plain")
         assert resp.status_code in (400, 415, 500)
 
     def test_missing_fields(self, client):
@@ -794,9 +794,7 @@ class TestTsrCollectEndpoint:
         _login(client)
         resp = client.post(
             "/api/tsr-collect",
-            data=json.dumps(
-                {"hostname": "../../etc/passwd", "service_tag": "TAG001"}
-            ),
+            data=json.dumps({"hostname": "../../etc/passwd", "service_tag": "TAG001"}),
             content_type="application/json",
         )
         assert resp.status_code == 400
@@ -809,9 +807,7 @@ class TestTsrCollectEndpoint:
                 mock_thread.return_value = MagicMock()
                 resp = client.post(
                     "/api/tsr-collect",
-                    data=json.dumps(
-                        {"hostname": "server01", "service_tag": "TAG001"}
-                    ),
+                    data=json.dumps({"hostname": "server01", "service_tag": "TAG001"}),
                     content_type="application/json",
                 )
         data = resp.get_json()
@@ -824,9 +820,7 @@ class TestTsrCollectEndpoint:
         with patch("dracs.webapp.subprocess.run", return_value=mock_result):
             resp = client.post(
                 "/api/tsr-collect",
-                data=json.dumps(
-                    {"hostname": "server01", "service_tag": "TAG001"}
-                ),
+                data=json.dumps({"hostname": "server01", "service_tag": "TAG001"}),
                 content_type="application/json",
             )
         assert resp.status_code == 500
@@ -841,9 +835,7 @@ class TestTsrCollectEndpoint:
         ):
             resp = client.post(
                 "/api/tsr-collect",
-                data=json.dumps(
-                    {"hostname": "server01", "service_tag": "TAG001"}
-                ),
+                data=json.dumps({"hostname": "server01", "service_tag": "TAG001"}),
                 content_type="application/json",
             )
         assert resp.status_code == 500
@@ -856,9 +848,7 @@ class TestTsrCollectEndpoint:
         ):
             resp = client.post(
                 "/api/tsr-collect",
-                data=json.dumps(
-                    {"hostname": "server01", "service_tag": "TAG001"}
-                ),
+                data=json.dumps({"hostname": "server01", "service_tag": "TAG001"}),
                 content_type="application/json",
             )
         assert resp.status_code == 500
@@ -942,10 +932,12 @@ class TestLatestFirmwareStreaming:
         def fake_copyfileobj(src, dst):
             dst.write(exe_bytes)
 
-        with patch("dracs.webapp.urllib.request.urlopen", side_effect=fake_urlopen), \
-             patch("dracs.webapp.shutil.copyfileobj", side_effect=fake_copyfileobj), \
-             patch("dracs.webapp.ET.parse", side_effect=fake_et_parse), \
-             patch("dracs.webapp.FIRMWARE_IMAGE_DIR", fw_dir):
+        with (
+            patch("dracs.webapp.urllib.request.urlopen", side_effect=fake_urlopen),
+            patch("dracs.webapp.shutil.copyfileobj", side_effect=fake_copyfileobj),
+            patch("dracs.webapp.ET.parse", side_effect=fake_et_parse),
+            patch("dracs.webapp.FIRMWARE_IMAGE_DIR", fw_dir),
+        ):
             resp = client.post(
                 "/api/latest-firmware",
                 data=json.dumps(
@@ -1046,10 +1038,12 @@ class TestLatestFirmwareStreaming:
         def fake_copyfileobj(src, dst):
             dst.write(exe_bytes)
 
-        with patch("dracs.webapp.urllib.request.urlopen", side_effect=fake_urlopen), \
-             patch("dracs.webapp.shutil.copyfileobj", side_effect=fake_copyfileobj), \
-             patch("dracs.webapp.ET.parse", side_effect=fake_et_parse), \
-             patch("dracs.webapp.FIRMWARE_IMAGE_DIR", fw_dir):
+        with (
+            patch("dracs.webapp.urllib.request.urlopen", side_effect=fake_urlopen),
+            patch("dracs.webapp.shutil.copyfileobj", side_effect=fake_copyfileobj),
+            patch("dracs.webapp.ET.parse", side_effect=fake_et_parse),
+            patch("dracs.webapp.FIRMWARE_IMAGE_DIR", fw_dir),
+        ):
             resp = client.post(
                 "/api/latest-firmware",
                 data=json.dumps(
@@ -1099,10 +1093,12 @@ class TestLatestBiosStreaming:
         bios_dir = tmp_path / "bios_dest"
         bios_dir.mkdir()
 
-        with patch("dracs.webapp.urllib.request.urlopen", side_effect=fake_urlopen), \
-             patch("dracs.webapp.shutil.copyfileobj", side_effect=fake_copyfileobj), \
-             patch("dracs.webapp.BIOS_IMAGE_DIR", bios_dir), \
-             patch("dracs.webapp._update_bios_filename_ini"):
+        with (
+            patch("dracs.webapp.urllib.request.urlopen", side_effect=fake_urlopen),
+            patch("dracs.webapp.shutil.copyfileobj", side_effect=fake_copyfileobj),
+            patch("dracs.webapp.BIOS_IMAGE_DIR", bios_dir),
+            patch("dracs.webapp._update_bios_filename_ini"),
+        ):
             resp = client.post(
                 "/api/latest-bios",
                 data=json.dumps(
@@ -1185,10 +1181,12 @@ class TestLatestBiosStreaming:
         bios_dir = tmp_path / "bios_dest"
         bios_dir.mkdir()
 
-        with patch("dracs.webapp.urllib.request.urlopen", side_effect=fake_urlopen), \
-             patch("dracs.webapp.shutil.copyfileobj", side_effect=fake_copyfileobj), \
-             patch("dracs.webapp.BIOS_IMAGE_DIR", bios_dir), \
-             patch("dracs.webapp._update_bios_filename_ini"):
+        with (
+            patch("dracs.webapp.urllib.request.urlopen", side_effect=fake_urlopen),
+            patch("dracs.webapp.shutil.copyfileobj", side_effect=fake_copyfileobj),
+            patch("dracs.webapp.BIOS_IMAGE_DIR", bios_dir),
+            patch("dracs.webapp._update_bios_filename_ini"),
+        ):
             resp = client.post(
                 "/api/latest-bios",
                 data=json.dumps(
@@ -1219,9 +1217,7 @@ class TestTsrMonitorThread:
                     os.environ,
                     {"DRACS_DNS_STRING": "mgmt-", "DRACS_DNS_MODE": "prefix"},
                 ):
-                    with patch.object(
-                        MagicMock, "__gt__", return_value=True
-                    ):
+                    with patch.object(MagicMock, "__gt__", return_value=True):
                         _tsr_monitor_thread.__wrapped__ = None
                         pass
 
