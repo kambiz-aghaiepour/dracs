@@ -1802,3 +1802,312 @@ class TestLatestBiosNoJson:
             content_type="application/json",
         )
         assert resp.status_code in (400, 500)
+
+
+class TestFirmwareD9FallbackSearch:
+    def test_d9_not_in_payload_but_in_subdir(self, client, tmp_path):
+        _login(client)
+        import gzip
+
+        catalog_gz = gzip.compress(SAMPLE_CATALOG_XML.encode("utf-16"))
+
+        mock_catalog_resp = MagicMock()
+        mock_catalog_resp.read.return_value = catalog_gz
+        mock_catalog_resp.__enter__ = lambda s: s
+        mock_catalog_resp.__exit__ = MagicMock(return_value=False)
+
+        mock_exe_resp = MagicMock()
+        mock_exe_resp.__enter__ = lambda s: s
+        mock_exe_resp.__exit__ = MagicMock(return_value=False)
+
+        src_zip = tmp_path / "fw.zip"
+        with zipfile.ZipFile(src_zip, "w") as zf:
+            zf.writestr("subdir/firmware.d9", b"firmware data")
+        exe_bytes = src_zip.read_bytes()
+
+        def fake_urlopen(req, timeout=None):
+            if "Catalog" in req.full_url:
+                return mock_catalog_resp
+            return mock_exe_resp
+
+        def fake_copyfileobj(src, dst):
+            dst.write(exe_bytes)
+
+        import xml.etree.ElementTree as real_ET
+
+        orig_parse = real_ET.parse
+
+        def fake_et_parse(path):
+            if "package.xml" in str(path):
+                root = real_ET.fromstring('<Other vendorVersion="7.30.10.50"/>')
+                tree = MagicMock()
+                tree.getroot.return_value = root
+                return tree
+            return orig_parse(path)
+
+        fw_dir = tmp_path / "fw_dest"
+        fw_dir.mkdir()
+
+        with (
+            patch("dracs.webapp.urllib.request.urlopen", side_effect=fake_urlopen),
+            patch("dracs.webapp.shutil.copyfileobj", side_effect=fake_copyfileobj),
+            patch("dracs.webapp.ET.parse", side_effect=fake_et_parse),
+            patch("dracs.webapp.FIRMWARE_IMAGE_DIR", fw_dir),
+        ):
+            resp = client.post(
+                "/api/latest-firmware",
+                data=json.dumps(
+                    {
+                        "model": "R660",
+                        "hostname": "server01",
+                        "current_version": "",
+                    }
+                ),
+                content_type="application/json",
+            )
+            data_str = resp.get_data(as_text=True)
+
+        assert '"type": "complete"' in data_str
+        assert (fw_dir / "R660-7.30.10.50.d9").exists()
+
+
+class TestTsrMonitorExportEdgeCases:
+    def test_export_poll_command_failure(self, tmp_path):
+        from dracs.webapp import _tsr_monitor_thread
+
+        collection_output = (
+            "[Job ID=JID_001]\n"
+            "Job Name=SupportAssist Collection\n"
+            "Status=Completed\n"
+            "Percent Complete=100\n"
+            "Message=The SupportAssist Collection Operation is completed successfully\n"
+        )
+        transmission_output = (
+            "[Job ID=JID_002]\n"
+            "Job Name=SupportAssist Collection\n"
+            "Status=Completed\n"
+            "Percent Complete=100\n"
+            "Message=The SupportAssist Transmission Operation is completed successfully\n"
+        )
+
+        call_count = [0]
+
+        def fake_run(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return MagicMock(returncode=0, stdout=collection_output)
+            if call_count[0] == 2:
+                return MagicMock(returncode=0, stdout="export started")
+            if call_count[0] == 3:
+                return MagicMock(returncode=1, stdout="", stderr="fail")
+            if call_count[0] == 4:
+                raise Exception("network error")
+            return MagicMock(returncode=0, stdout=transmission_output)
+
+        tsr_dir = tmp_path / "tsr"
+        tsr_dir.mkdir()
+        tftpboot = tmp_path / "tftpboot"
+        tftpboot.mkdir()
+
+        ts = "20250518120000"
+        zip_name = f"TSR{ts}_TAG001.zip"
+        outer_zip = tftpboot / zip_name
+        with zipfile.ZipFile(outer_zip, "w") as zf:
+            zf.writestr("file.txt", "data")
+
+        with (
+            patch("dracs.webapp.subprocess.run", side_effect=fake_run),
+            patch("dracs.webapp.time.sleep"),
+            patch("dracs.webapp.TSR_IMAGE_DIR", tsr_dir),
+            patch("dracs.webapp.TFTPBOOT_DIR", tftpboot),
+            patch.dict(
+                os.environ,
+                {"DRACS_DNS_STRING": "mgmt-", "DRACS_DNS_MODE": "prefix"},
+            ),
+        ):
+            _tsr_monitor_thread("server01", "TAG001")
+
+        assert (tsr_dir / "server01").exists()
+
+    def test_monitor_with_non_tsr_jobs(self, tmp_path):
+        from dracs.webapp import _tsr_monitor_thread
+
+        mixed_output = (
+            "[Job ID=JID_001]\n"
+            "Job Name=Firmware Update\n"
+            "Status=Completed\n"
+            "Percent Complete=100\n"
+            "Message=Job completed\n"
+            "\n"
+            "[Job ID=JID_002]\n"
+            "Job Name=SupportAssist Collection\n"
+            "Status=Completed\n"
+            "Percent Complete=100\n"
+            "Message=The SupportAssist Collection Operation is completed successfully\n"
+        )
+        transmission_output = (
+            "[Job ID=JID_003]\n"
+            "Job Name=Firmware Update\n"
+            "Status=Completed\n"
+            "Percent Complete=100\n"
+            "Message=Done\n"
+            "\n"
+            "[Job ID=JID_004]\n"
+            "Job Name=SupportAssist Collection\n"
+            "Status=Completed\n"
+            "Percent Complete=100\n"
+            "Message=The SupportAssist Transmission Operation is completed successfully\n"
+        )
+
+        call_count = [0]
+
+        def fake_run(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return MagicMock(returncode=0, stdout=mixed_output)
+            if call_count[0] == 2:
+                return MagicMock(returncode=0, stdout="ok")
+            return MagicMock(returncode=0, stdout=transmission_output)
+
+        tsr_dir = tmp_path / "tsr"
+        tsr_dir.mkdir()
+        tftpboot = tmp_path / "tftpboot"
+        tftpboot.mkdir()
+
+        ts = "20250518120000"
+        outer_zip = tftpboot / f"TSR{ts}_TAG001.zip"
+        with zipfile.ZipFile(outer_zip, "w") as zf:
+            zf.writestr("file.txt", "data")
+
+        with (
+            patch("dracs.webapp.subprocess.run", side_effect=fake_run),
+            patch("dracs.webapp.time.sleep"),
+            patch("dracs.webapp.TSR_IMAGE_DIR", tsr_dir),
+            patch("dracs.webapp.TFTPBOOT_DIR", tftpboot),
+            patch.dict(
+                os.environ,
+                {"DRACS_DNS_STRING": "mgmt-", "DRACS_DNS_MODE": "prefix"},
+            ),
+        ):
+            _tsr_monitor_thread("server01", "TAG001")
+
+        host_dir = tsr_dir / "server01"
+        assert host_dir.exists()
+
+    def test_monitor_existing_symlink_replaced(self, tmp_path):
+        from dracs.webapp import _tsr_monitor_thread
+
+        collection_output = (
+            "[Job ID=JID_001]\n"
+            "Job Name=SupportAssist Collection\n"
+            "Status=Completed\n"
+            "Percent Complete=100\n"
+            "Message=The SupportAssist Collection Operation is completed successfully\n"
+        )
+        transmission_output = (
+            "[Job ID=JID_002]\n"
+            "Job Name=SupportAssist Collection\n"
+            "Status=Completed\n"
+            "Percent Complete=100\n"
+            "Message=The SupportAssist Transmission Operation is completed successfully\n"
+        )
+
+        call_count = [0]
+
+        def fake_run(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return MagicMock(returncode=0, stdout=collection_output)
+            if call_count[0] == 2:
+                return MagicMock(returncode=0, stdout="ok")
+            return MagicMock(returncode=0, stdout=transmission_output)
+
+        tsr_dir = tmp_path / "tsr"
+        tsr_dir.mkdir()
+        host_dir = tsr_dir / "server01"
+        host_dir.mkdir()
+        old_link = host_dir / "latest"
+        old_link.symlink_to("old_timestamp")
+
+        tftpboot = tmp_path / "tftpboot"
+        tftpboot.mkdir()
+
+        ts = "20250518120000"
+        outer_zip = tftpboot / f"TSR{ts}_TAG001.zip"
+        with zipfile.ZipFile(outer_zip, "w") as zf:
+            zf.writestr("file.txt", "data")
+
+        with (
+            patch("dracs.webapp.subprocess.run", side_effect=fake_run),
+            patch("dracs.webapp.time.sleep"),
+            patch("dracs.webapp.TSR_IMAGE_DIR", tsr_dir),
+            patch("dracs.webapp.TFTPBOOT_DIR", tftpboot),
+            patch.dict(
+                os.environ,
+                {"DRACS_DNS_STRING": "mgmt-", "DRACS_DNS_MODE": "prefix"},
+            ),
+        ):
+            _tsr_monitor_thread("server01", "TAG001")
+
+        assert (host_dir / "latest").is_symlink()
+        assert os.readlink(host_dir / "latest") == ts
+
+    def test_export_not_done_returns(self):
+        from dracs.webapp import _tsr_monitor_thread
+
+        collection_output = (
+            "[Job ID=JID_001]\n"
+            "Job Name=SupportAssist Collection\n"
+            "Status=Completed\n"
+            "Percent Complete=100\n"
+            "Message=The SupportAssist Collection Operation is completed successfully\n"
+        )
+        still_running = (
+            "[Job ID=JID_002]\n"
+            "Job Name=SupportAssist Collection\n"
+            "Status=Running\n"
+            "Percent Complete=50\n"
+            "Message=Exporting\n"
+        )
+
+        call_count = [0]
+
+        def fake_run(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return MagicMock(returncode=0, stdout=collection_output)
+            if call_count[0] == 2:
+                return MagicMock(returncode=0, stdout="ok")
+            return MagicMock(returncode=0, stdout=still_running)
+
+        sleep_count = [0]
+        orig_max_wait = 1800
+
+        def fake_sleep(secs):
+            sleep_count[0] += 1
+            if sleep_count[0] > 100:
+                raise StopIteration
+
+        with (
+            patch("dracs.webapp.subprocess.run", side_effect=fake_run),
+            patch("dracs.webapp.time.sleep", side_effect=fake_sleep),
+            patch.dict(
+                os.environ,
+                {"DRACS_DNS_STRING": "mgmt-", "DRACS_DNS_MODE": "prefix"},
+            ),
+        ):
+            try:
+                _tsr_monitor_thread("server01", "TAG001")
+            except StopIteration:
+                pass
+
+
+class TestTsrCollectNoJson:
+    def test_empty_json(self, client):
+        _login(client)
+        resp = client.post(
+            "/api/tsr-collect",
+            data=json.dumps(None),
+            content_type="application/json",
+        )
+        assert resp.status_code in (400, 500)
