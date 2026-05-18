@@ -5,7 +5,6 @@ import configparser
 from datetime import datetime
 import glob
 import gzip
-import html
 import json
 import os
 import re
@@ -24,6 +23,7 @@ import defusedxml.ElementTree as defused_ET
 from pathlib import Path
 from dotenv import load_dotenv
 from flask import Flask, render_template, jsonify, session, request, Response
+from markupsafe import Markup, escape as markup_escape
 
 from dracs.db import db_initialize, get_session, System
 from dracs.commands import refresh_dell_warranty
@@ -1473,21 +1473,22 @@ def _generate_tsr_index(hostname: str) -> None:
 
     entries.sort(key=lambda e: e[0], reverse=True)
 
+    row_tpl = Markup(
+        '<tr style="background:{}">'
+        '<td style="padding:10px 16px">{}</td>'
+        '<td style="padding:10px 16px;text-align:center">'
+        '<a href="{}" download '
+        'style="display:inline-block;padding:6px 18px;'
+        "background:#0d6efd;color:#fff;border-radius:4px;"
+        'text-decoration:none;font-size:14px">Download</a>'
+        "</td></tr>"
+    )
+
     rows = []
     for i, (dt, fname) in enumerate(entries):
         bg = "#ffffff" if i % 2 == 0 else "#f5f5f5"
         date_str = dt.strftime("%Y/%m/%d %H:%M:%S")
-        safe_fname = html.escape(fname, quote=True)
-        rows.append(
-            f'<tr style="background:{bg}">'
-            f'<td style="padding:10px 16px">{date_str}</td>'
-            f'<td style="padding:10px 16px;text-align:center">'
-            f'<a href="{safe_fname}" download '
-            f'style="display:inline-block;padding:6px 18px;'
-            f"background:#0d6efd;color:#fff;border-radius:4px;"
-            f'text-decoration:none;font-size:14px">Download</a>'
-            f"</td></tr>"
-        )
+        rows.append(row_tpl.format(bg, date_str, fname))
 
     table_rows = (
         "\n".join(rows)
@@ -1498,33 +1499,30 @@ def _generate_tsr_index(hostname: str) -> None:
         )
     )
 
-    safe_hostname = html.escape(hostname)
+    page_tpl = Markup(
+        "<!DOCTYPE html>\n"
+        "<html>\n<head>\n"
+        '<meta charset="utf-8">\n'
+        "<title>TSR Collection for {}</title>\n"
+        "<style>\n"
+        "body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;\n"
+        "       margin: 40px auto; max-width: 720px; color: #333; }}\n"
+        "h1 {{ font-size: 24px; font-weight: 600; margin-bottom: 24px; }}\n"
+        "table {{ width: 100%; border-collapse: collapse; }}\n"
+        "th {{ text-align: left; padding: 10px 16px;"
+        " border-bottom: 2px solid #dee2e6;\n"
+        "      font-size: 14px; color: #555; }}\n"
+        "</style>\n</head>\n<body>\n"
+        "<h1>TSR Collection for {}</h1>\n"
+        "<table>\n"
+        "<tr><th>Date Collected</th><th></th></tr>\n"
+        "{}\n"
+        "</table>\n</body>\n</html>\n"
+    )
 
-    page = f"""<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>TSR Collection for {safe_hostname}</title>
-<style>
-body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-       margin: 40px auto; max-width: 720px; color: #333; }}
-h1 {{ font-size: 24px; font-weight: 600; margin-bottom: 24px; }}
-table {{ width: 100%; border-collapse: collapse; }}
-th {{ text-align: left; padding: 10px 16px; border-bottom: 2px solid #dee2e6;
-      font-size: 14px; color: #555; }}
-</style>
-</head>
-<body>
-<h1>TSR Collection for {safe_hostname}</h1>
-<table>
-<tr><th>Date Collected</th><th></th></tr>
-{table_rows}
-</table>
-</body>
-</html>
-"""
-
-    (host_dir / "index.html").write_text(page)
+    (host_dir / "index.html").write_text(
+        page_tpl.format(hostname, hostname, table_rows)
+    )
 
 
 @app.route("/api/latest-firmware", methods=["POST"])
