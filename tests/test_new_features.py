@@ -401,6 +401,10 @@ class TestGenerateTsrIndex:
         assert "2026/01/15 14:30:00" in content
         assert "TSR20260210093000_TAG001.zip" in content
         assert "TSR20260115143000_TAG001.zip" in content
+        assert 'href="20260210093000/"' in content
+        assert 'href="20260115143000/"' in content
+        assert ">View</a>" in content
+        assert ">Download</a>" in content
         newer_pos = content.index("2026/02/10")
         older_pos = content.index("2026/01/15")
         assert newer_pos < older_pos
