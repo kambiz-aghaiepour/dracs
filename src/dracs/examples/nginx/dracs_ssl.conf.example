@@ -9,6 +9,14 @@ server {
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;
 
+    # Display TSR reports
+    location /tsr {
+        alias /var/lib/dracs/web/tsr/;
+        autoindex on;
+        autoindex_exact_size off; # Optional: Shows file sizes in KB/MB/GB instead of byte
+        autoindex_localtime on;  # Optional: Shows file times in your local timezone
+    }
+
     # VNC Console WebSocket proxy (requires VNC_ENABLE=true)
     location /websockify {
         proxy_pass http://127.0.0.1:6080;
