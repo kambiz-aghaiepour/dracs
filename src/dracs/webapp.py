@@ -1469,7 +1469,8 @@ def _stage_tsr_files(zip_path: str, hostname: str, service_tag: str) -> None:
 def _generate_tsr_index(hostname: str) -> None:
     host_dir = TSR_IMAGE_DIR / hostname
     if not host_dir.is_dir():
-        return
+        host_dir.mkdir(parents=True, exist_ok=True)
+        os.chmod(host_dir, 0o755)  # nosec # nosemgrep
 
     entries = []
     for zip_file in host_dir.glob("TSR*.zip"):
@@ -1477,34 +1478,40 @@ def _generate_tsr_index(hostname: str) -> None:
         ts_part = fname.replace("TSR", "").split("_")[0]
         try:
             dt = datetime.strptime(ts_part, "%Y%m%d%H%M%S")
-            entries.append((dt, fname))
+            entries.append((dt, ts_part, fname))
         except ValueError:
             continue
 
     entries.sort(key=lambda e: e[0], reverse=True)
 
+    btn = (
+        'style="display:inline-block;padding:6px 18px;'
+        "background:#0d6efd;color:#fff;border-radius:4px;"
+        'text-decoration:none;font-size:14px"'
+    )
     row_tpl = Markup(
         '<tr style="background:{}">'
         '<td style="padding:10px 16px">{}</td>'
         '<td style="padding:10px 16px;text-align:center">'
-        '<a href="{}" download '
-        'style="display:inline-block;padding:6px 18px;'
-        "background:#0d6efd;color:#fff;border-radius:4px;"
-        'text-decoration:none;font-size:14px">Download</a>'
+        '<a href="{}" ' + btn + ">View</a>"
+        "</td>"
+        '<td style="padding:10px 16px;text-align:center">'
+        '<a href="{}" download ' + btn + ">Download</a>"
         "</td></tr>"
     )
 
     rows = []
-    for i, (dt, fname) in enumerate(entries):
+    for i, (dt, ts_part, fname) in enumerate(entries):
         bg = "#ffffff" if i % 2 == 0 else "#f5f5f5"
         date_str = dt.strftime("%Y/%m/%d %H:%M:%S")
-        rows.append(row_tpl.format(bg, date_str, fname))
+        view_path = ts_part + "/"
+        rows.append(row_tpl.format(bg, date_str, view_path, fname))
 
     table_rows = (
-        "\n".join(rows)
+        Markup("\n").join(rows)
         if rows
-        else (
-            '<tr><td colspan="2" style="padding:20px;text-align:center;'
+        else Markup(
+            '<tr><td colspan="3" style="padding:20px;text-align:center;'
             'color:#666">No TSR collections found.</td></tr>'
         )
     )
@@ -1525,7 +1532,7 @@ def _generate_tsr_index(hostname: str) -> None:
         "</style>\n</head>\n<body>\n"
         "<h1>TSR Collection for {}</h1>\n"
         "<table>\n"
-        "<tr><th>Date Collected</th><th></th></tr>\n"
+        "<tr><th>Date Collected</th><th></th><th></th></tr>\n"
         "{}\n"
         "</table>\n</body>\n</html>\n"
     )
