@@ -17,6 +17,7 @@ import threading
 import time
 import urllib.request
 import zipfile
+from urllib.parse import quote as url_quote
 
 import defusedxml.ElementTree as defused_ET
 from pathlib import Path
@@ -838,7 +839,7 @@ def api_bios_update():
         # Build HTTP URL for BIOS image (model-specific subdirectory)
         bios_server = os.environ.get("DRACS_BIOS_SERVER") or socket.getfqdn()
         bios_uri = os.environ.get("DRACS_BIOS_URI", "/bios/")
-        bios_url = f"http://{bios_server}{bios_uri}{model}/"  # nosec — server-controlled values
+        bios_url = f"http://{bios_server}{bios_uri}{url_quote(model, safe='')}/"
 
         # Prepare log file path
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1716,7 +1717,7 @@ def api_latest_bios():
 
             model_dir = BIOS_IMAGE_DIR / model
             model_dir.mkdir(parents=True, exist_ok=True)
-            os.chmod(model_dir, 0o755)  # nosec — nginx needs read access to serve files
+            os.chmod(model_dir, 0o755)  # nosec # nosemgrep
 
             dest_path = model_dir / exe_filename
             file_exists = dest_path.exists()
@@ -1952,9 +1953,7 @@ def api_tsr_status():
 
         status = _get_tsr_job_status(hostname)
         fqdn = socket.getfqdn()
-        status["tsr_url"] = (
-            f"http://{fqdn}/tsr/{hostname}/"  # nosec — server FQDN, not user input
-        )
+        status["tsr_url"] = f"http://{fqdn}/tsr/{url_quote(hostname, safe='')}/"
         return jsonify({"success": True, **status})
 
     except subprocess.TimeoutExpired:
