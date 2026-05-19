@@ -28,6 +28,7 @@ dependencies = [
 [project.scripts]
 dracs = "dracs.cli:main_cli"
 dracs-webapp = "dracs.webapp_runner:main"
+dracs-client = "dracs_client.cli:main"
 
 [dependency-groups]
 dev = [
@@ -40,7 +41,8 @@ dev = [
 
 [tool.semantic_release]
 version_variables = [
-    "src/dracs/__init__.py:__version__"
+    "src/dracs/__init__.py:__version__",
+    "src/dracs_client/__init__.py:__version__",
 ]
 version_toml = [
     "pyproject.toml:project.version"
@@ -69,6 +71,7 @@ exclude = [
 ]
 
 [tool.hatch.build.targets.wheel]
+packages = ["src/dracs", "src/dracs_client"]
 exclude = [
   "/.claude",
   "/claude.md",

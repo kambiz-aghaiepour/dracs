@@ -2127,6 +2127,41 @@ def api_tsr_ensure_index():
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
 
 
+@app.route("/api/tsr-list/<hostname>")
+def api_tsr_list(hostname):
+    """List TSR collections for a host (unauthenticated)."""
+    if not validate_hostname(hostname):
+        return jsonify({"success": False, "message": "Invalid hostname"}), 400
+
+    with get_session() as db_session:
+        system = db_session.query(System).filter(System.name == hostname).first()
+    if system is None:
+        return jsonify({"success": False, "message": "Host not found"}), 404
+
+    host_dir = TSR_IMAGE_DIR / hostname
+    if not host_dir.is_dir():
+        return jsonify({"success": True, "entries": []})
+
+    entries = []
+    for zip_file in host_dir.glob("TSR*.zip"):
+        fname = zip_file.name
+        ts_part = fname.replace("TSR", "").split("_")[0]
+        try:
+            dt = datetime.strptime(ts_part, "%Y%m%d%H%M%S")
+            entries.append(
+                {
+                    "date": dt.strftime("%Y/%m/%d %H:%M:%S"),
+                    "view_path": ts_part + "/",
+                    "zip_file": fname,
+                }
+            )
+        except ValueError:
+            continue
+
+    entries.sort(key=lambda e: e["date"], reverse=True)
+    return jsonify({"success": True, "entries": entries})
+
+
 @app.route("/api/tsr-collect", methods=["POST"])
 def api_tsr_collect():
     """Initiate a TSR collection on a host."""
