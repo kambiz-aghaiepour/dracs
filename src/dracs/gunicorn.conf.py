@@ -37,6 +37,31 @@ def on_starting(server):
         start_websockify(port, get_token_dir())
 
 
+def post_worker_init(worker):
+    """Start job processor in exactly one gunicorn worker using a file lock."""
+    import fcntl
+
+    lock_path = os.environ.get(
+        "JOB_PROCESSOR_LOCK", "/var/lib/dracs/.job_processor.lock"
+    )
+    try:
+        lock_dir = os.path.dirname(lock_path)
+        if lock_dir:
+            os.makedirs(lock_dir, exist_ok=True)
+        lock_file = open(lock_path, "w")
+        fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+        from dracs.jobqueue import JobProcessor
+
+        max_workers = int(os.environ.get("JOB_MAX_WORKERS", "50"))
+        processor = JobProcessor(max_workers=max_workers)
+        processor.start()
+        worker._job_processor = processor
+        worker._job_lock_file = lock_file
+    except (IOError, OSError):
+        pass
+
+
 def on_exit(server):
     """Stop websockify on shutdown."""
     from dracs.vnc import stop_websockify

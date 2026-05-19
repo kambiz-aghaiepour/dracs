@@ -1,7 +1,16 @@
+import asyncio
+import logging
+import socket
+import subprocess
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from typing import Optional
 
 from dracs.db import Job, get_session
+
+logger = logging.getLogger(__name__)
 
 
 def enqueue_job(
@@ -213,3 +222,146 @@ def _job_to_dict(job: Job) -> dict:
         "error": job.error,
         "worker_id": job.worker_id,
     }
+
+
+class JobProcessor:
+    def __init__(self, max_workers: int = 50, poll_interval: float = 2.0):
+        self._max_workers = max_workers
+        self._poll_interval = poll_interval
+        self._executor = None
+        self._running = False
+        self._thread = None
+        self._worker_id = f"processor-{id(self)}"
+
+    def start(self) -> None:
+        if self._running:
+            return
+        self._executor = ThreadPoolExecutor(max_workers=self._max_workers)
+        self._running = True
+        self._thread = threading.Thread(target=self._run_loop, daemon=True)
+        self._thread.start()
+        logger.info("Job processor started (max_workers=%d)", self._max_workers)
+
+    def stop(self) -> None:
+        self._running = False
+        if self._executor:
+            self._executor.shutdown(wait=False)
+        logger.info("Job processor stopped")
+
+    @property
+    def is_running(self) -> bool:
+        return self._running
+
+    def _run_loop(self) -> None:
+        while self._running:
+            try:
+                job = claim_next_job(self._worker_id)
+                if job:
+                    self._executor.submit(self._execute_job, job)
+                else:
+                    time.sleep(self._poll_interval)
+            except Exception as exc:
+                logger.error("Job processor error: %s", exc)
+                time.sleep(self._poll_interval)
+
+    def _execute_job(self, job: dict) -> None:
+        job_id = job["id"]
+        try:
+            if job["job_type"] == "tsr":
+                execute_tsr_job(job["target"])
+            elif job["job_type"] == "refresh":
+                execute_refresh_job(job["target"])
+            else:
+                fail_job(job_id, error=f"Unknown job type: {job['job_type']}")
+                return
+            complete_job(job_id, result="Success")
+        except Exception as exc:
+            logger.error("Job %d failed: %s", job_id, exc)
+            fail_job(job_id, error=str(exc))
+
+
+def execute_tsr_job(hostname: str) -> None:
+    from dracs.webapp import (
+        _build_ssh_racadm_cmd,
+        _find_tsr_zip,
+        _get_sa_jobs,
+        _stage_tsr_files,
+        _wait_for_tsr_export,
+    )
+    from dracs.db import System
+
+    with get_session() as session:
+        system = session.query(System).filter(System.name == hostname).first()
+        if system is None:
+            raise ValueError(f"Host {hostname} not found in database")
+        service_tag = system.svc_tag
+
+    fqdn = socket.getfqdn()
+    poll_interval = 20
+    max_wait = 1800
+
+    cmd = _build_ssh_racadm_cmd(
+        hostname, "techsupreport", "collect", "-t", "SysInfo,TTYLog"
+    )
+    result = subprocess.run(  # nosec # nosemgrep
+        cmd, capture_output=True, text=True, timeout=30  # nosemgrep
+    )
+    if result.returncode != 0:
+        error_msg = result.stderr[:200] if result.stderr else result.stdout[:200]
+        raise RuntimeError(f"Failed to start TSR collection: {error_msg}")
+
+    elapsed = 0
+    while elapsed < max_wait:
+        time.sleep(poll_interval)
+        elapsed += poll_interval
+        jobs = _get_sa_jobs(hostname)
+        if jobs and any(j.get("status") == "Running" for j in jobs):
+            break
+    else:
+        raise RuntimeError("TSR collection did not start within timeout")
+
+    while elapsed < max_wait:
+        time.sleep(poll_interval)
+        elapsed += poll_interval
+        jobs = _get_sa_jobs(hostname)
+        if jobs is None:
+            continue
+        if any(j.get("status") == "Running" for j in jobs):
+            continue
+        collection_done = any(
+            "collection operation is completed successfully"
+            in j.get("message", "").lower()
+            for j in jobs
+            if j.get("status") == "Completed"
+        )
+        if collection_done:
+            break
+    else:
+        raise RuntimeError("TSR collection did not complete within timeout")
+
+    export_cmd = _build_ssh_racadm_cmd(
+        hostname, "techsupreport", "export", "-l", f"tftp://{fqdn}"
+    )
+    subprocess.run(  # nosec # nosemgrep
+        export_cmd, capture_output=True, text=True, timeout=30  # nosemgrep
+    )
+
+    poll_cmd = _build_ssh_racadm_cmd(hostname, "jobqueue", "view")
+    if not _wait_for_tsr_export(poll_cmd, poll_interval, max_wait):
+        raise RuntimeError("TSR export did not complete within timeout")
+
+    approx_time = datetime.now()
+    time.sleep(5)
+    zip_path = _find_tsr_zip(service_tag, approx_time)
+    if not zip_path:
+        raise RuntimeError("TSR zip file not found after export")
+
+    _stage_tsr_files(zip_path, hostname, service_tag)
+
+
+def execute_refresh_job(hostname: str) -> None:
+    from dracs.commands import refresh_dell_warranty
+    import os
+
+    warranty = os.environ.get("DRACS_DB", "warranty.db")
+    asyncio.run(refresh_dell_warranty(None, hostname, warranty))
