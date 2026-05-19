@@ -20,8 +20,18 @@ and utilizes a portable SQLite database.}
 
 %description %_description
 
+
+%package -n     python3-dracs-libs
+Summary:        DRACS Python libraries
+
+%description -n python3-dracs-libs
+Python library packages for DRACS. Contains the dracs and dracs_client
+Python modules with shared display logic, database models, and client code.
+
+
 %package -n     python3-dracs
 Summary:        %{summary}
+Requires:       python3-dracs-libs = %{version}-%{release}
 Requires:       nginx
 Requires:       openssl
 Requires:       python3-websockify
@@ -31,6 +41,15 @@ Provides:       user(dracs)
 Provides:       group(dracs)
 
 %description -n python3-dracs %_description
+
+
+%package -n     dracs-client
+Summary:        DRACS remote client CLI
+Requires:       python3-dracs-libs = %{version}-%{release}
+
+%description -n dracs-client
+Remote CLI client for querying a DRACS server inventory.
+Connects to the DRACS web application over HTTPS.
 
 
 %prep
@@ -47,7 +66,7 @@ Provides:       group(dracs)
 
 %install
 %pyproject_install
-%pyproject_save_files -l dracs
+%pyproject_save_files -l dracs dracs_client
 
 install -D -m 0644 systemd/dracs-webapp.service %{buildroot}%{_unitdir}/dracs-webapp.service
 install -d -m 0755 %{buildroot}%{_sysconfdir}/dracs
@@ -180,7 +199,10 @@ fi
 %pyproject_check_import
 
 
-%files -n python3-dracs -f %{pyproject_files}
+%files -n python3-dracs-libs -f %{pyproject_files}
+
+
+%files -n python3-dracs
 %{_bindir}/dracs
 %{_bindir}/dracs-webapp
 %{_unitdir}/dracs-webapp.service
@@ -191,6 +213,10 @@ fi
 %dir %attr(0755, dracs, dracs) %{_sharedstatedir}/dracs/web/bios
 %dir %attr(0755, dracs, dracs) %{_sharedstatedir}/dracs/web/tsr
 %dir %attr(0755, dracs, dracs) %{_localstatedir}/log/dracs
+
+
+%files -n dracs-client
+%{_bindir}/dracs-client
 
 
 %changelog
