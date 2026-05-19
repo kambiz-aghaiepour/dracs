@@ -8,6 +8,7 @@ from dracs.display import (
     regex_like_match,
     render_list_host_only,
     render_list_json,
+    render_tsr_table,
     render_list_table,
 )
 
@@ -313,3 +314,25 @@ class TestRegexLikeMatch:
     def test_case_insensitive(self):
         assert regex_like_match("Server%", "server01") is True
         assert regex_like_match("SERVER%", "server01") is True
+
+
+class TestRenderTsrTable:
+    def test_renders_entries(self, capsys):
+        entries = [
+            {
+                "date": "2026/05/05 17:06:37",
+                "view_path": "20260505170637/",
+                "zip_file": "TSR20260505170637_TAG001.zip",
+            }
+        ]
+        render_tsr_table(entries, "https://dracs.example.com", "host1")
+        captured = capsys.readouterr()
+        assert "Date: 2026/05/05" in captured.out
+        assert "View:" in captured.out
+        assert "Download:" in captured.out
+        assert "TSR" in captured.out
+
+    def test_empty_entries(self, capsys):
+        render_tsr_table([], "https://dracs.example.com", "host1")
+        captured = capsys.readouterr()
+        assert "TSR" in captured.out

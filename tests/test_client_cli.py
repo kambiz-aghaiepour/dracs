@@ -11,6 +11,7 @@ from dracs_client.cli import (
     cmd_tsr,
     fetch_systems,
     fetch_tsr_list,
+    main,
     systems_to_tuples,
 )
 
@@ -576,3 +577,341 @@ class TestCmdTsr:
         assert "2026/05/05" in captured.out
         assert "2026/05/01" in captured.out
         assert "2026/04/15" not in captured.out
+
+    def test_tsr_list_api_returns_none(self, capsys):
+        systems_resp = MagicMock()
+        systems_resp.json.return_value = SAMPLE_SYSTEMS
+        systems_resp.raise_for_status.return_value = None
+
+        tsr_resp = MagicMock()
+        tsr_resp.status_code = 404
+
+        def mock_get(url, **kwargs):
+            if "/api/systems" in url:
+                return systems_resp
+            return tsr_resp
+
+        with patch("dracs_client.cli.requests.get", side_effect=mock_get):
+            args = MagicMock()
+            args.target = "server01.example.com"
+            args.list = True
+            args.download = False
+            args.last = None
+            with pytest.raises(SystemExit):
+                cmd_tsr(args, "https://server", True)
+        captured = capsys.readouterr()
+        assert "Target host not found" in captured.out
+
+    def test_tsr_download_no_entries(self, capsys):
+        systems_resp = MagicMock()
+        systems_resp.json.return_value = SAMPLE_SYSTEMS
+        systems_resp.raise_for_status.return_value = None
+
+        tsr_resp = MagicMock()
+        tsr_resp.status_code = 200
+        tsr_resp.json.return_value = {"success": True, "entries": []}
+        tsr_resp.raise_for_status.return_value = None
+
+        def mock_get(url, **kwargs):
+            if "/api/systems" in url:
+                return systems_resp
+            return tsr_resp
+
+        with patch("dracs_client.cli.requests.get", side_effect=mock_get):
+            args = MagicMock()
+            args.target = "server01.example.com"
+            args.list = False
+            args.download = True
+            with pytest.raises(SystemExit):
+                cmd_tsr(args, "https://server", True)
+        captured = capsys.readouterr()
+        assert "No TSR collections found" in captured.out
+
+    def test_tsr_download_api_returns_none(self, capsys):
+        systems_resp = MagicMock()
+        systems_resp.json.return_value = SAMPLE_SYSTEMS
+        systems_resp.raise_for_status.return_value = None
+
+        tsr_resp = MagicMock()
+        tsr_resp.status_code = 404
+
+        def mock_get(url, **kwargs):
+            if "/api/systems" in url:
+                return systems_resp
+            return tsr_resp
+
+        with patch("dracs_client.cli.requests.get", side_effect=mock_get):
+            args = MagicMock()
+            args.target = "server01.example.com"
+            args.list = False
+            args.download = True
+            with pytest.raises(SystemExit):
+                cmd_tsr(args, "https://server", True)
+        captured = capsys.readouterr()
+        assert "Target host not found" in captured.out
+
+    def test_tsr_download_ssl_error(self, capsys):
+        import requests as req
+
+        systems_resp = MagicMock()
+        systems_resp.json.return_value = SAMPLE_SYSTEMS
+        systems_resp.raise_for_status.return_value = None
+
+        tsr_resp = MagicMock()
+        tsr_resp.status_code = 200
+        tsr_resp.json.return_value = {
+            "success": True,
+            "entries": [
+                {
+                    "date": "2026/05/05 17:06:37",
+                    "view_path": "20260505170637/",
+                    "zip_file": "TSR20260505170637_TAG001.zip",
+                }
+            ],
+        }
+        tsr_resp.raise_for_status.return_value = None
+
+        call_count = [0]
+
+        def mock_get(url, **kwargs):
+            call_count[0] += 1
+            if "/api/systems" in url:
+                return systems_resp
+            if "/api/tsr-list/" in url:
+                return tsr_resp
+            raise req.exceptions.SSLError("cert error")
+
+        with patch("dracs_client.cli.requests.get", side_effect=mock_get):
+            args = MagicMock()
+            args.target = "server01.example.com"
+            args.list = False
+            args.download = True
+            with pytest.raises(SystemExit):
+                cmd_tsr(args, "https://server", True)
+
+    def test_tsr_download_connection_error(self, capsys):
+        import requests as req
+
+        systems_resp = MagicMock()
+        systems_resp.json.return_value = SAMPLE_SYSTEMS
+        systems_resp.raise_for_status.return_value = None
+
+        tsr_resp = MagicMock()
+        tsr_resp.status_code = 200
+        tsr_resp.json.return_value = {
+            "success": True,
+            "entries": [
+                {
+                    "date": "2026/05/05 17:06:37",
+                    "view_path": "20260505170637/",
+                    "zip_file": "TSR20260505170637_TAG001.zip",
+                }
+            ],
+        }
+        tsr_resp.raise_for_status.return_value = None
+
+        def mock_get(url, **kwargs):
+            if "/api/systems" in url:
+                return systems_resp
+            if "/api/tsr-list/" in url:
+                return tsr_resp
+            raise req.exceptions.ConnectionError("refused")
+
+        with patch("dracs_client.cli.requests.get", side_effect=mock_get):
+            args = MagicMock()
+            args.target = "server01.example.com"
+            args.list = False
+            args.download = True
+            with pytest.raises(SystemExit):
+                cmd_tsr(args, "https://server", True)
+
+    def test_tsr_no_action(self, capsys):
+        systems_resp = MagicMock()
+        systems_resp.json.return_value = SAMPLE_SYSTEMS
+        systems_resp.raise_for_status.return_value = None
+
+        with patch("dracs_client.cli.requests.get", return_value=systems_resp):
+            args = MagicMock()
+            args.target = "server01.example.com"
+            args.list = False
+            args.download = False
+            with pytest.raises(SystemExit):
+                cmd_tsr(args, "https://server", True)
+        captured = capsys.readouterr()
+        assert "--list or --download" in captured.err
+
+
+class TestFetchTsrListErrors:
+    def test_api_error(self, capsys):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "success": False,
+            "message": "Something went wrong",
+        }
+        mock_resp.raise_for_status.return_value = None
+        with patch("dracs_client.cli.requests.get", return_value=mock_resp):
+            with pytest.raises(SystemExit):
+                fetch_tsr_list("https://server", "host1", True)
+
+    def test_ssl_error(self):
+        import requests as req
+
+        with patch(
+            "dracs_client.cli.requests.get",
+            side_effect=req.exceptions.SSLError("cert"),
+        ):
+            with pytest.raises(SystemExit):
+                fetch_tsr_list("https://server", "host1", True)
+
+    def test_connection_error(self):
+        import requests as req
+
+        with patch(
+            "dracs_client.cli.requests.get",
+            side_effect=req.exceptions.ConnectionError("refused"),
+        ):
+            with pytest.raises(SystemExit):
+                fetch_tsr_list("https://server", "host1", True)
+
+
+class TestFetchSystemsHTTPError:
+    def test_http_error(self):
+        import requests as req
+
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status.side_effect = req.exceptions.HTTPError("500")
+        with patch("dracs_client.cli.requests.get", return_value=mock_resp):
+            with pytest.raises(SystemExit):
+                fetch_systems("https://server", True)
+
+
+class TestCmdListConflicts:
+    def _mock_args(self, **kwargs):
+        defaults = {
+            "svctag": None,
+            "target": None,
+            "model": None,
+            "regex": None,
+            "expires_in": None,
+            "expired": False,
+            "json": False,
+            "host_only": False,
+            "bios_le": None,
+            "bios_lt": None,
+            "bios_ge": None,
+            "bios_gt": None,
+            "bios_eq": None,
+            "idrac_le": None,
+            "idrac_lt": None,
+            "idrac_ge": None,
+            "idrac_gt": None,
+            "idrac_eq": None,
+        }
+        defaults.update(kwargs)
+        args = MagicMock()
+        for k, v in defaults.items():
+            setattr(args, k, v)
+        return args
+
+    def test_target_with_model_conflict(self, capsys):
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = SAMPLE_SYSTEMS
+        mock_resp.raise_for_status.return_value = None
+        with patch("dracs_client.cli.requests.get", return_value=mock_resp):
+            with pytest.raises(SystemExit):
+                cmd_list(
+                    self._mock_args(target="host1", model="R660"),
+                    "https://server",
+                    True,
+                )
+        captured = capsys.readouterr()
+        assert "--model or --regex" in captured.err
+
+    def test_list_with_version_filter(self, capsys):
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = SAMPLE_SYSTEMS
+        mock_resp.raise_for_status.return_value = None
+        with patch("dracs_client.cli.requests.get", return_value=mock_resp):
+            cmd_list(
+                self._mock_args(json=True, bios_le="3.0.0"),
+                "https://server",
+                True,
+            )
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        assert all(d[4] <= "3.0.0" for d in data)
+
+
+class TestMainFunction:
+    def test_main_list(self, capsys):
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = SAMPLE_SYSTEMS
+        mock_resp.raise_for_status.return_value = None
+        with patch("dracs_client.config.DRACSRC_PATH") as mock_path:
+            mock_path.exists.return_value = False
+            with patch(
+                "sys.argv",
+                ["dracs-client", "-s", "server.example.com", "list", "--json"],
+            ):
+                with patch("dracs_client.cli.requests.get", return_value=mock_resp):
+                    main()
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        assert len(data) == 3
+
+    def test_main_tsr(self, capsys):
+        systems_resp = MagicMock()
+        systems_resp.json.return_value = SAMPLE_SYSTEMS
+        systems_resp.raise_for_status.return_value = None
+
+        tsr_resp = MagicMock()
+        tsr_resp.status_code = 200
+        tsr_resp.json.return_value = {"success": True, "entries": []}
+        tsr_resp.raise_for_status.return_value = None
+
+        def mock_get(url, **kwargs):
+            if "/api/systems" in url:
+                return systems_resp
+            return tsr_resp
+
+        with patch("dracs_client.config.DRACSRC_PATH") as mock_path:
+            mock_path.exists.return_value = False
+            with patch(
+                "sys.argv",
+                [
+                    "dracs-client",
+                    "-s",
+                    "server.example.com",
+                    "tsr",
+                    "--list",
+                    "-t",
+                    "server01.example.com",
+                ],
+            ):
+                with patch("dracs_client.cli.requests.get", side_effect=mock_get):
+                    main()
+        captured = capsys.readouterr()
+        assert "No TSR collections found" in captured.out
+
+    def test_main_no_verify(self, capsys):
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = SAMPLE_SYSTEMS
+        mock_resp.raise_for_status.return_value = None
+        with patch("dracs_client.config.DRACSRC_PATH") as mock_path:
+            mock_path.exists.return_value = False
+            with patch(
+                "sys.argv",
+                [
+                    "dracs-client",
+                    "-s",
+                    "server.example.com",
+                    "--no-verify",
+                    "list",
+                    "--json",
+                ],
+            ):
+                with patch("dracs_client.cli.requests.get", return_value=mock_resp):
+                    main()
+        captured = capsys.readouterr()
+        assert "WARNING: SSL certificate verification is disabled" in captured.err

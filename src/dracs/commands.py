@@ -1,9 +1,14 @@
 import asyncio
 import logging
 import os
+import shutil
+import socket
 import time
+from datetime import datetime
+from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 
+import requests
 from tabulate import tabulate
 
 from dracs.display import (
@@ -11,6 +16,7 @@ from dracs.display import (
     render_list_table,
     render_list_json,
     render_list_host_only,
+    render_tsr_table,
 )
 from dracs.exceptions import (
     DatabaseError,
@@ -416,8 +422,6 @@ async def refresh_dell_warranty(
         print("done.")
 
     # Check for changes and report them
-    from datetime import datetime
-
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     if old_model != model:
@@ -637,3 +641,153 @@ async def remove_dell_warranty(
         session.delete(record)
         session.commit()
         print("Record deleted")
+
+
+TSR_DIR = "/var/lib/dracs/web/tsr"
+
+
+def _scan_tsr_entries(hostname: str) -> List[dict]:
+    host_dir = Path(TSR_DIR) / hostname
+    if not host_dir.is_dir():
+        return []
+
+    entries = []
+    for zip_file in host_dir.glob("TSR*.zip"):
+        fname = zip_file.name
+        ts_part = fname.replace("TSR", "").split("_")[0]
+        try:
+            dt = datetime.strptime(ts_part, "%Y%m%d%H%M%S")
+            entries.append(
+                {
+                    "date": dt.strftime("%Y/%m/%d %H:%M:%S"),
+                    "view_path": ts_part + "/",
+                    "zip_file": fname,
+                }
+            )
+        except ValueError:
+            continue
+
+    entries.sort(key=lambda e: e["date"], reverse=True)
+    return entries
+
+
+def _webapp_session():
+    import urllib3
+
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+    user = os.environ.get("WEBADMIN_USER")
+    password = os.environ.get("WEBADMIN_PASSWORD")
+    if not user or not password:
+        raise DracsError(
+            "WEBADMIN_USER and WEBADMIN_PASSWORD must be set in "
+            "the environment or .env/dracs.conf"
+        )
+
+    fqdn = socket.getfqdn()
+    base_url = f"https://{fqdn}"
+
+    sess = requests.Session()
+    sess.verify = False
+    resp = sess.post(
+        f"{base_url}/login",
+        json={"username": user, "password": password},
+        timeout=10,
+    )
+    if resp.status_code != 200 or not resp.json().get("success"):
+        raise DracsError("Failed to authenticate to DRACS webapp")
+
+    return sess, base_url
+
+
+async def tsr_list(
+    hostname: str,
+    warranty: str,
+    last: Optional[int] = None,
+) -> None:
+    db_initialize(warranty)
+
+    results = query_by_hostname(warranty, hostname)
+    if not results:
+        raise DatabaseError(f"Host {hostname} not found in database")
+
+    entries = _scan_tsr_entries(hostname)
+    if not entries:
+        print(f"No TSR collections found for {hostname}.")
+        return
+
+    if last is not None:
+        entries = entries[:last]
+
+    fqdn = socket.getfqdn()
+    base_url = f"https://{fqdn}"
+    render_tsr_table(entries, base_url, hostname)
+
+
+async def tsr_download(hostname: str, warranty: str) -> None:
+    db_initialize(warranty)
+
+    results = query_by_hostname(warranty, hostname)
+    if not results:
+        raise DatabaseError(f"Host {hostname} not found in database")
+
+    entries = _scan_tsr_entries(hostname)
+    if not entries:
+        print(f"No TSR collections found for {hostname}.")
+        return
+
+    newest = entries[0]
+    src = Path(TSR_DIR) / hostname / newest["zip_file"]
+    dst = Path.cwd() / newest["zip_file"]
+    shutil.copy2(src, dst)
+    print(f"Downloaded: {newest['zip_file']}")
+
+
+async def tsr_generate(hostname: str, warranty: str) -> None:
+    db_initialize(warranty)
+
+    with get_session() as session:
+        record = session.query(System).filter(System.name == hostname).first()
+    if not record:
+        raise DatabaseError(f"Host {hostname} not found in database")
+
+    sess, base_url = _webapp_session()
+    resp = sess.post(
+        f"{base_url}/api/tsr-collect",
+        json={"hostname": hostname, "service_tag": record.svc_tag},
+        timeout=30,
+    )
+    data = resp.json()
+    if data.get("success"):
+        print(data["message"])
+    else:
+        raise DracsError(
+            f"TSR generation failed: {data.get('message', 'Unknown error')}"
+        )
+
+
+async def tsr_status(hostname: str, warranty: str) -> None:
+    db_initialize(warranty)
+
+    results = query_by_hostname(warranty, hostname)
+    if not results:
+        raise DatabaseError(f"Host {hostname} not found in database")
+
+    sess, base_url = _webapp_session()
+    resp = sess.post(
+        f"{base_url}/api/tsr-status",
+        json={"hostname": hostname},
+        timeout=30,
+    )
+    data = resp.json()
+    if not data.get("success"):
+        raise DracsError(
+            f"TSR status check failed: {data.get('message', 'Unknown error')}"
+        )
+
+    state = data.get("state")
+    if state == "running":
+        pct = data.get("percent_complete", "0")
+        print(f"TSR Collection in progress: {pct}% Completed.")
+    else:
+        print("No TSR Collection in progress.")

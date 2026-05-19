@@ -5,10 +5,7 @@ from typing import List, Optional, Tuple
 from urllib.parse import quote as url_quote
 
 import requests
-from rich import box
-from rich.console import Console
 from rich.progress import Progress
-from rich.table import Table
 
 from dracs.display import (
     filter_list_results,
@@ -16,6 +13,7 @@ from dracs.display import (
     render_list_host_only,
     render_list_json,
     render_list_table,
+    render_tsr_table,
 )
 from dracs_client.config import load_server_config
 
@@ -211,31 +209,7 @@ def cmd_tsr(args: argparse.Namespace, base_url: str, verify_ssl: bool) -> None:
         if args.last is not None:
             entries = entries[: args.last]
 
-        console = Console()
-        table = Table(
-            show_header=True,
-            header_style="bold cyan",
-            show_lines=True,
-            box=box.HEAVY_EDGE,
-        )
-        table.add_column("TSR")
-
-        for entry in entries:
-            view_url = (
-                f"{base_url}/tsr/"
-                f"{url_quote(hostname, safe='')}/{entry['view_path']}"
-            )
-            download_url = (
-                f"{base_url}/tsr/" f"{url_quote(hostname, safe='')}/{entry['zip_file']}"
-            )
-            cell = (
-                f"Date: {entry['date']}\n"
-                f"View: {view_url}\n"
-                f"Download: {download_url}"
-            )
-            table.add_row(cell)
-
-        console.print(table)
+        render_tsr_table(entries, base_url, hostname)
 
     elif args.download:
         entries = fetch_tsr_list(base_url, hostname, verify_ssl)

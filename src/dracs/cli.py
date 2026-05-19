@@ -67,7 +67,8 @@ class CustomParser(argparse.ArgumentParser):
             print("    lookup (l)      Lookup a system")
             print("    refresh (rf)    Refresh SNMP and warranty data")
             print("    remove (r)      Remove a system")
-            print("    list (li)       List systems\n")
+            print("    list (li)       List systems")
+            print("    tsr             TSR operations\n")
             self.print_usage()
             sys.exit(2)
         # Fall back to default behavior for other errors
@@ -284,6 +285,29 @@ async def main() -> None:
         help="Initialize config files in current directory",
     )
 
+    # --- TSR COMMAND ---
+    parser_tsr = subparsers.add_parser("tsr", help="TSR operations")
+    parser_tsr.add_argument("-t", "--target", required=True, help="Target hostname")
+    tsr_action = parser_tsr.add_mutually_exclusive_group(required=True)
+    tsr_action.add_argument("--list", action="store_true", help="List TSR collections")
+    tsr_action.add_argument(
+        "--download", action="store_true", help="Download most recent TSR"
+    )
+    tsr_action.add_argument(
+        "--generate", action="store_true", help="Generate new TSR collection"
+    )
+    tsr_action.add_argument(
+        "--status", action="store_true", help="Check TSR collection status"
+    )
+    parser_tsr.add_argument(
+        "--last",
+        nargs="?",
+        const=1,
+        type=int,
+        default=None,
+        help="Show only the last N TSRs (default: 1 if no value given)",
+    )
+
     args = parser.parse_args()
 
     # Set up logging based on command-line flags
@@ -411,6 +435,15 @@ async def main() -> None:
             args.host_only,
             warranty,
         )
+    elif args.command == "tsr":
+        if args.list:
+            await commands.tsr_list(args.target, warranty, args.last)
+        elif args.download:
+            await commands.tsr_download(args.target, warranty)
+        elif args.generate:
+            await commands.tsr_generate(args.target, warranty)
+        elif args.status:
+            await commands.tsr_status(args.target, warranty)
 
 
 def main_cli() -> None:
