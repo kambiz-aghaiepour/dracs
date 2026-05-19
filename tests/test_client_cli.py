@@ -80,6 +80,26 @@ class TestBuildParser:
         args = parser.parse_args(["tsr", "--download", "-t", "host1"])
         assert args.download is True
 
+    def test_tsr_last_no_value(self):
+        parser = build_parser()
+        args = parser.parse_args(["tsr", "--list", "-t", "host1", "--last"])
+        assert args.last == 1
+
+    def test_tsr_last_with_value(self):
+        parser = build_parser()
+        args = parser.parse_args(["tsr", "--list", "-t", "host1", "--last", "5"])
+        assert args.last == 5
+
+    def test_tsr_last_default_none(self):
+        parser = build_parser()
+        args = parser.parse_args(["tsr", "--list", "-t", "host1"])
+        assert args.last is None
+
+    def test_tsr_last_rejects_non_integer(self):
+        parser = build_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args(["tsr", "--list", "-t", "host1", "--last", "abc"])
+
     def test_tsr_requires_target(self):
         parser = build_parser()
         with pytest.raises(SystemExit):
@@ -345,6 +365,7 @@ class TestCmdTsr:
             args.target = "nonexistent.example.com"
             args.list = True
             args.download = False
+            args.last = None
             with pytest.raises(SystemExit):
                 cmd_tsr(args, "https://server", True)
         captured = capsys.readouterr()
@@ -379,10 +400,14 @@ class TestCmdTsr:
             args.target = "server01.example.com"
             args.list = True
             args.download = False
+            args.last = None
             cmd_tsr(args, "https://server", True)
 
         captured = capsys.readouterr()
-        assert "2026/05/05" in captured.out
+        assert "Date: 2026/05/05" in captured.out
+        assert "View:" in captured.out
+        assert "Download:" in captured.out
+        assert "TSR" in captured.out
 
     def test_tsr_download(self, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(tmp_path)
@@ -452,7 +477,102 @@ class TestCmdTsr:
             args.target = "server01.example.com"
             args.list = True
             args.download = False
+            args.last = None
             cmd_tsr(args, "https://server", True)
 
         captured = capsys.readouterr()
         assert "No TSR collections found" in captured.out
+
+    def test_tsr_list_last(self, capsys):
+        systems_resp = MagicMock()
+        systems_resp.json.return_value = SAMPLE_SYSTEMS
+        systems_resp.raise_for_status.return_value = None
+
+        tsr_resp = MagicMock()
+        tsr_resp.status_code = 200
+        tsr_resp.json.return_value = {
+            "success": True,
+            "entries": [
+                {
+                    "date": "2026/05/05 17:06:37",
+                    "view_path": "20260505170637/",
+                    "zip_file": "TSR20260505170637_TAG001.zip",
+                },
+                {
+                    "date": "2026/05/01 12:00:00",
+                    "view_path": "20260501120000/",
+                    "zip_file": "TSR20260501120000_TAG001.zip",
+                },
+                {
+                    "date": "2026/04/15 08:00:00",
+                    "view_path": "20260415080000/",
+                    "zip_file": "TSR20260415080000_TAG001.zip",
+                },
+            ],
+        }
+        tsr_resp.raise_for_status.return_value = None
+
+        def mock_get(url, **kwargs):
+            if "/api/systems" in url:
+                return systems_resp
+            return tsr_resp
+
+        with patch("dracs_client.cli.requests.get", side_effect=mock_get):
+            args = MagicMock()
+            args.target = "server01.example.com"
+            args.list = True
+            args.download = False
+            args.last = 1
+            cmd_tsr(args, "https://server", True)
+
+        captured = capsys.readouterr()
+        assert "2026/05/05" in captured.out
+        assert "2026/05/01" not in captured.out
+        assert "2026/04/15" not in captured.out
+
+    def test_tsr_list_last_n(self, capsys):
+        systems_resp = MagicMock()
+        systems_resp.json.return_value = SAMPLE_SYSTEMS
+        systems_resp.raise_for_status.return_value = None
+
+        tsr_resp = MagicMock()
+        tsr_resp.status_code = 200
+        tsr_resp.json.return_value = {
+            "success": True,
+            "entries": [
+                {
+                    "date": "2026/05/05 17:06:37",
+                    "view_path": "20260505170637/",
+                    "zip_file": "TSR20260505170637_TAG001.zip",
+                },
+                {
+                    "date": "2026/05/01 12:00:00",
+                    "view_path": "20260501120000/",
+                    "zip_file": "TSR20260501120000_TAG001.zip",
+                },
+                {
+                    "date": "2026/04/15 08:00:00",
+                    "view_path": "20260415080000/",
+                    "zip_file": "TSR20260415080000_TAG001.zip",
+                },
+            ],
+        }
+        tsr_resp.raise_for_status.return_value = None
+
+        def mock_get(url, **kwargs):
+            if "/api/systems" in url:
+                return systems_resp
+            return tsr_resp
+
+        with patch("dracs_client.cli.requests.get", side_effect=mock_get):
+            args = MagicMock()
+            args.target = "server01.example.com"
+            args.list = True
+            args.download = False
+            args.last = 2
+            cmd_tsr(args, "https://server", True)
+
+        captured = capsys.readouterr()
+        assert "2026/05/05" in captured.out
+        assert "2026/05/01" in captured.out
+        assert "2026/04/15" not in captured.out
