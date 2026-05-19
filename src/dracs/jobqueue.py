@@ -3,7 +3,7 @@ import configparser
 import logging
 import os
 import socket
-import subprocess
+import subprocess  # nosec
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -228,6 +228,8 @@ def _job_to_dict(job: Job) -> dict:
 
 
 class JobProcessor:
+    """Processes pending jobs from the queue using a bounded thread pool."""
+
     def __init__(self, max_workers: int = 50, poll_interval: float = 2.0):
         self._max_workers = max_workers
         self._poll_interval = poll_interval
@@ -291,7 +293,6 @@ def execute_tsr_job(hostname: str) -> None:
         _stage_tsr_files,
         _wait_for_tsr_export,
     )
-    from dracs.db import System
 
     with get_session() as session:
         system = session.query(System).filter(System.name == hostname).first()
@@ -477,6 +478,8 @@ def _should_run_now(task: dict, last_runs: dict) -> bool:
 
 
 class JobScheduler:
+    """Reads schedule.ini and enqueues jobs on a cron-like schedule."""
+
     def __init__(self, config_path: str = DEFAULT_SCHEDULE_PATH):
         self._config_path = config_path
         self._thread = None

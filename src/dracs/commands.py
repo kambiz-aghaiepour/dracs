@@ -782,7 +782,6 @@ async def list_jobs(include_all: bool, warranty: str) -> None:
 
 async def clear_jobs(warranty: str) -> None:
     from dracs.jobqueue import purge_completed_jobs
-    import os
 
     db_initialize(warranty)
     purge_days = int(os.environ.get("JOB_PURGE_DAYS", "7"))
