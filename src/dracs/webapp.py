@@ -2120,13 +2120,6 @@ def api_tsr_collect():
             }
         )
 
-    except subprocess.TimeoutExpired:
-        return jsonify({"success": False, "message": "Connection timeout"}), 500
-    except FileNotFoundError:
-        return (
-            jsonify({"success": False, "message": "sshpass command not found"}),
-            500,
-        )
     except Exception as e:
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
 

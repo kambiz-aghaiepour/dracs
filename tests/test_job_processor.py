@@ -115,6 +115,16 @@ class TestJobProcessor:
         time.sleep(0.2)
         processor.stop()
 
+    def test_handles_claim_exception(self, job_db):
+        processor = JobProcessor(max_workers=2, poll_interval=0.05)
+        with patch(
+            "dracs.jobqueue.claim_next_job",
+            side_effect=[RuntimeError("DB locked"), None],
+        ):
+            processor.start()
+            time.sleep(0.2)
+            processor.stop()
+
 
 class TestExecuteTsrJob:
     def test_full_lifecycle(self, job_db):
@@ -265,6 +275,79 @@ class TestExecuteTsrJob:
                                 match="export did not complete",
                             ):
                                 execute_tsr_job("server01.example.com")
+
+    def test_phase2_null_jobs_then_complete(self, job_db):
+        mock_build_cmd = MagicMock(return_value=["echo", "test"])
+        mock_subprocess = MagicMock()
+        mock_subprocess.returncode = 0
+
+        running_job = {
+            "status": "Running",
+            "job_name": "SupportAssist Collection",
+        }
+        completed_job = {
+            "status": "Completed",
+            "job_name": "SupportAssist Collection",
+            "message": "collection operation is completed successfully",
+        }
+
+        call_count = [0]
+
+        def mock_get_sa_jobs(hostname):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return [running_job]
+            if call_count[0] == 2:
+                return None
+            if call_count[0] == 3:
+                return [running_job]
+            return [completed_job]
+
+        with patch.dict(os.environ, {"DRACS_DB": job_db}):
+            import dracs.webapp as webapp_mod
+
+            webapp_mod.DB_PATH = job_db
+            webapp_mod.db_initialize(job_db)
+
+            with patch("dracs.jobqueue.subprocess.run", return_value=mock_subprocess):
+                with patch("dracs.jobqueue.time.sleep"):
+                    with patch.multiple(
+                        "dracs.webapp",
+                        _build_ssh_racadm_cmd=mock_build_cmd,
+                        _get_sa_jobs=mock_get_sa_jobs,
+                        _wait_for_tsr_export=MagicMock(return_value=True),
+                        _find_tsr_zip=MagicMock(
+                            return_value="/tmp/TSR20260505_TAG001.zip"
+                        ),
+                        _stage_tsr_files=MagicMock(),
+                    ):
+                        execute_tsr_job("server01.example.com")
+
+    def test_phase2_completion_timeout(self, job_db):
+        mock_build_cmd = MagicMock(return_value=["echo", "test"])
+        mock_subprocess = MagicMock()
+        mock_subprocess.returncode = 0
+
+        running_job = {
+            "status": "Running",
+            "job_name": "SupportAssist Collection",
+        }
+
+        with patch.dict(os.environ, {"DRACS_DB": job_db}):
+            import dracs.webapp as webapp_mod
+
+            webapp_mod.DB_PATH = job_db
+            webapp_mod.db_initialize(job_db)
+
+            with patch("dracs.jobqueue.subprocess.run", return_value=mock_subprocess):
+                with patch("dracs.jobqueue.time.sleep"):
+                    with patch.multiple(
+                        "dracs.webapp",
+                        _build_ssh_racadm_cmd=mock_build_cmd,
+                        _get_sa_jobs=MagicMock(return_value=[running_job]),
+                    ):
+                        with pytest.raises(RuntimeError, match="did not complete"):
+                            execute_tsr_job("server01.example.com")
 
 
 class TestExecuteRefreshJob:

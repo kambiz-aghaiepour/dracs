@@ -357,3 +357,25 @@ class TestPurgeCompletedJobs:
 
         count = purge_completed_jobs(older_than_days=1)
         assert count == 1
+
+
+class TestUpdateParentEdgeCases:
+    def test_no_children(self, job_db):
+        from dracs.jobqueue import _update_parent_status
+
+        parent_id = enqueue_job("tsr", "all")
+        with get_session() as session:
+            _update_parent_status(session, parent_id)
+            parent = session.get(Job, parent_id)
+            assert parent.status == "pending"
+
+    def test_nonexistent_parent(self, job_db):
+        from dracs.jobqueue import _update_parent_status
+
+        child_id = enqueue_job("tsr", "host01.example.com", parent_id=9999)
+        claim_next_job("w1")
+        with get_session() as session:
+            child = session.get(Job, child_id)
+            child.status = "completed"
+            session.commit()
+            _update_parent_status(session, 9999)

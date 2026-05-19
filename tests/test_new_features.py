@@ -485,6 +485,120 @@ class TestGenerateTsrIndex:
 
 
 # ---------------------------------------------------------------------------
+# _wait_for_tsr_export
+# ---------------------------------------------------------------------------
+class TestWaitForTsrExport:
+    def test_returns_true_on_success(self):
+        from dracs.webapp import _wait_for_tsr_export
+
+        success_output = (
+            "[Job ID=JID_001]\n"
+            "Job Name=SupportAssist Collection\n"
+            "Status=Completed\n"
+            "Message=The SupportAssist transmission operation is completed successfully\n"
+        )
+        mock_result = MagicMock(returncode=0, stdout=success_output)
+        with patch("dracs.webapp.subprocess.run", return_value=mock_result):
+            with patch("dracs.webapp.time.sleep"):
+                result = _wait_for_tsr_export(["cmd"], 1, 10)
+        assert result is True
+
+    def test_returns_false_on_timeout(self):
+        from dracs.webapp import _wait_for_tsr_export
+
+        mock_result = MagicMock(returncode=0, stdout="")
+        with patch("dracs.webapp.subprocess.run", return_value=mock_result):
+            with patch("dracs.webapp.time.sleep"):
+                result = _wait_for_tsr_export(["cmd"], 1, 2)
+        assert result is False
+
+    def test_handles_command_failure(self):
+        from dracs.webapp import _wait_for_tsr_export
+
+        mock_result = MagicMock(returncode=1, stdout="")
+        with patch("dracs.webapp.subprocess.run", return_value=mock_result):
+            with patch("dracs.webapp.time.sleep"):
+                result = _wait_for_tsr_export(["cmd"], 1, 2)
+        assert result is False
+
+    def test_handles_exception(self):
+        from dracs.webapp import _wait_for_tsr_export
+
+        with patch("dracs.webapp.subprocess.run", side_effect=RuntimeError("boom")):
+            with patch("dracs.webapp.time.sleep"):
+                result = _wait_for_tsr_export(["cmd"], 1, 2)
+        assert result is False
+
+    def test_skips_non_tsr_jobs(self):
+        from dracs.webapp import _wait_for_tsr_export
+
+        output = (
+            "[Job ID=JID_001]\n"
+            "Job Name=BIOS Update\n"
+            "Status=Completed\n"
+            "Message=Done\n"
+        )
+        mock_result = MagicMock(returncode=0, stdout=output)
+        with patch("dracs.webapp.subprocess.run", return_value=mock_result):
+            with patch("dracs.webapp.time.sleep"):
+                result = _wait_for_tsr_export(["cmd"], 1, 2)
+        assert result is False
+
+
+# ---------------------------------------------------------------------------
+# _stage_tsr_files
+# ---------------------------------------------------------------------------
+class TestStageTsrFiles:
+    def test_stages_files(self, tmp_path):
+        from dracs.webapp import _stage_tsr_files
+
+        zip_path = tmp_path / "TSR20260505170637_TAG001.zip"
+        import zipfile
+
+        with zipfile.ZipFile(zip_path, "w") as zf:
+            zf.writestr("test.txt", "content")
+
+        with patch("dracs.webapp.TSR_IMAGE_DIR", tmp_path):
+            with patch("dracs.webapp._generate_tsr_index"):
+                _stage_tsr_files(str(zip_path), "server01", "TAG001")
+
+        host_dir = tmp_path / "server01"
+        assert (host_dir / "TSR20260505170637_TAG001.zip").exists()
+        assert (host_dir / "latest").is_symlink()
+        assert (host_dir / "20260505170637" / "index.html").exists()
+
+
+# ---------------------------------------------------------------------------
+# _get_sa_jobs
+# ---------------------------------------------------------------------------
+class TestGetSaJobs:
+    def test_returns_jobs(self):
+        from dracs.webapp import _get_sa_jobs
+
+        output = (
+            "[Job ID=JID_001]\n"
+            "Job Name=SupportAssist Collection\n"
+            "Status=Running\n"
+            "Percent Complete=50\n"
+        )
+        mock_result = MagicMock(returncode=0, stdout=output)
+        with patch("dracs.webapp._build_ssh_racadm_cmd", return_value=["echo"]):
+            with patch("dracs.webapp.subprocess.run", return_value=mock_result):
+                jobs = _get_sa_jobs("server01")
+        assert len(jobs) == 1
+        assert jobs[0]["status"] == "Running"
+
+    def test_returns_none_on_failure(self):
+        from dracs.webapp import _get_sa_jobs
+
+        mock_result = MagicMock(returncode=1)
+        with patch("dracs.webapp._build_ssh_racadm_cmd", return_value=["echo"]):
+            with patch("dracs.webapp.subprocess.run", return_value=mock_result):
+                result = _get_sa_jobs("server01")
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
 # /api/tsr-ensure-index Endpoint
 # ---------------------------------------------------------------------------
 class TestTsrEnsureIndexEndpoint:

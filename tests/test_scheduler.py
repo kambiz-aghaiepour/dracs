@@ -263,6 +263,51 @@ class TestShouldRunNow:
         }
         assert _should_run_now(task, {}) is False
 
+    def test_weekly_before_scheduled_time(self):
+        now = datetime.now()
+        day_name = [
+            "monday",
+            "tuesday",
+            "wednesday",
+            "thursday",
+            "friday",
+            "saturday",
+            "sunday",
+        ][now.weekday()]
+        task = {
+            "name": "test",
+            "schedule": "weekly",
+            "day": day_name,
+            "time": "23:59",
+            "target": "all",
+        }
+        fake_now = now.replace(hour=0, minute=0)
+        with patch("dracs.jobqueue.datetime") as mock_dt:
+            mock_dt.now.return_value = fake_now
+            mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+            result = _should_run_now(task, {})
+        assert result is False
+
+    def test_weekly_already_ran_today(self):
+        now = datetime.now()
+        day_name = [
+            "monday",
+            "tuesday",
+            "wednesday",
+            "thursday",
+            "friday",
+            "saturday",
+            "sunday",
+        ][now.weekday()]
+        task = {
+            "name": "test",
+            "schedule": "weekly",
+            "day": day_name,
+            "time": now.strftime("%H:%M"),
+            "target": "all",
+        }
+        assert _should_run_now(task, {"test": now}) is False
+
 
 class TestJobScheduler:
     def test_start_and_stop(self):
@@ -300,3 +345,48 @@ class TestJobScheduler:
 
         jobs = get_active_jobs(include_completed=True)
         assert len(jobs) >= 1
+
+    def test_schedule_loop_runs(self, sched_db, tmp_path):
+        config = tmp_path / "schedule.ini"
+        now = datetime.now()
+        config.write_text(
+            "[test-task]\n"
+            "type = tsr\n"
+            "schedule = daily\n"
+            f"time = {now.strftime('%H:%M')}\n"
+            "target = host01.example.com\n"
+        )
+
+        scheduler = JobScheduler(config_path=str(config))
+        scheduler._running = True
+
+        iteration = [0]
+        original_sleep = time.sleep
+
+        def mock_sleep(seconds):
+            iteration[0] += 1
+            if iteration[0] >= 2:
+                scheduler._running = False
+
+        with patch("dracs.jobqueue.time.sleep", side_effect=mock_sleep):
+            scheduler._schedule_loop()
+
+        assert "test-task" in scheduler._last_runs
+
+    def test_schedule_loop_handles_error(self, tmp_path):
+        scheduler = JobScheduler(config_path=str(tmp_path / "missing.ini"))
+        scheduler._running = True
+
+        iteration = [0]
+
+        def mock_sleep(seconds):
+            iteration[0] += 1
+            if iteration[0] >= 1:
+                scheduler._running = False
+
+        with patch(
+            "dracs.jobqueue.parse_schedule_config",
+            side_effect=RuntimeError("bad config"),
+        ):
+            with patch("dracs.jobqueue.time.sleep", side_effect=mock_sleep):
+                scheduler._schedule_loop()
