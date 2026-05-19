@@ -1873,8 +1873,6 @@ def api_latest_bios():
 TSR_IMAGE_DIR = Path("/var/lib/dracs/web/tsr")
 TFTPBOOT_DIR = Path("/var/lib/tftpboot")
 
-_tsr_monitors = {}
-
 
 def _build_ssh_racadm_cmd(hostname: str, *racadm_args: str) -> list:
     idrac_fqdn = build_idrac_hostname(hostname)
@@ -1989,90 +1987,6 @@ def _get_sa_jobs(hostname: str) -> list | None:
     ]
 
 
-def _tsr_monitor_thread(hostname: str, service_tag: str) -> None:
-    fqdn = socket.getfqdn()
-    max_wait = 1800
-    poll_interval = 20
-    elapsed = 0
-
-    try:
-        # Phase 1: wait for a Running collection job
-        while elapsed < max_wait:
-            time.sleep(poll_interval)
-            elapsed += poll_interval
-            try:
-                jobs = _get_sa_jobs(hostname)
-                if jobs is None:
-                    continue
-                if any(j.get("status") == "Running" for j in jobs):
-                    break
-            except Exception as exc:
-                print(
-                    f"TSR monitor error: {exc}",
-                    file=sys.stderr,
-                )
-                continue
-        else:
-            return
-
-        # Phase 2: wait for collection to finish
-        while elapsed < max_wait:
-            time.sleep(poll_interval)
-            elapsed += poll_interval
-            try:
-                jobs = _get_sa_jobs(hostname)
-                if jobs is None:
-                    continue
-                still_running = any(j.get("status") == "Running" for j in jobs)
-                if still_running:
-                    continue
-                collection_done = any(
-                    "collection operation is completed successfully"
-                    in j.get("message", "").lower()
-                    for j in jobs
-                    if j.get("status") == "Completed"
-                )
-                if not collection_done:
-                    continue
-            except Exception as exc:
-                print(
-                    f"TSR monitor error: {exc}",
-                    file=sys.stderr,
-                )
-                continue
-
-            # Trigger export
-            export_cmd = _build_ssh_racadm_cmd(
-                hostname,
-                "techsupreport",
-                "export",
-                "-l",
-                f"tftp://{fqdn}",
-            )
-            subprocess.run(  # nosec # nosemgrep
-                export_cmd,
-                capture_output=True,
-                text=True,
-                timeout=30,  # nosemgrep
-            )
-
-            cmd = _build_ssh_racadm_cmd(hostname, "jobqueue", "view")
-            if not _wait_for_tsr_export(cmd, poll_interval, max_wait):
-                return
-
-            approx_time = datetime.now()
-            time.sleep(5)
-            zip_path = _find_tsr_zip(service_tag, approx_time)
-            if not zip_path:
-                return
-
-            _stage_tsr_files(zip_path, hostname, service_tag)
-            return
-
-    finally:
-        _tsr_monitors.pop(hostname, None)
-
-
 @app.route("/api/tsr-status", methods=["POST"])
 def api_tsr_status():
     """Check TSR job status for a host."""
@@ -2093,7 +2007,16 @@ def api_tsr_status():
         if not validate_hostname(hostname):
             return jsonify({"success": False, "message": "Invalid hostname"}), 400
 
-        status = _get_tsr_job_status(hostname)
+        from dracs.jobqueue import get_latest_job_for_host
+
+        job = get_latest_job_for_host(hostname, "tsr")
+        if job and job["status"] in ("pending", "running"):
+            status = {"state": job["status"]}
+            if job["status"] == "running":
+                status["percent_complete"] = "0"
+        else:
+            status = _get_tsr_job_status(hostname)
+
         fqdn = socket.getfqdn()
         status["tsr_url"] = urlunparse(
             ("http", fqdn, f"/tsr/{url_quote(hostname, safe='')}/", "", "", "")
@@ -2164,7 +2087,7 @@ def api_tsr_list(hostname):
 
 @app.route("/api/tsr-collect", methods=["POST"])
 def api_tsr_collect():
-    """Initiate a TSR collection on a host."""
+    """Initiate a TSR collection on a host via the job queue."""
     try:
         if not session.get("authenticated", False):
             return (
@@ -2185,40 +2108,17 @@ def api_tsr_collect():
         if not service_tag:
             return jsonify({"success": False, "message": "Service tag required"}), 400
 
-        cmd = _build_ssh_racadm_cmd(
-            hostname, "techsupreport", "collect", "-t", "SysInfo,TTYLog"
+        from dracs.jobqueue import enqueue_job
+
+        job_id = enqueue_job("tsr", hostname)
+
+        return jsonify(
+            {
+                "success": True,
+                "message": f"TSR initiated for {hostname}",
+                "job_id": job_id,
+            }
         )
-        result = subprocess.run(  # nosec # nosemgrep
-            cmd, capture_output=True, text=True, timeout=30  # nosemgrep
-        )
-
-        if result.returncode != 0:
-            return (
-                jsonify(
-                    {
-                        "success": False,
-                        "message": "Failed to start TSR: "
-                        + (
-                            result.stderr[:200]
-                            if result.stderr
-                            else result.stdout[:200]
-                        ),
-                    }
-                ),
-                500,
-            )
-
-        existing = _tsr_monitors.get(hostname)
-        if not (existing and existing.is_alive()):
-            thread = threading.Thread(
-                target=_tsr_monitor_thread,
-                args=(hostname, service_tag),
-                daemon=True,
-            )
-            thread.start()
-            _tsr_monitors[hostname] = thread
-
-        return jsonify({"success": True, "message": f"TSR initiated for {hostname}"})
 
     except subprocess.TimeoutExpired:
         return jsonify({"success": False, "message": "Connection timeout"}), 500
@@ -2227,6 +2127,30 @@ def api_tsr_collect():
             jsonify({"success": False, "message": "sshpass command not found"}),
             500,
         )
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+
+@app.route("/api/jobs")
+def api_jobs():
+    """List active jobs (authenticated)."""
+    try:
+        if not session.get("authenticated", False):
+            return (
+                jsonify({"success": False, "message": "Authentication required"}),
+                401,
+            )
+
+        from dracs.jobqueue import get_active_jobs
+
+        include_all = request.args.get("all", "false").lower() in (
+            "true",
+            "1",
+            "yes",
+        )
+        jobs = get_active_jobs(include_completed=include_all)
+        return jsonify({"success": True, "jobs": jobs})
+
     except Exception as e:
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
 

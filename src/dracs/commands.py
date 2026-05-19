@@ -8,7 +8,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 
-import requests
 from tabulate import tabulate
 
 from dracs.display import (
@@ -671,35 +670,6 @@ def _scan_tsr_entries(hostname: str) -> List[dict]:
     return entries
 
 
-def _webapp_session():
-    import urllib3
-
-    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-    user = os.environ.get("WEBADMIN_USER")
-    password = os.environ.get("WEBADMIN_PASSWORD")
-    if not user or not password:
-        raise DracsError(
-            "WEBADMIN_USER and WEBADMIN_PASSWORD must be set in "
-            "the environment or .env/dracs.conf"
-        )
-
-    fqdn = socket.getfqdn()
-    base_url = f"https://{fqdn}"
-
-    sess = requests.Session()
-    sess.verify = False
-    resp = sess.post(
-        f"{base_url}/login",
-        json={"username": user, "password": password},
-        timeout=10,
-    )
-    if resp.status_code != 200 or not resp.json().get("success"):
-        raise DracsError("Failed to authenticate to DRACS webapp")
-
-    return sess, base_url
-
-
 async def tsr_list(
     hostname: str,
     warranty: str,
@@ -744,50 +714,32 @@ async def tsr_download(hostname: str, warranty: str) -> None:
 
 
 async def tsr_generate(hostname: str, warranty: str) -> None:
-    db_initialize(warranty)
+    from dracs.jobqueue import enqueue_job
 
-    with get_session() as session:
-        record = session.query(System).filter(System.name == hostname).first()
-    if not record:
-        raise DatabaseError(f"Host {hostname} not found in database")
-
-    sess, base_url = _webapp_session()
-    resp = sess.post(
-        f"{base_url}/api/tsr-collect",
-        json={"hostname": hostname, "service_tag": record.svc_tag},
-        timeout=30,
-    )
-    data = resp.json()
-    if data.get("success"):
-        print(data["message"])
-    else:
-        raise DracsError(
-            f"TSR generation failed: {data.get('message', 'Unknown error')}"
-        )
-
-
-async def tsr_status(hostname: str, warranty: str) -> None:
     db_initialize(warranty)
 
     results = query_by_hostname(warranty, hostname)
     if not results:
         raise DatabaseError(f"Host {hostname} not found in database")
 
-    sess, base_url = _webapp_session()
-    resp = sess.post(
-        f"{base_url}/api/tsr-status",
-        json={"hostname": hostname},
-        timeout=30,
-    )
-    data = resp.json()
-    if not data.get("success"):
-        raise DracsError(
-            f"TSR status check failed: {data.get('message', 'Unknown error')}"
-        )
+    job_id = enqueue_job("tsr", hostname)
+    print(f"TSR collection queued for {hostname} (job {job_id})")
 
-    state = data.get("state")
-    if state == "running":
-        pct = data.get("percent_complete", "0")
-        print(f"TSR Collection in progress: {pct}% Completed.")
+
+async def tsr_status(hostname: str, warranty: str) -> None:
+    from dracs.jobqueue import get_latest_job_for_host
+
+    db_initialize(warranty)
+
+    results = query_by_hostname(warranty, hostname)
+    if not results:
+        raise DatabaseError(f"Host {hostname} not found in database")
+
+    job = get_latest_job_for_host(hostname, "tsr")
+    if job and job["status"] in ("pending", "running"):
+        if job["status"] == "pending":
+            print("TSR Collection pending.")
+        else:
+            print("TSR Collection in progress.")
     else:
         print("No TSR Collection in progress.")
