@@ -257,3 +257,57 @@ class TestTsrStatus:
     async def test_status_host_not_found(self, tsr_db):
         with pytest.raises(DatabaseError, match="not found"):
             await tsr_status("nonexistent.example.com", tsr_db)
+
+    @pytest.mark.asyncio
+    async def test_status_api_failure(self, tsr_db):
+        mock_sess = MagicMock()
+        mock_login_resp = MagicMock()
+        mock_login_resp.status_code = 200
+        mock_login_resp.json.return_value = {"success": True}
+
+        mock_status_resp = MagicMock()
+        mock_status_resp.json.return_value = {
+            "success": False,
+            "message": "Connection timeout",
+        }
+
+        mock_sess.post.side_effect = [mock_login_resp, mock_status_resp]
+
+        with patch.dict(
+            os.environ,
+            {"WEBADMIN_USER": "admin", "WEBADMIN_PASSWORD": "secret"},
+        ):
+            with patch("dracs.commands.requests.Session", return_value=mock_sess):
+                with patch(
+                    "dracs.commands.socket.getfqdn", return_value="dracs.example.com"
+                ):
+                    with pytest.raises(DracsError, match="TSR status check failed"):
+                        await tsr_status("server01.example.com", tsr_db)
+
+
+class TestTsrGenerateFailure:
+    @pytest.mark.asyncio
+    async def test_generate_api_failure(self, tsr_db):
+        mock_sess = MagicMock()
+        mock_login_resp = MagicMock()
+        mock_login_resp.status_code = 200
+        mock_login_resp.json.return_value = {"success": True}
+
+        mock_collect_resp = MagicMock()
+        mock_collect_resp.json.return_value = {
+            "success": False,
+            "message": "sshpass command not found",
+        }
+
+        mock_sess.post.side_effect = [mock_login_resp, mock_collect_resp]
+
+        with patch.dict(
+            os.environ,
+            {"WEBADMIN_USER": "admin", "WEBADMIN_PASSWORD": "secret"},
+        ):
+            with patch("dracs.commands.requests.Session", return_value=mock_sess):
+                with patch(
+                    "dracs.commands.socket.getfqdn", return_value="dracs.example.com"
+                ):
+                    with pytest.raises(DracsError, match="TSR generation failed"):
+                        await tsr_generate("server01.example.com", tsr_db)

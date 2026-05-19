@@ -327,3 +327,50 @@ class TestMainGlobalArgs:
         run_main_with_args(["list"])
         call_args = mock_list.call_args[0]
         assert call_args[0] is None  # target_tag
+
+
+class TestMainTsr:
+    @patch("dracs.commands.tsr_list", new_callable=AsyncMock)
+    @patch("dracs.cli.db_initialize")
+    def test_tsr_list(self, mock_db, mock_tsr_list):
+        mock_tsr_list.return_value = None
+        run_main_with_args(["tsr", "--list", "-t", "server01.example.com"])
+        mock_tsr_list.assert_called_once()
+        args = mock_tsr_list.call_args[0]
+        assert args[0] == "server01.example.com"
+        assert args[2] is None  # last
+
+    @patch("dracs.commands.tsr_list", new_callable=AsyncMock)
+    @patch("dracs.cli.db_initialize")
+    def test_tsr_list_with_last(self, mock_db, mock_tsr_list):
+        mock_tsr_list.return_value = None
+        run_main_with_args(
+            ["tsr", "--list", "-t", "server01.example.com", "--last", "3"]
+        )
+        mock_tsr_list.assert_called_once()
+        args = mock_tsr_list.call_args[0]
+        assert args[2] == 3  # last
+
+    @patch("dracs.commands.tsr_download", new_callable=AsyncMock)
+    @patch("dracs.cli.db_initialize")
+    def test_tsr_download(self, mock_db, mock_tsr_dl):
+        mock_tsr_dl.return_value = None
+        run_main_with_args(["tsr", "--download", "-t", "server01.example.com"])
+        mock_tsr_dl.assert_called_once()
+        assert mock_tsr_dl.call_args[0][0] == "server01.example.com"
+
+    @patch("dracs.commands.tsr_generate", new_callable=AsyncMock)
+    @patch("dracs.cli.db_initialize")
+    def test_tsr_generate(self, mock_db, mock_tsr_gen):
+        mock_tsr_gen.return_value = None
+        run_main_with_args(["tsr", "--generate", "-t", "server01.example.com"])
+        mock_tsr_gen.assert_called_once()
+        assert mock_tsr_gen.call_args[0][0] == "server01.example.com"
+
+    @patch("dracs.commands.tsr_status", new_callable=AsyncMock)
+    @patch("dracs.cli.db_initialize")
+    def test_tsr_status(self, mock_db, mock_tsr_st):
+        mock_tsr_st.return_value = None
+        run_main_with_args(["tsr", "--status", "-t", "server01.example.com"])
+        mock_tsr_st.assert_called_once()
+        assert mock_tsr_st.call_args[0][0] == "server01.example.com"
