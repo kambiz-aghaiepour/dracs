@@ -8,7 +8,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 
-import requests
 from tabulate import tabulate
 
 from dracs.display import (
@@ -671,35 +670,6 @@ def _scan_tsr_entries(hostname: str) -> List[dict]:
     return entries
 
 
-def _webapp_session():
-    import urllib3
-
-    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-    user = os.environ.get("WEBADMIN_USER")
-    password = os.environ.get("WEBADMIN_PASSWORD")
-    if not user or not password:
-        raise DracsError(
-            "WEBADMIN_USER and WEBADMIN_PASSWORD must be set in "
-            "the environment or .env/dracs.conf"
-        )
-
-    fqdn = socket.getfqdn()
-    base_url = f"https://{fqdn}"
-
-    sess = requests.Session()
-    sess.verify = False
-    resp = sess.post(
-        f"{base_url}/login",
-        json={"username": user, "password": password},
-        timeout=10,
-    )
-    if resp.status_code != 200 or not resp.json().get("success"):
-        raise DracsError("Failed to authenticate to DRACS webapp")
-
-    return sess, base_url
-
-
 async def tsr_list(
     hostname: str,
     warranty: str,
@@ -744,50 +714,86 @@ async def tsr_download(hostname: str, warranty: str) -> None:
 
 
 async def tsr_generate(hostname: str, warranty: str) -> None:
-    db_initialize(warranty)
+    from dracs.jobqueue import enqueue_job
 
-    with get_session() as session:
-        record = session.query(System).filter(System.name == hostname).first()
-    if not record:
-        raise DatabaseError(f"Host {hostname} not found in database")
-
-    sess, base_url = _webapp_session()
-    resp = sess.post(
-        f"{base_url}/api/tsr-collect",
-        json={"hostname": hostname, "service_tag": record.svc_tag},
-        timeout=30,
-    )
-    data = resp.json()
-    if data.get("success"):
-        print(data["message"])
-    else:
-        raise DracsError(
-            f"TSR generation failed: {data.get('message', 'Unknown error')}"
-        )
-
-
-async def tsr_status(hostname: str, warranty: str) -> None:
     db_initialize(warranty)
 
     results = query_by_hostname(warranty, hostname)
     if not results:
         raise DatabaseError(f"Host {hostname} not found in database")
 
-    sess, base_url = _webapp_session()
-    resp = sess.post(
-        f"{base_url}/api/tsr-status",
-        json={"hostname": hostname},
-        timeout=30,
-    )
-    data = resp.json()
-    if not data.get("success"):
-        raise DracsError(
-            f"TSR status check failed: {data.get('message', 'Unknown error')}"
-        )
+    job_id = enqueue_job("tsr", hostname)
+    print(f"TSR collection queued for {hostname} (job {job_id})")
 
-    state = data.get("state")
-    if state == "running":
-        pct = data.get("percent_complete", "0")
-        print(f"TSR Collection in progress: {pct}% Completed.")
+
+async def tsr_status(hostname: str, warranty: str) -> None:
+    from dracs.jobqueue import get_latest_job_for_host
+
+    db_initialize(warranty)
+
+    results = query_by_hostname(warranty, hostname)
+    if not results:
+        raise DatabaseError(f"Host {hostname} not found in database")
+
+    job = get_latest_job_for_host(hostname, "tsr")
+    if job and job["status"] in ("pending", "running"):
+        if job["status"] == "pending":
+            print("TSR Collection pending.")
+        else:
+            print("TSR Collection in progress.")
     else:
         print("No TSR Collection in progress.")
+
+
+async def list_jobs(include_all: bool, warranty: str) -> None:
+    from dracs.jobqueue import get_active_jobs
+    from rich.console import Console
+    from rich.table import Table
+
+    db_initialize(warranty)
+
+    jobs = get_active_jobs(include_completed=include_all)
+    if not jobs:
+        print("No jobs found.")
+        return
+
+    console = Console()
+    table = Table(show_header=True, header_style="bold cyan")
+    table.add_column("ID")
+    table.add_column("Type")
+    table.add_column("Target")
+    table.add_column("Status")
+    table.add_column("Created")
+
+    for job in jobs:
+        target_display = job["target"]
+        if "progress" in job:
+            target_display += f" ({job['progress']})"
+        table.add_row(
+            str(job["id"]),
+            job["job_type"],
+            target_display,
+            job["status"],
+            job["created_at"],
+        )
+
+    console.print(table)
+
+
+async def clear_jobs(warranty: str) -> None:
+    from dracs.jobqueue import purge_completed_jobs
+
+    db_initialize(warranty)
+    purge_days = int(os.environ.get("JOB_PURGE_DAYS", "7"))
+    count = purge_completed_jobs(older_than_days=purge_days)
+    print(f"Purged {count} completed jobs.")
+
+
+async def cancel_job_cmd(job_id: int, warranty: str) -> None:
+    from dracs.jobqueue import cancel_job
+
+    db_initialize(warranty)
+    if cancel_job(job_id):
+        print(f"Job {job_id} cancelled.")
+    else:
+        print(f"Job {job_id} cannot be cancelled (not found or not pending).")

@@ -68,7 +68,8 @@ class CustomParser(argparse.ArgumentParser):
             print("    refresh (rf)    Refresh SNMP and warranty data")
             print("    remove (r)      Remove a system")
             print("    list (li)       List systems")
-            print("    tsr             TSR operations\n")
+            print("    tsr             TSR operations")
+            print("    jobs            Job queue operations\n")
             self.print_usage()
             sys.exit(2)
         # Fall back to default behavior for other errors
@@ -308,6 +309,22 @@ async def main() -> None:
         help="Show only the last N TSRs (default: 1 if no value given)",
     )
 
+    # --- JOBS COMMAND ---
+    parser_jobs = subparsers.add_parser("jobs", help="Job queue operations")
+    jobs_action = parser_jobs.add_mutually_exclusive_group(required=True)
+    jobs_action.add_argument("--list", action="store_true", help="List jobs")
+    jobs_action.add_argument(
+        "--clear", action="store_true", help="Purge completed jobs"
+    )
+    jobs_action.add_argument(
+        "--cancel", type=int, metavar="JOB_ID", help="Cancel a pending job"
+    )
+    parser_jobs.add_argument(
+        "--all",
+        action="store_true",
+        help="Include completed/failed jobs in listing",
+    )
+
     args = parser.parse_args()
 
     # Set up logging based on command-line flags
@@ -444,6 +461,13 @@ async def main() -> None:
             await commands.tsr_generate(args.target, warranty)
         elif args.status:
             await commands.tsr_status(args.target, warranty)
+    elif args.command == "jobs":
+        if args.list:
+            await commands.list_jobs(args.all, warranty)
+        elif args.clear:
+            await commands.clear_jobs(warranty)
+        elif args.cancel:
+            await commands.cancel_job_cmd(args.cancel, warranty)
 
 
 def main_cli() -> None:

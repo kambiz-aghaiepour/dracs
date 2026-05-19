@@ -9,14 +9,13 @@ import pytest
 from dracs.commands import (
     TSR_DIR,
     _scan_tsr_entries,
-    _webapp_session,
     tsr_download,
     tsr_generate,
     tsr_list,
     tsr_status,
 )
 from dracs.db import db_initialize, upsert_system
-from dracs.exceptions import DatabaseError, DracsError
+from dracs.exceptions import DatabaseError
 
 
 @pytest.fixture
@@ -136,120 +135,61 @@ class TestTsrDownload:
 
 class TestTsrGenerate:
     @pytest.mark.asyncio
-    async def test_generate_success(self, tsr_db, capsys):
-        mock_sess = MagicMock()
-        mock_login_resp = MagicMock()
-        mock_login_resp.status_code = 200
-        mock_login_resp.json.return_value = {"success": True}
-
-        mock_collect_resp = MagicMock()
-        mock_collect_resp.json.return_value = {
-            "success": True,
-            "message": "TSR initiated for server01.example.com",
-        }
-
-        mock_sess.post.side_effect = [mock_login_resp, mock_collect_resp]
-
-        with patch.dict(
-            os.environ,
-            {"WEBADMIN_USER": "admin", "WEBADMIN_PASSWORD": "secret"},
-        ):
-            with patch("dracs.commands.requests.Session", return_value=mock_sess):
-                with patch(
-                    "dracs.commands.socket.getfqdn", return_value="dracs.example.com"
-                ):
-                    await tsr_generate("server01.example.com", tsr_db)
-
+    async def test_generate_enqueues_job(self, tsr_db, capsys):
+        with patch("dracs.jobqueue.enqueue_job", return_value=42) as mock_enqueue:
+            await tsr_generate("server01.example.com", tsr_db)
+        mock_enqueue.assert_called_once_with("tsr", "server01.example.com")
         captured = capsys.readouterr()
-        assert "TSR initiated" in captured.out
+        assert "queued" in captured.out
+        assert "42" in captured.out
 
     @pytest.mark.asyncio
     async def test_generate_host_not_found(self, tsr_db):
         with pytest.raises(DatabaseError, match="not found"):
             await tsr_generate("nonexistent.example.com", tsr_db)
 
-    @pytest.mark.asyncio
-    async def test_generate_missing_credentials(self, tsr_db):
-        with patch.dict(os.environ, {}, clear=True):
-            with patch("dracs.commands.os.environ.get", return_value=None):
-                with pytest.raises(DracsError, match="WEBADMIN_USER"):
-                    await tsr_generate("server01.example.com", tsr_db)
-
-    @pytest.mark.asyncio
-    async def test_generate_auth_failure(self, tsr_db):
-        mock_sess = MagicMock()
-        mock_resp = MagicMock()
-        mock_resp.status_code = 401
-        mock_resp.json.return_value = {"success": False}
-        mock_sess.post.return_value = mock_resp
-
-        with patch.dict(
-            os.environ,
-            {"WEBADMIN_USER": "admin", "WEBADMIN_PASSWORD": "wrong"},
-        ):
-            with patch("dracs.commands.requests.Session", return_value=mock_sess):
-                with patch(
-                    "dracs.commands.socket.getfqdn", return_value="dracs.example.com"
-                ):
-                    with pytest.raises(DracsError, match="authenticate"):
-                        await tsr_generate("server01.example.com", tsr_db)
-
 
 class TestTsrStatus:
     @pytest.mark.asyncio
     async def test_status_running(self, tsr_db, capsys):
-        mock_sess = MagicMock()
-        mock_login_resp = MagicMock()
-        mock_login_resp.status_code = 200
-        mock_login_resp.json.return_value = {"success": True}
-
-        mock_status_resp = MagicMock()
-        mock_status_resp.json.return_value = {
-            "success": True,
-            "state": "running",
-            "percent_complete": "45",
+        mock_job = {
+            "status": "running",
+            "job_type": "tsr",
+            "target": "server01.example.com",
         }
-
-        mock_sess.post.side_effect = [mock_login_resp, mock_status_resp]
-
-        with patch.dict(
-            os.environ,
-            {"WEBADMIN_USER": "admin", "WEBADMIN_PASSWORD": "secret"},
-        ):
-            with patch("dracs.commands.requests.Session", return_value=mock_sess):
-                with patch(
-                    "dracs.commands.socket.getfqdn", return_value="dracs.example.com"
-                ):
-                    await tsr_status("server01.example.com", tsr_db)
-
+        with patch("dracs.jobqueue.get_latest_job_for_host", return_value=mock_job):
+            await tsr_status("server01.example.com", tsr_db)
         captured = capsys.readouterr()
-        assert "TSR Collection in progress: 45% Completed." in captured.out
+        assert "TSR Collection in progress." in captured.out
+
+    @pytest.mark.asyncio
+    async def test_status_pending(self, tsr_db, capsys):
+        mock_job = {
+            "status": "pending",
+            "job_type": "tsr",
+            "target": "server01.example.com",
+        }
+        with patch("dracs.jobqueue.get_latest_job_for_host", return_value=mock_job):
+            await tsr_status("server01.example.com", tsr_db)
+        captured = capsys.readouterr()
+        assert "TSR Collection pending." in captured.out
 
     @pytest.mark.asyncio
     async def test_status_none(self, tsr_db, capsys):
-        mock_sess = MagicMock()
-        mock_login_resp = MagicMock()
-        mock_login_resp.status_code = 200
-        mock_login_resp.json.return_value = {"success": True}
+        with patch("dracs.jobqueue.get_latest_job_for_host", return_value=None):
+            await tsr_status("server01.example.com", tsr_db)
+        captured = capsys.readouterr()
+        assert "No TSR Collection in progress." in captured.out
 
-        mock_status_resp = MagicMock()
-        mock_status_resp.json.return_value = {
-            "success": True,
-            "state": "none",
+    @pytest.mark.asyncio
+    async def test_status_completed_shows_none(self, tsr_db, capsys):
+        mock_job = {
+            "status": "completed",
+            "job_type": "tsr",
+            "target": "server01.example.com",
         }
-
-        mock_sess.post.side_effect = [mock_login_resp, mock_status_resp]
-
-        with patch.dict(
-            os.environ,
-            {"WEBADMIN_USER": "admin", "WEBADMIN_PASSWORD": "secret"},
-        ):
-            with patch("dracs.commands.requests.Session", return_value=mock_sess):
-                with patch(
-                    "dracs.commands.socket.getfqdn", return_value="dracs.example.com"
-                ):
-                    await tsr_status("server01.example.com", tsr_db)
-
+        with patch("dracs.jobqueue.get_latest_job_for_host", return_value=mock_job):
+            await tsr_status("server01.example.com", tsr_db)
         captured = capsys.readouterr()
         assert "No TSR Collection in progress." in captured.out
 
@@ -257,57 +197,3 @@ class TestTsrStatus:
     async def test_status_host_not_found(self, tsr_db):
         with pytest.raises(DatabaseError, match="not found"):
             await tsr_status("nonexistent.example.com", tsr_db)
-
-    @pytest.mark.asyncio
-    async def test_status_api_failure(self, tsr_db):
-        mock_sess = MagicMock()
-        mock_login_resp = MagicMock()
-        mock_login_resp.status_code = 200
-        mock_login_resp.json.return_value = {"success": True}
-
-        mock_status_resp = MagicMock()
-        mock_status_resp.json.return_value = {
-            "success": False,
-            "message": "Connection timeout",
-        }
-
-        mock_sess.post.side_effect = [mock_login_resp, mock_status_resp]
-
-        with patch.dict(
-            os.environ,
-            {"WEBADMIN_USER": "admin", "WEBADMIN_PASSWORD": "secret"},
-        ):
-            with patch("dracs.commands.requests.Session", return_value=mock_sess):
-                with patch(
-                    "dracs.commands.socket.getfqdn", return_value="dracs.example.com"
-                ):
-                    with pytest.raises(DracsError, match="TSR status check failed"):
-                        await tsr_status("server01.example.com", tsr_db)
-
-
-class TestTsrGenerateFailure:
-    @pytest.mark.asyncio
-    async def test_generate_api_failure(self, tsr_db):
-        mock_sess = MagicMock()
-        mock_login_resp = MagicMock()
-        mock_login_resp.status_code = 200
-        mock_login_resp.json.return_value = {"success": True}
-
-        mock_collect_resp = MagicMock()
-        mock_collect_resp.json.return_value = {
-            "success": False,
-            "message": "sshpass command not found",
-        }
-
-        mock_sess.post.side_effect = [mock_login_resp, mock_collect_resp]
-
-        with patch.dict(
-            os.environ,
-            {"WEBADMIN_USER": "admin", "WEBADMIN_PASSWORD": "secret"},
-        ):
-            with patch("dracs.commands.requests.Session", return_value=mock_sess):
-                with patch(
-                    "dracs.commands.socket.getfqdn", return_value="dracs.example.com"
-                ):
-                    with pytest.raises(DracsError, match="TSR generation failed"):
-                        await tsr_generate("server01.example.com", tsr_db)

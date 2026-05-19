@@ -1,0 +1,31 @@
+# DRACS Job Scheduler Configuration
+#
+# Each section defines a scheduled task. Section names must be unique.
+#
+# Fields:
+#   type     = tsr | refresh
+#   schedule = daily | weekly
+#   time     = HH:MM (24-hour format)
+#   day      = monday | tuesday | ... | sunday (required for weekly)
+#   target   = all | model:<model> | <hostname>
+#
+# Examples:
+#
+# [tsr-weekly]
+# type = tsr
+# schedule = weekly
+# day = sunday
+# time = 02:00
+# target = all
+#
+# [refresh-daily]
+# type = refresh
+# schedule = daily
+# time = 04:00
+# target = all
+#
+# [tsr-r660-daily]
+# type = tsr
+# schedule = daily
+# time = 03:00
+# target = model:R660
