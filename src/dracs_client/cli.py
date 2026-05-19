@@ -5,6 +5,7 @@ from typing import List, Optional, Tuple
 from urllib.parse import quote as url_quote
 
 import requests
+from rich import box
 from rich.console import Console
 from rich.progress import Progress
 from rich.table import Table
@@ -207,11 +208,17 @@ def cmd_tsr(args: argparse.Namespace, base_url: str, verify_ssl: bool) -> None:
             print(f"No TSR collections found for {hostname}.")
             return
 
+        if args.last is not None:
+            entries = entries[: args.last]
+
         console = Console()
-        table = Table(show_header=True, header_style="bold cyan")
-        table.add_column("Date")
-        table.add_column("View")
-        table.add_column("Download")
+        table = Table(
+            show_header=True,
+            header_style="bold cyan",
+            show_lines=True,
+            box=box.HEAVY_EDGE,
+        )
+        table.add_column("TSR")
 
         for entry in entries:
             view_url = (
@@ -221,7 +228,12 @@ def cmd_tsr(args: argparse.Namespace, base_url: str, verify_ssl: bool) -> None:
             download_url = (
                 f"{base_url}/tsr/" f"{url_quote(hostname, safe='')}/{entry['zip_file']}"
             )
-            table.add_row(entry["date"], view_url, download_url)
+            cell = (
+                f"Date: {entry['date']}\n"
+                f"View: {view_url}\n"
+                f"Download: {download_url}"
+            )
+            table.add_row(cell)
 
         console.print(table)
 
@@ -327,6 +339,14 @@ def build_parser() -> argparse.ArgumentParser:
     tsr_action.add_argument("--list", action="store_true", help="List TSR collections")
     tsr_action.add_argument(
         "--download", action="store_true", help="Download most recent TSR"
+    )
+    parser_tsr.add_argument(
+        "--last",
+        nargs="?",
+        const=1,
+        type=int,
+        default=None,
+        help="Show only the last N TSRs (default: 1 if no value given)",
     )
 
     return parser
