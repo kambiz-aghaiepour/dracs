@@ -374,3 +374,36 @@ class TestMainTsr:
         run_main_with_args(["tsr", "--status", "-t", "server01.example.com"])
         mock_tsr_st.assert_called_once()
         assert mock_tsr_st.call_args[0][0] == "server01.example.com"
+
+
+class TestMainJobs:
+    @patch("dracs.commands.list_jobs", new_callable=AsyncMock)
+    @patch("dracs.cli.db_initialize")
+    def test_jobs_list(self, mock_db, mock_list_jobs):
+        mock_list_jobs.return_value = None
+        run_main_with_args(["jobs", "--list"])
+        mock_list_jobs.assert_called_once()
+        assert mock_list_jobs.call_args[0][0] is False
+
+    @patch("dracs.commands.list_jobs", new_callable=AsyncMock)
+    @patch("dracs.cli.db_initialize")
+    def test_jobs_list_all(self, mock_db, mock_list_jobs):
+        mock_list_jobs.return_value = None
+        run_main_with_args(["jobs", "--list", "--all"])
+        mock_list_jobs.assert_called_once()
+        assert mock_list_jobs.call_args[0][0] is True
+
+    @patch("dracs.commands.clear_jobs", new_callable=AsyncMock)
+    @patch("dracs.cli.db_initialize")
+    def test_jobs_clear(self, mock_db, mock_clear):
+        mock_clear.return_value = None
+        run_main_with_args(["jobs", "--clear"])
+        mock_clear.assert_called_once()
+
+    @patch("dracs.commands.cancel_job_cmd", new_callable=AsyncMock)
+    @patch("dracs.cli.db_initialize")
+    def test_jobs_cancel(self, mock_db, mock_cancel):
+        mock_cancel.return_value = None
+        run_main_with_args(["jobs", "--cancel", "42"])
+        mock_cancel.assert_called_once()
+        assert mock_cancel.call_args[0][0] == 42

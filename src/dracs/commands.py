@@ -743,3 +743,58 @@ async def tsr_status(hostname: str, warranty: str) -> None:
             print("TSR Collection in progress.")
     else:
         print("No TSR Collection in progress.")
+
+
+async def list_jobs(include_all: bool, warranty: str) -> None:
+    from dracs.jobqueue import get_active_jobs
+    from rich.console import Console
+    from rich.table import Table
+
+    db_initialize(warranty)
+
+    jobs = get_active_jobs(include_completed=include_all)
+    if not jobs:
+        print("No jobs found.")
+        return
+
+    console = Console()
+    table = Table(show_header=True, header_style="bold cyan")
+    table.add_column("ID")
+    table.add_column("Type")
+    table.add_column("Target")
+    table.add_column("Status")
+    table.add_column("Created")
+
+    for job in jobs:
+        target_display = job["target"]
+        if "progress" in job:
+            target_display += f" ({job['progress']})"
+        table.add_row(
+            str(job["id"]),
+            job["job_type"],
+            target_display,
+            job["status"],
+            job["created_at"],
+        )
+
+    console.print(table)
+
+
+async def clear_jobs(warranty: str) -> None:
+    from dracs.jobqueue import purge_completed_jobs
+    import os
+
+    db_initialize(warranty)
+    purge_days = int(os.environ.get("JOB_PURGE_DAYS", "7"))
+    count = purge_completed_jobs(older_than_days=purge_days)
+    print(f"Purged {count} completed jobs.")
+
+
+async def cancel_job_cmd(job_id: int, warranty: str) -> None:
+    from dracs.jobqueue import cancel_job
+
+    db_initialize(warranty)
+    if cancel_job(job_id):
+        print(f"Job {job_id} cancelled.")
+    else:
+        print(f"Job {job_id} cannot be cancelled (not found or not pending).")

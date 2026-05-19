@@ -51,12 +51,20 @@ def post_worker_init(worker):
         lock_file = open(lock_path, "w")
         fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
 
-        from dracs.jobqueue import JobProcessor
+        from dracs.jobqueue import JobProcessor, JobScheduler
 
         max_workers = int(os.environ.get("JOB_MAX_WORKERS", "50"))
         processor = JobProcessor(max_workers=max_workers)
         processor.start()
+
+        schedule_path = os.environ.get(
+            "DRACS_SCHEDULE_CONFIG", "/etc/dracs/schedule.ini"
+        )
+        scheduler = JobScheduler(config_path=schedule_path)
+        scheduler.start()
+
         worker._job_processor = processor
+        worker._job_scheduler = scheduler
         worker._job_lock_file = lock_file
     except (IOError, OSError):
         pass

@@ -1,14 +1,17 @@
 import asyncio
+import configparser
 import logging
+import os
 import socket
 import subprocess
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Optional
 
-from dracs.db import Job, get_session
+from dracs.db import Job, System, get_session
 
 logger = logging.getLogger(__name__)
 
@@ -361,7 +364,154 @@ def execute_tsr_job(hostname: str) -> None:
 
 def execute_refresh_job(hostname: str) -> None:
     from dracs.commands import refresh_dell_warranty
-    import os
 
     warranty = os.environ.get("DRACS_DB", "warranty.db")
     asyncio.run(refresh_dell_warranty(None, hostname, warranty))
+
+
+VALID_DAYS = {
+    "monday": 0,
+    "tuesday": 1,
+    "wednesday": 2,
+    "thursday": 3,
+    "friday": 4,
+    "saturday": 5,
+    "sunday": 6,
+}
+
+DEFAULT_SCHEDULE_PATH = "/etc/dracs/schedule.ini"
+
+
+def parse_schedule_config(
+    config_path: str = DEFAULT_SCHEDULE_PATH,
+) -> list:
+    config = configparser.ConfigParser()
+    if not Path(config_path).exists():
+        return []
+    config.read(config_path)
+
+    tasks = []
+    for section in config.sections():
+        task = {
+            "name": section,
+            "type": config.get(section, "type", fallback=None),
+            "schedule": config.get(section, "schedule", fallback=None),
+            "time": config.get(section, "time", fallback=None),
+            "day": config.get(section, "day", fallback=None),
+            "target": config.get(section, "target", fallback=None),
+        }
+        if task["type"] in ("tsr", "refresh") and task["schedule"] and task["time"]:
+            tasks.append(task)
+        else:
+            logger.warning("Skipping invalid schedule entry: %s", section)
+    return tasks
+
+
+def _resolve_targets(target_spec: str) -> list:
+    if target_spec == "all":
+        with get_session() as session:
+            systems = session.query(System).order_by(System.name).all()
+            return [s.name for s in systems]
+    elif target_spec.startswith("model:"):
+        model = target_spec.split(":", 1)[1]
+        with get_session() as session:
+            systems = session.query(System).filter(System.model == model).all()
+            return [s.name for s in systems]
+    else:
+        return [target_spec]
+
+
+def enqueue_batch(job_type: str, target_spec: str) -> int:
+    hostnames = _resolve_targets(target_spec)
+    if not hostnames:
+        return 0
+    if len(hostnames) == 1:
+        enqueue_job(job_type, hostnames[0])
+        return 1
+
+    parent_id = enqueue_job(job_type, target_spec)
+    with get_session() as session:
+        parent = session.get(Job, parent_id)
+        parent.status = "running"
+        session.commit()
+
+    for hostname in hostnames:
+        enqueue_job(job_type, hostname, parent_id=parent_id)
+    return len(hostnames)
+
+
+def _should_run_now(task: dict, last_runs: dict) -> bool:
+    now = datetime.now()
+    task_name = task["name"]
+
+    try:
+        hour, minute = map(int, task["time"].split(":"))
+    except (ValueError, AttributeError):
+        return False
+
+    if task["schedule"] == "daily":
+        scheduled_today = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if now < scheduled_today:
+            return False
+        last = last_runs.get(task_name)
+        if last and last.date() == now.date():
+            return False
+        return True
+
+    elif task["schedule"] == "weekly":
+        day_name = (task.get("day") or "").lower()
+        target_weekday = VALID_DAYS.get(day_name)
+        if target_weekday is None:
+            return False
+        if now.weekday() != target_weekday:
+            return False
+        scheduled_today = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if now < scheduled_today:
+            return False
+        last = last_runs.get(task_name)
+        if last and last.date() == now.date():
+            return False
+        return True
+
+    return False
+
+
+class JobScheduler:
+    def __init__(self, config_path: str = DEFAULT_SCHEDULE_PATH):
+        self._config_path = config_path
+        self._thread = None
+        self._running = False
+        self._last_runs: dict = {}
+
+    def start(self) -> None:
+        if self._running:
+            return
+        self._running = True
+        self._thread = threading.Thread(target=self._schedule_loop, daemon=True)
+        self._thread.start()
+        logger.info("Job scheduler started (config=%s)", self._config_path)
+
+    def stop(self) -> None:
+        self._running = False
+
+    @property
+    def is_running(self) -> bool:
+        return self._running
+
+    def _schedule_loop(self) -> None:
+        while self._running:
+            try:
+                tasks = parse_schedule_config(self._config_path)
+                for task in tasks:
+                    if _should_run_now(task, self._last_runs):
+                        count = enqueue_batch(task["type"], task["target"])
+                        self._last_runs[task["name"]] = datetime.now()
+                        logger.info(
+                            "Scheduled %s: enqueued %d jobs for %s",
+                            task["name"],
+                            count,
+                            task["target"],
+                        )
+            except Exception as exc:
+                logger.error("Scheduler error: %s", exc)
+            time.sleep(60)

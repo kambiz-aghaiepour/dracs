@@ -27,11 +27,14 @@ from dracs.snmp import build_idrac_hostname, get_snmp_value  # noqa: F401
 from dracs.api import dell_api_warranty_date  # noqa: F401
 from dracs.commands import (  # noqa: F401
     add_dell_warranty,
+    cancel_job_cmd,
+    clear_jobs,
     discover_dell_system,
     discover_dell_systems_batch,
     edit_dell_warranty,
     filter_list_results,
     list_dell_warranty,
+    list_jobs,
     lookup_dell_warranty,
     refresh_dell_warranty,
     remove_dell_warranty,
