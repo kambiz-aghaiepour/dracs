@@ -228,10 +228,8 @@ def _job_to_dict(job: Job) -> dict:
 
 
 class JobProcessor:
-    """Processes pending jobs from the queue using a bounded thread pool."""
-
     def __init__(self, max_workers: int = 50, poll_interval: float = 2.0):
-        """Initialize with bounded thread pool size and poll interval."""
+        """Initialize job processor with bounded thread pool."""
         self._max_workers = max_workers
         self._poll_interval = poll_interval
         self._executor = None
@@ -479,10 +477,8 @@ def _should_run_now(task: dict, last_runs: dict) -> bool:
 
 
 class JobScheduler:
-    """Reads schedule.ini and enqueues jobs on a cron-like schedule."""
-
     def __init__(self, config_path: str = DEFAULT_SCHEDULE_PATH):
-        """Initialize with path to schedule configuration file."""
+        """Initialize job scheduler with path to schedule config."""
         self._config_path = config_path
         self._thread = None
         self._running = False
