@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 from typing import List
 
-from sqlalchemy import create_engine, String, Integer
+from sqlalchemy import create_engine, ForeignKey, String, Integer
 from sqlalchemy.pool import NullPool
 from sqlalchemy.orm import (
     DeclarativeBase,
@@ -39,6 +39,24 @@ class System(Base):
             self.exp_date,
             self.exp_epoch,
         )
+
+
+class Job(Base):
+    __tablename__ = "jobs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    parent_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("jobs.id"), nullable=True
+    )
+    job_type: Mapped[str] = mapped_column(String, nullable=False)
+    target: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    started_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    completed_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    result: Mapped[str | None] = mapped_column(String, nullable=True)
+    error: Mapped[str | None] = mapped_column(String, nullable=True)
+    worker_id: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 def make_db_url(path: str) -> str:
