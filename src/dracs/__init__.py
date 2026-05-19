@@ -35,5 +35,9 @@ from dracs.commands import (  # noqa: F401
     lookup_dell_warranty,
     refresh_dell_warranty,
     remove_dell_warranty,
+    tsr_download,
+    tsr_generate,
+    tsr_list,
+    tsr_status,
 )
 from dracs.cli import CustomParser, main, main_cli, setup_logging  # noqa: F401

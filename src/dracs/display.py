@@ -4,6 +4,7 @@ import re
 import time
 from typing import List, Optional, Tuple
 
+from rich import box
 from rich.console import Console
 from rich.table import Table
 
@@ -121,6 +122,33 @@ def render_list_json(results: List[Tuple]) -> None:
 def render_list_host_only(results: List[Tuple]) -> None:
     for row in results:
         print(row[1])
+
+
+def render_tsr_table(entries: List[dict], base_url: str, hostname: str) -> None:
+    from urllib.parse import quote as url_quote
+
+    console = Console()
+    table = Table(
+        show_header=True,
+        header_style="bold cyan",
+        show_lines=True,
+        box=box.HEAVY_EDGE,
+    )
+    table.add_column("TSR")
+
+    for entry in entries:
+        view_url = (
+            f"{base_url}/tsr/" f"{url_quote(hostname, safe='')}/{entry['view_path']}"
+        )
+        download_url = (
+            f"{base_url}/tsr/" f"{url_quote(hostname, safe='')}/{entry['zip_file']}"
+        )
+        cell = (
+            f"Date: {entry['date']}\n" f"View: {view_url}\n" f"Download: {download_url}"
+        )
+        table.add_row(cell)
+
+    console.print(table)
 
 
 def regex_like_match(pattern: str, value: str) -> bool:
