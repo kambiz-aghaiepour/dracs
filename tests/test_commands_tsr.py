@@ -136,8 +136,9 @@ class TestTsrDownload:
 class TestTsrGenerate:
     @pytest.mark.asyncio
     async def test_generate_enqueues_job(self, tsr_db, capsys):
-        with patch("dracs.jobqueue.enqueue_job", return_value=42) as mock_enqueue:
-            await tsr_generate("server01.example.com", tsr_db)
+        with patch("dracs.jobqueue.get_latest_job_for_host", return_value=None):
+            with patch("dracs.jobqueue.enqueue_job", return_value=42) as mock_enqueue:
+                await tsr_generate("server01.example.com", tsr_db)
         mock_enqueue.assert_called_once_with("tsr", "server01.example.com")
         captured = capsys.readouterr()
         assert "queued" in captured.out
@@ -147,6 +148,33 @@ class TestTsrGenerate:
     async def test_generate_host_not_found(self, tsr_db):
         with pytest.raises(DatabaseError, match="not found"):
             await tsr_generate("nonexistent.example.com", tsr_db)
+
+    @pytest.mark.asyncio
+    async def test_generate_skips_when_running(self, tsr_db, capsys):
+        existing = {
+            "id": 10,
+            "status": "running",
+            "result": "45%",
+        }
+        with patch("dracs.jobqueue.get_latest_job_for_host", return_value=existing):
+            await tsr_generate("server01.example.com", tsr_db)
+        captured = capsys.readouterr()
+        assert "already in progress" in captured.out
+        assert "45%" in captured.out
+        assert "job 10" in captured.out
+
+    @pytest.mark.asyncio
+    async def test_generate_skips_when_pending(self, tsr_db, capsys):
+        existing = {
+            "id": 11,
+            "status": "pending",
+            "result": None,
+        }
+        with patch("dracs.jobqueue.get_latest_job_for_host", return_value=existing):
+            await tsr_generate("server01.example.com", tsr_db)
+        captured = capsys.readouterr()
+        assert "already in progress" in captured.out
+        assert "job 11" in captured.out
 
 
 class TestTsrStatus:

@@ -172,29 +172,77 @@ class TestTsrStatusWithJobQueue:
 
 
 class TestTsrCollectCleanup:
-    def test_no_longer_raises_timeout(self, client):
+    def test_enqueues_new_job(self, client):
         _login(client)
-        with patch("dracs.jobqueue.enqueue_job", return_value=1):
+        with patch("dracs.jobqueue.get_latest_job_for_host", return_value=None):
+            with patch("dracs.jobqueue.enqueue_job", return_value=1):
+                resp = client.post(
+                    "/api/tsr-collect",
+                    data=json.dumps(
+                        {
+                            "hostname": "server01.example.com",
+                            "service_tag": "TAG001",
+                        }
+                    ),
+                    content_type="application/json",
+                )
+        data = resp.get_json()
+        assert resp.status_code == 200
+        assert data["job_id"] == 1
+        assert "existing" not in data
+
+    def test_returns_existing_running_job(self, client):
+        _login(client)
+        existing = {"id": 42, "status": "running", "result": "50%"}
+        with patch("dracs.jobqueue.get_latest_job_for_host", return_value=existing):
             resp = client.post(
                 "/api/tsr-collect",
                 data=json.dumps(
-                    {"hostname": "server01.example.com", "service_tag": "TAG001"}
+                    {
+                        "hostname": "server01.example.com",
+                        "service_tag": "TAG001",
+                    }
                 ),
                 content_type="application/json",
             )
-        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["success"] is True
+        assert data["existing"] is True
+        assert data["job_id"] == 42
+        assert "already in progress" in data["message"]
+
+    def test_returns_existing_pending_job(self, client):
+        _login(client)
+        existing = {"id": 43, "status": "pending", "result": None}
+        with patch("dracs.jobqueue.get_latest_job_for_host", return_value=existing):
+            resp = client.post(
+                "/api/tsr-collect",
+                data=json.dumps(
+                    {
+                        "hostname": "server01.example.com",
+                        "service_tag": "TAG001",
+                    }
+                ),
+                content_type="application/json",
+            )
+        data = resp.get_json()
+        assert data["existing"] is True
 
     def test_enqueue_error(self, client):
         _login(client)
-        with patch(
-            "dracs.jobqueue.enqueue_job",
-            side_effect=RuntimeError("DB locked"),
-        ):
-            resp = client.post(
-                "/api/tsr-collect",
-                data=json.dumps(
-                    {"hostname": "server01.example.com", "service_tag": "TAG001"}
-                ),
-                content_type="application/json",
-            )
+        with patch("dracs.jobqueue.get_latest_job_for_host", return_value=None):
+            with patch(
+                "dracs.jobqueue.enqueue_job",
+                side_effect=RuntimeError("DB locked"),
+            ):
+                resp = client.post(
+                    "/api/tsr-collect",
+                    data=json.dumps(
+                        {
+                            "hostname": "server01.example.com",
+                            "service_tag": "TAG001",
+                        }
+                    ),
+                    content_type="application/json",
+                )
         assert resp.status_code == 500
