@@ -781,3 +781,135 @@ async def cancel_job_cmd(job_id: int, warranty: str) -> None:
         print(f"Job {job_id} cancelled.")
     else:
         print(f"Job {job_id} cannot be cancelled (not found or not pending).")
+
+
+async def idrac_jobs_list(hostname: str, warranty: str) -> None:
+    import subprocess as sp
+
+    from rich.console import Console
+    from rich.table import Table
+
+    from dracs.webapp import _build_ssh_racadm_cmd, parse_job_queue
+
+    db_initialize(warranty)
+
+    results = query_by_hostname(warranty, hostname)
+    if not results:
+        raise DatabaseError(f"Host {hostname} not found in database")
+
+    cmd = _build_ssh_racadm_cmd(hostname, "jobqueue", "view")
+    result = sp.run(  # nosec # nosemgrep
+        cmd, capture_output=True, text=True, timeout=30  # nosemgrep
+    )
+    if result.returncode != 0:
+        raise DracsError(
+            f"Failed to query job queue: {result.stderr[:200] if result.stderr else result.stdout[:200]}"
+        )
+
+    jobs = parse_job_queue(result.stdout)
+    if not jobs:
+        print(f"No jobs in iDRAC job queue for {hostname}.")
+        return
+
+    console = Console()
+    table = Table(show_header=True, header_style="bold cyan", show_lines=True)
+    table.add_column("Job ID", no_wrap=True)
+    table.add_column("Job Name", overflow="fold")
+    table.add_column("Status", no_wrap=True)
+    table.add_column("Percent", no_wrap=True)
+    table.add_column("Start Time", overflow="fold")
+    table.add_column("Completion Time", overflow="fold")
+    table.add_column("Message", overflow="fold")
+
+    for job in jobs:
+        table.add_row(
+            job.get("job_id", ""),
+            job.get("job_name", ""),
+            job.get("status", ""),
+            job.get("percent_complete", ""),
+            job.get("actual_start_time", ""),
+            job.get("actual_completion_time", ""),
+            job.get("message", ""),
+        )
+
+    console.print(table)
+
+
+async def idrac_jobs_clear(
+    hostname: str | None,
+    model: str | None,
+    all_hosts: bool,
+    force: bool,
+    warranty: str,
+) -> None:
+    from dracs.jobqueue import enqueue_batch, enqueue_job
+
+    db_initialize(warranty)
+
+    if not hostname and not model and not all_hosts:
+        raise ValidationError(
+            "One of --target, --model, or --all is required with --clear."
+        )
+
+    if hostname:
+        results = query_by_hostname(warranty, hostname)
+        if not results:
+            raise DatabaseError(f"Host {hostname} not found in database")
+
+        if not force:
+            response = (
+                input(
+                    f"You are about to clear all non-applied jobs on {hostname}. "
+                    "Are you sure? (y/n): "
+                )
+                .strip()
+                .lower()
+            )
+            if response not in ("y", "yes"):
+                print("Cancelled.")
+                return
+
+        enqueue_job("clear_job_queue", hostname)
+        print(f"Clear job queue queued for {hostname}.")
+
+    elif model:
+        results = query_by_model(warranty, model)
+        if not results:
+            raise DatabaseError(f"No systems found with model {model}")
+
+        if not force:
+            response = (
+                input(
+                    f"You are about to clear all non-applied jobs on all {model} hosts. "
+                    "Are you sure? (y/n): "
+                )
+                .strip()
+                .lower()
+            )
+            if response not in ("y", "yes"):
+                print("Cancelled.")
+                return
+
+        count = enqueue_batch("clear_job_queue", f"model:{model}")
+        print(f"Clear job queue queued for {count} {model} hosts.")
+
+    elif all_hosts:
+        results = query_all_systems(warranty)
+        if not results:
+            raise DatabaseError("No systems found in database")
+
+        if not force:
+            response = (
+                input(
+                    "You are about to clear all non-applied jobs on ALL hosts. "
+                    "Are you sure? (y/n): "
+                )
+                .strip()
+                .lower()
+            )
+            if response not in ("y", "yes"):
+                print("Cancelled.")
+                return
+
+        count = enqueue_batch("clear_job_queue", "all")
+        print(f"Clear job queue queued for {count} hosts.")

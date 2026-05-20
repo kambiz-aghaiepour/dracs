@@ -33,6 +33,8 @@ from dracs.commands import (  # noqa: F401
     discover_dell_systems_batch,
     edit_dell_warranty,
     filter_list_results,
+    idrac_jobs_clear,
+    idrac_jobs_list,
     list_dell_warranty,
     list_jobs,
     lookup_dell_warranty,

@@ -69,7 +69,8 @@ class CustomParser(argparse.ArgumentParser):
             print("    remove (r)      Remove a system")
             print("    list (li)       List systems")
             print("    tsr (t)         TSR operations")
-            print("    jobs (j)        Job queue operations\n")
+            print("    jobs (j)        Job queue operations")
+            print("    idracjobs (ij)  iDRAC job queue operations\n")
             self.print_usage()
             sys.exit(2)
         # Fall back to default behavior for other errors
@@ -327,6 +328,20 @@ async def main() -> None:
         help="Include completed/failed jobs in listing",
     )
 
+    # --- IDRACJOBS COMMAND ---
+    parser_ij = subparsers.add_parser(
+        "idracjobs", aliases=["ij"], help="iDRAC job queue operations"
+    )
+    ij_action = parser_ij.add_mutually_exclusive_group(required=True)
+    ij_action.add_argument("--list", action="store_true", help="List iDRAC job queue")
+    ij_action.add_argument("--clear", action="store_true", help="Clear iDRAC job queue")
+    parser_ij.add_argument("-t", "--target", help="Target hostname")
+    parser_ij.add_argument("-m", "--model", help="Target model")
+    parser_ij.add_argument("--all", action="store_true", help="All hosts")
+    parser_ij.add_argument(
+        "-f", "--force", action="store_true", help="Skip confirmation prompt"
+    )
+
     args = parser.parse_args()
 
     # Set up logging based on command-line flags
@@ -470,6 +485,19 @@ async def main() -> None:
             await commands.clear_jobs(warranty)
         elif args.cancel:
             await commands.cancel_job_cmd(args.cancel, warranty)
+    elif args.command in ["idracjobs", "ij"]:
+        if args.list:
+            if not args.target:
+                print(
+                    "Error: --target is required with --list.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            await commands.idrac_jobs_list(args.target, warranty)
+        elif args.clear:
+            await commands.idrac_jobs_clear(
+                args.target, args.model, args.all, args.force, warranty
+            )
 
 
 def main_cli() -> None:
