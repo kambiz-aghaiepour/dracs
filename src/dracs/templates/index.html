@@ -4107,9 +4107,18 @@
             }
 
             const hostCount = selectedSystems.length;
+            let confirmMsg;
+            if (hostCount === 1) {
+                confirmMsg = `You are about to clear all non-applied jobs on ${selectedSystems[0].hostname}.  Are you sure?`;
+            } else {
+                confirmMsg = `You are about to clear all non-applied jobs on ${hostCount} hosts.  Are you sure?`;
+            }
+
+            if (!confirm(confirmMsg)) {
+                return;
+            }
 
             try {
-                // Call API to clear job queue for all selected hosts
                 const response = await fetch('/api/clear-job-queue', {
                     method: 'POST',
                     headers: {
@@ -4123,7 +4132,7 @@
                 const data = await response.json();
 
                 if (data.success) {
-                    showNotification(`All non-applied jobs cleared for ${hostCount} host${hostCount > 1 ? 's' : ''}.`, 'success');
+                    showNotification(data.message, 'success');
                 } else {
                     showNotification(data.message, 'error');
                 }

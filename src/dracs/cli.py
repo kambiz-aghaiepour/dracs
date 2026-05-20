@@ -68,8 +68,8 @@ class CustomParser(argparse.ArgumentParser):
             print("    refresh (rf)    Refresh SNMP and warranty data")
             print("    remove (r)      Remove a system")
             print("    list (li)       List systems")
-            print("    tsr             TSR operations")
-            print("    jobs            Job queue operations\n")
+            print("    tsr (t)         TSR operations")
+            print("    jobs (j)        Job queue operations\n")
             self.print_usage()
             sys.exit(2)
         # Fall back to default behavior for other errors
@@ -287,7 +287,7 @@ async def main() -> None:
     )
 
     # --- TSR COMMAND ---
-    parser_tsr = subparsers.add_parser("tsr", help="TSR operations")
+    parser_tsr = subparsers.add_parser("tsr", aliases=["t"], help="TSR operations")
     parser_tsr.add_argument("-t", "--target", required=True, help="Target hostname")
     tsr_action = parser_tsr.add_mutually_exclusive_group(required=True)
     tsr_action.add_argument("--list", action="store_true", help="List TSR collections")
@@ -310,7 +310,9 @@ async def main() -> None:
     )
 
     # --- JOBS COMMAND ---
-    parser_jobs = subparsers.add_parser("jobs", help="Job queue operations")
+    parser_jobs = subparsers.add_parser(
+        "jobs", aliases=["j"], help="Job queue operations"
+    )
     jobs_action = parser_jobs.add_mutually_exclusive_group(required=True)
     jobs_action.add_argument("--list", action="store_true", help="List jobs")
     jobs_action.add_argument(
@@ -452,7 +454,7 @@ async def main() -> None:
             args.host_only,
             warranty,
         )
-    elif args.command == "tsr":
+    elif args.command in ["tsr", "t"]:
         if args.list:
             await commands.tsr_list(args.target, warranty, args.last)
         elif args.download:
@@ -461,7 +463,7 @@ async def main() -> None:
             await commands.tsr_generate(args.target, warranty)
         elif args.status:
             await commands.tsr_status(args.target, warranty)
-    elif args.command == "jobs":
+    elif args.command in ["jobs", "j"]:
         if args.list:
             await commands.list_jobs(args.all, warranty)
         elif args.clear:

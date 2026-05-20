@@ -13,6 +13,7 @@ from dracs.jobqueue import (
     complete_job,
     enqueue_job,
     execute_bios_update_job,
+    execute_clear_job_queue,
     execute_firmware_update_job,
     execute_refresh_job,
     execute_tsr_job,
@@ -490,6 +491,26 @@ class TestExecuteBiosUpdateJob:
                         )
 
 
+class TestExecuteClearJobQueue:
+    def test_success(self, job_db):
+        mock_build_cmd = MagicMock(return_value=["echo", "test"])
+        mock_result = MagicMock(returncode=0)
+        with patch("dracs.jobqueue.subprocess.run", return_value=mock_result):
+            with patch("dracs.webapp._build_ssh_racadm_cmd", mock_build_cmd):
+                execute_clear_job_queue("server01.example.com")
+        mock_build_cmd.assert_called_once_with(
+            "server01.example.com", "jobqueue", "delete", "--all"
+        )
+
+    def test_command_failure(self, job_db):
+        mock_build_cmd = MagicMock(return_value=["echo", "test"])
+        mock_result = MagicMock(returncode=1, stderr="error", stdout="")
+        with patch("dracs.jobqueue.subprocess.run", return_value=mock_result):
+            with patch("dracs.webapp._build_ssh_racadm_cmd", mock_build_cmd):
+                with pytest.raises(RuntimeError, match="Clear job queue failed"):
+                    execute_clear_job_queue("server01.example.com")
+
+
 class TestProcessorDispatchUpdateJobs:
     def test_firmware_update_dispatched(self, job_db):
         enqueue_job(
@@ -518,6 +539,16 @@ class TestProcessorDispatchUpdateJobs:
             time.sleep(0.3)
             processor.stop()
         mock_execute.assert_called_once()
+
+    def test_clear_job_queue_dispatched(self, job_db):
+        enqueue_job("clear_job_queue", "server01.example.com")
+        mock_execute = MagicMock()
+        processor = JobProcessor(max_workers=2, poll_interval=0.05)
+        with patch("dracs.jobqueue.execute_clear_job_queue", mock_execute):
+            processor.start()
+            time.sleep(0.3)
+            processor.stop()
+        mock_execute.assert_called_once_with("server01.example.com")
 
 
 class TestGunicornHook:
