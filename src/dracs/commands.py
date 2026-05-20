@@ -803,7 +803,9 @@ async def idrac_jobs_list(hostname: str, warranty: str) -> None:
     )
     if result.returncode != 0:
         detail = result.stdout[:200] if result.stdout.strip() else result.stderr[:200]
-        raise DracsError(f"Failed to query job queue (exit {result.returncode}): {detail}")
+        raise DracsError(
+            f"Failed to query job queue (exit {result.returncode}): {detail}"
+        )
 
     jobs = parse_job_queue(result.stdout)
     if not jobs:
