@@ -15,36 +15,36 @@ from dracs.webapp import (
     _find_latest_idrac_firmware,
 )
 
-CATALOG_WITH_MD5 = """<?xml version="1.0" encoding="utf-16"?>
+CATALOG_WITH_HASH = """<?xml version="1.0" encoding="utf-16"?>
 <Manifest>
   <SoftwareComponent path="FOLDER/firmware.EXE" vendorVersion="7.30.10.50"
-      dateTime="2025-03-15T10:00:00Z" hashMD5="d41d8cd98f00b204e9800998ecf8427e">
+      dateTime="2025-03-15T10:00:00Z" hash="abcdef1234567890" hashAlgorithm="SHA256">
     <ComponentType value="FRMW"/>
     <Category><Display>iDRAC with Lifecycle Controller</Display></Category>
     <SupportedSystems><Brand><Model><Display>R660</Display></Model></Brand></SupportedSystems>
   </SoftwareComponent>
   <SoftwareComponent path="FOLDER/bios.EXE" vendorVersion="2.10.1"
-      dateTime="2025-03-10T10:00:00Z" hashMD5="abc123def456">
+      dateTime="2025-03-10T10:00:00Z" hash="fedcba0987654321" hashAlgorithm="SHA256">
     <ComponentType value="BIOS"/>
     <SupportedSystems><Brand><Model><Display>R660</Display></Model></Brand></SupportedSystems>
   </SoftwareComponent>
 </Manifest>"""
 
 
-class TestFinderReturnsMd5:
-    def test_firmware_includes_hash_md5(self):
-        xml_bytes = CATALOG_WITH_MD5.encode("utf-16")
+class TestFinderReturnsSha256:
+    def test_firmware_includes_hash(self):
+        xml_bytes = CATALOG_WITH_HASH.encode("utf-16")
         result = _find_latest_idrac_firmware(xml_bytes, "R660")
         assert result is not None
-        assert result["hash_md5"] == "d41d8cd98f00b204e9800998ecf8427e"
+        assert result["hash_sha256"] == "abcdef1234567890"
 
-    def test_bios_includes_hash_md5(self):
-        xml_bytes = CATALOG_WITH_MD5.encode("utf-16")
+    def test_bios_includes_hash(self):
+        xml_bytes = CATALOG_WITH_HASH.encode("utf-16")
         result = _find_latest_bios(xml_bytes, "R660")
         assert result is not None
-        assert result["hash_md5"] == "abc123def456"
+        assert result["hash_sha256"] == "fedcba0987654321"
 
-    def test_firmware_missing_hash_md5(self):
+    def test_firmware_missing_hash(self):
         xml = """<?xml version="1.0" encoding="utf-16"?>
         <Manifest>
           <SoftwareComponent path="FOLDER/fw.EXE" vendorVersion="1.0"
@@ -56,7 +56,7 @@ class TestFinderReturnsMd5:
         </Manifest>"""
         result = _find_latest_idrac_firmware(xml.encode("utf-16"), "R660")
         assert result is not None
-        assert result["hash_md5"] == ""
+        assert result["hash_sha256"] == ""
 
 
 @pytest.fixture
@@ -112,18 +112,18 @@ def _make_firmware_exe(tmp_path):
     return exe_path
 
 
-class TestFirmwareMd5AndArchive:
-    def test_md5_verified_and_archived(self, client, tmp_path):
+class TestFirmwareSha256AndArchive:
+    def test_sha256_verified_and_archived(self, client, tmp_path):
         _login(client)
 
         src_exe = _make_firmware_exe(tmp_path)
         exe_bytes = src_exe.read_bytes()
-        expected_md5 = hashlib.md5(exe_bytes).hexdigest()
+        expected_hash = hashlib.sha256(exe_bytes).hexdigest()
 
         catalog_xml = f"""<?xml version="1.0" encoding="utf-16"?>
         <Manifest>
           <SoftwareComponent path="FOLDER/firmware.EXE" vendorVersion="7.30.10.50"
-              dateTime="2025-03-15T10:00:00Z" hashMD5="{expected_md5}">
+              dateTime="2025-03-15T10:00:00Z" hash="{expected_hash}">
             <ComponentType value="FRMW"/>
             <Category><Display>iDRAC with Lifecycle Controller</Display></Category>
             <SupportedSystems><Brand><Model><Display>R660</Display></Model></Brand></SupportedSystems>
@@ -183,14 +183,14 @@ class TestFirmwareMd5AndArchive:
             )
             data_str = resp.get_data(as_text=True)
 
-        assert "Verifying MD5" in data_str
+        assert "Verifying SHA256" in data_str
         assert "FAIL" not in data_str
         assert (fw_archive / "firmware.EXE").exists()
-        assert (fw_archive / "firmware.EXE.md5").exists()
-        md5_content = (fw_archive / "firmware.EXE.md5").read_text()
-        assert expected_md5 in md5_content
+        assert (fw_archive / "firmware.EXE.sha256").exists()
+        sha_content = (fw_archive / "firmware.EXE.sha256").read_text()
+        assert expected_hash in sha_content
 
-    def test_md5_mismatch_stops(self, client, tmp_path):
+    def test_sha256_mismatch_stops(self, client, tmp_path):
         _login(client)
 
         src_exe = _make_firmware_exe(tmp_path)
@@ -199,7 +199,7 @@ class TestFirmwareMd5AndArchive:
         catalog_xml = """<?xml version="1.0" encoding="utf-16"?>
         <Manifest>
           <SoftwareComponent path="FOLDER/firmware.EXE" vendorVersion="7.30.10.50"
-              dateTime="2025-03-15T10:00:00Z" hashMD5="0000000000000000bad_hash">
+              dateTime="2025-03-15T10:00:00Z" hash="0000bad_hash_value">
             <ComponentType value="FRMW"/>
             <Category><Display>iDRAC with Lifecycle Controller</Display></Category>
             <SupportedSystems><Brand><Model><Display>R660</Display></Model></Brand></SupportedSystems>
@@ -245,17 +245,17 @@ class TestFirmwareMd5AndArchive:
         assert '"type": "complete"' not in data_str
 
 
-class TestBiosMd5AndArchive:
-    def test_md5_verified_and_hardlinked(self, client, tmp_path):
+class TestBiosSha256AndArchive:
+    def test_sha256_verified_and_hardlinked(self, client, tmp_path):
         _login(client)
 
         exe_content = b"fake bios content"
-        expected_md5 = hashlib.md5(exe_content).hexdigest()
+        expected_hash = hashlib.sha256(exe_content).hexdigest()
 
         catalog_xml = f"""<?xml version="1.0" encoding="utf-16"?>
         <Manifest>
           <SoftwareComponent path="FOLDER/bios.EXE" vendorVersion="2.10.1"
-              dateTime="2025-03-10T10:00:00Z" hashMD5="{expected_md5}">
+              dateTime="2025-03-10T10:00:00Z" hash="{expected_hash}">
             <ComponentType value="BIOS"/>
             <SupportedSystems><Brand><Model><Display>R660</Display></Model></Brand></SupportedSystems>
           </SoftwareComponent>
@@ -303,16 +303,16 @@ class TestBiosMd5AndArchive:
             )
             data_str = resp.get_data(as_text=True)
 
-        assert "Verifying MD5" in data_str
+        assert "Verifying SHA256" in data_str
         assert "FAIL" not in data_str
         assert (bios_archive / "bios.EXE").exists()
-        assert (bios_archive / "bios.EXE.md5").exists()
+        assert (bios_archive / "bios.EXE.sha256").exists()
 
         web_path = bios_dir / "R660" / "bios.EXE"
         assert web_path.exists()
         assert os.stat(bios_archive / "bios.EXE").st_ino == os.stat(web_path).st_ino
 
-    def test_md5_mismatch_stops(self, client, tmp_path):
+    def test_sha256_mismatch_stops(self, client, tmp_path):
         _login(client)
 
         exe_content = b"fake bios content"
@@ -320,7 +320,7 @@ class TestBiosMd5AndArchive:
         catalog_xml = """<?xml version="1.0" encoding="utf-16"?>
         <Manifest>
           <SoftwareComponent path="FOLDER/bios.EXE" vendorVersion="2.10.1"
-              dateTime="2025-03-10T10:00:00Z" hashMD5="bad_hash_value">
+              dateTime="2025-03-10T10:00:00Z" hash="bad_hash_value">
             <ComponentType value="BIOS"/>
             <SupportedSystems><Brand><Model><Display>R660</Display></Model></Brand></SupportedSystems>
           </SoftwareComponent>
