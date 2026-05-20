@@ -98,6 +98,7 @@ class TestRequiredEnvVarsList:
             "DEBUG",
             "DRACS_BIND",
             "DRACS_LOG_DIR",
+            "DRACS_ARCHIVE_DIR",
             "VNC_ENABLE",
             "VNC_TIMEOUT",
             "VNC_MAX_SESSIONS",

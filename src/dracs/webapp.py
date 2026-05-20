@@ -5,6 +5,7 @@ import configparser
 from datetime import datetime
 import glob
 import gzip
+import hashlib
 import json
 import os
 import re
@@ -1174,6 +1175,10 @@ CATALOG_BASE_URL = "https://downloads.dell.com"
 FIRMWARE_IMAGE_DIR = Path("/var/lib/dracs/web/firmware")
 BIOS_IMAGE_DIR = Path("/var/lib/dracs/web/bios")
 
+_ARCHIVE_BASE = os.environ.get("DRACS_ARCHIVE_DIR", "./archive")
+FIRMWARE_ARCHIVE_DIR = Path(_ARCHIVE_BASE) / "firmware"
+BIOS_ARCHIVE_DIR = Path(_ARCHIVE_BASE) / "bios"
+
 
 def _parse_catalog_datetime(dt_str: str) -> datetime:
     dt_str = dt_str.strip()
@@ -1229,6 +1234,7 @@ def _find_latest_idrac_firmware(xml_bytes: bytes, model: str) -> dict | None:
                 "version": comp.get("vendorVersion", ""),
                 "path": path,
                 "url": f"{CATALOG_BASE_URL}/{path}",
+                "hash_sha256": comp.get("hash", ""),
             }
 
     return best
@@ -1449,6 +1455,7 @@ def api_latest_firmware():
 
             version = result["version"]
             download_url = result["url"]
+            expected_sha256 = result.get("hash_sha256", "")
 
             yield _sse_event("append", "done.")
 
@@ -1467,6 +1474,23 @@ def api_latest_firmware():
                     shutil.copyfileobj(resp, f)
 
             yield _sse_event("append", "done.")
+
+            if expected_sha256:
+                yield _sse_event("status", "Verifying SHA256 ....")
+                with open(exe_path, "rb") as f:
+                    calculated = hashlib.sha256(f.read()).hexdigest()
+                if calculated != expected_sha256:
+                    yield _sse_event("error", "Verifying SHA256 ... FAIL!")
+                    return
+                yield _sse_event("append", "done.")
+
+            FIRMWARE_ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
+            archive_path = FIRMWARE_ARCHIVE_DIR / exe_filename
+            if not archive_path.exists():
+                shutil.copy2(exe_path, archive_path)
+            if expected_sha256:
+                sha_path = FIRMWARE_ARCHIVE_DIR / f"{exe_filename}.sha256"
+                sha_path.write_text(f"{expected_sha256}  {exe_filename}\n")
 
             yield _sse_event("status", "Extracting firmware package...")
 
@@ -1572,6 +1596,7 @@ def _find_latest_bios(xml_bytes: bytes, model: str) -> dict | None:
                 "version": comp.get("vendorVersion", ""),
                 "path": path,
                 "url": f"{CATALOG_BASE_URL}/{path}",
+                "hash_sha256": comp.get("hash", ""),
             }
 
     return best
@@ -1639,6 +1664,7 @@ def api_latest_bios():
 
             version = result["version"]
             download_url = result["url"]
+            expected_sha256 = result.get("hash_sha256", "")
 
             yield _sse_event("append", "done.")
 
@@ -1658,6 +1684,23 @@ def api_latest_bios():
 
             yield _sse_event("append", "done.")
 
+            if expected_sha256:
+                yield _sse_event("status", "Verifying SHA256 ....")
+                with open(exe_path, "rb") as f:
+                    calculated = hashlib.sha256(f.read()).hexdigest()
+                if calculated != expected_sha256:
+                    yield _sse_event("error", "Verifying SHA256 ... FAIL!")
+                    return
+                yield _sse_event("append", "done.")
+
+            BIOS_ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
+            archive_path = BIOS_ARCHIVE_DIR / exe_filename
+            if not archive_path.exists():
+                shutil.copy2(exe_path, archive_path)
+            if expected_sha256:
+                sha_path = BIOS_ARCHIVE_DIR / f"{exe_filename}.sha256"
+                sha_path.write_text(f"{expected_sha256}  {exe_filename}\n")
+
             yield _sse_event(
                 "status",
                 f"Latest BIOS version for {model} found: {version}",
@@ -1676,7 +1719,10 @@ def api_latest_bios():
                     f"{dest_path} already exists!",
                 )
             else:
-                shutil.copy2(exe_path, dest_path)
+                try:
+                    os.link(archive_path, dest_path)
+                except OSError:
+                    shutil.copy2(archive_path, dest_path)
                 os.chmod(dest_path, 0o644)
                 yield _sse_event(
                     "status",

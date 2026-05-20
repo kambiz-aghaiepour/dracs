@@ -30,6 +30,7 @@ OPTIONAL_ENV_DEFAULTS = {
     "DEBUG": "false",
     "DRACS_BIND": "127.0.0.1:1888",
     "DRACS_LOG_DIR": "logs",
+    "DRACS_ARCHIVE_DIR": "/var/lib/dracs/archive",
     "VNC_ENABLE": "false",
     "VNC_TIMEOUT": "30",
     "VNC_MAX_SESSIONS": "20",

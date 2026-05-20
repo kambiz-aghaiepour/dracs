@@ -74,6 +74,8 @@ install -d -m 0755 %{buildroot}%{_sharedstatedir}/dracs
 install -d -m 0755 %{buildroot}%{_sharedstatedir}/dracs/web/firmware
 install -d -m 0755 %{buildroot}%{_sharedstatedir}/dracs/web/bios
 install -d -m 0755 %{buildroot}%{_sharedstatedir}/dracs/web/tsr
+install -d -m 0755 %{buildroot}%{_sharedstatedir}/dracs/archive/firmware
+install -d -m 0755 %{buildroot}%{_sharedstatedir}/dracs/archive/bios
 install -d -m 0755 %{buildroot}%{_localstatedir}/log/dracs
 
 
@@ -212,6 +214,9 @@ fi
 %dir %attr(0755, dracs, dracs) %{_sharedstatedir}/dracs/web/firmware
 %dir %attr(0755, dracs, dracs) %{_sharedstatedir}/dracs/web/bios
 %dir %attr(0755, dracs, dracs) %{_sharedstatedir}/dracs/web/tsr
+%dir %attr(0755, dracs, dracs) %{_sharedstatedir}/dracs/archive
+%dir %attr(0755, dracs, dracs) %{_sharedstatedir}/dracs/archive/firmware
+%dir %attr(0755, dracs, dracs) %{_sharedstatedir}/dracs/archive/bios
 %dir %attr(0755, dracs, dracs) %{_localstatedir}/log/dracs
 
 
