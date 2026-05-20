@@ -498,6 +498,62 @@ def api_bios_versions(model):
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
 
 
+@app.route("/api/available-firmware/<model>")
+def api_available_firmware(model):
+    """List firmware versions available on disk for a model."""
+    try:
+        if not session.get("authenticated", False):
+            return (
+                jsonify({"success": False, "message": "Authentication required"}),
+                401,
+            )
+
+        prefix = f"{model}-"
+        suffix = ".d9"
+        versions = []
+        if FIRMWARE_IMAGE_DIR.is_dir():
+            for f in FIRMWARE_IMAGE_DIR.iterdir():
+                name = f.name
+                if name.startswith(prefix) and name.endswith(suffix):
+                    ver = name[len(prefix) : -len(suffix)]
+                    if ver:
+                        versions.append(ver)
+
+        versions.sort(key=lambda v: tuple(map(int, v.split("."))), reverse=True)
+        return jsonify({"success": True, "model": model, "versions": versions})
+
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+
+@app.route("/api/available-bios/<model>")
+def api_available_bios(model):
+    """List BIOS versions available on disk for a model."""
+    try:
+        if not session.get("authenticated", False):
+            return (
+                jsonify({"success": False, "message": "Authentication required"}),
+                401,
+            )
+
+        config_file = Path("BIOS-filename.ini")
+        if not config_file.exists():
+            config_file = Path("/etc/dracs/BIOS-filename.ini")
+
+        versions = []
+        if config_file.exists():
+            config = configparser.ConfigParser()
+            config.read(config_file)
+            if model in config:
+                versions = list(config[model].keys())
+
+        versions.sort(key=lambda v: tuple(map(int, v.split("."))), reverse=True)
+        return jsonify({"success": True, "model": model, "versions": versions})
+
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+
 @app.route("/login", methods=["POST"])
 def login():
     """Handle login POST request."""
