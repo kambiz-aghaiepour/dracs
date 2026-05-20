@@ -714,13 +714,26 @@ async def tsr_download(hostname: str, warranty: str) -> None:
 
 
 async def tsr_generate(hostname: str, warranty: str) -> None:
-    from dracs.jobqueue import enqueue_job
+    from dracs.jobqueue import enqueue_job, get_latest_job_for_host
 
     db_initialize(warranty)
 
     results = query_by_hostname(warranty, hostname)
     if not results:
         raise DatabaseError(f"Host {hostname} not found in database")
+
+    existing = get_latest_job_for_host(hostname, "tsr")
+    if existing and existing["status"] in ("pending", "running"):
+        progress = existing.get("result", "")
+        msg = f"TSR already in progress for {hostname} (job {existing['id']})"
+        if progress and "%" in progress:
+            msg += f" - {progress} Completed."
+        elif progress:
+            msg += f" - {progress}."
+        else:
+            msg += "."
+        print(msg)
+        return
 
     job_id = enqueue_job("tsr", hostname)
     print(f"TSR collection queued for {hostname} (job {job_id})")

@@ -1087,12 +1087,13 @@ class TestTsrCollectEndpoint:
 
     def test_success(self, client):
         _login(client)
-        with patch("dracs.jobqueue.enqueue_job", return_value=42) as mock_enqueue:
-            resp = client.post(
-                "/api/tsr-collect",
-                data=json.dumps({"hostname": "server01", "service_tag": "TAG001"}),
-                content_type="application/json",
-            )
+        with patch("dracs.jobqueue.get_latest_job_for_host", return_value=None):
+            with patch("dracs.jobqueue.enqueue_job", return_value=42) as mock_enqueue:
+                resp = client.post(
+                    "/api/tsr-collect",
+                    data=json.dumps({"hostname": "server01", "service_tag": "TAG001"}),
+                    content_type="application/json",
+                )
         data = resp.get_json()
         assert data["success"] is True
         assert data["job_id"] == 42
@@ -1100,12 +1101,13 @@ class TestTsrCollectEndpoint:
 
     def test_returns_job_id(self, client):
         _login(client)
-        with patch("dracs.jobqueue.enqueue_job", return_value=99):
-            resp = client.post(
-                "/api/tsr-collect",
-                data=json.dumps({"hostname": "server01", "service_tag": "TAG001"}),
-                content_type="application/json",
-            )
+        with patch("dracs.jobqueue.get_latest_job_for_host", return_value=None):
+            with patch("dracs.jobqueue.enqueue_job", return_value=99):
+                resp = client.post(
+                    "/api/tsr-collect",
+                    data=json.dumps({"hostname": "server01", "service_tag": "TAG001"}),
+                    content_type="application/json",
+                )
         data = resp.get_json()
         assert data["job_id"] == 99
 
@@ -1845,15 +1847,16 @@ class TestTsrEndpointEdgeCases:
 
     def test_tsr_collect_general_exception(self, client):
         _login(client)
-        with patch(
-            "dracs.jobqueue.enqueue_job",
-            side_effect=RuntimeError("boom"),
-        ):
-            resp = client.post(
-                "/api/tsr-collect",
-                data=json.dumps({"hostname": "server01", "service_tag": "TAG001"}),
-                content_type="application/json",
-            )
+        with patch("dracs.jobqueue.get_latest_job_for_host", return_value=None):
+            with patch(
+                "dracs.jobqueue.enqueue_job",
+                side_effect=RuntimeError("boom"),
+            ):
+                resp = client.post(
+                    "/api/tsr-collect",
+                    data=json.dumps({"hostname": "server01", "service_tag": "TAG001"}),
+                    content_type="application/json",
+                )
         assert resp.status_code == 500
 
 

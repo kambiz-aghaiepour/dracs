@@ -2110,7 +2110,18 @@ def api_tsr_collect():
         if not service_tag:
             return jsonify({"success": False, "message": "Service tag required"}), 400
 
-        from dracs.jobqueue import enqueue_job
+        from dracs.jobqueue import enqueue_job, get_latest_job_for_host
+
+        existing = get_latest_job_for_host(hostname, "tsr")
+        if existing and existing["status"] in ("pending", "running"):
+            return jsonify(
+                {
+                    "success": True,
+                    "message": f"TSR already in progress for {hostname}",
+                    "job_id": existing["id"],
+                    "existing": True,
+                }
+            )
 
         job_id = enqueue_job("tsr", hostname)
 
