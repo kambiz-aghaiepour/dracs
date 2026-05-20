@@ -176,6 +176,19 @@ class TestTsrGenerate:
         assert "already in progress" in captured.out
         assert "job 11" in captured.out
 
+    @pytest.mark.asyncio
+    async def test_generate_skips_with_phase_label(self, tsr_db, capsys):
+        existing = {
+            "id": 12,
+            "status": "running",
+            "result": "Exporting",
+        }
+        with patch("dracs.jobqueue.get_latest_job_for_host", return_value=existing):
+            await tsr_generate("server01.example.com", tsr_db)
+        captured = capsys.readouterr()
+        assert "already in progress" in captured.out
+        assert "Exporting" in captured.out
+
 
 class TestTsrStatus:
     @pytest.mark.asyncio
