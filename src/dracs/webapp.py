@@ -1175,12 +1175,12 @@ CATALOG_BASE_URL = "https://downloads.dell.com"
 FIRMWARE_IMAGE_DIR = Path("/var/lib/dracs/web/firmware")
 BIOS_IMAGE_DIR = Path("/var/lib/dracs/web/bios")
 
-if Path("/var/lib/dracs").is_dir():
-    FIRMWARE_ARCHIVE_DIR = Path("/var/lib/dracs/archive/firmware")
-    BIOS_ARCHIVE_DIR = Path("/var/lib/dracs/archive/bios")
-else:
-    FIRMWARE_ARCHIVE_DIR = Path("./archive/firmware")
-    BIOS_ARCHIVE_DIR = Path("./archive/bios")
+_ARCHIVE_BASE = os.environ.get(
+    "DRACS_ARCHIVE_DIR",
+    "/var/lib/dracs/archive" if Path("/var/lib/dracs").is_dir() else "./archive",
+)
+FIRMWARE_ARCHIVE_DIR = Path(_ARCHIVE_BASE) / "firmware"
+BIOS_ARCHIVE_DIR = Path(_ARCHIVE_BASE) / "bios"
 
 
 def _parse_catalog_datetime(dt_str: str) -> datetime:
