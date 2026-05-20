@@ -459,3 +459,11 @@ class TestMainIdracJobs:
         run_main_with_args(["idracjobs", "--clear", "--all", "-f"])
         mock_clear.assert_called_once()
         assert mock_clear.call_args[0][3] is True  # force
+
+    @patch("dracs.cli.db_initialize")
+    def test_idracjobs_list_requires_target(self, mock_db, capsys):
+        with pytest.raises(SystemExit) as exc_info:
+            run_main_with_args(["idracjobs", "--list"])
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "--target is required" in captured.err

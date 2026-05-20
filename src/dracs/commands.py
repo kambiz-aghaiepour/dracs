@@ -784,7 +784,7 @@ async def cancel_job_cmd(job_id: int, warranty: str) -> None:
 
 
 async def idrac_jobs_list(hostname: str, warranty: str) -> None:
-    import subprocess as sp
+    import subprocess as sp  # nosec
 
     from rich.console import Console
     from rich.table import Table
