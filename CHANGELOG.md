@@ -1,5 +1,481 @@
 # CHANGELOG
 
+<!-- version list -->
+
+## v1.23.0 (2026-05-20)
+
+### Features
+
+- add MD5 verification and archive storage
+  ([`fcbfab6`](https://github.com/kambiz-aghaiepour/dracs/commit/fcbfab6))
+
+### Bug Fixes
+
+- use sha256 for verification, not md5
+  ([`2f5c400`](https://github.com/kambiz-aghaiepour/dracs/commit/2f5c400))
+
+
+## v1.22.1 (2026-05-20)
+
+### Bug Fixes
+
+- issue with idracjobs not getting credentials
+  ([`c1f9b83`](https://github.com/kambiz-aghaiepour/dracs/commit/c1f9b83))
+
+
+## v1.22.0 (2026-05-20)
+
+### Features
+
+- add idracjobs CLI command
+  ([`3fc0d66`](https://github.com/kambiz-aghaiepour/dracs/commit/3fc0d66))
+
+
+## v1.21.1 (2026-05-20)
+
+### Bug Fixes
+
+- replace browser confirm dialog
+  ([`bf1e7fc`](https://github.com/kambiz-aghaiepour/dracs/commit/bf1e7fc))
+
+
+## v1.21.0 (2026-05-20)
+
+### Features
+
+- route clear-job-queue through job queue
+  ([`69446f7`](https://github.com/kambiz-aghaiepour/dracs/commit/69446f7))
+
+
+## v1.20.2 (2026-05-20)
+
+### Bug Fixes
+
+- non-ssl redirect should avoid firmware and bios
+  ([`7953400`](https://github.com/kambiz-aghaiepour/dracs/commit/7953400))
+
+
+## v1.20.1 (2026-05-20)
+
+### Bug Fixes
+
+- logic error around updates with multiselect
+  ([`9098bfa`](https://github.com/kambiz-aghaiepour/dracs/commit/9098bfa))
+
+
+## v1.20.0 (2026-05-20)
+
+### Features
+
+- delegate bulk refresh to job queue
+  ([`90ca541`](https://github.com/kambiz-aghaiepour/dracs/commit/90ca541))
+
+
+## v1.19.0 (2026-05-20)
+
+### Features
+
+- move firmware/BIOS updates to job queue
+  ([`e9bccbe`](https://github.com/kambiz-aghaiepour/dracs/commit/e9bccbe))
+
+
+## v1.18.2 (2026-05-20)
+
+### Bug Fixes
+
+- deduplicate TSR collection by returning
+  ([`ae40cbe`](https://github.com/kambiz-aghaiepour/dracs/commit/ae40cbe))
+
+
+## v1.18.1 (2026-05-20)
+
+### Bug Fixes
+
+- need proper polling for % status
+  ([`dbcf228`](https://github.com/kambiz-aghaiepour/dracs/commit/dbcf228))
+
+
+## v1.18.0 (2026-05-19)
+
+### Features
+
+- add SQLite-backed job queue
+  ([`5bb3f79`](https://github.com/kambiz-aghaiepour/dracs/commit/5bb3f79))
+
+- add in-process job processor with TSR
+  ([`4683689`](https://github.com/kambiz-aghaiepour/dracs/commit/4683689))
+
+- add job queue CLI commands
+  ([`14bee44`](https://github.com/kambiz-aghaiepour/dracs/commit/14bee44))
+
+
+## v1.17.0 (2026-05-19)
+
+### Features
+
+- add TSR operations to dracs server CLI
+  ([`9238084`](https://github.com/kambiz-aghaiepour/dracs/commit/9238084))
+
+
+## v1.16.0 (2026-05-19)
+
+### Features
+
+- add dracs-client remote CLI
+  ([`27f763b`](https://github.com/kambiz-aghaiepour/dracs/commit/27f763b))
+
+
+## v1.15.5 (2026-05-19)
+
+### Bug Fixes
+
+- small issue with breaking words
+  ([`4c2c5ff`](https://github.com/kambiz-aghaiepour/dracs/commit/4c2c5ff))
+
+
+## v1.15.4 (2026-05-18)
+
+### Bug Fixes
+
+- TSR tracking bug
+  ([`e79eee6`](https://github.com/kambiz-aghaiepour/dracs/commit/e79eee6))
+
+
+## v1.15.3 (2026-05-18)
+
+### Bug Fixes
+
+- add TSR thread registry and tracking
+  ([`4dd7974`](https://github.com/kambiz-aghaiepour/dracs/commit/4dd7974))
+
+
+## v1.15.2 (2026-05-18)
+
+### Bug Fixes
+
+- markup for index.html was incorrect
+  ([`fe453e8`](https://github.com/kambiz-aghaiepour/dracs/commit/fe453e8))
+
+- viewing TSRs for host fails
+  ([`0c189f1`](https://github.com/kambiz-aghaiepour/dracs/commit/0c189f1))
+
+- the index.html for TSRs allows viewing
+  ([`1e7f44b`](https://github.com/kambiz-aghaiepour/dracs/commit/1e7f44b))
+
+
+## v1.15.1 (2026-05-18)
+
+### Bug Fixes
+
+- View TSRs button for unauthenticated
+  ([`d5bd105`](https://github.com/kambiz-aghaiepour/dracs/commit/d5bd105))
+
+
+## v1.15.0 (2026-05-18)
+
+### Features
+
+- add index.html for TSR pages
+  ([`2572b2d`](https://github.com/kambiz-aghaiepour/dracs/commit/2572b2d))
+
+
+## v1.14.0 (2026-05-18)
+
+### Features
+
+- add view TSRs button
+  ([`509603d`](https://github.com/kambiz-aghaiepour/dracs/commit/509603d))
+
+
+## v1.13.1 (2026-05-18)
+
+### Bug Fixes
+
+- add tsr nginx section to example file
+  ([`06385e7`](https://github.com/kambiz-aghaiepour/dracs/commit/06385e7))
+
+
+## v1.13.0 (2026-05-18)
+
+### Features
+
+- add power button
+  ([`ac36032`](https://github.com/kambiz-aghaiepour/dracs/commit/ac36032))
+
+- add power button and TSR button
+  ([`a646a4a`](https://github.com/kambiz-aghaiepour/dracs/commit/a646a4a))
+
+
+## v1.12.3 (2026-05-15)
+
+### Bug Fixes
+
+- allow pasting into the idrac console
+  ([`45203bc`](https://github.com/kambiz-aghaiepour/dracs/commit/45203bc))
+
+
+## v1.12.2 (2026-05-15)
+
+### Bug Fixes
+
+- make vnc console a separate window
+  ([`1bd3c90`](https://github.com/kambiz-aghaiepour/dracs/commit/1bd3c90))
+
+
+## v1.12.0 (2026-05-15)
+
+### Features
+
+- add browser-based VNC console with noVNC
+  ([`ac16d75`](https://github.com/kambiz-aghaiepour/dracs/commit/ac16d75))
+
+
+## v1.11.4 (2026-05-15)
+
+### Bug Fixes
+
+- db path sed incorrect.  Fixed.
+  ([`b2a152c`](https://github.com/kambiz-aghaiepour/dracs/commit/b2a152c))
+
+
+## v1.11.3 (2026-05-15)
+
+### Bug Fixes
+
+- typo in spec for post script
+  ([`ffa701a`](https://github.com/kambiz-aghaiepour/dracs/commit/ffa701a))
+
+
+## v1.11.2 (2026-05-15)
+
+### Bug Fixes
+
+- ensure firewall or iptables set for web
+  ([`377a9c7`](https://github.com/kambiz-aghaiepour/dracs/commit/377a9c7))
+
+
+## v1.11.1 (2026-05-14)
+
+### Bug Fixes
+
+- add the dependencies for nginx startup
+  ([`b8437ad`](https://github.com/kambiz-aghaiepour/dracs/commit/b8437ad))
+
+
+## v1.11.0 (2026-05-14)
+
+### Features
+
+- centralize config /etc/dracs/dracs.conf
+  ([`935fe32`](https://github.com/kambiz-aghaiepour/dracs/commit/935fe32))
+
+
+## v1.10.2 (2026-05-14)
+
+### Bug Fixes
+
+- ensure rpm provides user and group dracs
+  ([`51e4bf9`](https://github.com/kambiz-aghaiepour/dracs/commit/51e4bf9))
+
+
+## v1.10.1 (2026-05-14)
+
+### Bug Fixes
+
+- deprecated macro removed
+  ([`f162b17`](https://github.com/kambiz-aghaiepour/dracs/commit/f162b17))
+
+
+## v1.10.0 (2026-05-14)
+
+### Features
+
+- add RPM packaging with systemd service, nginx configs, and configurable log directory
+  ([`3059abc`](https://github.com/kambiz-aghaiepour/dracs/commit/3059abc))
+
+
+## v1.9.7 (2026-05-14)
+
+### Bug Fixes
+
+- minor spec file issues
+  ([`73d826e`](https://github.com/kambiz-aghaiepour/dracs/commit/73d826e))
+
+
+## v1.9.6 (2026-05-14)
+
+### Bug Fixes
+
+- spec file package name
+  ([`097f9c9`](https://github.com/kambiz-aghaiepour/dracs/commit/097f9c9))
+
+
+## v1.9.5 (2026-05-14)
+
+### Bug Fixes
+
+- keep versions in sync with dracs.spec
+  ([`f1be074`](https://github.com/kambiz-aghaiepour/dracs/commit/f1be074))
+
+
+## v1.9.4 (2026-05-14)
+
+### Bug Fixes
+
+- rename spec file for rpm name change
+  ([`a61110b`](https://github.com/kambiz-aghaiepour/dracs/commit/a61110b))
+
+
+## v1.9.3 (2026-05-14)
+
+### Bug Fixes
+
+- lower requirements for fedora43/44
+  ([`9cb6bbc`](https://github.com/kambiz-aghaiepour/dracs/commit/9cb6bbc))
+
+- ignore 2 CVEs until they are avail
+  ([`7d1ced2`](https://github.com/kambiz-aghaiepour/dracs/commit/7d1ced2))
+
+
+## v1.9.2 (2026-05-14)
+
+### Bug Fixes
+
+- add spec file
+  ([`5e3f82d`](https://github.com/kambiz-aghaiepour/dracs/commit/5e3f82d))
+
+- handle spec file
+  ([`5fe94a7`](https://github.com/kambiz-aghaiepour/dracs/commit/5fe94a7))
+
+
+## v1.9.1 (2026-05-14)
+
+### Bug Fixes
+
+- lower dependencies for copr
+  ([`873d936`](https://github.com/kambiz-aghaiepour/dracs/commit/873d936))
+
+- bump dependencies back up for copr
+  ([`d54bc81`](https://github.com/kambiz-aghaiepour/dracs/commit/d54bc81))
+
+
+## v1.9.0 (2026-05-13)
+
+### Features
+
+- add Created:   BIOS-filename.ini.example Skipped (already exist):   .env.example   drac-passwords.ini.example
+  ([`19c4806`](https://github.com/kambiz-aghaiepour/dracs/commit/19c4806))
+
+- add Skipped (already exist):   .env.example   drac-passwords.ini.example   BIOS-filename.ini.example command with bundled example config files
+  ([`07cbe4b`](https://github.com/kambiz-aghaiepour/dracs/commit/07cbe4b))
+
+- add `dracs init` command with bundled example config files
+  ([`b8fbbfd`](https://github.com/kambiz-aghaiepour/dracs/commit/b8fbbfd))
+
+
+## v1.8.2 (2026-05-13)
+
+### Bug Fixes
+
+- add missing example file
+  ([`892fecd`](https://github.com/kambiz-aghaiepour/dracs/commit/892fecd))
+
+
+## v1.8.1 (2026-05-13)
+
+### Bug Fixes
+
+- ensure dracs-webapp in git repo
+  ([`8caadf4`](https://github.com/kambiz-aghaiepour/dracs/commit/8caadf4))
+
+- remove unneeded Path import
+  ([`2ecc3bb`](https://github.com/kambiz-aghaiepour/dracs/commit/2ecc3bb))
+
+
+## v1.8.0 (2026-05-13)
+
+### Features
+
+- add dracs-webapp CLI entry point
+  ([`ba22353`](https://github.com/kambiz-aghaiepour/dracs/commit/ba22353))
+
+### Bug Fixes
+
+- add nginx sample files
+  ([`440bf18`](https://github.com/kambiz-aghaiepour/dracs/commit/440bf18))
+
+- add nginx example files
+  ([`ea55b9b`](https://github.com/kambiz-aghaiepour/dracs/commit/ea55b9b))
+
+- trigger tests for PRs
+  ([`a41c698`](https://github.com/kambiz-aghaiepour/dracs/commit/a41c698))
+
+
+## v1.7.1 (2026-05-13)
+
+### Bug Fixes
+
+- ensure python-dotenv >=1.2.2
+  ([`41c651d`](https://github.com/kambiz-aghaiepour/dracs/commit/41c651d))
+
+- add dependency checking
+  ([`44539df`](https://github.com/kambiz-aghaiepour/dracs/commit/44539df))
+
+- depenency checking
+  ([`dee251a`](https://github.com/kambiz-aghaiepour/dracs/commit/dee251a))
+
+
+## v1.7.0 (2026-05-13)
+
+### Features
+
+- make DEBUG mode configurable via environment variable and improve error logging
+  ([`59af399`](https://github.com/kambiz-aghaiepour/dracs/commit/59af399))
+
+
+## v1.6.0 (2026-05-13)
+
+### Features
+
+- make Dell API token URL configurable via environment variable
+  ([`1b99159`](https://github.com/kambiz-aghaiepour/dracs/commit/1b99159))
+
+
+## v1.5.7 (2026-05-13)
+
+### Bug Fixes
+
+- bind to 127.0.0.1 only
+  ([`4dc09e5`](https://github.com/kambiz-aghaiepour/dracs/commit/4dc09e5))
+
+
+## v1.5.6 (2026-05-13)
+
+### Bug Fixes
+
+- add timeouts for API calls to dell
+  ([`7b68b8a`](https://github.com/kambiz-aghaiepour/dracs/commit/7b68b8a))
+
+
+## v1.5.5 (2026-05-13)
+
+### Bug Fixes
+
+- ensure subprocess doesn't use shell=True
+  ([`9f374c9`](https://github.com/kambiz-aghaiepour/dracs/commit/9f374c9))
+
+- requests 2.32.4 to address CVE-2024-47081
+  ([`8baf480`](https://github.com/kambiz-aghaiepour/dracs/commit/8baf480))
+
+
+## v1.5.4 (2026-05-13)
+
+### Bug Fixes
+
+- don't pin to insecure version of "requests"
+  ([`6ff2673`](https://github.com/kambiz-aghaiepour/dracs/commit/6ff2673))
+
+
 ## v1.5.1 (2026-05-07)
 
 ### Bug Fixes
