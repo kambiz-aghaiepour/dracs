@@ -168,7 +168,9 @@ def get_idrac_credentials(hostname: str) -> tuple:
     config_file = Path("drac-passwords.ini")
 
     if not config_file.exists():
-        # Return default credentials if file doesn't exist
+        config_file = Path("/etc/dracs/drac-passwords.ini")
+
+    if not config_file.exists():
         return ("root", "calvin")
 
     config = configparser.ConfigParser()
