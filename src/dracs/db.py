@@ -66,6 +66,17 @@ def make_db_url(path: str) -> str:
     return f"sqlite:///{path}"
 
 
+def _migrate_schema(engine) -> None:
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(engine)
+    if "jobs" in inspector.get_table_names():
+        columns = {c["name"] for c in inspector.get_columns("jobs")}
+        if "metadata_json" not in columns:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE jobs ADD COLUMN metadata_json TEXT"))
+
+
 def db_initialize(db_url: str) -> None:
     global _engine, _SessionFactory
     url = make_db_url(db_url)
@@ -77,6 +88,7 @@ def db_initialize(db_url: str) -> None:
     else:
         _engine = create_engine(url)  # pragma: no cover
 
+    _migrate_schema(_engine)
     Base.metadata.create_all(_engine)
     _SessionFactory = sessionmaker(bind=_engine)
 

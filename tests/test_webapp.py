@@ -260,42 +260,22 @@ class TestRefreshMultipleEndpoint:
         )
         assert resp.status_code == 400
 
-    @patch("dracs.webapp.refresh_dell_warranty")
-    def test_refresh_multiple_success(self, mock_refresh, client):
+    @patch("dracs.jobqueue.enqueue_job", return_value=1)
+    def test_refresh_multiple_success(self, mock_enqueue, client):
         _login(client)
-        mock_refresh.return_value = None
         resp = client.post(
             "/api/refresh-multiple",
             data=json.dumps(
-                {"systems": [{"service_tag": "TAG001"}, {"service_tag": "TAG002"}]}
+                {"systems": [{"hostname": "server01"}, {"hostname": "server02"}]}
             ),
             content_type="application/json",
         )
         assert resp.status_code == 200
         data = resp.get_json()
-        assert data["refreshed"] == 2
-
-    @patch("dracs.webapp.refresh_dell_warranty", side_effect=Exception("fail"))
-    def test_refresh_multiple_with_failures(self, mock_refresh, client):
-        _login(client)
-        resp = client.post(
-            "/api/refresh-multiple",
-            data=json.dumps(
-                {
-                    "systems": [
-                        {"service_tag": "TAG001"},
-                        {"service_tag": "TAG002"},
-                        {"service_tag": "TAG003"},
-                        {"service_tag": "TAG004"},
-                    ]
-                }
-            ),
-            content_type="application/json",
-        )
-        assert resp.status_code == 200
-        data = resp.get_json()
-        assert data["refreshed"] == 0
-        assert "and" in data["message"]
+        assert data["queued"] == 2
+        assert mock_enqueue.call_count == 2
+        mock_enqueue.assert_any_call("refresh", "server01")
+        mock_enqueue.assert_any_call("refresh", "server02")
 
 
 class TestTestIdracEndpoint:
@@ -517,22 +497,15 @@ class TestClearJobQueueEndpoint:
 
 
 class TestRefreshAllEndpoint:
-    @patch("dracs.webapp.refresh_dell_warranty")
-    def test_refresh_all_success(self, mock_refresh, client):
-        _login(client)
-        mock_refresh.return_value = None
-        resp = client.post("/api/refresh-all")
-        assert resp.status_code == 200
-        data = resp.get_json()
-        assert data["refreshed"] == 2
-
-    @patch("dracs.webapp.refresh_dell_warranty", side_effect=Exception("api fail"))
-    def test_refresh_all_with_failures(self, mock_refresh, client):
+    @patch("dracs.jobqueue.enqueue_batch", return_value=2)
+    def test_refresh_all_success(self, mock_enqueue, client):
         _login(client)
         resp = client.post("/api/refresh-all")
         assert resp.status_code == 200
         data = resp.get_json()
-        assert data["refreshed"] == 0
+        assert data["queued"] == 2
+        assert data["total"] == 2
+        mock_enqueue.assert_called_once_with("refresh", "all")
 
 
 class TestFirmwareVersionsEndpoint:

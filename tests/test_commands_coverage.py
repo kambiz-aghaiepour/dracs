@@ -397,11 +397,11 @@ class TestRefreshChanges:
 
 
 # ---------------------------------------------------------------------------
-# refresh_by_model (lines 567-593)
+# refresh_by_model (now delegates to enqueue_batch)
 # ---------------------------------------------------------------------------
 class TestRefreshByModel:
-    @patch("dracs.commands.refresh_dell_warranty", new_callable=AsyncMock)
-    def test_refresh_by_model_success(self, mock_refresh, temp_db, capsys):
+    @patch("dracs.jobqueue.enqueue_batch", return_value=2)
+    def test_refresh_by_model_success(self, mock_enqueue, temp_db, capsys):
         db_initialize(temp_db)
         upsert_system(
             temp_db, "T1", "h1", "R660", "7.0.0", "2.1.0", "Jan 2027", 1735689600
@@ -409,73 +409,34 @@ class TestRefreshByModel:
         upsert_system(
             temp_db, "T2", "h2", "R660", "7.0.0", "2.1.0", "Jan 2027", 1735689600
         )
-        mock_refresh.return_value = None
         asyncio.run(refresh_by_model("R660", temp_db, verbose=True))
         output = capsys.readouterr().out
-        assert "done." in output
-        assert "Summary: A total of 2 hosts refreshed" in output
-        assert mock_refresh.call_count == 2
-
-    @patch("dracs.commands.refresh_dell_warranty", new_callable=AsyncMock)
-    def test_refresh_by_model_with_failure(self, mock_refresh, temp_db, capsys):
-        db_initialize(temp_db)
-        upsert_system(
-            temp_db, "T1", "h1", "R660", "7.0.0", "2.1.0", "Jan 2027", 1735689600
-        )
-        upsert_system(
-            temp_db, "T2", "h2", "R660", "7.0.0", "2.1.0", "Jan 2027", 1735689600
-        )
-        mock_refresh.side_effect = [None, Exception("api fail")]
-        asyncio.run(refresh_by_model("R660", temp_db, verbose=True))
-        output = capsys.readouterr().out
-        assert "failed: api fail" in output
-        assert "Summary: A total of 1 hosts refreshed" in output
+        assert "Queued 2 refresh jobs for model R660" in output
+        mock_enqueue.assert_called_once_with("refresh", "model:R660")
 
     def test_refresh_by_model_empty_raises(self, temp_db):
         db_initialize(temp_db)
         with pytest.raises(DatabaseError, match="No systems found with model"):
             asyncio.run(refresh_by_model("R999", temp_db))
 
-    @patch("dracs.commands.refresh_dell_warranty", new_callable=AsyncMock)
-    def test_refresh_by_model_not_verbose(self, mock_refresh, temp_db, capsys):
+    @patch("dracs.jobqueue.enqueue_batch", return_value=1)
+    def test_refresh_by_model_not_verbose(self, mock_enqueue, temp_db, capsys):
         db_initialize(temp_db)
         upsert_system(
             temp_db, "T1", "h1", "R660", "7.0.0", "2.1.0", "Jan 2027", 1735689600
         )
-        mock_refresh.return_value = None
         asyncio.run(refresh_by_model("R660", temp_db, verbose=False))
         output = capsys.readouterr().out
-        assert "done." not in output
-        assert "Summary" in output
-
-    @patch("dracs.commands.asyncio.sleep", new_callable=AsyncMock)
-    @patch("dracs.commands.refresh_dell_warranty", new_callable=AsyncMock)
-    def test_refresh_by_model_throttle(self, mock_refresh, mock_sleep, temp_db, capsys):
-        db_initialize(temp_db)
-        for i in range(101):
-            upsert_system(
-                temp_db,
-                f"T{i:04d}",
-                f"h{i}",
-                "R660",
-                "7.0.0",
-                "2.1.0",
-                "Jan 2027",
-                1735689600,
-            )
-        mock_refresh.return_value = None
-        asyncio.run(refresh_by_model("R660", temp_db, verbose=False))
-        output = capsys.readouterr().out
-        assert "Waiting 30 seconds" in output
-        mock_sleep.assert_called_with(30)
+        assert "Queued 1 refresh jobs for model R660" in output
+        mock_enqueue.assert_called_once_with("refresh", "model:R660")
 
 
 # ---------------------------------------------------------------------------
-# refresh_all_systems (lines 597-623)
+# refresh_all_systems (now delegates to enqueue_batch)
 # ---------------------------------------------------------------------------
 class TestRefreshAllSystems:
-    @patch("dracs.commands.refresh_dell_warranty", new_callable=AsyncMock)
-    def test_refresh_all_success(self, mock_refresh, temp_db, capsys):
+    @patch("dracs.jobqueue.enqueue_batch", return_value=2)
+    def test_refresh_all_success(self, mock_enqueue, temp_db, capsys):
         db_initialize(temp_db)
         upsert_system(
             temp_db, "T1", "h1", "R660", "7.0.0", "2.1.0", "Jan 2027", 1735689600
@@ -483,64 +444,26 @@ class TestRefreshAllSystems:
         upsert_system(
             temp_db, "T2", "h2", "R650", "6.0.0", "1.5.0", "Jan 2027", 1735689600
         )
-        mock_refresh.return_value = None
         asyncio.run(refresh_all_systems(temp_db, verbose=True))
         output = capsys.readouterr().out
-        assert "done." in output
-        assert "Summary: A total of 2 hosts refreshed" in output
-
-    @patch("dracs.commands.refresh_dell_warranty", new_callable=AsyncMock)
-    def test_refresh_all_with_failure(self, mock_refresh, temp_db, capsys):
-        db_initialize(temp_db)
-        upsert_system(
-            temp_db, "T1", "h1", "R660", "7.0.0", "2.1.0", "Jan 2027", 1735689600
-        )
-        upsert_system(
-            temp_db, "T2", "h2", "R650", "6.0.0", "1.5.0", "Jan 2027", 1735689600
-        )
-        mock_refresh.side_effect = [None, Exception("timeout")]
-        asyncio.run(refresh_all_systems(temp_db, verbose=True))
-        output = capsys.readouterr().out
-        assert "failed: timeout" in output
-        assert "Summary: A total of 1 hosts refreshed" in output
+        assert "Queued 2 refresh jobs for all systems" in output
+        mock_enqueue.assert_called_once_with("refresh", "all")
 
     def test_refresh_all_empty_raises(self, temp_db):
         db_initialize(temp_db)
         with pytest.raises(DatabaseError, match="No systems found in database"):
             asyncio.run(refresh_all_systems(temp_db))
 
-    @patch("dracs.commands.refresh_dell_warranty", new_callable=AsyncMock)
-    def test_refresh_all_not_verbose(self, mock_refresh, temp_db, capsys):
+    @patch("dracs.jobqueue.enqueue_batch", return_value=1)
+    def test_refresh_all_not_verbose(self, mock_enqueue, temp_db, capsys):
         db_initialize(temp_db)
         upsert_system(
             temp_db, "T1", "h1", "R660", "7.0.0", "2.1.0", "Jan 2027", 1735689600
         )
-        mock_refresh.return_value = None
         asyncio.run(refresh_all_systems(temp_db, verbose=False))
         output = capsys.readouterr().out
-        assert "Refreshing" not in output
-        assert "Summary" in output
-
-    @patch("dracs.commands.asyncio.sleep", new_callable=AsyncMock)
-    @patch("dracs.commands.refresh_dell_warranty", new_callable=AsyncMock)
-    def test_refresh_all_throttle(self, mock_refresh, mock_sleep, temp_db, capsys):
-        db_initialize(temp_db)
-        for i in range(101):
-            upsert_system(
-                temp_db,
-                f"A{i:04d}",
-                f"h{i}",
-                "R660",
-                "7.0.0",
-                "2.1.0",
-                "Jan 2027",
-                1735689600,
-            )
-        mock_refresh.return_value = None
-        asyncio.run(refresh_all_systems(temp_db, verbose=False))
-        output = capsys.readouterr().out
-        assert "Waiting 30 seconds" in output
-        mock_sleep.assert_called_with(30)
+        assert "Queued 1 refresh jobs for all systems" in output
+        mock_enqueue.assert_called_once_with("refresh", "all")
 
 
 # ---------------------------------------------------------------------------
