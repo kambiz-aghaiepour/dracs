@@ -665,6 +665,24 @@
             background-color: #c82333;
         }
 
+        .btn-reboot-graceful {
+            background-color: #fd7e14;
+            color: white;
+        }
+
+        .btn-reboot-graceful:hover {
+            background-color: #e8690b;
+        }
+
+        .btn-reboot-hard {
+            background-color: #e83e8c;
+            color: white;
+        }
+
+        .btn-reboot-hard:hover {
+            background-color: #d63384;
+        }
+
         /* Row selection */
         tbody tr {
             cursor: pointer;
@@ -1065,6 +1083,24 @@
 
         body.dark-theme .btn-power-off:hover {
             background-color: #dc3545;
+        }
+
+        body.dark-theme .btn-reboot-graceful {
+            background-color: #e8690b;
+            border-color: #e8690b;
+        }
+
+        body.dark-theme .btn-reboot-graceful:hover {
+            background-color: #fd7e14;
+        }
+
+        body.dark-theme .btn-reboot-hard {
+            background-color: #d63384;
+            border-color: #d63384;
+        }
+
+        body.dark-theme .btn-reboot-hard:hover {
+            background-color: #e83e8c;
         }
 
         body.dark-theme .firmware-version-select,
@@ -1653,13 +1689,15 @@
         <div id="power-off-modal" class="modal-overlay">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h2>Confirm Power Off</h2>
+                    <h2>Power Action</h2>
                 </div>
                 <div class="modal-body">
-                    <p>Are you sure you want to power off <strong id="power-off-hostname"></strong>?</p>
+                    <p>Select a power action for <strong id="power-off-hostname"></strong>:</p>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="cancelPowerAction()">Cancel</button>
+                    <button type="button" class="btn btn-reboot-graceful" onclick="confirmPowerAction('powercycle')">Graceful Reboot</button>
+                    <button type="button" class="btn btn-reboot-hard" onclick="confirmPowerAction('hardreset')">Hard Reboot</button>
                     <button type="button" class="btn btn-power-on" onclick="confirmPowerAction('graceshutdown')">Graceful Shutdown</button>
                     <button type="button" class="btn btn-power-off" onclick="confirmPowerAction('powerdown')">Hard Power Off</button>
                 </div>

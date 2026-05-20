@@ -3,7 +3,7 @@
 # Each section defines a scheduled task. Section names must be unique.
 #
 # Fields:
-#   type     = tsr | refresh
+#   type     = tsr | refresh | clear_job_queue
 #   schedule = daily | weekly
 #   time     = HH:MM (24-hour format)
 #   day      = monday | tuesday | ... | sunday (required for weekly)
@@ -29,3 +29,10 @@
 # schedule = daily
 # time = 03:00
 # target = model:R660
+#
+# [clear-idrac-weekly]
+# type = clear_job_queue
+# schedule = weekly
+# day = saturday
+# time = 01:00
+# target = all

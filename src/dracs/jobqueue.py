@@ -525,7 +525,11 @@ def parse_schedule_config(
             "day": config.get(section, "day", fallback=None),
             "target": config.get(section, "target", fallback=None),
         }
-        if task["type"] in ("tsr", "refresh") and task["schedule"] and task["time"]:
+        if (
+            task["type"] in ("tsr", "refresh", "clear_job_queue")
+            and task["schedule"]
+            and task["time"]
+        ):
             tasks.append(task)
         else:
             logger.warning("Skipping invalid schedule entry: %s", section)

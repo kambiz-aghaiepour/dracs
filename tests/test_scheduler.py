@@ -98,6 +98,20 @@ class TestParseScheduleConfig:
         tasks = parse_schedule_config(str(config))
         assert len(tasks) == 2
 
+    def test_parses_clear_job_queue_type(self, tmp_path):
+        config = tmp_path / "schedule.ini"
+        config.write_text(
+            "[clear-weekly]\n"
+            "type = clear_job_queue\n"
+            "schedule = weekly\n"
+            "day = saturday\n"
+            "time = 01:00\n"
+            "target = all\n"
+        )
+        tasks = parse_schedule_config(str(config))
+        assert len(tasks) == 1
+        assert tasks[0]["type"] == "clear_job_queue"
+
     def test_skips_invalid_type(self, tmp_path):
         config = tmp_path / "schedule.ini"
         config.write_text(

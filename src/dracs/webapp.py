@@ -1073,7 +1073,7 @@ def api_power_status():
 @app.route("/api/power-action", methods=["POST"])
 def api_power_action():
     """Execute power action on a system via racadm."""
-    VALID_ACTIONS = {"powerup", "powerdown", "graceshutdown"}
+    VALID_ACTIONS = {"powerup", "powerdown", "graceshutdown", "hardreset", "powercycle"}
 
     try:
         if not session.get("authenticated", False):
@@ -1138,6 +1138,8 @@ def api_power_action():
                 "powerup": "Power on",
                 "powerdown": "Hard power off",
                 "graceshutdown": "Graceful shutdown",
+                "hardreset": "Hard reboot",
+                "powercycle": "Graceful reboot",
             }[action]
             return jsonify(
                 {
