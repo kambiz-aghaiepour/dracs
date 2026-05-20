@@ -584,9 +584,8 @@ def api_refresh():
 
 @app.route("/api/refresh-multiple", methods=["POST"])
 def api_refresh_multiple():
-    """Refresh warranty and system info for multiple systems."""
+    """Queue refresh jobs for multiple systems."""
     try:
-        # Check authentication
         if not session.get("authenticated", False):
             return (
                 jsonify({"success": False, "message": "Authentication required"}),
@@ -601,46 +600,22 @@ def api_refresh_multiple():
         if not systems:
             return jsonify({"success": False, "message": "No systems provided"}), 400
 
-        # Refresh each system
-        success_count = 0
-        failed_systems = []
+        from dracs.jobqueue import enqueue_job
 
+        queued = 0
         for system in systems:
-            service_tag = (
-                system.get("service_tag", "").strip()
-                if system.get("service_tag")
-                else None
-            )
             hostname = (
                 system.get("hostname", "").strip() if system.get("hostname") else None
             )
-
-            if not service_tag and not hostname:
-                continue
-
-            try:
-                asyncio.run(
-                    refresh_dell_warranty(
-                        service_tag=service_tag,
-                        hostname=hostname if not service_tag else None,
-                        warranty=DB_PATH,
-                    )
-                )
-                success_count += 1
-            except Exception as e:
-                failed_systems.append(f"{service_tag or hostname}: {str(e)}")
-
-        message = f"Successfully refreshed {success_count} of {len(systems)} systems"
-        if failed_systems:
-            message += f". Failed: {', '.join(failed_systems[:3])}"
-            if len(failed_systems) > 3:
-                message += f" and {len(failed_systems) - 3} more"
+            if hostname:
+                enqueue_job("refresh", hostname)
+                queued += 1
 
         return jsonify(
             {
                 "success": True,
-                "message": message,
-                "refreshed": success_count,
+                "message": f"Queued {queued} refresh jobs.",
+                "queued": queued,
                 "total": len(systems),
             }
         )
@@ -981,48 +956,29 @@ def api_clear_job_queue():
 
 @app.route("/api/refresh-all", methods=["POST"])
 def api_refresh_all():
-    """Refresh warranty and system info for all systems in database."""
+    """Queue refresh jobs for all systems in database."""
     try:
-        # Check authentication
         if not session.get("authenticated", False):
             return (
                 jsonify({"success": False, "message": "Authentication required"}),
                 401,
             )
 
-        # Get all systems from database
         systems = get_all_systems()
         total_systems = len(systems)
 
         if total_systems == 0:
             return jsonify({"success": False, "message": "No systems in database"}), 400
 
-        # Refresh each system
-        success_count = 0
-        failed_systems = []
+        from dracs.jobqueue import enqueue_batch
 
-        for system in systems:
-            try:
-                asyncio.run(
-                    refresh_dell_warranty(
-                        service_tag=system.svc_tag, hostname=None, warranty=DB_PATH
-                    )
-                )
-                success_count += 1
-            except Exception as e:
-                failed_systems.append(f"{system.svc_tag}: {str(e)}")
-
-        message = f"Successfully refreshed {success_count} of {total_systems} systems"
-        if failed_systems:
-            message += f". Failed: {', '.join(failed_systems[:3])}"
-            if len(failed_systems) > 3:
-                message += f" and {len(failed_systems) - 3} more"
+        count = enqueue_batch("refresh", "all")
 
         return jsonify(
             {
                 "success": True,
-                "message": message,
-                "refreshed": success_count,
+                "message": f"Queued {count} refresh jobs.",
+                "queued": count,
                 "total": total_systems,
             }
         )

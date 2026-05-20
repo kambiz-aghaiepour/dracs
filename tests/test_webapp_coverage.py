@@ -492,20 +492,20 @@ class TestEndpointExceptionHandlers:
             )
         assert resp.status_code == 500
 
-    def test_refresh_multiple_per_system_failure(self, client):
+    def test_refresh_multiple_enqueue_exception(self, client):
         _login(client)
         with patch(
-            "dracs.webapp.refresh_dell_warranty",
-            side_effect=RuntimeError("refresh fail"),
+            "dracs.jobqueue.enqueue_job",
+            side_effect=RuntimeError("db locked"),
         ):
             resp = client.post(
                 "/api/refresh-multiple",
-                data=json.dumps({"systems": [{"service_tag": "TAG001"}]}),
+                data=json.dumps({"systems": [{"hostname": "server01"}]}),
                 content_type="application/json",
             )
+        assert resp.status_code == 500
         data = resp.get_json()
-        assert data["success"] is True
-        assert "Failed" in data["message"]
+        assert "db locked" in data["message"]
 
     def test_login_exception(self, client):
         with patch(
@@ -535,10 +535,9 @@ class TestRefreshByHostname:
         )
         assert resp.status_code == 200
 
-    @patch("dracs.webapp.refresh_dell_warranty")
-    def test_refresh_multiple_skips_empty(self, mock_refresh, client):
+    @patch("dracs.jobqueue.enqueue_job", return_value=1)
+    def test_refresh_multiple_skips_empty(self, mock_enqueue, client):
         _login(client)
-        mock_refresh.return_value = None
         resp = client.post(
             "/api/refresh-multiple",
             data=json.dumps(
@@ -548,7 +547,8 @@ class TestRefreshByHostname:
         )
         assert resp.status_code == 200
         data = resp.get_json()
-        assert data["refreshed"] == 1
+        assert data["queued"] == 1
+        mock_enqueue.assert_called_once_with("refresh", "server01")
 
 
 # ---------------------------------------------------------------------------
@@ -711,11 +711,11 @@ class TestRunCommandBackgroundLogError:
 
 
 # ---------------------------------------------------------------------------
-# refresh_all with 4+ failures to hit "and N more" branch (line 899)
+# refresh_all enqueue_batch (returns queued count)
 # ---------------------------------------------------------------------------
-class TestRefreshAllManyFailures:
-    @patch("dracs.webapp.refresh_dell_warranty")
-    def test_refresh_all_more_than_3_failures(self, mock_refresh, client):
+class TestRefreshAllEnqueueBatch:
+    @patch("dracs.jobqueue.enqueue_batch", return_value=6)
+    def test_refresh_all_enqueues_batch(self, mock_enqueue, client):
         import dracs.webapp as webapp_mod
 
         _login(client)
@@ -723,18 +723,19 @@ class TestRefreshAllManyFailures:
         for i in range(5):
             upsert_system(
                 db_path,
-                f"FAIL{i}",
-                f"failhost{i}",
+                f"BATCH{i}",
+                f"batchhost{i}",
                 "R660",
                 "7.0.0",
                 "2.1.0",
                 "Jan 2027",
                 1893456000,
             )
-        mock_refresh.side_effect = RuntimeError("api error")
         resp = client.post("/api/refresh-all")
+        assert resp.status_code == 200
         data = resp.get_json()
-        assert "more" in data["message"]
+        assert data["queued"] == 6
+        mock_enqueue.assert_called_once_with("refresh", "all")
 
 
 # ---------------------------------------------------------------------------

@@ -132,3 +132,47 @@ def test_db_initialize_with_url(temp_db):
     tables = inspector.get_table_names()
 
     assert "systems" in tables
+
+
+def test_migrate_adds_metadata_json_column(temp_db):
+    from sqlalchemy import text
+
+    engine = create_engine(f"sqlite:///{temp_db}")
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "CREATE TABLE jobs ("
+                "id INTEGER PRIMARY KEY, "
+                "parent_id INTEGER, "
+                "job_type TEXT NOT NULL, "
+                "target TEXT NOT NULL, "
+                "status TEXT NOT NULL DEFAULT 'pending', "
+                "created_at TEXT NOT NULL, "
+                "started_at TEXT, "
+                "completed_at TEXT, "
+                "result TEXT, "
+                "error TEXT, "
+                "worker_id TEXT"
+                ")"
+            )
+        )
+    engine.dispose()
+
+    db_initialize(temp_db)
+
+    engine2 = create_engine(f"sqlite:///{temp_db}")
+    insp = inspect(engine2)
+    columns = {c["name"] for c in insp.get_columns("jobs")}
+    assert "metadata_json" in columns
+    engine2.dispose()
+
+
+def test_migrate_noop_when_column_exists(temp_db):
+    db_initialize(temp_db)
+    db_initialize(temp_db)
+
+    engine = create_engine(f"sqlite:///{temp_db}")
+    insp = inspect(engine)
+    columns = {c["name"] for c in insp.get_columns("jobs")}
+    assert "metadata_json" in columns
+    engine.dispose()

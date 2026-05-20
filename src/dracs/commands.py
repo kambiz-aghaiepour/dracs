@@ -445,63 +445,29 @@ async def refresh_dell_warranty(
 
 
 async def refresh_by_model(model: str, warranty: str, verbose: bool = False) -> None:
+    from dracs.jobqueue import enqueue_batch
+
     db_initialize(warranty)
     results = query_by_model(warranty, model)
 
     if len(results) == 0:
         raise DatabaseError(f"No systems found with model {model}")
 
-    success_count = 0
-    for idx, result in enumerate(results, start=1):
-        hostname = result[1]
-        if verbose:
-            print(f"Refreshing {hostname} ... ", end="", flush=True)
-        try:
-            await refresh_dell_warranty(None, hostname, warranty, verbose=False)
-            if verbose:
-                print("done.")
-            success_count += 1
-        except Exception as e:
-            if verbose:
-                print(f"failed: {e}")
-            logger.error(f"Failed to refresh {hostname}: {e}")
-
-        # Throttle after every 100 systems to avoid overwhelming Dell API
-        if idx % 100 == 0 and idx < len(results):
-            print("[ Waiting 30 seconds before proceeding ]")
-            await asyncio.sleep(30)
-
-    print(f"Summary: A total of {success_count} hosts refreshed")
+    count = enqueue_batch("refresh", f"model:{model}")
+    print(f"Queued {count} refresh jobs for model {model}.")
 
 
 async def refresh_all_systems(warranty: str, verbose: bool = False) -> None:
+    from dracs.jobqueue import enqueue_batch
+
     db_initialize(warranty)
     results = query_all_systems(warranty)
 
     if len(results) == 0:
         raise DatabaseError("No systems found in database")
 
-    success_count = 0
-    for idx, result in enumerate(results, start=1):
-        hostname = result[1]
-        if verbose:
-            print(f"Refreshing {hostname} ... ", end="", flush=True)
-        try:
-            await refresh_dell_warranty(None, hostname, warranty, verbose=False)
-            if verbose:
-                print("done.")
-            success_count += 1
-        except Exception as e:
-            if verbose:
-                print(f"failed: {e}")
-            logger.error(f"Failed to refresh {hostname}: {e}")
-
-        # Throttle after every 100 systems to avoid overwhelming Dell API
-        if idx % 100 == 0 and idx < len(results):
-            print("[ Waiting 30 seconds before proceeding ]")
-            await asyncio.sleep(30)
-
-    print(f"Summary: A total of {success_count} hosts refreshed")
+    count = enqueue_batch("refresh", "all")
+    print(f"Queued {count} refresh jobs for all systems.")
 
 
 async def discover_dell_system(hostname: str, warranty: str) -> Tuple[str, str]:
