@@ -312,6 +312,68 @@ class TestBiosSha256AndArchive:
         assert web_path.exists()
         assert os.stat(bios_archive / "bios.EXE").st_ino == os.stat(web_path).st_ino
 
+    def test_hardlink_fallback_to_copy(self, client, tmp_path):
+        _login(client)
+
+        exe_content = b"fake bios for copy fallback"
+        expected_hash = hashlib.sha256(exe_content).hexdigest()
+
+        catalog_xml = f"""<?xml version="1.0" encoding="utf-16"?>
+        <Manifest>
+          <SoftwareComponent path="FOLDER/bios.EXE" vendorVersion="2.10.1"
+              dateTime="2025-03-10T10:00:00Z" hash="{expected_hash}">
+            <ComponentType value="BIOS"/>
+            <SupportedSystems><Brand><Model><Display>R660</Display></Model></Brand></SupportedSystems>
+          </SoftwareComponent>
+        </Manifest>"""
+        catalog_gz = gzip.compress(catalog_xml.encode("utf-16"))
+
+        mock_catalog_resp = MagicMock()
+        mock_catalog_resp.read.return_value = catalog_gz
+        mock_catalog_resp.__enter__ = lambda s: s
+        mock_catalog_resp.__exit__ = MagicMock(return_value=False)
+
+        mock_exe_resp = MagicMock()
+        mock_exe_resp.__enter__ = lambda s: s
+        mock_exe_resp.__exit__ = MagicMock(return_value=False)
+
+        def fake_urlopen(req, timeout=None):
+            if "Catalog" in req.full_url:
+                return mock_catalog_resp
+            return mock_exe_resp
+
+        bios_dir = tmp_path / "bios_dest"
+        bios_dir.mkdir()
+        bios_archive = tmp_path / "bios_archive"
+        bios_archive.mkdir()
+
+        def fake_copyfileobj(src, dst):
+            dst.write(exe_content)
+
+        with (
+            patch("dracs.webapp.urllib.request.urlopen", side_effect=fake_urlopen),
+            patch("dracs.webapp.shutil.copyfileobj", side_effect=fake_copyfileobj),
+            patch("dracs.webapp.BIOS_IMAGE_DIR", bios_dir),
+            patch("dracs.webapp.BIOS_ARCHIVE_DIR", bios_archive),
+            patch("dracs.webapp.os.link", side_effect=OSError("cross-device")),
+        ):
+            resp = client.post(
+                "/api/latest-bios",
+                data=json.dumps(
+                    {
+                        "model": "R660",
+                        "hostname": "server01",
+                        "current_version": "2.0.0",
+                    }
+                ),
+                content_type="application/json",
+            )
+            data_str = resp.get_data(as_text=True)
+
+        assert "FAIL" not in data_str
+        web_path = bios_dir / "R660" / "bios.EXE"
+        assert web_path.exists()
+
     def test_sha256_mismatch_stops(self, client, tmp_path):
         _login(client)
 
