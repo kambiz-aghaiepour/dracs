@@ -2622,11 +2622,15 @@
                 updateBtn.innerHTML = 'Update Firmware';
                 versionSelect.style.display = 'none';
             } else {
-                // Filter to versions strictly newer than the LOWEST among selected
-                // This allows updates when at least one system can be upgraded
+                const isSingleHost = selectedSystems.length === 1;
                 const availableVersions = modelFirmwareVersions.filter(version => {
-                    if (!lowestSelectedFirmware) return true;
-                    return compareVersions(version, lowestSelectedFirmware) > 0;
+                    if (isSingleHost) {
+                        if (!highestSelectedFirmware) return true;
+                        return compareVersions(version, highestSelectedFirmware) > 0;
+                    } else {
+                        if (!highestSelectedFirmware) return true;
+                        return compareVersions(version, highestSelectedFirmware) >= 0;
+                    }
                 });
 
                 if (availableVersions && availableVersions.length > 0) {
@@ -2699,10 +2703,15 @@
                     biosUpdateBtn.innerHTML = 'Update BIOS';
                     biosVersionSelect.style.display = 'none';
                 } else {
-                    // At least one host needs updating - find available versions
+                    const isSingleHostBios = selectedSystems.length === 1;
                     const availableBiosVersions = modelBiosVersions.filter(version => {
-                        if (!highestSelectedBios) return true;
-                        return compareVersions(version, highestSelectedBios) > 0;
+                        if (isSingleHostBios) {
+                            if (!highestSelectedBios) return true;
+                            return compareVersions(version, highestSelectedBios) > 0;
+                        } else {
+                            if (!highestSelectedBios) return true;
+                            return compareVersions(version, highestSelectedBios) >= 0;
+                        }
                     });
 
                     if (availableBiosVersions && availableBiosVersions.length > 0) {
