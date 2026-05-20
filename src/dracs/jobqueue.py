@@ -211,6 +211,14 @@ def purge_completed_jobs(older_than_days: int = 7) -> int:
     return count
 
 
+def update_job_progress(job_id: int, progress: str) -> None:
+    with get_session() as session:
+        job = session.get(Job, job_id)
+        if job:
+            job.result = progress
+            session.commit()
+
+
 def _job_to_dict(job: Job) -> dict:
     return {
         "id": job.id,
@@ -272,7 +280,7 @@ class JobProcessor:
         job_id = job["id"]
         try:
             if job["job_type"] == "tsr":
-                execute_tsr_job(job["target"])
+                execute_tsr_job(job["target"], job_id=job_id)
             elif job["job_type"] == "refresh":
                 execute_refresh_job(job["target"])
             else:
@@ -284,7 +292,48 @@ class JobProcessor:
             fail_job(job_id, error=str(exc))
 
 
-def execute_tsr_job(hostname: str) -> None:
+def _report_running_progress(jobs: list, job_id: Optional[int]) -> bool:
+    for j in jobs:
+        if j.get("status") == "Running":
+            if job_id is not None:
+                pct = j.get("percent_complete", "0")
+                update_job_progress(job_id, f"{pct}%")
+            return True
+    return False
+
+
+def _poll_for_start(get_sa_jobs, hostname, job_id, poll_interval, max_wait):
+    elapsed = 0
+    while elapsed < max_wait:
+        time.sleep(poll_interval)
+        elapsed += poll_interval
+        jobs = get_sa_jobs(hostname)
+        if jobs and _report_running_progress(jobs, job_id):
+            return elapsed
+    raise RuntimeError("TSR collection did not start within timeout")
+
+
+def _poll_for_complete(get_sa_jobs, hostname, job_id, poll_interval, max_wait, elapsed):
+    while elapsed < max_wait:
+        time.sleep(poll_interval)
+        elapsed += poll_interval
+        jobs = get_sa_jobs(hostname)
+        if jobs is None:
+            continue
+        if _report_running_progress(jobs, job_id):
+            continue
+        collection_done = any(
+            "collection operation is completed successfully"
+            in j.get("message", "").lower()
+            for j in jobs
+            if j.get("status") == "Completed"
+        )
+        if collection_done:
+            return
+    raise RuntimeError("TSR collection did not complete within timeout")
+
+
+def execute_tsr_job(hostname: str, job_id: Optional[int] = None) -> None:
     from dracs.webapp import (
         _build_ssh_racadm_cmd,
         _find_tsr_zip,
@@ -303,6 +352,9 @@ def execute_tsr_job(hostname: str) -> None:
     poll_interval = 20
     max_wait = 1800
 
+    if job_id is not None:
+        update_job_progress(job_id, "Collecting")
+
     cmd = _build_ssh_racadm_cmd(
         hostname, "techsupreport", "collect", "-t", "SysInfo,TTYLog"
     )
@@ -313,34 +365,11 @@ def execute_tsr_job(hostname: str) -> None:
         error_msg = result.stderr[:200] if result.stderr else result.stdout[:200]
         raise RuntimeError(f"Failed to start TSR collection: {error_msg}")
 
-    elapsed = 0
-    while elapsed < max_wait:
-        time.sleep(poll_interval)
-        elapsed += poll_interval
-        jobs = _get_sa_jobs(hostname)
-        if jobs and any(j.get("status") == "Running" for j in jobs):
-            break
-    else:
-        raise RuntimeError("TSR collection did not start within timeout")
+    elapsed = _poll_for_start(_get_sa_jobs, hostname, job_id, poll_interval, max_wait)
+    _poll_for_complete(_get_sa_jobs, hostname, job_id, poll_interval, max_wait, elapsed)
 
-    while elapsed < max_wait:
-        time.sleep(poll_interval)
-        elapsed += poll_interval
-        jobs = _get_sa_jobs(hostname)
-        if jobs is None:
-            continue
-        if any(j.get("status") == "Running" for j in jobs):
-            continue
-        collection_done = any(
-            "collection operation is completed successfully"
-            in j.get("message", "").lower()
-            for j in jobs
-            if j.get("status") == "Completed"
-        )
-        if collection_done:
-            break
-    else:
-        raise RuntimeError("TSR collection did not complete within timeout")
+    if job_id is not None:
+        update_job_progress(job_id, "Exporting")
 
     export_cmd = _build_ssh_racadm_cmd(
         hostname, "techsupreport", "export", "-l", f"tftp://{fqdn}"

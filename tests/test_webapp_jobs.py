@@ -117,12 +117,13 @@ class TestTsrStatusWithJobQueue:
         assert data["success"] is True
         assert data["state"] == "pending"
 
-    def test_running_job(self, client):
+    def test_running_job_with_progress(self, client):
         _login(client)
         mock_job = {
             "status": "running",
             "job_type": "tsr",
             "target": "server01.example.com",
+            "result": "45%",
         }
         with patch("dracs.jobqueue.get_latest_job_for_host", return_value=mock_job):
             resp = client.post(
@@ -132,6 +133,24 @@ class TestTsrStatusWithJobQueue:
             )
         data = resp.get_json()
         assert data["success"] is True
+        assert data["state"] == "running"
+        assert data["percent_complete"] == "45"
+
+    def test_running_job_no_progress(self, client):
+        _login(client)
+        mock_job = {
+            "status": "running",
+            "job_type": "tsr",
+            "target": "server01.example.com",
+            "result": None,
+        }
+        with patch("dracs.jobqueue.get_latest_job_for_host", return_value=mock_job):
+            resp = client.post(
+                "/api/tsr-status",
+                data=json.dumps({"hostname": "server01.example.com"}),
+                content_type="application/json",
+            )
+        data = resp.get_json()
         assert data["state"] == "running"
         assert data["percent_complete"] == "0"
 

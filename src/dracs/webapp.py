@@ -2010,10 +2010,12 @@ def api_tsr_status():
         from dracs.jobqueue import get_latest_job_for_host
 
         job = get_latest_job_for_host(hostname, "tsr")
-        if job and job["status"] in ("pending", "running"):
-            status = {"state": job["status"]}
-            if job["status"] == "running":
-                status["percent_complete"] = "0"
+        if job and job["status"] == "pending":
+            status = {"state": "pending"}
+        elif job and job["status"] == "running":
+            progress = job.get("result", "0%")
+            pct = progress.replace("%", "") if progress and "%" in progress else "0"
+            status = {"state": "running", "percent_complete": pct}
         else:
             status = _get_tsr_job_status(hostname)
 
