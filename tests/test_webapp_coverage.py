@@ -482,8 +482,8 @@ class TestEndpointExceptionHandlers:
     def test_clear_job_queue_exception(self, client):
         _login(client)
         with patch(
-            "dracs.webapp.threading.Thread",
-            side_effect=RuntimeError("thread boom"),
+            "dracs.jobqueue.enqueue_job",
+            side_effect=RuntimeError("db locked"),
         ):
             resp = client.post(
                 "/api/clear-job-queue",

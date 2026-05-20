@@ -305,7 +305,7 @@ def build_parser() -> argparse.ArgumentParser:
     list_idrac_group.add_argument("--idrac_eq", help="iDRAC equal to")
 
     # --- TSR COMMAND ---
-    parser_tsr = subparsers.add_parser("tsr", help="TSR operations")
+    parser_tsr = subparsers.add_parser("tsr", aliases=["t"], help="TSR operations")
     parser_tsr.add_argument(
         "-t", "--target", required=True, help="Target hostname (required)"
     )
@@ -345,5 +345,5 @@ def main() -> None:
 
     if args.command in ["list", "li"]:
         cmd_list(args, base_url, verify_ssl)
-    elif args.command == "tsr":
+    elif args.command in ["tsr", "t"]:
         cmd_tsr(args, base_url, verify_ssl)

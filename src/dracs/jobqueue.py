@@ -308,6 +308,8 @@ class JobProcessor:
                 execute_firmware_update_job(job["target"], meta)
             elif job["job_type"] == "bios_update":
                 execute_bios_update_job(job["target"], meta)
+            elif job["job_type"] == "clear_job_queue":
+                execute_clear_job_queue(job["target"])
             else:
                 fail_job(job_id, error=f"Unknown job type: {job['job_type']}")
                 return
@@ -478,6 +480,18 @@ def execute_bios_update_job(hostname: str, metadata: dict) -> None:
     if result.returncode != 0:
         error_msg = result.stderr[:200] if result.stderr else result.stdout[:200]
         raise RuntimeError(f"BIOS update failed: {error_msg}")
+
+
+def execute_clear_job_queue(hostname: str) -> None:
+    from dracs.webapp import _build_ssh_racadm_cmd
+
+    cmd = _build_ssh_racadm_cmd(hostname, "jobqueue", "delete", "--all")
+    result = subprocess.run(  # nosec # nosemgrep
+        cmd, capture_output=True, text=True, timeout=30  # nosemgrep
+    )
+    if result.returncode != 0:
+        error_msg = result.stderr[:200] if result.stderr else result.stdout[:200]
+        raise RuntimeError(f"Clear job queue failed: {error_msg}")
 
 
 VALID_DAYS = {

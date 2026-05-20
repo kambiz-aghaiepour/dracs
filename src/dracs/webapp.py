@@ -905,9 +905,8 @@ def _clear_single_job_queue(hostname: str) -> None:
 
 @app.route("/api/clear-job-queue", methods=["POST"])
 def api_clear_job_queue():
-    """Clear job queue on multiple iDRACs via SSH (non-blocking)."""
+    """Queue clear job queue operations for selected hosts."""
     try:
-        # Check authentication
         if not session.get("authenticated", False):
             return (
                 jsonify({"success": False, "message": "Authentication required"}),
@@ -933,20 +932,15 @@ def api_clear_job_queue():
                     400,
                 )
 
-        # Spawn a thread for each host to clear job queue
-        # Threads will properly clean up subprocess resources
-        threads = []
+        from dracs.jobqueue import enqueue_job
+
         for hostname in hostnames:
-            thread = threading.Thread(
-                target=_clear_single_job_queue, args=(hostname,), daemon=True
-            )
-            thread.start()
-            threads.append(thread)
+            enqueue_job("clear_job_queue", hostname)
 
         return jsonify(
             {
                 "success": True,
-                "message": f"Clear job queue initiated for {len(hostnames)} host(s)",
+                "message": f"Clear job queue queued for {len(hostnames)} host(s)",
             }
         )
 
