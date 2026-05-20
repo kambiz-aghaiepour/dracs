@@ -854,6 +854,32 @@ class TestPowerActionEndpoint:
         assert data["success"] is True
         assert "Graceful shutdown" in data["message"]
 
+    def test_hardreset_success(self, client):
+        _login(client)
+        mock_result = MagicMock(returncode=0, stdout="ok")
+        with patch("dracs.webapp.subprocess.run", return_value=mock_result):
+            resp = client.post(
+                "/api/power-action",
+                data=json.dumps({"hostname": "server01", "action": "hardreset"}),
+                content_type="application/json",
+            )
+        data = resp.get_json()
+        assert data["success"] is True
+        assert "Hard reboot" in data["message"]
+
+    def test_powercycle_success(self, client):
+        _login(client)
+        mock_result = MagicMock(returncode=0, stdout="ok")
+        with patch("dracs.webapp.subprocess.run", return_value=mock_result):
+            resp = client.post(
+                "/api/power-action",
+                data=json.dumps({"hostname": "server01", "action": "powercycle"}),
+                content_type="application/json",
+            )
+        data = resp.get_json()
+        assert data["success"] is True
+        assert "Graceful reboot" in data["message"]
+
     def test_command_failure(self, client):
         _login(client)
         mock_result = MagicMock(returncode=1, stdout="failed", stderr="")
