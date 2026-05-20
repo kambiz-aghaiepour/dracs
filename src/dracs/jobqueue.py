@@ -1,5 +1,6 @@
 import asyncio
 import configparser
+import json as json_module
 import logging
 import os
 import socket
@@ -20,6 +21,7 @@ def enqueue_job(
     job_type: str,
     target: str,
     parent_id: Optional[int] = None,
+    metadata: Optional[dict] = None,
 ) -> int:
     with get_session() as session:
         job = Job(
@@ -28,6 +30,7 @@ def enqueue_job(
             target=target,
             status="pending",
             created_at=datetime.now().isoformat(),
+            metadata_json=json_module.dumps(metadata) if metadata else None,
         )
         session.add(job)
         session.commit()
@@ -53,6 +56,9 @@ def claim_next_job(worker_id: str) -> Optional[dict]:
             "parent_id": job.parent_id,
             "job_type": job.job_type,
             "target": job.target,
+            "metadata": (
+                json_module.loads(job.metadata_json) if job.metadata_json else None
+            ),
         }
 
 
@@ -219,6 +225,19 @@ def update_job_progress(job_id: int, progress: str) -> None:
             session.commit()
 
 
+def recover_stale_jobs() -> int:
+    with get_session() as session:
+        stale = session.query(Job).filter(Job.status == "running").all()
+        for job in stale:
+            job.status = "pending"
+            job.worker_id = None
+            job.started_at = None
+        session.commit()
+        if stale:
+            logger.warning("Recovered %d stale jobs to pending status", len(stale))
+        return len(stale)
+
+
 def _job_to_dict(job: Job) -> dict:
     return {
         "id": job.id,
@@ -232,6 +251,7 @@ def _job_to_dict(job: Job) -> dict:
         "result": job.result,
         "error": job.error,
         "worker_id": job.worker_id,
+        "metadata": json_module.loads(job.metadata_json) if job.metadata_json else None,
     }
 
 
@@ -278,11 +298,16 @@ class JobProcessor:
 
     def _execute_job(self, job: dict) -> None:
         job_id = job["id"]
+        meta = job.get("metadata") or {}
         try:
             if job["job_type"] == "tsr":
                 execute_tsr_job(job["target"], job_id=job_id)
             elif job["job_type"] == "refresh":
                 execute_refresh_job(job["target"])
+            elif job["job_type"] == "firmware_update":
+                execute_firmware_update_job(job["target"], meta)
+            elif job["job_type"] == "bios_update":
+                execute_bios_update_job(job["target"], meta)
             else:
                 fail_job(job_id, error=f"Unknown job type: {job['job_type']}")
                 return
@@ -396,6 +421,63 @@ def execute_refresh_job(hostname: str) -> None:
 
     warranty = os.environ.get("DRACS_DB", "warranty.db")
     asyncio.run(refresh_dell_warranty(None, hostname, warranty))
+
+
+def execute_firmware_update_job(hostname: str, metadata: dict) -> None:
+    from dracs.webapp import _build_ssh_racadm_cmd
+
+    target_version = metadata.get("target_version", "")
+    model = metadata.get("model", "")
+    if not target_version or not model:
+        raise ValueError("target_version and model required in job metadata")
+
+    firmware_file = f"{model}-{target_version}.d9"
+    fw_server = os.environ.get("DRACS_FIRMWARE_SERVER") or socket.getfqdn()
+    fw_uri = os.environ.get("DRACS_FIRMWARE_URI", "/firmware/")
+    firmware_url = f"http://{fw_server}{fw_uri}"
+
+    cmd = _build_ssh_racadm_cmd(
+        hostname, "update", "-f", firmware_file, "-l", firmware_url
+    )
+    result = subprocess.run(  # nosec # nosemgrep
+        cmd, capture_output=True, text=True, timeout=120  # nosemgrep
+    )
+    if result.returncode != 0:
+        error_msg = result.stderr[:200] if result.stderr else result.stdout[:200]
+        raise RuntimeError(f"Firmware update failed: {error_msg}")
+
+
+def execute_bios_update_job(hostname: str, metadata: dict) -> None:
+    from dracs.webapp import (
+        _build_ssh_racadm_cmd,
+        get_bios_filename,
+    )
+    from urllib.parse import quote as url_quote, urlunparse
+
+    target_bios = metadata.get("target_bios", "")
+    model = metadata.get("model", "")
+    if not target_bios or not model:
+        raise ValueError("target_bios and model required in job metadata")
+
+    bios_filename = get_bios_filename(model, target_bios)
+    if not bios_filename:
+        raise ValueError(
+            f"BIOS filename not found for model {model} version {target_bios}"
+        )
+
+    bios_server = os.environ.get("DRACS_BIOS_SERVER") or socket.getfqdn()
+    bios_uri = os.environ.get("DRACS_BIOS_URI", "/bios/")
+    bios_url = urlunparse(
+        ("http", bios_server, f"{bios_uri}{url_quote(model, safe='')}/", "", "", "")
+    )
+
+    cmd = _build_ssh_racadm_cmd(hostname, "update", "-f", bios_filename, "-l", bios_url)
+    result = subprocess.run(  # nosec # nosemgrep
+        cmd, capture_output=True, text=True, timeout=120  # nosemgrep
+    )
+    if result.returncode != 0:
+        error_msg = result.stderr[:200] if result.stderr else result.stdout[:200]
+        raise RuntimeError(f"BIOS update failed: {error_msg}")
 
 
 VALID_DAYS = {

@@ -1116,9 +1116,9 @@ class TestTsrCollectEndpoint:
 # BIOS update route - model in URL
 # ---------------------------------------------------------------------------
 class TestBiosUpdateModelInUrl:
-    @patch("dracs.webapp.run_command_background", return_value=True)
+    @patch("dracs.jobqueue.enqueue_job", return_value=42)
     @patch("dracs.webapp.get_bios_filename", return_value="BIOS_R660_3.0.0.EXE")
-    def test_bios_url_includes_model(self, mock_fn, mock_run, client):
+    def test_bios_url_includes_model(self, mock_fn, mock_enqueue, client):
         _login(client)
         resp = client.post(
             "/api/bios-update",
@@ -1128,9 +1128,14 @@ class TestBiosUpdateModelInUrl:
             content_type="application/json",
         )
         assert resp.status_code == 200
-        cmd = mock_run.call_args[0][0]
-        url_arg = cmd[-1]
-        assert "/bios/R660/" in url_arg
+        data = resp.get_json()
+        assert data["success"] is True
+        assert data["job_id"] == 42
+        mock_enqueue.assert_called_once_with(
+            "bios_update",
+            "server01",
+            metadata={"target_bios": "3.0.0", "model": "R660"},
+        )
 
 
 # ---------------------------------------------------------------------------

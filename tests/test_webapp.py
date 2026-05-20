@@ -343,8 +343,8 @@ class TestFirmwareUpdateEndpoint:
         )
         assert resp.status_code == 400
 
-    @patch("dracs.webapp.run_command_background", return_value=True)
-    def test_firmware_update_success(self, mock_run, client):
+    @patch("dracs.jobqueue.enqueue_job", return_value=42)
+    def test_firmware_update_success(self, mock_enqueue, client):
         _login(client)
         resp = client.post(
             "/api/firmware-update",
@@ -360,9 +360,10 @@ class TestFirmwareUpdateEndpoint:
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["success"] is True
+        assert data["job_id"] == 42
 
-    @patch("dracs.webapp.run_command_background", return_value=False)
-    def test_firmware_update_fail_to_start(self, mock_run, client):
+    @patch("dracs.jobqueue.enqueue_job", return_value=99)
+    def test_firmware_update_enqueues_job(self, mock_enqueue, client):
         _login(client)
         resp = client.post(
             "/api/firmware-update",
@@ -377,7 +378,13 @@ class TestFirmwareUpdateEndpoint:
         )
         assert resp.status_code == 200
         data = resp.get_json()
-        assert data["success"] is False
+        assert data["success"] is True
+        assert data["job_id"] == 99
+        mock_enqueue.assert_called_once_with(
+            "firmware_update",
+            "server01",
+            metadata={"target_version": "8.0.0", "model": "R660"},
+        )
 
 
 class TestBiosUpdateEndpoint:
@@ -411,9 +418,9 @@ class TestBiosUpdateEndpoint:
         )
         assert resp.status_code == 400
 
-    @patch("dracs.webapp.run_command_background", return_value=True)
+    @patch("dracs.jobqueue.enqueue_job", return_value=42)
     @patch("dracs.webapp.get_bios_filename", return_value="BIOS_R660_3.0.0.EXE")
-    def test_bios_update_success(self, mock_fn, mock_run, client):
+    def test_bios_update_success(self, mock_fn, mock_enqueue, client):
         _login(client)
         resp = client.post(
             "/api/bios-update",
@@ -429,6 +436,7 @@ class TestBiosUpdateEndpoint:
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["success"] is True
+        assert data["job_id"] == 42
 
 
 class TestJobQueueEndpoint:

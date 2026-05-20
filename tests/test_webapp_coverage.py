@@ -374,7 +374,7 @@ class TestEndpointExceptionHandlers:
     def test_firmware_update_exception(self, client):
         _login(client)
         with patch(
-            "dracs.webapp.build_idrac_hostname",
+            "dracs.jobqueue.enqueue_job",
             side_effect=RuntimeError("boom"),
         ):
             resp = client.post(
@@ -390,11 +390,11 @@ class TestEndpointExceptionHandlers:
             )
         assert resp.status_code == 500
 
-    def test_firmware_update_sshpass_not_found(self, client):
+    def test_firmware_update_enqueue_error(self, client):
         _login(client)
         with patch(
-            "dracs.webapp.build_idrac_hostname",
-            side_effect=FileNotFoundError("sshpass"),
+            "dracs.jobqueue.enqueue_job",
+            side_effect=OSError("database locked"),
         ):
             resp = client.post(
                 "/api/firmware-update",
@@ -413,7 +413,7 @@ class TestEndpointExceptionHandlers:
         _login(client)
         with patch("dracs.webapp.get_bios_filename", return_value="BIOS.EXE"):
             with patch(
-                "dracs.webapp.build_idrac_hostname",
+                "dracs.jobqueue.enqueue_job",
                 side_effect=RuntimeError("boom"),
             ):
                 resp = client.post(
@@ -429,12 +429,12 @@ class TestEndpointExceptionHandlers:
                 )
         assert resp.status_code == 500
 
-    def test_bios_update_sshpass_not_found(self, client):
+    def test_bios_update_enqueue_error(self, client):
         _login(client)
         with patch("dracs.webapp.get_bios_filename", return_value="BIOS.EXE"):
             with patch(
-                "dracs.webapp.build_idrac_hostname",
-                side_effect=FileNotFoundError("sshpass"),
+                "dracs.jobqueue.enqueue_job",
+                side_effect=OSError("database locked"),
             ):
                 resp = client.post(
                     "/api/bios-update",
@@ -633,10 +633,10 @@ class TestInvalidRequestBranches:
 # ---------------------------------------------------------------------------
 # BIOS update returns False from run_command_background (line 715)
 # ---------------------------------------------------------------------------
-class TestBiosUpdateStartFailure:
-    @patch("dracs.webapp.run_command_background", return_value=False)
+class TestBiosUpdateEnqueueSuccess:
+    @patch("dracs.jobqueue.enqueue_job", return_value=77)
     @patch("dracs.webapp.get_bios_filename", return_value="BIOS_GWMTK_WN64_2.21.1.EXE")
-    def test_bios_update_process_fails_to_start(self, mock_bios, mock_run, client):
+    def test_bios_update_enqueues_job(self, mock_bios, mock_enqueue, client):
         _login(client)
         resp = client.post(
             "/api/bios-update",
@@ -650,8 +650,13 @@ class TestBiosUpdateStartFailure:
             content_type="application/json",
         )
         data = resp.get_json()
-        assert data["success"] is False
-        assert "Failed to start" in data["message"]
+        assert data["success"] is True
+        assert data["job_id"] == 77
+        mock_enqueue.assert_called_once_with(
+            "bios_update",
+            "server01",
+            metadata={"target_bios": "2.21.1", "model": "R660"},
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -875,95 +880,5 @@ class TestParseDebugEnv:
             with pytest.raises(ValueError, match="Invalid DEBUG value"):
                 _parse_debug_env()
 
-
-# ---------------------------------------------------------------------------
-# DRACS_LOG_DIR support for firmware/BIOS update log paths
-# ---------------------------------------------------------------------------
-class TestDracsLogDir:
-    def test_firmware_log_uses_env_var(self, client):
-        _login(client)
-        with patch.dict(os.environ, {"DRACS_LOG_DIR": "/var/log/dracs"}):
-            with patch(
-                "dracs.webapp.run_command_background", return_value=True
-            ) as mock:
-                resp = client.post(
-                    "/api/firmware-update",
-                    data=json.dumps(
-                        {
-                            "hostname": "server01",
-                            "target_version": "8.0.0",
-                            "model": "R660",
-                        }
-                    ),
-                    content_type="application/json",
-                )
-            log_path = mock.call_args[0][1]
-            assert log_path.startswith("/var/log/dracs/firmware-updates/")
-            data = resp.get_json()
-            assert "/var/log/dracs/firmware-updates/" in data["message"]
-
-    def test_firmware_log_defaults_to_logs(self, client):
-        _login(client)
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("DRACS_LOG_DIR", None)
-            with patch(
-                "dracs.webapp.run_command_background", return_value=True
-            ) as mock:
-                resp = client.post(
-                    "/api/firmware-update",
-                    data=json.dumps(
-                        {
-                            "hostname": "server01",
-                            "target_version": "8.0.0",
-                            "model": "R660",
-                        }
-                    ),
-                    content_type="application/json",
-                )
-            log_path = mock.call_args[0][1]
-            assert log_path.startswith("logs/firmware-updates/")
-
-    def test_bios_log_uses_env_var(self, client):
-        _login(client)
-        with patch.dict(os.environ, {"DRACS_LOG_DIR": "/var/log/dracs"}):
-            with patch("dracs.webapp.get_bios_filename", return_value="BIOS.EXE"):
-                with patch(
-                    "dracs.webapp.run_command_background", return_value=True
-                ) as mock:
-                    resp = client.post(
-                        "/api/bios-update",
-                        data=json.dumps(
-                            {
-                                "hostname": "server01",
-                                "target_bios": "3.0.0",
-                                "model": "R660",
-                            }
-                        ),
-                        content_type="application/json",
-                    )
-            log_path = mock.call_args[0][1]
-            assert log_path.startswith("/var/log/dracs/bios-updates/")
-            data = resp.get_json()
-            assert "/var/log/dracs/bios-updates/" in data["message"]
-
-    def test_bios_log_defaults_to_logs(self, client):
-        _login(client)
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("DRACS_LOG_DIR", None)
-            with patch("dracs.webapp.get_bios_filename", return_value="BIOS.EXE"):
-                with patch(
-                    "dracs.webapp.run_command_background", return_value=True
-                ) as mock:
-                    resp = client.post(
-                        "/api/bios-update",
-                        data=json.dumps(
-                            {
-                                "hostname": "server01",
-                                "target_bios": "3.0.0",
-                                "model": "R660",
-                            }
-                        ),
-                        content_type="application/json",
-                    )
-            log_path = mock.call_args[0][1]
-            assert log_path.startswith("logs/bios-updates/")
+    # TestDracsLogDir removed: log file creation is now handled by the job
+    # processor, not the firmware/BIOS update endpoints.
