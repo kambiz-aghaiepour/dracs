@@ -2,6 +2,30 @@
 
 <!-- version list -->
 
+## v1.25.0 (2026-05-20)
+
+### Bug Fixes
+
+- Failed black
+  ([`65d08ec`](https://github.com/kambiz-aghaiepour/dracs/commit/65d08ec37a08681d6f00e5ade722437cbf07e06a))
+
+### Chores
+
+- Add .gitignore additions
+  ([`8acfb3f`](https://github.com/kambiz-aghaiepour/dracs/commit/8acfb3f69a993bff3a4c76d6b952002627aee67c))
+
+- Ensure CHANGELOG.md is auto-updated
+  ([`599df99`](https://github.com/kambiz-aghaiepour/dracs/commit/599df9989a4c1e1fec0c4fb8a521b51801cbee19))
+
+- Sync spec file version to 1.24.0 [skip ci]
+  ([`bd45d4b`](https://github.com/kambiz-aghaiepour/dracs/commit/bd45d4ba8ddc39886a06cdab884d68e3fe0285ab))
+
+### Features
+
+- Add force firmware and BIOS update
+  ([`bb2ab1d`](https://github.com/kambiz-aghaiepour/dracs/commit/bb2ab1d60b5dc18e0d73fc0e9640d7df24b8c10c))
+
+
 ## v1.23.0 (2026-05-20)
 
 ### Features
