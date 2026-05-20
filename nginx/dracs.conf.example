@@ -19,6 +19,8 @@ server {
         autoindex_localtime on;
     }
 
-    # Redirect all HTTP requests to HTTPS
-    return 301 https://$host$request_uri;
+    location / {
+        # Redirect all HTTP requests to HTTPS
+        return 301 https://$host$request_uri;
+    }
 }
