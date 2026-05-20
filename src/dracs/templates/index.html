@@ -1758,6 +1758,22 @@
             </div>
         </div>
 
+        <!-- Clear Job Queue Confirm Modal -->
+        <div id="clear-jq-confirm-modal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Clear Job Queue</h2>
+                </div>
+                <div class="modal-body">
+                    <p id="clear-jq-confirm-message"></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="cancelClearJobQueue()">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="proceedClearJobQueue()">OK</button>
+                </div>
+            </div>
+        </div>
+
         <!-- TSR Status Modal -->
         <div id="tsr-status-modal" class="modal-overlay">
             <div class="modal-content">
@@ -4100,7 +4116,7 @@
         }
 
         // Handle Clear Job Queue button click
-        async function handleClearJobQueueClick() {
+        function handleClearJobQueueClick() {
             if (selectedSystems.length === 0) {
                 showNotification('Please select at least one system', 'error');
                 return;
@@ -4109,14 +4125,21 @@
             const hostCount = selectedSystems.length;
             let confirmMsg;
             if (hostCount === 1) {
-                confirmMsg = `You are about to clear all non-applied jobs on ${selectedSystems[0].hostname}.  Are you sure?`;
+                confirmMsg = `You are about to clear all non-applied jobs on <strong>${selectedSystems[0].hostname}</strong>.  Are you sure?`;
             } else {
-                confirmMsg = `You are about to clear all non-applied jobs on ${hostCount} hosts.  Are you sure?`;
+                confirmMsg = `You are about to clear all non-applied jobs on <strong>${hostCount}</strong> hosts.  Are you sure?`;
             }
 
-            if (!confirm(confirmMsg)) {
-                return;
-            }
+            document.getElementById('clear-jq-confirm-message').innerHTML = confirmMsg;
+            document.getElementById('clear-jq-confirm-modal').classList.add('active');
+        }
+
+        function cancelClearJobQueue() {
+            document.getElementById('clear-jq-confirm-modal').classList.remove('active');
+        }
+
+        async function proceedClearJobQueue() {
+            document.getElementById('clear-jq-confirm-modal').classList.remove('active');
 
             try {
                 const response = await fetch('/api/clear-job-queue', {
