@@ -407,3 +407,63 @@ class TestMainJobs:
         run_main_with_args(["jobs", "--cancel", "42"])
         mock_cancel.assert_called_once()
         assert mock_cancel.call_args[0][0] == 42
+
+
+class TestMainIdracJobs:
+    @patch("dracs.commands.idrac_jobs_list", new_callable=AsyncMock)
+    @patch("dracs.cli.db_initialize")
+    def test_idracjobs_list(self, mock_db, mock_list):
+        mock_list.return_value = None
+        run_main_with_args(["idracjobs", "--list", "-t", "server01.example.com"])
+        mock_list.assert_called_once()
+        assert mock_list.call_args[0][0] == "server01.example.com"
+
+    @patch("dracs.commands.idrac_jobs_list", new_callable=AsyncMock)
+    @patch("dracs.cli.db_initialize")
+    def test_ij_alias(self, mock_db, mock_list):
+        mock_list.return_value = None
+        run_main_with_args(["ij", "--list", "-t", "server01.example.com"])
+        mock_list.assert_called_once()
+
+    @patch("dracs.commands.idrac_jobs_clear", new_callable=AsyncMock)
+    @patch("dracs.cli.db_initialize")
+    def test_idracjobs_clear_all(self, mock_db, mock_clear):
+        mock_clear.return_value = None
+        run_main_with_args(["idracjobs", "--clear", "--all"])
+        mock_clear.assert_called_once()
+        args = mock_clear.call_args[0]
+        assert args[0] is None  # target
+        assert args[1] is None  # model
+        assert args[2] is True  # all_hosts
+
+    @patch("dracs.commands.idrac_jobs_clear", new_callable=AsyncMock)
+    @patch("dracs.cli.db_initialize")
+    def test_idracjobs_clear_model(self, mock_db, mock_clear):
+        mock_clear.return_value = None
+        run_main_with_args(["idracjobs", "--clear", "-m", "R660"])
+        mock_clear.assert_called_once()
+        assert mock_clear.call_args[0][1] == "R660"
+
+    @patch("dracs.commands.idrac_jobs_clear", new_callable=AsyncMock)
+    @patch("dracs.cli.db_initialize")
+    def test_idracjobs_clear_target(self, mock_db, mock_clear):
+        mock_clear.return_value = None
+        run_main_with_args(["idracjobs", "--clear", "-t", "server01.example.com"])
+        mock_clear.assert_called_once()
+        assert mock_clear.call_args[0][0] == "server01.example.com"
+
+    @patch("dracs.commands.idrac_jobs_clear", new_callable=AsyncMock)
+    @patch("dracs.cli.db_initialize")
+    def test_idracjobs_clear_force(self, mock_db, mock_clear):
+        mock_clear.return_value = None
+        run_main_with_args(["idracjobs", "--clear", "--all", "-f"])
+        mock_clear.assert_called_once()
+        assert mock_clear.call_args[0][3] is True  # force
+
+    @patch("dracs.cli.db_initialize")
+    def test_idracjobs_list_requires_target(self, mock_db, capsys):
+        with pytest.raises(SystemExit) as exc_info:
+            run_main_with_args(["idracjobs", "--list"])
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "--target is required" in captured.err
