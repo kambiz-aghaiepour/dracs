@@ -1175,10 +1175,7 @@ CATALOG_BASE_URL = "https://downloads.dell.com"
 FIRMWARE_IMAGE_DIR = Path("/var/lib/dracs/web/firmware")
 BIOS_IMAGE_DIR = Path("/var/lib/dracs/web/bios")
 
-_ARCHIVE_BASE = os.environ.get(
-    "DRACS_ARCHIVE_DIR",
-    "/var/lib/dracs/archive" if Path("/var/lib/dracs").is_dir() else "./archive",
-)
+_ARCHIVE_BASE = os.environ.get("DRACS_ARCHIVE_DIR", "./archive")
 FIRMWARE_ARCHIVE_DIR = Path(_ARCHIVE_BASE) / "firmware"
 BIOS_ARCHIVE_DIR = Path(_ARCHIVE_BASE) / "bios"
 
