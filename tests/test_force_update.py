@@ -99,9 +99,7 @@ class TestAvailableFirmwareEndpoint:
         mock_dir = patch(
             "dracs.webapp.FIRMWARE_IMAGE_DIR",
         )
-        with patch(
-            "dracs.webapp.FIRMWARE_IMAGE_DIR"
-        ) as mock_fw:
+        with patch("dracs.webapp.FIRMWARE_IMAGE_DIR") as mock_fw:
             mock_fw.is_dir.side_effect = RuntimeError("disk error")
             resp = client.get("/api/available-firmware/R660")
         assert resp.status_code == 500
