@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v1.25.1 (2026-05-20)
+
+### Bug Fixes
+
+- Strip behind buttons on dark theme
+  ([`afb0e98`](https://github.com/kambiz-aghaiepour/dracs/commit/afb0e98f23322a70bc744f00d6d136b7028547dd))
+
+### Chores
+
+- Sync spec file version to 1.25.0 [skip ci]
+  ([`8eb7ed2`](https://github.com/kambiz-aghaiepour/dracs/commit/8eb7ed2a9ad05d0d78b18cec8b61dac3505871fa))
+
+
 ## v1.25.0 (2026-05-20)
 
 ### Bug Fixes
