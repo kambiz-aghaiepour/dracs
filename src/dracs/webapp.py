@@ -679,9 +679,8 @@ def api_test_idrac():
 
 @app.route("/api/firmware-update", methods=["POST"])
 def api_firmware_update():
-    """Execute firmware update on iDRAC via SSH."""
+    """Queue firmware update for a host via the job queue."""
     try:
-        # Check authentication
         if not session.get("authenticated", False):
             return (
                 jsonify({"success": False, "message": "Authentication required"}),
@@ -714,79 +713,31 @@ def api_firmware_update():
         if not re.match(r"^[A-Za-z0-9\-]+$", model):
             return jsonify({"success": False, "message": "Invalid model format"}), 400
 
-        # Build iDRAC FQDN
-        idrac_fqdn = build_idrac_hostname(hostname)
+        from dracs.jobqueue import enqueue_job
 
-        # Get credentials
-        username, password = get_idrac_credentials(hostname)
+        job_id = enqueue_job(
+            "firmware_update",
+            hostname,
+            metadata={"target_version": target_version, "model": model},
+        )
 
-        # Build firmware filename: MODEL-TARGET_VERSION.d9
-        firmware_file = f"{model}-{target_version}.d9"
+        return jsonify(
+            {
+                "success": True,
+                "message": f"Firmware update queued for {hostname}"
+                f" to version {target_version}.",
+                "job_id": job_id,
+            }
+        )
 
-        # Build HTTP URL for firmware image
-        fw_server = os.environ.get("DRACS_FIRMWARE_SERVER") or socket.getfqdn()
-        fw_uri = os.environ.get("DRACS_FIRMWARE_URI", "/firmware/")
-        firmware_url = f"http://{fw_server}{fw_uri}"
-
-        # Prepare log file path
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_base = Path(os.environ.get("DRACS_LOG_DIR", "logs"))
-        log_dir = log_base / "firmware-updates"
-        log_file = log_dir / f"{hostname}_{target_version}_{timestamp}.log"
-
-        # Build firmware update command
-        cmd = [
-            "sshpass",
-            "-p",
-            password,
-            "ssh",
-            "-o",
-            "StrictHostKeyChecking=no",
-            "-o",
-            "UserKnownHostsFile=/dev/null",
-            "-o",
-            "ConnectTimeout=10",
-            f"{username}@{idrac_fqdn}",
-            "racadm",
-            "update",
-            "-f",
-            firmware_file,
-            "-l",
-            firmware_url,
-        ]
-
-        # Run firmware update command in background
-        success = run_command_background(cmd, str(log_file))
-
-        if success:
-            return jsonify(
-                {
-                    "success": True,
-                    "message": f"Firmware update initiated for {hostname}"
-                    f" to version {target_version}."
-                    f" Check {log_file} for progress.",
-                }
-            )
-        else:
-            return jsonify(
-                {
-                    "success": False,
-                    "message": "Failed to start firmware update"
-                    f" process. Check {log_file} for details.",
-                }
-            )
-
-    except FileNotFoundError:
-        return jsonify({"success": False, "message": "sshpass command not found"}), 500
     except Exception as e:
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
 
 
 @app.route("/api/bios-update", methods=["POST"])
 def api_bios_update():
-    """Execute BIOS update on iDRAC via SSH."""
+    """Queue BIOS update for a host via the job queue."""
     try:
-        # Check authentication
         if not session.get("authenticated", False):
             return (
                 jsonify({"success": False, "message": "Authentication required"}),
@@ -822,7 +773,6 @@ def api_bios_update():
         if not re.match(r"^[A-Za-z0-9\-]+$", model):
             return jsonify({"success": False, "message": "Invalid model format"}), 400
 
-        # Look up BIOS filename
         bios_filename = get_bios_filename(model, target_bios)
         if not bios_filename:
             return (
@@ -837,69 +787,23 @@ def api_bios_update():
                 400,
             )
 
-        # Build iDRAC FQDN
-        idrac_fqdn = build_idrac_hostname(hostname)
+        from dracs.jobqueue import enqueue_job
 
-        # Get credentials
-        username, password = get_idrac_credentials(hostname)
-
-        # Build HTTP URL for BIOS image (model-specific subdirectory)
-        bios_server = os.environ.get("DRACS_BIOS_SERVER") or socket.getfqdn()
-        bios_uri = os.environ.get("DRACS_BIOS_URI", "/bios/")
-        bios_url = urlunparse(
-            ("http", bios_server, f"{bios_uri}{url_quote(model, safe='')}/", "", "", "")
+        job_id = enqueue_job(
+            "bios_update",
+            hostname,
+            metadata={"target_bios": target_bios, "model": model},
         )
 
-        # Prepare log file path
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_base = Path(os.environ.get("DRACS_LOG_DIR", "logs"))
-        log_dir = log_base / "bios-updates"
-        log_file = log_dir / f"{hostname}_{target_bios}_{timestamp}.log"
+        return jsonify(
+            {
+                "success": True,
+                "message": f"BIOS update queued for {hostname}"
+                f" to version {target_bios}.",
+                "job_id": job_id,
+            }
+        )
 
-        # Build BIOS update command
-        cmd = [
-            "sshpass",
-            "-p",
-            password,
-            "ssh",
-            "-o",
-            "StrictHostKeyChecking=no",
-            "-o",
-            "UserKnownHostsFile=/dev/null",
-            "-o",
-            "ConnectTimeout=10",
-            f"{username}@{idrac_fqdn}",
-            "racadm",
-            "update",
-            "-f",
-            bios_filename,
-            "-l",
-            bios_url,
-        ]
-
-        # Run BIOS update command in background
-        success = run_command_background(cmd, str(log_file))
-
-        if success:
-            return jsonify(
-                {
-                    "success": True,
-                    "message": f"BIOS update initiated for {hostname}"
-                    f" to version {target_bios}."
-                    f" Check {log_file} for progress.",
-                }
-            )
-        else:
-            return jsonify(
-                {
-                    "success": False,
-                    "message": "Failed to start BIOS update"
-                    f" process. Check {log_file} for details.",
-                }
-            )
-
-    except FileNotFoundError:
-        return jsonify({"success": False, "message": "sshpass command not found"}), 500
     except Exception as e:
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
 

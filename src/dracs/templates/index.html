@@ -2700,11 +2700,9 @@
                     biosVersionSelect.style.display = 'none';
                 } else {
                     // At least one host needs updating - find available versions
-                    // Filter to versions newer than or equal to highest among selected
-                    // (equal is OK because we'll filter out hosts that already have it during update)
                     const availableBiosVersions = modelBiosVersions.filter(version => {
                         if (!highestSelectedBios) return true;
-                        return compareVersions(version, highestSelectedBios) >= 0;
+                        return compareVersions(version, highestSelectedBios) > 0;
                     });
 
                     if (availableBiosVersions && availableBiosVersions.length > 0) {

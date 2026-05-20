@@ -51,7 +51,9 @@ def post_worker_init(worker):
         lock_file = open(lock_path, "w")
         fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
 
-        from dracs.jobqueue import JobProcessor, JobScheduler
+        from dracs.jobqueue import JobProcessor, JobScheduler, recover_stale_jobs
+
+        recover_stale_jobs()
 
         max_workers = int(os.environ.get("JOB_MAX_WORKERS", "50"))
         processor = JobProcessor(max_workers=max_workers)

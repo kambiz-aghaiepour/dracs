@@ -57,6 +57,7 @@ class Job(Base):
     result: Mapped[str | None] = mapped_column(String, nullable=True)
     error: Mapped[str | None] = mapped_column(String, nullable=True)
     worker_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    metadata_json: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 def make_db_url(path: str) -> str:

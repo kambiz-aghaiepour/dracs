@@ -404,3 +404,60 @@ class TestUpdateJobProgress:
         from dracs.jobqueue import update_job_progress
 
         update_job_progress(9999, "50%")
+
+
+class TestRecoverStaleJobs:
+    def test_recovers_running_jobs(self, job_db):
+        from dracs.jobqueue import recover_stale_jobs
+
+        job_id = enqueue_job("tsr", "host01.example.com")
+        claim_next_job("w1")
+        status = get_job_status(job_id)
+        assert status["status"] == "running"
+
+        count = recover_stale_jobs()
+        assert count == 1
+        status = get_job_status(job_id)
+        assert status["status"] == "pending"
+        assert status["worker_id"] is None
+        assert status["started_at"] is None
+
+    def test_no_stale_jobs(self, job_db):
+        from dracs.jobqueue import recover_stale_jobs
+
+        enqueue_job("tsr", "host01.example.com")
+        count = recover_stale_jobs()
+        assert count == 0
+
+    def test_preserves_pending_jobs(self, job_db):
+        from dracs.jobqueue import recover_stale_jobs
+
+        job_id = enqueue_job("tsr", "host01.example.com")
+        recover_stale_jobs()
+        status = get_job_status(job_id)
+        assert status["status"] == "pending"
+
+
+class TestEnqueueJobWithMetadata:
+    def test_metadata_stored(self, job_db):
+        job_id = enqueue_job(
+            "firmware_update",
+            "host01.example.com",
+            metadata={"target_version": "8.0.0", "model": "R660"},
+        )
+        status = get_job_status(job_id)
+        assert status["metadata"] == {"target_version": "8.0.0", "model": "R660"}
+
+    def test_no_metadata(self, job_db):
+        job_id = enqueue_job("tsr", "host01.example.com")
+        status = get_job_status(job_id)
+        assert status["metadata"] is None
+
+    def test_metadata_in_claimed_job(self, job_db):
+        enqueue_job(
+            "bios_update",
+            "host01.example.com",
+            metadata={"target_bios": "2.10.0", "model": "R660"},
+        )
+        claimed = claim_next_job("w1")
+        assert claimed["metadata"] == {"target_bios": "2.10.0", "model": "R660"}

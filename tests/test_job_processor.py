@@ -12,6 +12,8 @@ from dracs.jobqueue import (
     claim_next_job,
     complete_job,
     enqueue_job,
+    execute_bios_update_job,
+    execute_firmware_update_job,
     execute_refresh_job,
     execute_tsr_job,
     get_job_status,
@@ -418,6 +420,106 @@ class TestExecuteRefreshJob:
         assert call_args[1] == "server01.example.com"
 
 
+class TestExecuteFirmwareUpdateJob:
+    def test_success(self, job_db):
+        mock_build_cmd = MagicMock(return_value=["echo", "test"])
+        mock_result = MagicMock(returncode=0)
+        with patch("dracs.jobqueue.subprocess.run", return_value=mock_result):
+            with patch("dracs.webapp._build_ssh_racadm_cmd", mock_build_cmd):
+                execute_firmware_update_job(
+                    "server01.example.com",
+                    {"target_version": "8.0.0", "model": "R660"},
+                )
+
+    def test_missing_metadata(self, job_db):
+        with pytest.raises(ValueError, match="target_version and model required"):
+            execute_firmware_update_job("server01.example.com", {})
+
+    def test_command_failure(self, job_db):
+        mock_build_cmd = MagicMock(return_value=["echo", "test"])
+        mock_result = MagicMock(returncode=1, stderr="error", stdout="")
+        with patch("dracs.jobqueue.subprocess.run", return_value=mock_result):
+            with patch("dracs.webapp._build_ssh_racadm_cmd", mock_build_cmd):
+                with pytest.raises(RuntimeError, match="Firmware update failed"):
+                    execute_firmware_update_job(
+                        "server01.example.com",
+                        {"target_version": "8.0.0", "model": "R660"},
+                    )
+
+
+class TestExecuteBiosUpdateJob:
+    def test_success(self, job_db):
+        mock_build_cmd = MagicMock(return_value=["echo", "test"])
+        mock_result = MagicMock(returncode=0)
+        with patch("dracs.jobqueue.subprocess.run", return_value=mock_result):
+            with patch("dracs.webapp._build_ssh_racadm_cmd", mock_build_cmd):
+                with patch(
+                    "dracs.webapp.get_bios_filename",
+                    return_value="BIOS_TEST.EXE",
+                ):
+                    execute_bios_update_job(
+                        "server01.example.com",
+                        {"target_bios": "2.10.0", "model": "R660"},
+                    )
+
+    def test_missing_metadata(self, job_db):
+        with pytest.raises(ValueError, match="target_bios and model required"):
+            execute_bios_update_job("server01.example.com", {})
+
+    def test_bios_filename_not_found(self, job_db):
+        with patch("dracs.webapp.get_bios_filename", return_value=None):
+            with pytest.raises(ValueError, match="BIOS filename not found"):
+                execute_bios_update_job(
+                    "server01.example.com",
+                    {"target_bios": "2.10.0", "model": "R660"},
+                )
+
+    def test_command_failure(self, job_db):
+        mock_build_cmd = MagicMock(return_value=["echo", "test"])
+        mock_result = MagicMock(returncode=1, stderr="error", stdout="")
+        with patch("dracs.jobqueue.subprocess.run", return_value=mock_result):
+            with patch("dracs.webapp._build_ssh_racadm_cmd", mock_build_cmd):
+                with patch(
+                    "dracs.webapp.get_bios_filename",
+                    return_value="BIOS_TEST.EXE",
+                ):
+                    with pytest.raises(RuntimeError, match="BIOS update failed"):
+                        execute_bios_update_job(
+                            "server01.example.com",
+                            {"target_bios": "2.10.0", "model": "R660"},
+                        )
+
+
+class TestProcessorDispatchUpdateJobs:
+    def test_firmware_update_dispatched(self, job_db):
+        enqueue_job(
+            "firmware_update",
+            "server01.example.com",
+            metadata={"target_version": "8.0.0", "model": "R660"},
+        )
+        mock_execute = MagicMock()
+        processor = JobProcessor(max_workers=2, poll_interval=0.05)
+        with patch("dracs.jobqueue.execute_firmware_update_job", mock_execute):
+            processor.start()
+            time.sleep(0.3)
+            processor.stop()
+        mock_execute.assert_called_once()
+
+    def test_bios_update_dispatched(self, job_db):
+        enqueue_job(
+            "bios_update",
+            "server01.example.com",
+            metadata={"target_bios": "2.10.0", "model": "R660"},
+        )
+        mock_execute = MagicMock()
+        processor = JobProcessor(max_workers=2, poll_interval=0.05)
+        with patch("dracs.jobqueue.execute_bios_update_job", mock_execute):
+            processor.start()
+            time.sleep(0.3)
+            processor.stop()
+        mock_execute.assert_called_once()
+
+
 class TestGunicornHook:
     def _load_gunicorn_conf(self):
         from pathlib import Path
@@ -438,8 +540,9 @@ class TestGunicornHook:
                 "dracs.jobqueue.JobProcessor",
                 return_value=mock_processor,
             ):
-                conf = self._load_gunicorn_conf()
-                conf.post_worker_init(worker)
+                with patch("dracs.jobqueue.recover_stale_jobs", return_value=0):
+                    conf = self._load_gunicorn_conf()
+                    conf.post_worker_init(worker)
 
         mock_processor.start.assert_called_once()
 
