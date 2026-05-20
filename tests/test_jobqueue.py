@@ -379,3 +379,28 @@ class TestUpdateParentEdgeCases:
             child.status = "completed"
             session.commit()
             _update_parent_status(session, 9999)
+
+
+class TestUpdateJobProgress:
+    def test_updates_result_field(self, job_db):
+        from dracs.jobqueue import update_job_progress
+
+        job_id = enqueue_job("tsr", "host01.example.com")
+        update_job_progress(job_id, "45%")
+        status = get_job_status(job_id)
+        assert status["result"] == "45%"
+
+    def test_updates_multiple_times(self, job_db):
+        from dracs.jobqueue import update_job_progress
+
+        job_id = enqueue_job("tsr", "host01.example.com")
+        update_job_progress(job_id, "Collecting")
+        update_job_progress(job_id, "25%")
+        update_job_progress(job_id, "50%")
+        status = get_job_status(job_id)
+        assert status["result"] == "50%"
+
+    def test_nonexistent_job_is_noop(self, job_db):
+        from dracs.jobqueue import update_job_progress
+
+        update_job_progress(9999, "50%")

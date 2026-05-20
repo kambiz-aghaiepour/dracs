@@ -174,6 +174,56 @@ class TestExecuteTsrJob:
 
         mock_stage.assert_called_once()
 
+    def test_full_lifecycle_with_job_id(self, job_db):
+        job_id = enqueue_job("tsr", "server01.example.com")
+        claim_next_job("w1")
+
+        mock_build_cmd = MagicMock(return_value=["echo", "test"])
+        mock_subprocess = MagicMock()
+        mock_subprocess.returncode = 0
+
+        running_job = {
+            "status": "Running",
+            "job_name": "SupportAssist Collection",
+            "percent_complete": "45",
+        }
+        completed_job = {
+            "status": "Completed",
+            "job_name": "SupportAssist Collection",
+            "message": "collection operation is completed successfully",
+        }
+
+        call_count = [0]
+
+        def mock_get_sa_jobs(hostname):
+            call_count[0] += 1
+            if call_count[0] <= 1:
+                return [running_job]
+            return [completed_job]
+
+        with patch.dict(os.environ, {"DRACS_DB": job_db}):
+            import dracs.webapp as webapp_mod
+
+            webapp_mod.DB_PATH = job_db
+            webapp_mod.db_initialize(job_db)
+
+            with patch("dracs.jobqueue.subprocess.run", return_value=mock_subprocess):
+                with patch("dracs.jobqueue.time.sleep"):
+                    with patch.multiple(
+                        "dracs.webapp",
+                        _build_ssh_racadm_cmd=mock_build_cmd,
+                        _get_sa_jobs=mock_get_sa_jobs,
+                        _wait_for_tsr_export=MagicMock(return_value=True),
+                        _find_tsr_zip=MagicMock(
+                            return_value="/tmp/TSR20260505_TAG001.zip"
+                        ),
+                        _stage_tsr_files=MagicMock(),
+                    ):
+                        execute_tsr_job("server01.example.com", job_id=job_id)
+
+        status = get_job_status(job_id)
+        assert status is not None
+
     def test_host_not_found(self, job_db):
         with pytest.raises(ValueError, match="not found"):
             execute_tsr_job("nonexistent.example.com")
@@ -276,7 +326,10 @@ class TestExecuteTsrJob:
                             ):
                                 execute_tsr_job("server01.example.com")
 
-    def test_phase2_null_jobs_then_complete(self, job_db):
+    def test_phase2_with_progress_tracking(self, job_db):
+        jid = enqueue_job("tsr", "server01.example.com")
+        claim_next_job("w1")
+
         mock_build_cmd = MagicMock(return_value=["echo", "test"])
         mock_subprocess = MagicMock()
         mock_subprocess.returncode = 0
@@ -284,6 +337,7 @@ class TestExecuteTsrJob:
         running_job = {
             "status": "Running",
             "job_name": "SupportAssist Collection",
+            "percent_complete": "60",
         }
         completed_job = {
             "status": "Completed",
@@ -321,7 +375,7 @@ class TestExecuteTsrJob:
                         ),
                         _stage_tsr_files=MagicMock(),
                     ):
-                        execute_tsr_job("server01.example.com")
+                        execute_tsr_job("server01.example.com", job_id=jid)
 
     def test_phase2_completion_timeout(self, job_db):
         mock_build_cmd = MagicMock(return_value=["echo", "test"])
