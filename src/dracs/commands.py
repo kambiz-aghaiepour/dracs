@@ -736,9 +736,14 @@ async def tsr_status(hostname: str, warranty: str) -> None:
         raise DatabaseError(f"Host {hostname} not found in database")
 
     job = get_latest_job_for_host(hostname, "tsr")
-    if job and job["status"] in ("pending", "running"):
-        if job["status"] == "pending":
-            print("TSR Collection pending.")
+    if job and job["status"] == "pending":
+        print("TSR Collection pending.")
+    elif job and job["status"] == "running":
+        progress = job.get("result", "")
+        if progress and "%" in progress:
+            print(f"TSR Collection in progress: {progress} Completed.")
+        elif progress:
+            print(f"TSR Collection in progress: {progress}.")
         else:
             print("TSR Collection in progress.")
     else:

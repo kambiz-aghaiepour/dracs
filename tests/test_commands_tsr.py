@@ -151,11 +151,39 @@ class TestTsrGenerate:
 
 class TestTsrStatus:
     @pytest.mark.asyncio
-    async def test_status_running(self, tsr_db, capsys):
+    async def test_status_running_with_progress(self, tsr_db, capsys):
         mock_job = {
             "status": "running",
             "job_type": "tsr",
             "target": "server01.example.com",
+            "result": "45%",
+        }
+        with patch("dracs.jobqueue.get_latest_job_for_host", return_value=mock_job):
+            await tsr_status("server01.example.com", tsr_db)
+        captured = capsys.readouterr()
+        assert "45%" in captured.out
+        assert "Completed" in captured.out
+
+    @pytest.mark.asyncio
+    async def test_status_running_phase_label(self, tsr_db, capsys):
+        mock_job = {
+            "status": "running",
+            "job_type": "tsr",
+            "target": "server01.example.com",
+            "result": "Exporting",
+        }
+        with patch("dracs.jobqueue.get_latest_job_for_host", return_value=mock_job):
+            await tsr_status("server01.example.com", tsr_db)
+        captured = capsys.readouterr()
+        assert "Exporting" in captured.out
+
+    @pytest.mark.asyncio
+    async def test_status_running_no_progress(self, tsr_db, capsys):
+        mock_job = {
+            "status": "running",
+            "job_type": "tsr",
+            "target": "server01.example.com",
+            "result": None,
         }
         with patch("dracs.jobqueue.get_latest_job_for_host", return_value=mock_job):
             await tsr_status("server01.example.com", tsr_db)

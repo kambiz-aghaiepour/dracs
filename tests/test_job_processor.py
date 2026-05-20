@@ -70,7 +70,7 @@ class TestJobProcessor:
     def test_handles_execution_failure(self, job_db):
         job_id = enqueue_job("tsr", "server01.example.com")
 
-        def mock_execute(hostname):
+        def mock_execute(hostname, job_id=None):
             raise RuntimeError("SSH timeout")
 
         processor = JobProcessor(max_workers=2, poll_interval=0.05)
