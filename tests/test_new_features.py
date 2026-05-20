@@ -1195,11 +1195,15 @@ class TestLatestFirmwareStreaming:
         def fake_copyfileobj(src, dst):
             dst.write(exe_bytes)
 
+        fw_archive = tmp_path / "firmware_archive"
+        fw_archive.mkdir()
+
         with (
             patch("dracs.webapp.urllib.request.urlopen", side_effect=fake_urlopen),
             patch("dracs.webapp.shutil.copyfileobj", side_effect=fake_copyfileobj),
             patch("dracs.webapp.defused_ET.parse", side_effect=fake_et_parse),
             patch("dracs.webapp.FIRMWARE_IMAGE_DIR", fw_dir),
+            patch("dracs.webapp.FIRMWARE_ARCHIVE_DIR", fw_archive),
         ):
             resp = client.post(
                 "/api/latest-firmware",
