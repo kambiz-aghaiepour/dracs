@@ -665,6 +665,21 @@
             background-color: #c82333;
         }
 
+        .btn-force {
+            background-color: #dc3545;
+            color: white;
+        }
+
+        .btn-force:hover {
+            background-color: #c82333;
+        }
+
+        .btn-force:disabled {
+            background-color: #6c757d;
+            color: white;
+            cursor: not-allowed;
+        }
+
         .btn-reboot-graceful {
             background-color: #fd7e14;
             color: white;
@@ -1083,6 +1098,20 @@
 
         body.dark-theme .btn-power-off:hover {
             background-color: #dc3545;
+        }
+
+        body.dark-theme .btn-force {
+            background-color: #c82333;
+            border-color: #c82333;
+        }
+
+        body.dark-theme .btn-force:hover {
+            background-color: #dc3545;
+        }
+
+        body.dark-theme .btn-force:disabled {
+            background-color: #495057;
+            border-color: #495057;
         }
 
         body.dark-theme .btn-reboot-graceful {
@@ -1523,6 +1552,12 @@
             <button id="latest-bios-btn" class="btn btn-primary" disabled onclick="handleLatestBiosClick()">
                 Latest BIOS
             </button>
+            <button id="force-firmware-btn" class="btn btn-force" disabled onclick="handleForceFirmwareClick()">
+                Force Firmware
+            </button>
+            <button id="force-bios-btn" class="btn btn-force" disabled onclick="handleForceBiosClick()">
+                Force BIOS
+            </button>
             <button id="generate-tsr-btn" class="btn btn-primary" disabled onclick="handleGenerateTsrClick()">
                 Generate TSR
             </button>
@@ -1681,6 +1716,79 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="cancelBiosUpdate()">Cancel</button>
                     <button type="button" class="btn btn-primary" onclick="confirmBiosUpdate()">Yes, Update BIOS</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Force Firmware Modal -->
+        <div id="force-firmware-modal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Force Firmware Update</h2>
+                </div>
+                <div class="modal-body" id="force-firmware-body">
+                    <p style="color: #dc3545; font-weight: bold;">WARNING!  Use this option with caution!  Do not power off the system during this process.</p>
+                    <p>Host: <strong id="force-firmware-hostname"></strong></p>
+                    <p>Current Firmware: <strong id="force-firmware-current"></strong></p>
+                    <select id="force-firmware-select" class="firmware-version-select" onchange="selectForceVersion('firmware')">
+                        <option value="">Select Firmware Version...</option>
+                    </select>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="cancelForceUpdate()">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Force Firmware Confirm Modal -->
+        <div id="force-firmware-confirm-modal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Confirm Force Firmware</h2>
+                </div>
+                <div class="modal-body">
+                    <p style="color: #dc3545; font-weight: bold;" id="force-firmware-confirm-msg"></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="cancelForceUpdate()">Cancel</button>
+                    <button type="button" class="btn btn-force" onclick="confirmForceUpdate('firmware')">OK</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Force BIOS Modal -->
+        <div id="force-bios-modal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Force BIOS Update</h2>
+                </div>
+                <div class="modal-body" id="force-bios-body">
+                    <p style="color: #dc3545; font-weight: bold;">WARNING!  Use this option with caution!</p>
+                    <p>Host: <strong id="force-bios-hostname"></strong></p>
+                    <p>Current BIOS: <strong id="force-bios-current"></strong></p>
+                    <select id="force-bios-select" class="bios-version-select" onchange="selectForceVersion('bios')">
+                        <option value="">Select BIOS Version...</option>
+                    </select>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="cancelForceUpdate()">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Force BIOS Confirm Modal -->
+        <div id="force-bios-confirm-modal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Confirm Force BIOS</h2>
+                </div>
+                <div class="modal-body">
+                    <p style="color: #dc3545; font-weight: bold;" id="force-bios-confirm-msg"></p>
+                    <p>If you choose to apply this version you will still need to REBOOT the system.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="cancelForceUpdate()">Cancel</button>
+                    <button type="button" class="btn btn-force" onclick="confirmForceUpdate('bios')">OK</button>
                 </div>
             </div>
         </div>
@@ -2142,6 +2250,7 @@
 
             // Update firmware and job queue button states
             updateFirmwareButtonState();
+            updateForceButtonState();
             updateJobQueueButtonState();
             updateClearJobQueueButtonState();
             updateConsoleButtonState();
@@ -2267,6 +2376,7 @@
             // Update other button states (these may be slower)
             updateBiosButtonState();
             updateFirmwareButtonState();
+            updateForceButtonState();
             updateJobQueueButtonState();
             updateClearJobQueueButtonState();
             updateConsoleButtonState();
@@ -2332,6 +2442,7 @@
             updateRefreshButtonState();
             updateBiosButtonState();
             updateFirmwareButtonState();
+            updateForceButtonState();
             updateJobQueueButtonState();
             updateClearJobQueueButtonState();
             updateConsoleButtonState();
@@ -2585,6 +2696,7 @@
                 // Update firmware and job queue button states after refresh
                 if (isAuthenticated) {
                     updateFirmwareButtonState();
+            updateForceButtonState();
                     updateJobQueueButtonState();
                     updateClearJobQueueButtonState();
                     updatePowerButtonState();
@@ -4203,6 +4315,158 @@
             }
         }
 
+        // Force Firmware/BIOS state
+        let forceTarget = null;
+        let forceVersion = null;
+
+        function updateForceButtonState() {
+            const forceFwBtn = document.getElementById('force-firmware-btn');
+            const forceBiosBtn = document.getElementById('force-bios-btn');
+            if (!forceFwBtn || !forceBiosBtn) return;
+
+            if (selectedSystems.length === 1) {
+                forceFwBtn.disabled = false;
+                forceBiosBtn.disabled = false;
+            } else {
+                forceFwBtn.disabled = true;
+                forceBiosBtn.disabled = true;
+            }
+        }
+
+        async function handleForceFirmwareClick() {
+            if (selectedSystems.length !== 1) return;
+            const sys = selectedSystems[0];
+            const hostname = sys.hostname;
+            const model = sys.model;
+            const currentVersion = selectedRows[0].dataset.firmwareVersion;
+
+            forceTarget = { hostname, model, currentVersion, type: 'firmware' };
+
+            document.getElementById('force-firmware-hostname').textContent = hostname;
+            document.getElementById('force-firmware-current').textContent = currentVersion;
+
+            try {
+                const resp = await fetch(`/api/available-firmware/${encodeURIComponent(model)}`);
+                const data = await resp.json();
+                if (!data.success) {
+                    showNotification(data.message, 'error');
+                    return;
+                }
+                const versions = data.versions.filter(v => v !== currentVersion);
+                const select = document.getElementById('force-firmware-select');
+                select.innerHTML = '<option value="">Select Firmware Version...</option>';
+                versions.forEach(v => {
+                    const opt = document.createElement('option');
+                    opt.value = v;
+                    opt.textContent = v;
+                    select.appendChild(opt);
+                });
+                if (versions.length === 0) {
+                    showNotification('No other firmware versions available on disk.', 'error');
+                    return;
+                }
+                document.getElementById('force-firmware-modal').classList.add('active');
+            } catch (error) {
+                showNotification('Failed to fetch available firmware: ' + error.message, 'error');
+            }
+        }
+
+        async function handleForceBiosClick() {
+            if (selectedSystems.length !== 1) return;
+            const sys = selectedSystems[0];
+            const hostname = sys.hostname;
+            const model = sys.model;
+            const currentVersion = selectedRows[0].dataset.biosVersion;
+
+            forceTarget = { hostname, model, currentVersion, type: 'bios' };
+
+            document.getElementById('force-bios-hostname').textContent = hostname;
+            document.getElementById('force-bios-current').textContent = currentVersion;
+
+            try {
+                const resp = await fetch(`/api/available-bios/${encodeURIComponent(model)}`);
+                const data = await resp.json();
+                if (!data.success) {
+                    showNotification(data.message, 'error');
+                    return;
+                }
+                const versions = data.versions.filter(v => v !== currentVersion);
+                const select = document.getElementById('force-bios-select');
+                select.innerHTML = '<option value="">Select BIOS Version...</option>';
+                versions.forEach(v => {
+                    const opt = document.createElement('option');
+                    opt.value = v;
+                    opt.textContent = v;
+                    select.appendChild(opt);
+                });
+                if (versions.length === 0) {
+                    showNotification('No other BIOS versions available on disk.', 'error');
+                    return;
+                }
+                document.getElementById('force-bios-modal').classList.add('active');
+            } catch (error) {
+                showNotification('Failed to fetch available BIOS: ' + error.message, 'error');
+            }
+        }
+
+        function selectForceVersion(type) {
+            const selectId = type === 'firmware' ? 'force-firmware-select' : 'force-bios-select';
+            const version = document.getElementById(selectId).value;
+            if (!version) return;
+
+            forceVersion = version;
+            const hostname = forceTarget.hostname;
+
+            document.getElementById(`force-${type}-modal`).classList.remove('active');
+
+            const label = type === 'firmware' ? 'Firmware' : 'BIOS';
+            document.getElementById(`force-${type}-confirm-msg`).textContent =
+                `WARNING! You are about to change the ${label} on ${hostname} to ${version}.  Are you sure you want to proceed?`;
+            document.getElementById(`force-${type}-confirm-modal`).classList.add('active');
+        }
+
+        function cancelForceUpdate() {
+            document.getElementById('force-firmware-modal').classList.remove('active');
+            document.getElementById('force-bios-modal').classList.remove('active');
+            document.getElementById('force-firmware-confirm-modal').classList.remove('active');
+            document.getElementById('force-bios-confirm-modal').classList.remove('active');
+            forceTarget = null;
+            forceVersion = null;
+        }
+
+        async function confirmForceUpdate(type) {
+            document.getElementById(`force-${type}-confirm-modal`).classList.remove('active');
+
+            const hostname = forceTarget.hostname;
+            const model = forceTarget.model;
+            const version = forceVersion;
+            const label = type === 'firmware' ? 'Firmware' : 'BIOS';
+
+            try {
+                const endpoint = type === 'firmware' ? '/api/firmware-update' : '/api/bios-update';
+                const body = type === 'firmware'
+                    ? { hostname, target_version: version, model }
+                    : { hostname, target_bios: version, model };
+
+                const resp = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    showNotification(`Initiating ${label} ${version} for ${hostname}`, 'success');
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            } catch (error) {
+                showNotification(`Force ${label} update failed: ${error.message}`, 'error');
+            }
+
+            forceTarget = null;
+            forceVersion = null;
+        }
+
         // Auto-refresh functionality
         function startAutoRefresh() {
             if (refreshFrequency > 0) {
@@ -5102,6 +5366,7 @@
                 // Update other button states
                 updateBiosButtonState();
                 updateFirmwareButtonState();
+            updateForceButtonState();
                 updateJobQueueButtonState();
                 updateClearJobQueueButtonState();
                 updatePowerButtonState();
