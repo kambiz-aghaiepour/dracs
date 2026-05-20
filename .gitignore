@@ -19,6 +19,8 @@ htmlcov/
 .coverage
 *.pyc
 __pycache__/
+BIOS-filename.ini
+archive/
 
 # Virtual environment
 venv/
