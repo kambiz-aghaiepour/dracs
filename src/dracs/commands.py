@@ -914,3 +914,232 @@ async def idrac_jobs_clear(
 
         count = enqueue_batch("clear_job_queue", "all")
         print(f"Clear job queue queued for {count} hosts.")
+
+
+def _get_available_firmware_versions(model: str) -> list:
+    from dracs.webapp import FIRMWARE_IMAGE_DIR
+
+    versions = []
+    prefix = f"{model}-"
+    suffix = ".d9"
+    if FIRMWARE_IMAGE_DIR.is_dir():
+        for f in FIRMWARE_IMAGE_DIR.iterdir():
+            name = f.name
+            if name.startswith(prefix) and name.endswith(suffix):
+                ver = name[len(prefix) : -len(suffix)]
+                if ver:
+                    versions.append(ver)
+    return versions
+
+
+def _get_available_bios_versions(model: str) -> list:
+    import configparser
+
+    config_file = Path("BIOS-filename.ini")
+    if not config_file.exists():
+        config_file = Path("/etc/dracs/BIOS-filename.ini")
+    if not config_file.exists():
+        return []
+    config = configparser.ConfigParser()
+    config.read(config_file)
+    if model not in config:
+        return []
+    return list(config[model].keys())
+
+
+def _version_sort_key(v: str):
+    return tuple(map(int, v.split(".")))
+
+
+async def fw_list(model_filter: str | None, warranty: str) -> None:
+    from collections import Counter
+
+    from rich.console import Console
+    from rich.table import Table
+
+    db_initialize(warranty)
+
+    with get_session() as session:
+        query = session.query(System)
+        if model_filter:
+            query = query.filter(System.model == model_filter)
+        systems = query.all()
+
+    if not systems:
+        print("No systems found.")
+        return
+
+    models = sorted(set(s.model for s in systems if s.model))
+
+    console = Console()
+    table = Table(show_header=True, header_style="bold cyan", show_lines=True)
+    table.add_column("Model")
+    table.add_column("Installed Versions")
+    table.add_column("Other Versions")
+
+    for m in models:
+        model_systems = [s for s in systems if s.model == m]
+        counts = Counter(s.idrac_version for s in model_systems if s.idrac_version)
+        installed = sorted(counts.keys(), key=_version_sort_key, reverse=True)
+        installed_lines = "\n".join(f"{v} ({counts[v]})" for v in installed)
+
+        available = _get_available_firmware_versions(m)
+        other = sorted(
+            [v for v in available if v not in counts],
+            key=_version_sort_key,
+            reverse=True,
+        )
+        other_lines = "\n".join(other) if other else ""
+
+        table.add_row(m, installed_lines, other_lines)
+
+    console.print(table)
+
+
+async def fw_apply(
+    version: str,
+    hostname: str,
+    force: bool,
+    yes_flag: bool,
+    warranty: str,
+) -> None:
+    from dracs.jobqueue import enqueue_job
+
+    db_initialize(warranty)
+
+    results = query_by_hostname(warranty, hostname)
+    if not results:
+        raise DatabaseError(f"Host {hostname} not found in database")
+
+    host = results[0]
+    model = host[2]
+
+    available = _get_available_firmware_versions(model)
+    if version not in available:
+        print(f"Firmware version {version} is not available for the {model} hosts.")
+        return
+
+    with get_session() as session:
+        running = (
+            session.query(System)
+            .filter(System.model == model, System.idrac_version == version)
+            .count()
+        )
+
+    if running == 0 and not force:
+        print(
+            f"Firmware version {version} is not running on any {model} host."
+            "  Use --force to install this version."
+        )
+        return
+
+    if not yes_flag:
+        response = (
+            input(f"Install firmware {version} on {hostname} ? [y/n] ").strip().lower()
+        )
+        if response not in ("y", "yes"):
+            print("Cancelled.")
+            return
+
+    job_id = enqueue_job(
+        "firmware_update",
+        hostname,
+        metadata={"target_version": version, "model": model},
+    )
+    print(f"Firmware update {version} queued for {hostname} (job {job_id})")
+
+
+async def bios_list(model_filter: str | None, warranty: str) -> None:
+    from collections import Counter
+
+    from rich.console import Console
+    from rich.table import Table
+
+    db_initialize(warranty)
+
+    with get_session() as session:
+        query = session.query(System)
+        if model_filter:
+            query = query.filter(System.model == model_filter)
+        systems = query.all()
+
+    if not systems:
+        print("No systems found.")
+        return
+
+    models = sorted(set(s.model for s in systems if s.model))
+
+    console = Console()
+    table = Table(show_header=True, header_style="bold cyan", show_lines=True)
+    table.add_column("Model")
+    table.add_column("Installed Versions")
+    table.add_column("Other Versions")
+
+    for m in models:
+        model_systems = [s for s in systems if s.model == m]
+        counts = Counter(s.bios_version for s in model_systems if s.bios_version)
+        installed = sorted(counts.keys(), key=_version_sort_key, reverse=True)
+        installed_lines = "\n".join(f"{v} ({counts[v]})" for v in installed)
+
+        available = _get_available_bios_versions(m)
+        other = sorted(
+            [v for v in available if v not in counts],
+            key=_version_sort_key,
+            reverse=True,
+        )
+        other_lines = "\n".join(other) if other else ""
+
+        table.add_row(m, installed_lines, other_lines)
+
+    console.print(table)
+
+
+async def bios_apply(
+    version: str,
+    hostname: str,
+    force: bool,
+    yes_flag: bool,
+    warranty: str,
+) -> None:
+    from dracs.jobqueue import enqueue_job
+
+    db_initialize(warranty)
+
+    results = query_by_hostname(warranty, hostname)
+    if not results:
+        raise DatabaseError(f"Host {hostname} not found in database")
+
+    host = results[0]
+    model = host[2]
+
+    available = _get_available_bios_versions(model)
+    if version not in available:
+        print(f"BIOS version {version} is not available for the {model} hosts.")
+        return
+
+    with get_session() as session:
+        running = (
+            session.query(System)
+            .filter(System.model == model, System.bios_version == version)
+            .count()
+        )
+
+    if running == 0 and not force:
+        print(
+            f"BIOS version {version} is not running on any {model} host."
+            "  Use --force to install this version."
+        )
+        return
+
+    if not yes_flag:
+        response = (
+            input(f"Install BIOS {version} on {hostname} ? [y/n] ").strip().lower()
+        )
+        if response not in ("y", "yes"):
+            print("Cancelled.")
+            return
+
+    job_id = enqueue_job(
+        "bios_update", hostname, metadata={"target_bios": version, "model": model}
+    )
+    print(f"BIOS update {version} queued for {hostname} (job {job_id})")

@@ -70,7 +70,9 @@ class CustomParser(argparse.ArgumentParser):
             print("    list (li)       List systems")
             print("    tsr (t)         TSR operations")
             print("    jobs (j)        Job queue operations")
-            print("    idracjobs (ij)  iDRAC job queue operations\n")
+            print("    idracjobs (ij)  iDRAC job queue operations")
+            print("    fw              Firmware operations")
+            print("    bios            BIOS operations\n")
             self.print_usage()
             sys.exit(2)
         # Fall back to default behavior for other errors
@@ -342,6 +344,40 @@ async def main() -> None:
         "-f", "--force", action="store_true", help="Skip confirmation prompt"
     )
 
+    # --- FW COMMAND ---
+    parser_fw = subparsers.add_parser("fw", help="Firmware operations")
+    fw_action = parser_fw.add_mutually_exclusive_group(required=True)
+    fw_action.add_argument("--list", action="store_true", help="List firmware versions")
+    fw_action.add_argument(
+        "--apply", action="store_true", help="Apply firmware to a host"
+    )
+    parser_fw.add_argument("-m", "--model", help="Filter by model")
+    parser_fw.add_argument("--version", help="Firmware version to apply")
+    parser_fw.add_argument("-t", "--target", help="Target hostname")
+    parser_fw.add_argument(
+        "--force", action="store_true", help="Force install untested version"
+    )
+    parser_fw.add_argument(
+        "--yes", action="store_true", help="Skip confirmation prompt"
+    )
+
+    # --- BIOS COMMAND ---
+    parser_bios = subparsers.add_parser("bios", help="BIOS operations")
+    bios_action = parser_bios.add_mutually_exclusive_group(required=True)
+    bios_action.add_argument("--list", action="store_true", help="List BIOS versions")
+    bios_action.add_argument(
+        "--apply", action="store_true", help="Apply BIOS to a host"
+    )
+    parser_bios.add_argument("-m", "--model", help="Filter by model")
+    parser_bios.add_argument("--version", help="BIOS version to apply")
+    parser_bios.add_argument("-t", "--target", help="Target hostname")
+    parser_bios.add_argument(
+        "--force", action="store_true", help="Force install untested version"
+    )
+    parser_bios.add_argument(
+        "--yes", action="store_true", help="Skip confirmation prompt"
+    )
+
     args = parser.parse_args()
 
     # Set up logging based on command-line flags
@@ -497,6 +533,32 @@ async def main() -> None:
         elif args.clear:
             await commands.idrac_jobs_clear(
                 args.target, args.model, args.all, args.force, warranty
+            )
+    elif args.command == "fw":
+        if args.list:
+            await commands.fw_list(args.model, warranty)
+        elif args.apply:
+            if not args.version or not args.target:
+                print(
+                    "Error: --version and --target are required with --apply.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            await commands.fw_apply(
+                args.version, args.target, args.force, args.yes, warranty
+            )
+    elif args.command == "bios":
+        if args.list:
+            await commands.bios_list(args.model, warranty)
+        elif args.apply:
+            if not args.version or not args.target:
+                print(
+                    "Error: --version and --target are required with --apply.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            await commands.bios_apply(
+                args.version, args.target, args.force, args.yes, warranty
             )
 
 
