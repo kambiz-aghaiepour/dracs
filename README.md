@@ -23,6 +23,9 @@ Simple, portable, self-contained dynamic CLI inventory tool for managing Dell ba
   - [🚀 Features](#-features)
   - [🛠️ Prerequisites](#%EF%B8%8F-prerequisites)
   - [📦 Installation](#-installation)
+    - [1. RPM Installation](#1-rpm-installation-preferred-for-fedora-43-fedora-44-and-rawhide)
+    - [2. Github clone (Developer)](#2--github-clone-developer)
+    - [3. Install from PyPI](#3-install-from-pypi)
   - [📖 Usage](#-usage)
     - [1. Add a New System](#1-add-a-new-system)
     - [2. Discover a System](#2-discover-a-system)
@@ -103,6 +106,8 @@ For development (includes pytest, black, etc.):
 uv sync --group dev
 source .venv/bin/activate
 ```
+
+### 3. Install from PyPI
 
 **Option B: Install with pip:**
 
