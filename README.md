@@ -71,14 +71,24 @@ Simple, portable, self-contained dynamic CLI inventory tool for managing Dell ba
 
 ## 📦 Installation
 
-**1) Clone the repository:**
+### 1. RPM Installation (Preferred for Fedora 43, Fedora 44, and rawhide)
+
+```
+sudo dnf copr enable kambiz/dracs
+dnf install dracs
+dnf enable --now dracs-webapp
+```
+
+### 2.  Github clone (Developer)
+
+**Clone the repository:**
 
 ```
 git clone https://github.com/kambiz-aghaiepour/dracs.git
 cd dracs
 ```
 
-**2) Install:**
+**Install:**
 
 **Option A: Install with [uv](https://docs.astral.sh/uv/) (from cloned repo):**
 
@@ -119,7 +129,7 @@ Edit `.env` with your Dell API credentials and other settings (see step 3 below)
 
 To start the web interface, run `dracs-webapp` from the same directory as your `.env` file.
 
-**3) Configure environment variables:**
+**Configure environment variables:**
 Create a .env file in the root directory:
 
 ```bash
@@ -169,7 +179,7 @@ python -c "import secrets; print(secrets.token_hex(32))"
 
 Copy the output and set it as `FLASK_SECRET_KEY` in your `.env` file. Anyone who knows this key can forge session cookies and bypass authentication.
 
-**4) Configure iDRAC credentials (optional, for web interface):**
+**Configure iDRAC credentials (optional, for web interface):**
 
 The web interface uses SSH to connect to iDRAC for firmware updates, BIOS updates, and job queue management. By default it uses `root`/`calvin`. To customize credentials, copy the example file to the same directory where the webapp runs:
 
