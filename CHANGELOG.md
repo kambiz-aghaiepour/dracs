@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v1.26.0 (2026-05-21)
+
+### Chores
+
+- Sync spec file version to 1.25.1 [skip ci]
+  ([`c64303c`](https://github.com/kambiz-aghaiepour/dracs/commit/c64303c6c29564b77cf421a8c939d1f64bfe9af7))
+
+### Features
+
+- Add firmware and BIOS list/apply CLI
+  ([`efc054f`](https://github.com/kambiz-aghaiepour/dracs/commit/efc054ff0a83862ef26163cf4e31939c2b3421a0))
+
+
 ## v1.25.1 (2026-05-20)
 
 ### Bug Fixes
