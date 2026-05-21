@@ -32,10 +32,15 @@ Simple, portable, self-contained dynamic CLI inventory tool for managing Dell ba
     - [6. Refresh System Data](#6-refresh-system-data)
     - [7. Remove a System](#7-remove-a-system)
     - [Common Usage Patterns](#common-usage-patterns)
+    - [8. TSR Operations](#8-tsr-operations)
+    - [9. Firmware Operations](#9-firmware-operations)
+    - [10. BIOS Operations](#10-bios-operations)
+    - [11. iDRAC Job Queue Operations](#11-idrac-job-queue-operations)
+    - [12. Job Queue Management](#12-job-queue-management)
+  - [🌐 Web Interface](#-web-interface-dracs-webapp)
+  - [📡 Remote Client](#-remote-client-dracs-client)
+  - [📅 Scheduled Tasks](#-scheduled-tasks)
   - [⚙️ Command Reference](#-command-reference)
-    - [Global Arguments (apply to all commands)](#global-arguments-apply-to-all-commands)
-    - [Command Aliases](#command-aliases)
-    - [Filter Options for `list` Command](#filter-options-for-list-command)
   - [📝 Tips & Troubleshooting](#-tips-troubleshooting)
   <!--toc:end-->
 
@@ -46,9 +51,16 @@ Simple, portable, self-contained dynamic CLI inventory tool for managing Dell ba
 - **Data Refresh:** Update both SNMP hardware data AND warranty information for existing systems
 - **Version Comparison:** List and filter systems based on version strings (e.g., find all hosts with BIOS version less than 2.1.0)
 - **Flexible Output:** View inventory in a formatted grid table or export to JSON for automation
-- **Verbose Logging:** Optional verbose (`-v`) and debug (`-d`) modes for detailed progress tracking
+- **Web Interface:** Full-featured web UI with multi-select, firmware/BIOS updates, TSR collection, power control, and dark mode
+- **Remote Client:** Lightweight `dracs-client` CLI for querying a DRACS server over HTTPS from any machine
+- **Job Queue:** SQLite-backed job queue with bounded worker pool for safe batch operations (firmware updates, BIOS updates, TSR collections, refresh)
+- **Scheduled Tasks:** Cron-like scheduler for automated daily/weekly TSR collection, refresh, and iDRAC job queue maintenance
+- **Firmware & BIOS Management:** Download latest versions from Dell with SHA256 verification, archive originals, apply or force-apply from the CLI or web UI
+- **TSR Management:** Collect, list, and download Dell Tech Support Reports from CLI or web interface
+- **iDRAC Job Queue:** View and clear iDRAC job queues across hosts from CLI or web UI
+- **RPM Packaging:** Available as `python3-dracs` (server) and `dracs-client` (remote CLI) via COPR
 - **SQLite Backend:** No heavy database setup required; everything is stored in a local .db file
-- **Command Aliases:** Short aliases for all commands (e.g., `a` for add, `li` for list, `rf` for refresh)
+- **Command Aliases:** Short aliases for all commands (e.g., `a` for add, `li` for list, `t` for tsr, `j` for jobs)
 
 ## 🛠️ Prerequisites
 
@@ -391,6 +403,269 @@ dracs list --model R660
 dracs -d add -s ABC1234 -t server01 -m R660
 ```
 
+### 8. TSR Operations
+
+Manage Dell Tech Support Reports (TSR) from the command line.
+
+```bash
+# List TSR collections for a host
+dracs tsr --list -t host01.example.com
+
+# List only the most recent TSR
+dracs tsr --list -t host01.example.com --last
+
+# List the 3 most recent TSRs
+dracs tsr --list -t host01.example.com --last 3
+
+# Download the most recent TSR zip file
+dracs tsr --download -t host01.example.com
+
+# Generate a new TSR collection (queued via job queue)
+dracs tsr --generate -t host01.example.com
+
+# Check TSR collection status
+dracs tsr --status -t host01.example.com
+
+# Using alias
+dracs t --list -t host01.example.com
+```
+
+### 9. Firmware Operations
+
+List and apply firmware versions across the environment.
+
+```bash
+# List firmware landscape for all models
+dracs fw --list
+
+# List firmware for a specific model
+dracs fw --list -m R660
+
+# Apply a firmware version to a host (prompts for confirmation)
+dracs fw --apply --version 7.10.50 -t host01.example.com
+
+# Apply without confirmation prompt
+dracs fw --apply --version 7.10.50 -t host01.example.com --yes
+
+# Apply an untested version (not running on any host)
+dracs fw --apply --version 6.10.80 -t host01.example.com --force --yes
+```
+
+### 10. BIOS Operations
+
+List and apply BIOS versions across the environment.
+
+```bash
+# List BIOS landscape for all models
+dracs bios --list
+
+# List BIOS for a specific model
+dracs bios --list -m R660
+
+# Apply a BIOS version to a host
+dracs bios --apply --version 2.10.1 -t host01.example.com
+
+# Apply without confirmation
+dracs bios --apply --version 2.10.1 -t host01.example.com --yes
+
+# Apply an untested version
+dracs bios --apply --version 3.0.0 -t host01.example.com --force --yes
+```
+
+### 11. iDRAC Job Queue Operations
+
+View and clear iDRAC job queues from the command line.
+
+```bash
+# List iDRAC job queue for a host
+dracs idracjobs --list -t host01.example.com
+
+# Using alias
+dracs ij --list -t host01.example.com
+
+# Clear iDRAC job queue for a host (prompts for confirmation)
+dracs ij --clear -t host01.example.com
+
+# Clear job queue for all hosts of a model
+dracs ij --clear -m R660
+
+# Clear job queue for all hosts
+dracs ij --clear --all
+
+# Clear without confirmation prompt
+dracs ij --clear --all -f
+```
+
+### 12. Job Queue Management
+
+View and manage the internal DRACS job queue.
+
+```bash
+# List active/pending jobs
+dracs jobs --list
+
+# List all jobs including completed/failed
+dracs jobs --list --all
+
+# Cancel a pending job
+dracs jobs --cancel 42
+
+# Clear completed jobs older than 7 days
+dracs jobs --clear
+
+# Using alias
+dracs j --list
+```
+
+## 🌐 Web Interface (dracs-webapp)
+
+DRACS includes a full-featured web interface for managing Dell systems. Start it with `dracs-webapp` from the directory containing your `.env` or `dracs.conf` file.
+
+**Inventory view (unauthenticated):**
+
+![DRACS Main View](image/dracs-main.png)
+
+**Admin view (authenticated, with hosts selected):**
+
+![DRACS Admin View](image/dracs-admin.png)
+
+### Features
+
+The web interface provides:
+
+- **Inventory table** with sortable columns, pagination, and search
+- **Color-coded versions** — firmware and BIOS versions are color-coded by recency (green = latest, yellow = one behind, red = two or more behind)
+- **Warranty highlighting** — expired warranties in red, expiring within 90 days in yellow
+- **Multi-select** — click to select, shift-click for range, Ctrl-click for toggle
+- **Dark mode** — toggle via the theme button
+
+### Admin Actions (requires login)
+
+When logged in as an admin, a toolbar appears with these buttons:
+
+| Button | Description |
+|--------|-------------|
+| **Refresh Selected** | Refresh SNMP + warranty data for selected hosts |
+| **Refresh All Systems** | Refresh all hosts in the database |
+| **Update Firmware** | Select a firmware version to upgrade selected hosts (versions newer than current) |
+| **Update BIOS** | Select a BIOS version to upgrade selected hosts (versions newer than current) |
+| **Latest Firmware** | Download the latest firmware from Dell for the selected host's model |
+| **Latest BIOS** | Download the latest BIOS from Dell for the selected host's model |
+| **Force Firmware** | Apply any available firmware version (including downgrades) to a single host |
+| **Force BIOS** | Apply any available BIOS version (including downgrades) to a single host |
+| **Generate TSR** | Trigger a Tech Support Report collection on the selected host |
+| **View TSRs** | View collected TSR reports for the selected host |
+| **Power On/Off** | Power actions including graceful/hard shutdown and graceful/hard reboot |
+| **Job Queue** | View the iDRAC job queue for the selected host |
+| **Clear Job Queue** | Clear all non-applied iDRAC jobs for selected hosts |
+
+### RPM Installation
+
+For Fedora/RHEL/CentOS systems, DRACS is available as RPM packages via COPR:
+
+```bash
+# Install the server (includes webapp, CLI, nginx configs, systemd service)
+dnf install python3-dracs
+
+# Install the remote client only (lightweight, no server dependencies)
+dnf install dracs-client
+```
+
+The RPM installs:
+
+- `/usr/bin/dracs` — server CLI
+- `/usr/bin/dracs-webapp` — web application
+- `/usr/bin/dracs-client` — remote client CLI
+- `/etc/dracs/` — configuration directory
+- `/var/lib/dracs/` — data directory (database, firmware, BIOS, TSR files)
+- Systemd service: `dracs-webapp.service`
+
+```bash
+# Start the web application
+systemctl enable --now dracs-webapp
+
+# Check status
+systemctl status dracs-webapp
+```
+
+## 📡 Remote Client (dracs-client)
+
+The `dracs-client` package provides a lightweight CLI for querying a remote DRACS server over HTTPS. It does not require local database access or server-side dependencies.
+
+### Configuration
+
+Create `~/.dracsrc` with your DRACS server hostname:
+
+```
+dracs_server: dracs.example.com
+```
+
+Or specify the server on each command:
+
+```bash
+dracs-client -s dracs.example.com list
+```
+
+### Usage
+
+```bash
+# List all systems
+dracs-client list
+
+# List with filters (same options as dracs list)
+dracs-client list --model R660
+dracs-client list --expired
+dracs-client list --json
+dracs-client list --host-only
+
+# List TSR collections for a host
+dracs-client tsr --list -t host01.example.com
+
+# Download the most recent TSR
+dracs-client tsr --download -t host01.example.com
+
+# Disable SSL verification for self-signed certificates
+dracs-client --no-verify list
+```
+
+## 📅 Scheduled Tasks
+
+DRACS supports scheduled tasks via an INI configuration file. Create `/etc/dracs/schedule.ini` (RPM) or `schedule.ini` in the working directory:
+
+```ini
+[tsr-weekly]
+type = tsr
+schedule = weekly
+day = sunday
+time = 02:00
+target = all
+
+[refresh-daily]
+type = refresh
+schedule = daily
+time = 04:00
+target = all
+
+[clear-idrac-weekly]
+type = clear_job_queue
+schedule = weekly
+day = saturday
+time = 01:00
+target = all
+
+[refresh-r660-daily]
+type = refresh
+schedule = daily
+time = 03:00
+target = model:R660
+```
+
+**Supported job types:** `tsr`, `refresh`, `clear_job_queue`
+
+**Schedule options:** `daily` (with `time`) or `weekly` (with `day` and `time`)
+
+**Target options:** `all`, `model:<MODEL>`, or a specific hostname
+
 ## ⚙️ Command Reference
 
 ### Global Arguments (apply to all commands)
@@ -407,13 +682,18 @@ dracs -d add -s ABC1234 -t server01 -m R660
 | Full Command | Alias | Required Arguments                       | Optional Arguments                                                                                     |
 | ------------ | ----- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | `add`        | `a`   | `-s/--svctag` `-t/--target` `-m/--model` | None                                                                                                   |
-| `discover`   | `d`   | `-t/--target`                            | `--add`                                                                                                |
+| `discover`   | `d`   | `-t/--target`                            | `--add` `--show-discovered` `--host-list`                                                              |
 | `edit`       | `e`   | `-s/--svctag` OR `-t/--target`           | `--bios` `--idrac` `--model`                                                                           |
 | `init`       | `i`   | None                                     | None                                                                                                   |
 | `lookup`     | `l`   | `-s/--svctag` OR `-t/--target`           | `--full` `--bios` `--idrac`                                                                            |
 | `list`       | `li`  | None                                     | `--model` `--regex` `--expires_in` `--expired` `--svctag` `--target` `--bios_*` `--idrac_*` `--json` `--host-only` |
-| `refresh`    | `rf`  | `-s/--svctag` OR `-t/--target`           | None                                                                                                   |
+| `refresh`    | `rf`  | `-s/--svctag` OR `-t/--target` OR `-m/--model` OR `--all` | `-v/--verbose`                                                                              |
 | `remove`     | `r`   | `-s/--svctag` OR `-t/--target`           | None                                                                                                   |
+| `tsr`        | `t`   | `-t/--target` + action flag              | `--list` `--download` `--generate` `--status` `--last [N]`                                             |
+| `fw`         |       | action flag                              | `--list` `--apply` `-m/--model` `--version` `-t/--target` `--force` `--yes`                            |
+| `bios`       |       | action flag                              | `--list` `--apply` `-m/--model` `--version` `-t/--target` `--force` `--yes`                            |
+| `jobs`       | `j`   | action flag                              | `--list` `--clear` `--cancel JOB_ID` `--all`                                                           |
+| `idracjobs`  | `ij`  | action flag                              | `--list` `--clear` `-t/--target` `-m/--model` `--all` `-f/--force`                                     |
 
 ### Filter Options for `list` Command
 
