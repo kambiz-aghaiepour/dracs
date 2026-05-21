@@ -572,6 +572,7 @@ dnf install dracs-client
 ```
 
 The RPM installs:
+
 - `/usr/bin/dracs` — server CLI
 - `/usr/bin/dracs-webapp` — web application
 - `/usr/bin/dracs-client` — remote client CLI
