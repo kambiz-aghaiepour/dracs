@@ -389,7 +389,6 @@ async def main() -> None:
     user_action.add_argument("--list", action="store_true", help="List users")
     user_action.add_argument("--update", action="store_true", help="Update a user")
     parser_user.add_argument("--username", help="Username")
-    parser_user.add_argument("--password", help="Password (prompted if not given)")
     parser_user.add_argument("--role", choices=["admin", "user"], help="User role")
 
     args = parser.parse_args()
@@ -649,13 +648,11 @@ async def main() -> None:
             if not args.role:
                 print("Error: --role is required with --add.", file=sys.stderr)
                 sys.exit(1)
-            password = args.password
-            if not password:
-                password = getpass.getpass(f"Password for {args.username}: ")
-                confirm = getpass.getpass("Confirm password: ")
-                if password != confirm:
-                    print("Error: passwords do not match.", file=sys.stderr)
-                    sys.exit(1)
+            password = getpass.getpass(f"Password for {args.username}: ")
+            confirm = getpass.getpass("Confirm password: ")
+            if password != confirm:
+                print("Error: passwords do not match.", file=sys.stderr)
+                sys.exit(1)
             _create_user(
                 args.username, password, args.role, created_by=getpass.getuser()
             )
@@ -697,10 +694,7 @@ async def main() -> None:
                 print("Error: --username is required with --update.", file=sys.stderr)
                 sys.exit(1)
             changes = []
-            if args.password:
-                _update_password(args.username, args.password)
-                changes.append("password")
-            elif not args.role:
+            if not args.role:
                 password = getpass.getpass(f"New password for {args.username}: ")
                 confirm = getpass.getpass("Confirm password: ")
                 if password != confirm:

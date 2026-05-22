@@ -25,6 +25,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from flask import Flask, render_template, jsonify, session, request, Response
 from markupsafe import Markup
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from dracs.audit import audit_log
 from dracs.db import db_initialize, get_session, System
@@ -60,6 +61,8 @@ else:  # pragma: no cover
 
 
 app = Flask(__name__)
+# Trust one proxy (nginx) for X-Forwarded-For and X-Forwarded-Proto
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 
 # Secret key for sessions (use environment variable in production)
 # Default key is only for development - change in production!
@@ -139,9 +142,6 @@ db_initialize(DB_PATH)
 
 
 def _client_ip() -> str:
-    forwarded = request.headers.get("X-Forwarded-For", "")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
     return request.remote_addr or ""
 
 

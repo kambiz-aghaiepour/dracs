@@ -1727,6 +1727,32 @@
                 </div>
             </div>
         </div>
+
+        <div id="change-password-modal" class="modal-overlay">
+            <div class="modal-content" style="max-width: 400px;">
+                <div class="modal-header">
+                    <h2>Change Password</h2>
+                </div>
+                <div class="modal-body">
+                    <p>Changing password for <strong id="cp-username-display"></strong></p>
+                    <form id="change-password-form" onsubmit="submitChangePassword(event)">
+                        <input type="hidden" id="cp-username">
+                        <div class="form-group">
+                            <label for="cp-new-password">New Password</label>
+                            <input type="password" id="cp-new-password" required autocomplete="new-password">
+                        </div>
+                        <div class="form-group">
+                            <label for="cp-confirm-password">Confirm Password</label>
+                            <input type="password" id="cp-confirm-password" required autocomplete="new-password">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="hideChangePasswordModal()">Cancel</button>
+                    <button type="submit" form="change-password-form" class="btn btn-primary">Change Password</button>
+                </div>
+            </div>
+        </div>
         {% endif %}
 
         <!-- Notification -->
@@ -2243,9 +2269,29 @@
             }
         }
 
-        async function handleChangePassword(username) {
-            const newPassword = window.prompt(`Enter new password for "${username}":`);
-            if (!newPassword) return;
+        function handleChangePassword(username) {
+            document.getElementById('cp-username').value = username;
+            document.getElementById('cp-username-display').textContent = username;
+            document.getElementById('change-password-form').reset();
+            document.getElementById('cp-username').value = username;
+            document.getElementById('change-password-modal').classList.add('active');
+            document.getElementById('cp-new-password').focus();
+        }
+
+        function hideChangePasswordModal() {
+            document.getElementById('change-password-modal').classList.remove('active');
+            document.getElementById('change-password-form').reset();
+        }
+
+        async function submitChangePassword(event) {
+            event.preventDefault();
+            const username = document.getElementById('cp-username').value;
+            const newPassword = document.getElementById('cp-new-password').value;
+            const confirm = document.getElementById('cp-confirm-password').value;
+            if (newPassword !== confirm) {
+                showNotification('Passwords do not match', 'error');
+                return;
+            }
             try {
                 const response = await fetch(`/api/users/${username}`, {
                     method: 'PATCH',
@@ -2254,6 +2300,7 @@
                 });
                 const data = await response.json();
                 showNotification(data.message, data.success ? 'success' : 'error');
+                if (data.success) hideChangePasswordModal();
             } catch (e) {
                 showNotification('Error changing password', 'error');
             }
@@ -4791,6 +4838,16 @@
             userMgmtModal.addEventListener('click', function(event) {
                 if (event.target === this) {
                     hideUserManagementModal();
+                }
+            });
+        }
+
+        // Close change password modal on background click
+        const cpModal = document.getElementById('change-password-modal');
+        if (cpModal) {
+            cpModal.addEventListener('click', function(event) {
+                if (event.target === this) {
+                    hideChangePasswordModal();
                 }
             });
         }

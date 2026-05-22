@@ -356,27 +356,70 @@ class TestUserManagementAPI:
         )
         assert resp.status_code == 404
 
-    def test_delete_superadmin_via_validation(self, client):
-        _login_admin(client)
+    def test_delete_superadmin_via_validation(self, client, webapp_db):
+        create_user("otheradmin", "pass", "admin")
+        client.post(
+            "/login",
+            data=json.dumps({"username": "otheradmin", "password": "pass"}),
+            content_type="application/json",
+        )
         resp = client.delete("/api/users/admin")
         data = resp.get_json()
         assert resp.status_code == 400
-        assert (
-            "superadmin" in data["message"].lower()
-            or "cannot" in data["message"].lower()
+        assert "superadmin" in data["message"].lower()
+
+    def test_create_user_empty_json_body(self, client):
+        _login_admin(client)
+        resp = client.post(
+            "/api/users",
+            data=json.dumps(None),
+            content_type="application/json",
         )
+        assert resp.status_code == 400
+
+    def test_list_users_internal_error(self, client):
+        _login_admin(client)
+        with patch("dracs.webapp.list_users", side_effect=RuntimeError("db gone")):
+            resp = client.get("/api/users")
+            assert resp.status_code == 500
+            assert "db gone" in resp.get_json()["message"]
+
+    def test_delete_user_internal_error(self, client, webapp_db):
+        create_user("victim", "pass", "user")
+        _login_admin(client)
+        with patch("dracs.webapp.delete_user", side_effect=RuntimeError("boom")):
+            resp = client.delete("/api/users/victim")
+            assert resp.status_code == 500
+
+    def test_update_user_no_changes_empty_dict(self, client, webapp_db):
+        create_user("emptyupd", "pass", "user")
+        _login_admin(client)
+        resp = client.patch(
+            "/api/users/emptyupd",
+            data=json.dumps({"password": None, "role": None}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "no changes" in resp.get_json()["message"].lower()
 
 
 class TestClientIP:
-    def test_client_ip_from_forwarded(self, client):
+    def test_client_ip_from_proxy_fix(self, client):
         _login_admin(client)
         with patch("dracs.webapp.audit_log") as mock_audit:
             client.post(
                 "/logout",
-                headers={"X-Forwarded-For": "192.168.1.100, 10.0.0.1"},
+                headers={"X-Forwarded-For": "192.168.1.100"},
             )
             call_kwargs = mock_audit.call_args
             assert call_kwargs.kwargs.get("source") == "192.168.1.100"
+
+    def test_client_ip_without_proxy(self, client):
+        _login_admin(client)
+        with patch("dracs.webapp.audit_log") as mock_audit:
+            client.post("/logout")
+            call_kwargs = mock_audit.call_args
+            assert call_kwargs.kwargs.get("source") == "127.0.0.1"
 
 
 class TestIndexRoleContext:

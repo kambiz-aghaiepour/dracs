@@ -546,9 +546,6 @@ Manage DRACS user accounts from the command line.
 # Add a user (prompts for password interactively)
 dracs user --add --username jsmith --role user
 
-# Add a user with inline password
-dracs user --add --username jsmith --role admin --password 'secret'
-
 # List all users
 dracs user --list
 
@@ -745,11 +742,8 @@ No other user can be created with the same username as the superadmin.
 ### Managing Users via CLI
 
 ```bash
-# Add a user (prompts for password)
+# Add a user (prompts for password interactively)
 dracs user --add --username jsmith --role user
-
-# Add a user with password on command line
-dracs user --add --username jsmith --role admin --password 'secret'
 
 # List all users
 dracs user --list
@@ -757,8 +751,8 @@ dracs user --list
 # Change a user's role
 dracs user --update --username jsmith --role admin
 
-# Change a user's password
-dracs user --update --username jsmith --password 'newpassword'
+# Change a user's password (prompts interactively)
+dracs user --update --username jsmith
 
 # Remove a user
 dracs user --remove --username jsmith
@@ -872,7 +866,7 @@ For non-RPM installations, a built-in `RotatingFileHandler` provides backup rota
 | `bios`       |       | action flag                              | `--list` `--apply` `-m/--model` `--version` `-t/--target` `--force` `--yes`                            |
 | `jobs`       | `j`   | action flag                              | `--list` `--clear` `--cancel JOB_ID` `--all`                                                           |
 | `idracjobs`  | `ij`  | action flag                              | `--list` `--clear` `-t/--target` `-m/--model` `--all` `-f/--force`                                     |
-| `user`       | `u`   | action flag                              | `--add` `--remove` `--list` `--update` `--username` `--password` `--role`                               |
+| `user`       | `u`   | action flag                              | `--add` `--remove` `--list` `--update` `--username` `--role`                                            |
 
 ### Filter Options for `list` Command
 
