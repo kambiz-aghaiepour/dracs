@@ -2,6 +2,33 @@
 
 <!-- version list -->
 
+## v2.1.0 (2026-05-22)
+
+### Bug Fixes
+
+- Black failed
+  ([`75ca742`](https://github.com/kambiz-aghaiepour/dracs/commit/75ca742ca05a6f66724916c9d09084413f4a4862))
+
+- Codacy flagged issues
+  ([`e7e7c6e`](https://github.com/kambiz-aghaiepour/dracs/commit/e7e7c6e6bf6c49950349a080bf784ac685c1b58f))
+
+- Codacy still not passing
+  ([`a5e31e1`](https://github.com/kambiz-aghaiepour/dracs/commit/a5e31e11be4706db74fb067235659700dca1466b))
+
+- One more codacy issue
+  ([`76529e2`](https://github.com/kambiz-aghaiepour/dracs/commit/76529e2c18351d07273d8940863623aba60658a0))
+
+### Chores
+
+- Sync spec file version to 2.0.0 [skip ci]
+  ([`0b18db9`](https://github.com/kambiz-aghaiepour/dracs/commit/0b18db95114182d3c2bd5f4f9cd70d8f31a78cf1))
+
+### Features
+
+- Self-Service Password Change + Token Auth
+  ([`98411c2`](https://github.com/kambiz-aghaiepour/dracs/commit/98411c2da0a0036ccc1424d37194eb12d9affad1))
+
+
 ## v2.0.0 (2026-05-22)
 
 ### Bug Fixes
