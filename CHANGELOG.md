@@ -2,6 +2,45 @@
 
 <!-- version list -->
 
+## v2.0.0 (2026-05-22)
+
+### Bug Fixes
+
+- Codecov and codacy issues
+  ([`5825e44`](https://github.com/kambiz-aghaiepour/dracs/commit/5825e44d8479a604c27d5e9e5435f5ffee715e61))
+
+- Final codacy issues
+  ([`ca6ba47`](https://github.com/kambiz-aghaiepour/dracs/commit/ca6ba47eb890683bdce7f49ef1792c668f16f6d1))
+
+- PR tests failed for previous large patch
+  ([`4d8d1dd`](https://github.com/kambiz-aghaiepour/dracs/commit/4d8d1dd3237d27d3d9318e2d120b3acacc3d4329))
+
+### Chores
+
+- Add docs on copr installation option
+  ([`39ef0ec`](https://github.com/kambiz-aghaiepour/dracs/commit/39ef0ec1d4ce66a0f883cedd5be8e27063e32344))
+
+- Codacy suggestions on README.md formatting
+  ([`d4ab87a`](https://github.com/kambiz-aghaiepour/dracs/commit/d4ab87a5e07cd305fa60ac0b0f028d9539497c76))
+
+- Docs toc update for installation
+  ([`0ba70db`](https://github.com/kambiz-aghaiepour/dracs/commit/0ba70dbed52826be0724580ee7902cbd7d4745ea))
+
+- Set the favicon
+  ([`b2c8927`](https://github.com/kambiz-aghaiepour/dracs/commit/b2c8927355f39f2b113fb7783ce2cf7437118794))
+
+- Sync spec file version to 1.26.0 [skip ci]
+  ([`f40be5b`](https://github.com/kambiz-aghaiepour/dracs/commit/f40be5b64a1b7e344c266c5bb5fafa14c7643097))
+
+- Update documentation
+  ([`178a569`](https://github.com/kambiz-aghaiepour/dracs/commit/178a569a3bd3faaf5128f7e73f976bb781e2fac3))
+
+### Features
+
+- DRACS Multi-User RBAC + Audit Logging
+  ([`c8fa6ed`](https://github.com/kambiz-aghaiepour/dracs/commit/c8fa6edd096a9f33b0760b99d24c494e47df5f37))
+
+
 ## v1.26.0 (2026-05-21)
 
 ### Chores

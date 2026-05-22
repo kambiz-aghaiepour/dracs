@@ -1,3 +1,3 @@
 """DRACS Client - remote CLI for querying a DRACS server."""
 
-__version__ = "1.26.0"
+__version__ = "2.0.0"
