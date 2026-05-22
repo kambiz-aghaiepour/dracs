@@ -14,6 +14,7 @@ from dracs.users import (
     delete_user,
     get_user,
     list_users,
+    update_superadmin_password,
     update_user_password,
     update_user_role,
     validate_username,
@@ -202,6 +203,35 @@ class TestUpdateUserRole:
         with patch.dict(os.environ, {"WEBADMIN_USER": "admin"}):
             with pytest.raises(ValidationError, match="Cannot modify superadmin"):
                 update_user_role("admin", "user")
+
+
+class TestUpdateSuperadminPassword:
+    def test_updates_config_file(self, user_db, tmp_path):
+        conf = tmp_path / "dracs.conf"
+        conf.write_text("WEBADMIN_USER=admin\nWEBADMIN_PASSWORD=oldpass\n")
+        with patch.dict(os.environ, {"DRACS_CONF": str(conf)}):
+            update_superadmin_password("newpass")
+            assert os.environ["WEBADMIN_PASSWORD"] == "newpass"
+        content = conf.read_text()
+        assert "WEBADMIN_PASSWORD=newpass" in content
+        assert "WEBADMIN_PASSWORD=oldpass" not in content
+
+    def test_appends_if_missing(self, user_db, tmp_path):
+        conf = tmp_path / "dracs.conf"
+        conf.write_text("WEBADMIN_USER=admin\n")
+        with patch.dict(os.environ, {"DRACS_CONF": str(conf)}):
+            update_superadmin_password("newpass")
+        content = conf.read_text()
+        assert "WEBADMIN_PASSWORD=newpass" in content
+
+    def test_empty_password_rejected(self, user_db):
+        with pytest.raises(ValidationError, match="Password cannot be empty"):
+            update_superadmin_password("")
+
+    def test_missing_config_file(self, user_db):
+        with patch.dict(os.environ, {"DRACS_CONF": "/nonexistent/path"}):
+            with pytest.raises(ValidationError, match="Config file not found"):
+                update_superadmin_password("newpass")
 
 
 class TestGetUser:

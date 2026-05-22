@@ -104,5 +104,6 @@ class TestRequiredEnvVarsList:
             "VNC_MAX_SESSIONS",
             "VNC_WEBSOCKIFY_PORT",
             "VNC_CONSOLE_SIZE",
+            "DRACS_TOKEN_EXPIRY",
         ]
         assert list(OPTIONAL_ENV_DEFAULTS.keys()) == expected_keys

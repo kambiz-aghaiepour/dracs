@@ -594,6 +594,10 @@ The web interface supports three access tiers:
 
 **Admin role** — full access to all operations including firmware/BIOS management, power control, system refresh, job queue management, and user management.
 
+### Self-Service Password Change
+
+All authenticated users (including the superadmin) can change their own password by clicking the **Change Password** link in the header. For the superadmin, the new password is written back to `/etc/dracs/dracs.conf`. For all other users, the password hash is updated in the database.
+
 ### Admin Actions (requires admin role)
 
 When logged in as an admin, a toolbar appears with these buttons:
@@ -652,10 +656,11 @@ The `dracs-client` package provides a lightweight CLI for querying a remote DRAC
 
 ### Configuration
 
-Create `~/.dracsrc` with your DRACS server hostname:
+Create `~/.dracsrc` with your DRACS server hostname and optionally your username:
 
 ```
 dracs_server: dracs.example.com
+dracs_user: jsmith
 ```
 
 Or specify the server on each command:
@@ -664,7 +669,32 @@ Or specify the server on each command:
 dracs-client -s dracs.example.com list
 ```
 
-### Usage
+### Authentication
+
+The remote client supports token-based authentication. Log in to unlock features based on your role:
+
+```bash
+# Log in (prompts for password)
+dracs-client --login
+dracs-client --login --user jsmith
+
+# Log out
+dracs-client --logout
+```
+
+On successful login, you'll see:
+```
+jsmith logged in!
+You will be automatically logged out after 10 hours of inactivity
+```
+
+The token is cached at `~/.config/dracs/login_token` and refreshed on every request (including unauthenticated ones like `list`). The server-side token expiry can be configured via `DRACS_TOKEN_EXPIRY` in `/etc/dracs/dracs.conf` (default: 36000 seconds = 10 hours).
+
+**Note:** The superadmin account cannot authenticate via `dracs-client`. It is restricted to the web interface only.
+
+### Usage (Unauthenticated)
+
+Without logging in, the client provides read-only access:
 
 ```bash
 # List all systems
@@ -685,6 +715,52 @@ dracs-client tsr --download -t host01.example.com
 # Disable SSL verification for self-signed certificates
 dracs-client --no-verify list
 ```
+
+### Usage (User Role)
+
+When logged in as a user, additional TSR operations are available:
+
+```bash
+# Generate a new TSR collection
+dracs-client tsr --generate -t host01.example.com
+
+# Check TSR collection status
+dracs-client tsr --status -t host01.example.com
+```
+
+### Usage (Admin Role)
+
+When logged in as an admin, the full server-side CLI feature set is available remotely:
+
+```bash
+# Refresh system data
+dracs-client refresh -t host01.example.com
+dracs-client refresh --all
+
+# Firmware operations
+dracs-client fw --list -m R660
+dracs-client fw --apply --version 7.10.50 -t host01.example.com -m R660
+
+# BIOS operations
+dracs-client bios --list -m R660
+dracs-client bios --apply --version 2.10.1 -t host01.example.com -m R660
+
+# Power operations
+dracs-client power --status -t host01.example.com
+dracs-client power --action graceshutdown -t host01.example.com
+
+# Job queue management
+dracs-client jobs --list
+dracs-client idracjobs --list -t host01.example.com
+
+# User management
+dracs-client user --list
+dracs-client user --add --username newuser --role user
+dracs-client user --update --username jsmith --role admin
+dracs-client user --remove --username olduser
+```
+
+The `--help` output adapts dynamically to your login state, showing only the subcommands and flags available to your role.
 
 ## 📅 Scheduled Tasks
 

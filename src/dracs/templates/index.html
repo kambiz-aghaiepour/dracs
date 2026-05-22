@@ -1384,6 +1384,7 @@
                     {% if user_role == 'admin' %}
                     <a href="#" class="logout-link" onclick="showUserManagementModal(event)" style="margin-right: 8px;">Users</a>
                     {% endif %}
+                    <a href="#" class="logout-link" onclick="showSelfPasswordModal(event)" style="margin-right: 8px;">Change Password</a>
                     <a href="#" class="logout-link" onclick="handleLogout(event)">Logout</a>
                 {% else %}
                     <a href="#" class="login-link" onclick="showLoginModal(event)">Login</a>
@@ -1750,6 +1751,36 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="hideChangePasswordModal()">Cancel</button>
                     <button type="submit" form="change-password-form" class="btn btn-primary">Change Password</button>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if is_authenticated %}
+        <div id="self-password-modal" class="modal-overlay">
+            <div class="modal-content" style="max-width: 400px;">
+                <div class="modal-header">
+                    <h2>Change Your Password</h2>
+                </div>
+                <div class="modal-body">
+                    <form id="self-password-form" onsubmit="submitSelfPasswordChange(event)">
+                        <div class="form-group">
+                            <label for="sp-current-password">Current Password</label>
+                            <input type="password" id="sp-current-password" required autocomplete="current-password">
+                        </div>
+                        <div class="form-group">
+                            <label for="sp-new-password">New Password</label>
+                            <input type="password" id="sp-new-password" required autocomplete="new-password">
+                        </div>
+                        <div class="form-group">
+                            <label for="sp-confirm-password">Confirm New Password</label>
+                            <input type="password" id="sp-confirm-password" required autocomplete="new-password">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="hideSelfPasswordModal()">Cancel</button>
+                    <button type="submit" form="self-password-form" class="btn btn-primary">Change Password</button>
                 </div>
             </div>
         </div>
@@ -2301,6 +2332,40 @@
                 const data = await response.json();
                 showNotification(data.message, data.success ? 'success' : 'error');
                 if (data.success) hideChangePasswordModal();
+            } catch (e) {
+                showNotification('Error changing password', 'error');
+            }
+        }
+
+        function showSelfPasswordModal(event) {
+            event.preventDefault();
+            document.getElementById('self-password-modal').classList.add('active');
+            document.getElementById('sp-current-password').focus();
+        }
+
+        function hideSelfPasswordModal() {
+            document.getElementById('self-password-modal').classList.remove('active');
+            document.getElementById('self-password-form').reset();
+        }
+
+        async function submitSelfPasswordChange(event) {
+            event.preventDefault();
+            const currentPassword = document.getElementById('sp-current-password').value;
+            const newPassword = document.getElementById('sp-new-password').value;
+            const confirm = document.getElementById('sp-confirm-password').value;
+            if (newPassword !== confirm) {
+                showNotification('New passwords do not match', 'error');
+                return;
+            }
+            try {
+                const response = await fetch('/api/change-password', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({current_password: currentPassword, new_password: newPassword})
+                });
+                const data = await response.json();
+                showNotification(data.message, data.success ? 'success' : 'error');
+                if (data.success) hideSelfPasswordModal();
             } catch (e) {
                 showNotification('Error changing password', 'error');
             }
@@ -4848,6 +4913,16 @@
             cpModal.addEventListener('click', function(event) {
                 if (event.target === this) {
                     hideChangePasswordModal();
+                }
+            });
+        }
+
+        // Close self-service password modal on background click
+        const spModal = document.getElementById('self-password-modal');
+        if (spModal) {
+            spModal.addEventListener('click', function(event) {
+                if (event.target === this) {
+                    hideSelfPasswordModal();
                 }
             });
         }

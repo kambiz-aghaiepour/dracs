@@ -220,7 +220,7 @@ class TestFetchSystems:
         mock_resp.json.return_value = SAMPLE_SYSTEMS
         mock_resp.raise_for_status.return_value = None
         with patch("dracs_client.cli.requests.get", return_value=mock_resp):
-            result = fetch_systems("https://server", True)
+            result = fetch_systems("https://server", True, "")
         assert len(result) == 3
 
     def test_ssl_error(self):
@@ -231,7 +231,7 @@ class TestFetchSystems:
             side_effect=requests.exceptions.SSLError("cert error"),
         ):
             with pytest.raises(SystemExit):
-                fetch_systems("https://server", True)
+                fetch_systems("https://server", True, "")
 
     def test_connection_error(self):
         import requests
@@ -241,7 +241,7 @@ class TestFetchSystems:
             side_effect=requests.exceptions.ConnectionError("refused"),
         ):
             with pytest.raises(SystemExit):
-                fetch_systems("https://server", True)
+                fetch_systems("https://server", True, "")
 
 
 class TestCmdList:
@@ -277,7 +277,7 @@ class TestCmdList:
         mock_resp.json.return_value = SAMPLE_SYSTEMS
         mock_resp.raise_for_status.return_value = None
         with patch("dracs_client.cli.requests.get", return_value=mock_resp):
-            cmd_list(self._mock_args(json=True), "https://server", True)
+            cmd_list(self._mock_args(json=True), "https://server", True, "")
         captured = capsys.readouterr()
         data = json.loads(captured.out)
         assert len(data) == 3
@@ -287,7 +287,7 @@ class TestCmdList:
         mock_resp.json.return_value = SAMPLE_SYSTEMS
         mock_resp.raise_for_status.return_value = None
         with patch("dracs_client.cli.requests.get", return_value=mock_resp):
-            cmd_list(self._mock_args(host_only=True), "https://server", True)
+            cmd_list(self._mock_args(host_only=True), "https://server", True, "")
         captured = capsys.readouterr()
         lines = captured.out.strip().split("\n")
         assert len(lines) == 3
@@ -297,7 +297,7 @@ class TestCmdList:
         mock_resp.json.return_value = SAMPLE_SYSTEMS
         mock_resp.raise_for_status.return_value = None
         with patch("dracs_client.cli.requests.get", return_value=mock_resp):
-            cmd_list(self._mock_args(), "https://server", True)
+            cmd_list(self._mock_args(), "https://server", True, "")
         captured = capsys.readouterr()
         assert "TAG001" in captured.out
 
@@ -310,6 +310,7 @@ class TestCmdList:
                 self._mock_args(json=True, model="R650"),
                 "https://server",
                 True,
+                "",
             )
         captured = capsys.readouterr()
         data = json.loads(captured.out)
@@ -326,6 +327,7 @@ class TestCmdList:
                     self._mock_args(svctag="TAG1", target="host1"),
                     "https://server",
                     True,
+                    "",
                 )
 
 
@@ -345,14 +347,14 @@ class TestFetchTsrList:
         }
         mock_resp.raise_for_status.return_value = None
         with patch("dracs_client.cli.requests.get", return_value=mock_resp):
-            entries = fetch_tsr_list("https://server", "host1", True)
+            entries = fetch_tsr_list("https://server", "host1", True, "")
         assert len(entries) == 1
 
     def test_host_not_found(self):
         mock_resp = MagicMock()
         mock_resp.status_code = 404
         with patch("dracs_client.cli.requests.get", return_value=mock_resp):
-            result = fetch_tsr_list("https://server", "unknown", True)
+            result = fetch_tsr_list("https://server", "unknown", True, "")
         assert result is None
 
 
@@ -368,7 +370,7 @@ class TestCmdTsr:
             args.download = False
             args.last = None
             with pytest.raises(SystemExit):
-                cmd_tsr(args, "https://server", True)
+                cmd_tsr(args, "https://server", True, "")
         captured = capsys.readouterr()
         assert "Target host not found" in captured.out
 
@@ -402,7 +404,7 @@ class TestCmdTsr:
             args.list = True
             args.download = False
             args.last = None
-            cmd_tsr(args, "https://server", True)
+            cmd_tsr(args, "https://server", True, "")
 
         captured = capsys.readouterr()
         assert "Date: 2026/05/05" in captured.out
@@ -452,7 +454,7 @@ class TestCmdTsr:
             args.target = "server01.example.com"
             args.list = False
             args.download = True
-            cmd_tsr(args, "https://server", True)
+            cmd_tsr(args, "https://server", True, "")
 
         assert (tmp_path / "TSR20260505170637_TAG001.zip").exists()
         captured = capsys.readouterr()
@@ -479,7 +481,7 @@ class TestCmdTsr:
             args.list = True
             args.download = False
             args.last = None
-            cmd_tsr(args, "https://server", True)
+            cmd_tsr(args, "https://server", True, "")
 
         captured = capsys.readouterr()
         assert "No TSR collections found" in captured.out
@@ -524,7 +526,7 @@ class TestCmdTsr:
             args.list = True
             args.download = False
             args.last = 1
-            cmd_tsr(args, "https://server", True)
+            cmd_tsr(args, "https://server", True, "")
 
         captured = capsys.readouterr()
         assert "2026/05/05" in captured.out
@@ -571,7 +573,7 @@ class TestCmdTsr:
             args.list = True
             args.download = False
             args.last = 2
-            cmd_tsr(args, "https://server", True)
+            cmd_tsr(args, "https://server", True, "")
 
         captured = capsys.readouterr()
         assert "2026/05/05" in captured.out
@@ -598,7 +600,7 @@ class TestCmdTsr:
             args.download = False
             args.last = None
             with pytest.raises(SystemExit):
-                cmd_tsr(args, "https://server", True)
+                cmd_tsr(args, "https://server", True, "")
         captured = capsys.readouterr()
         assert "Target host not found" in captured.out
 
@@ -623,7 +625,7 @@ class TestCmdTsr:
             args.list = False
             args.download = True
             with pytest.raises(SystemExit):
-                cmd_tsr(args, "https://server", True)
+                cmd_tsr(args, "https://server", True, "")
         captured = capsys.readouterr()
         assert "No TSR collections found" in captured.out
 
@@ -646,7 +648,7 @@ class TestCmdTsr:
             args.list = False
             args.download = True
             with pytest.raises(SystemExit):
-                cmd_tsr(args, "https://server", True)
+                cmd_tsr(args, "https://server", True, "")
         captured = capsys.readouterr()
         assert "Target host not found" in captured.out
 
@@ -687,7 +689,7 @@ class TestCmdTsr:
             args.list = False
             args.download = True
             with pytest.raises(SystemExit):
-                cmd_tsr(args, "https://server", True)
+                cmd_tsr(args, "https://server", True, "")
 
     def test_tsr_download_connection_error(self, capsys):
         import requests as req
@@ -723,7 +725,7 @@ class TestCmdTsr:
             args.list = False
             args.download = True
             with pytest.raises(SystemExit):
-                cmd_tsr(args, "https://server", True)
+                cmd_tsr(args, "https://server", True, "")
 
     def test_tsr_no_action(self, capsys):
         systems_resp = MagicMock()
@@ -735,8 +737,10 @@ class TestCmdTsr:
             args.target = "server01.example.com"
             args.list = False
             args.download = False
+            args.generate = False
+            args.status = False
             with pytest.raises(SystemExit):
-                cmd_tsr(args, "https://server", True)
+                cmd_tsr(args, "https://server", True, "")
         captured = capsys.readouterr()
         assert "--list or --download" in captured.err
 
@@ -752,7 +756,7 @@ class TestFetchTsrListErrors:
         mock_resp.raise_for_status.return_value = None
         with patch("dracs_client.cli.requests.get", return_value=mock_resp):
             with pytest.raises(SystemExit):
-                fetch_tsr_list("https://server", "host1", True)
+                fetch_tsr_list("https://server", "host1", True, "")
 
     def test_ssl_error(self):
         import requests as req
@@ -762,7 +766,7 @@ class TestFetchTsrListErrors:
             side_effect=req.exceptions.SSLError("cert"),
         ):
             with pytest.raises(SystemExit):
-                fetch_tsr_list("https://server", "host1", True)
+                fetch_tsr_list("https://server", "host1", True, "")
 
     def test_connection_error(self):
         import requests as req
@@ -772,7 +776,7 @@ class TestFetchTsrListErrors:
             side_effect=req.exceptions.ConnectionError("refused"),
         ):
             with pytest.raises(SystemExit):
-                fetch_tsr_list("https://server", "host1", True)
+                fetch_tsr_list("https://server", "host1", True, "")
 
 
 class TestFetchSystemsHTTPError:
@@ -783,7 +787,7 @@ class TestFetchSystemsHTTPError:
         mock_resp.raise_for_status.side_effect = req.exceptions.HTTPError("500")
         with patch("dracs_client.cli.requests.get", return_value=mock_resp):
             with pytest.raises(SystemExit):
-                fetch_systems("https://server", True)
+                fetch_systems("https://server", True, "")
 
 
 class TestCmdListConflicts:
@@ -824,6 +828,7 @@ class TestCmdListConflicts:
                     self._mock_args(target="host1", model="R660"),
                     "https://server",
                     True,
+                    "",
                 )
         captured = capsys.readouterr()
         assert "--model or --regex" in captured.err
@@ -837,6 +842,7 @@ class TestCmdListConflicts:
                 self._mock_args(json=True, bios_le="3.0.0"),
                 "https://server",
                 True,
+                "",
             )
         captured = capsys.readouterr()
         data = json.loads(captured.out)
@@ -850,12 +856,13 @@ class TestMainFunction:
         mock_resp.raise_for_status.return_value = None
         with patch("dracs_client.config.DRACSRC_PATH") as mock_path:
             mock_path.exists.return_value = False
-            with patch(
-                "sys.argv",
-                ["dracs-client", "-s", "server.example.com", "list", "--json"],
-            ):
-                with patch("dracs_client.cli.requests.get", return_value=mock_resp):
-                    main()
+            with patch("dracs_client.cli.get_current_role", return_value=None):
+                with patch(
+                    "sys.argv",
+                    ["dracs-client", "-s", "server.example.com", "list", "--json"],
+                ):
+                    with patch("dracs_client.cli.requests.get", return_value=mock_resp):
+                        main()
         captured = capsys.readouterr()
         data = json.loads(captured.out)
         assert len(data) == 3
@@ -877,20 +884,21 @@ class TestMainFunction:
 
         with patch("dracs_client.config.DRACSRC_PATH") as mock_path:
             mock_path.exists.return_value = False
-            with patch(
-                "sys.argv",
-                [
-                    "dracs-client",
-                    "-s",
-                    "server.example.com",
-                    "tsr",
-                    "--list",
-                    "-t",
-                    "server01.example.com",
-                ],
-            ):
-                with patch("dracs_client.cli.requests.get", side_effect=mock_get):
-                    main()
+            with patch("dracs_client.cli.get_current_role", return_value=None):
+                with patch(
+                    "sys.argv",
+                    [
+                        "dracs-client",
+                        "-s",
+                        "server.example.com",
+                        "tsr",
+                        "--list",
+                        "-t",
+                        "server01.example.com",
+                    ],
+                ):
+                    with patch("dracs_client.cli.requests.get", side_effect=mock_get):
+                        main()
         captured = capsys.readouterr()
         assert "No TSR collections found" in captured.out
 
@@ -900,18 +908,19 @@ class TestMainFunction:
         mock_resp.raise_for_status.return_value = None
         with patch("dracs_client.config.DRACSRC_PATH") as mock_path:
             mock_path.exists.return_value = False
-            with patch(
-                "sys.argv",
-                [
-                    "dracs-client",
-                    "-s",
-                    "server.example.com",
-                    "--no-verify",
-                    "list",
-                    "--json",
-                ],
-            ):
-                with patch("dracs_client.cli.requests.get", return_value=mock_resp):
-                    main()
+            with patch("dracs_client.cli.get_current_role", return_value=None):
+                with patch(
+                    "sys.argv",
+                    [
+                        "dracs-client",
+                        "-s",
+                        "server.example.com",
+                        "--no-verify",
+                        "list",
+                        "--json",
+                    ],
+                ):
+                    with patch("dracs_client.cli.requests.get", return_value=mock_resp):
+                        main()
         captured = capsys.readouterr()
         assert "WARNING: SSL certificate verification is disabled" in captured.err
