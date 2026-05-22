@@ -77,6 +77,7 @@ install -d -m 0755 %{buildroot}%{_sharedstatedir}/dracs/web/tsr
 install -d -m 0755 %{buildroot}%{_sharedstatedir}/dracs/archive/firmware
 install -d -m 0755 %{buildroot}%{_sharedstatedir}/dracs/archive/bios
 install -d -m 0755 %{buildroot}%{_localstatedir}/log/dracs
+install -D -m 0644 logrotate/dracs %{buildroot}%{_sysconfdir}/logrotate.d/dracs
 
 
 %pre -n python3-dracs
@@ -218,6 +219,7 @@ fi
 %dir %attr(0755, dracs, dracs) %{_sharedstatedir}/dracs/archive/firmware
 %dir %attr(0755, dracs, dracs) %{_sharedstatedir}/dracs/archive/bios
 %dir %attr(0755, dracs, dracs) %{_localstatedir}/log/dracs
+%config(noreplace) %{_sysconfdir}/logrotate.d/dracs
 
 
 %files -n dracs-client

@@ -15,8 +15,10 @@ from dracs.validation import (  # noqa: F401
     validate_service_tag,
     validate_version,
 )
+from dracs.audit import audit_log  # noqa: F401
 from dracs.db import (  # noqa: F401
     System,
+    User,
     db_initialize,
     get_session,
     query_by_hostname,
@@ -50,3 +52,11 @@ from dracs.commands import (  # noqa: F401
     tsr_status,
 )
 from dracs.cli import CustomParser, main, main_cli, setup_logging  # noqa: F401
+from dracs.users import (  # noqa: F401
+    authenticate,
+    create_user,
+    delete_user,
+    list_users,
+    update_user_password,
+    update_user_role,
+)
