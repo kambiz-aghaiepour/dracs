@@ -478,7 +478,7 @@ def api_systems():
 def api_firmware_versions(model):
     """Get unique firmware versions for systems matching the specified model."""
     try:
-        user, err = _require_auth(required_role="admin")
+        _, err = _require_auth(required_role="admin")
         if err:
             return err
 
@@ -501,7 +501,7 @@ def api_firmware_versions(model):
 def api_bios_versions(model):
     """Get unique BIOS versions for systems matching the specified model."""
     try:
-        user, err = _require_auth(required_role="admin")
+        _, err = _require_auth(required_role="admin")
         if err:
             return err
 
@@ -522,7 +522,7 @@ def api_bios_versions(model):
 def api_available_firmware(model):
     """List firmware versions available on disk for a model."""
     try:
-        user, err = _require_auth(required_role="admin")
+        _, err = _require_auth(required_role="admin")
         if err:
             return err
 
@@ -548,7 +548,7 @@ def api_available_firmware(model):
 def api_available_bios(model):
     """List BIOS versions available on disk for a model."""
     try:
-        user, err = _require_auth(required_role="admin")
+        _, err = _require_auth(required_role="admin")
         if err:
             return err
 
@@ -719,7 +719,7 @@ def api_refresh_multiple():
 def api_test_idrac():
     """Test SSH connectivity to the iDRAC interface."""
     try:
-        user, err = _require_auth()
+        _, err = _require_auth()
         if err:
             return err
 
@@ -887,7 +887,7 @@ def api_bios_update():
 def api_job_queue():
     """Retrieve job queue from iDRAC via SSH."""
     try:
-        user, err = _require_auth()
+        _, err = _require_auth()
         if err:
             return err
 
@@ -1092,7 +1092,7 @@ def api_refresh_all():
 def api_power_status():
     """Check system power status via racadm."""
     try:
-        user, err = _require_auth(required_role="admin")
+        _, err = _require_auth(required_role="admin")
         if err:
             return err
 
@@ -2020,7 +2020,7 @@ def _get_sa_jobs(hostname: str) -> list | None:
 def api_tsr_status():
     """Check TSR job status for a host."""
     try:
-        user, err = _require_auth()
+        _, err = _require_auth()
         if err:
             return err
 
@@ -2173,7 +2173,7 @@ def api_tsr_collect():
 def api_jobs():
     """List active jobs (authenticated)."""
     try:
-        user, err = _require_auth(required_role="admin")
+        _, err = _require_auth(required_role="admin")
         if err:
             return err
 
@@ -2195,7 +2195,7 @@ def api_jobs():
 def api_users_list():
     """List all users."""
     try:
-        user, err = _require_auth(required_role="admin")
+        _, err = _require_auth(required_role="admin")
         if err:
             return err
         return jsonify({"success": True, "users": list_users()})
@@ -2219,11 +2219,11 @@ def api_users_create():
         password = data.get("password", "")
         role = data.get("role", "user").strip()
 
-        from dracs.exceptions import ValidationError as VE
+        from dracs.exceptions import ValidationError
 
         try:
             create_user(username, password, role, created_by=user)
-        except VE as ve:
+        except ValidationError as ve:
             return jsonify({"success": False, "message": str(ve)}), 400
 
         audit_log(
@@ -2259,11 +2259,11 @@ def api_users_delete(username):
                 400,
             )
 
-        from dracs.exceptions import ValidationError as VE
+        from dracs.exceptions import ValidationError
 
         try:
             deleted = delete_user(username)
-        except VE as ve:
+        except ValidationError as ve:
             return jsonify({"success": False, "message": str(ve)}), 400
 
         if not deleted:
@@ -2294,7 +2294,7 @@ def api_users_update(username):
         if not data:
             return jsonify({"success": False, "message": "Invalid request"}), 400
 
-        from dracs.exceptions import ValidationError as VE
+        from dracs.exceptions import ValidationError
 
         new_password = data.get("password")
         new_role = data.get("role")
@@ -2310,7 +2310,7 @@ def api_users_update(username):
                 if not update_user_role(username, new_role):
                     return jsonify({"success": False, "message": "User not found"}), 404
                 changes.append(f"role={new_role}")
-        except VE as ve:
+        except ValidationError as ve:
             return jsonify({"success": False, "message": str(ve)}), 400
 
         if not changes:
@@ -2422,7 +2422,7 @@ def api_vnc_session_delete(token):
 @app.route("/console/<token>")
 def console_view(token):
     """Serve the noVNC console viewer for a session."""
-    user, err = _require_auth()
+    _, err = _require_auth()
     if err:
         return err
 
