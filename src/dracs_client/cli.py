@@ -515,7 +515,24 @@ def main() -> None:
     pre_parser.add_argument("--logout", action="store_true")
     pre_parser.add_argument("--user")
 
-    pre_args, _ = pre_parser.parse_known_args()
+    pre_args, remaining = pre_parser.parse_known_args()
+
+    if "-h" in remaining or "--help" in remaining:
+        role = None
+        if pre_args.server:
+            role = get_current_role(pre_args.server)
+        else:
+            from dracs_client.config import DRACSRC_PATH
+
+            if DRACSRC_PATH.exists():
+                try:
+                    srv = load_server_config()
+                    role = get_current_role(srv)
+                except SystemExit:
+                    pass
+        parser = build_parser(role)
+        parser.parse_args(remaining)
+        return
 
     server = load_server_config(pre_args.server)
     verify_ssl = not pre_args.no_verify
