@@ -443,3 +443,52 @@ class TestMainRouting:
             mock_path.exists.return_value = False
             main()
         assert "Logged out" in capsys.readouterr().out
+
+    def test_login_eof_during_prompt(self, capsys):
+        with (
+            patch("dracs_client.config.DRACSRC_PATH") as mock_path,
+            patch(
+                "sys.argv",
+                ["dracs-client", "-s", "server.example.com", "--login"],
+            ),
+            patch("dracs_client.cli.load_user_config", return_value=None),
+            patch("sys.stdin") as mock_stdin,
+            patch("builtins.input", side_effect=EOFError),
+        ):
+            mock_path.exists.return_value = False
+            mock_stdin.isatty.return_value = True
+            with pytest.raises(SystemExit):
+                main()
+
+    def test_tsr_status_via_main(self, capsys):
+        systems_resp = MagicMock()
+        systems_resp.json.return_value = [{"name": "host01", "svc_tag": "TAG001"}]
+        systems_resp.raise_for_status.return_value = None
+        status_resp = MagicMock()
+        status_resp.json.return_value = {
+            "success": True,
+            "status": {"state": "completed"},
+        }
+        status_resp.status_code = 200
+        status_resp.content = b'{"success": true}'
+        with (
+            patch("dracs_client.config.DRACSRC_PATH") as mock_path,
+            patch("dracs_client.cli.get_current_role", return_value="user"),
+            patch(
+                "sys.argv",
+                [
+                    "dracs-client",
+                    "-s",
+                    "server.example.com",
+                    "tsr",
+                    "--status",
+                    "-t",
+                    "host01",
+                ],
+            ),
+            patch("dracs_client.cli.requests.get", return_value=systems_resp),
+            patch("dracs_client.commands._api_request", return_value=status_resp),
+        ):
+            mock_path.exists.return_value = False
+            main()
+        assert "completed" in capsys.readouterr().out

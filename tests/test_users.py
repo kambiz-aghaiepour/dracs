@@ -228,6 +228,15 @@ class TestUpdateSuperadminPassword:
         with pytest.raises(ValidationError, match="Password cannot be empty"):
             update_superadmin_password("")
 
+    def test_write_error_cleans_up(self, user_db, tmp_path):
+        conf = tmp_path / "dracs.conf"
+        conf.write_text("WEBADMIN_PASSWORD=old\n")
+        with patch.dict(os.environ, {"DRACS_CONF": str(conf)}):
+            with patch("dracs.users.os.replace", side_effect=OSError("disk full")):
+                with pytest.raises(OSError, match="disk full"):
+                    update_superadmin_password("newpass")
+        assert conf.read_text() == "WEBADMIN_PASSWORD=old\n"
+
     def test_missing_config_file(self, user_db):
         with patch.dict(os.environ, {"DRACS_CONF": "/nonexistent/path"}):
             with pytest.raises(ValidationError, match="Config file not found"):

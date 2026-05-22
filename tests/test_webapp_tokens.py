@@ -333,3 +333,64 @@ class TestChangePassword:
             content_type="text/plain",
         )
         assert resp.status_code in (400, 500)
+
+    def test_change_password_empty_new_password(self, client, webapp_db):
+        create_user("jsmith", "oldpass", "user")
+        client.post(
+            "/login",
+            data=json.dumps({"username": "jsmith", "password": "oldpass"}),
+            content_type="application/json",
+        )
+        resp = client.post(
+            "/api/change-password",
+            data=json.dumps({"current_password": "oldpass", "new_password": ""}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+    def test_change_password_null_body(self, client):
+        _login_admin(client)
+        resp = client.post(
+            "/api/change-password",
+            data=json.dumps(None),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+
+class TestTokenLoginEdgeCases:
+    def test_token_login_null_body(self, client):
+        resp = client.post(
+            "/api/token-login",
+            data=json.dumps(None),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+    def test_token_logout_internal_error(self, client, webapp_db):
+        create_user("jsmith", "secret", "user")
+        login_resp = client.post(
+            "/api/token-login",
+            data=json.dumps({"username": "jsmith", "password": "secret"}),
+            content_type="application/json",
+        )
+        token = login_resp.get_json()["token"]
+
+        with patch(
+            "dracs.tokens.validate_token", side_effect=RuntimeError("db error")
+        ):
+            resp = client.post(
+                "/api/token-logout",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            assert resp.status_code == 500
+
+
+class TestTokenRefreshError:
+    def test_refresh_exception_logged(self, client, webapp_db):
+        with patch("dracs.tokens.refresh_token", side_effect=RuntimeError("boom")):
+            resp = client.get(
+                "/api/systems",
+                headers={"Authorization": "Bearer sometoken"},
+            )
+        assert resp.status_code == 200
