@@ -1648,6 +1648,14 @@ def api_latest_firmware():
                     f"{hostname} already running firmware version {pkg_version}.",
                 )
 
+            audit_log(
+                "firmware_download",
+                target=hostname,
+                user=_audit_user,
+                source=_audit_source,
+                details=f"model={model},version={pkg_version}",
+            )
+
             yield _sse_event(
                 "complete",
                 "",
@@ -1855,6 +1863,14 @@ def api_latest_bios():
                     "status",
                     f"{hostname} already running BIOS version {version}.",
                 )
+
+            audit_log(
+                "bios_download",
+                target=hostname,
+                user=_audit_user,
+                source=_audit_source,
+                details=f"model={model},version={version}",
+            )
 
             yield _sse_event(
                 "complete",

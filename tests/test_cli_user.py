@@ -197,6 +197,21 @@ class TestUserUpdate:
         captured = capsys.readouterr()
         assert "updated" in captured.out.lower()
 
+    def test_update_password_mismatch(self, run_cli, user_cli_db):
+        run_cli(
+            "user",
+            "--add",
+            "--username",
+            "mismatch",
+            "--role",
+            "user",
+            "--password",
+            "old",
+        )
+        with patch("dracs.cli.getpass.getpass", side_effect=["pass1", "pass2"]):
+            with pytest.raises(SystemExit):
+                run_cli("user", "--update", "--username", "mismatch")
+
     def test_update_missing_username(self, run_cli, user_cli_db):
         with pytest.raises(SystemExit):
             run_cli("user", "--update")

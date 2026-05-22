@@ -347,6 +347,25 @@ class TestUserManagementAPI:
         )
         assert resp.status_code == 404
 
+    def test_update_role_not_found(self, client):
+        _login_admin(client)
+        resp = client.patch(
+            "/api/users/nobody",
+            data=json.dumps({"role": "admin"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 404
+
+    def test_delete_superadmin_via_validation(self, client):
+        _login_admin(client)
+        resp = client.delete("/api/users/admin")
+        data = resp.get_json()
+        assert resp.status_code == 400
+        assert (
+            "superadmin" in data["message"].lower()
+            or "cannot" in data["message"].lower()
+        )
+
 
 class TestClientIP:
     def test_client_ip_from_forwarded(self, client):
