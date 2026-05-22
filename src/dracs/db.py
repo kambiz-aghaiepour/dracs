@@ -52,6 +52,18 @@ class User(Base):
     created_by: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
+class ApiToken(Base):
+    __tablename__ = "api_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    token: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
+    username: Mapped[str] = mapped_column(String, nullable=False)
+    role: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    last_used: Mapped[str] = mapped_column(String, nullable=False)
+    expires_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
 class Job(Base):
     __tablename__ = "jobs"
 

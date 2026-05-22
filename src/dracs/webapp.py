@@ -141,23 +141,50 @@ DB_PATH = os.environ.get("DRACS_DB", "warranty.db")
 db_initialize(DB_PATH)
 
 
+@app.before_request
+def _refresh_bearer_token():
+    auth = request.headers.get("Authorization", "")
+    if isinstance(auth, str) and auth.startswith("Bearer "):
+        from dracs.tokens import refresh_token
+
+        try:
+            refresh_token(auth[7:])
+        except Exception as e:
+            app.logger.debug("Token refresh failed: %s", e)
+
+
 def _client_ip() -> str:
     return request.remote_addr or ""
 
 
 def _require_auth(required_role=None):
-    if not session.get("authenticated", False):
-        return None, (
-            jsonify({"success": False, "message": "Authentication required"}),
-            401,
-        )
-    role = session.get("role", "user")
-    if required_role and role != required_role:
-        return None, (
-            jsonify({"success": False, "message": "Insufficient permissions"}),
-            403,
-        )
-    return session.get("username", ""), None
+    if session.get("authenticated", False):
+        role = session.get("role", "user")
+        if required_role and role != required_role:
+            return None, (
+                jsonify({"success": False, "message": "Insufficient permissions"}),
+                403,
+            )
+        return session.get("username", ""), None
+
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        from dracs.tokens import validate_token
+
+        result = validate_token(auth[7:])
+        if result:
+            username, role = result
+            if required_role and role != required_role:
+                return None, (
+                    jsonify({"success": False, "message": "Insufficient permissions"}),
+                    403,
+                )
+            return username, None
+
+    return None, (
+        jsonify({"success": False, "message": "Authentication required"}),
+        401,
+    )
 
 
 def get_all_systems():
@@ -614,6 +641,138 @@ def auth_status():
             "role": session.get("role", None),
         }
     )
+
+
+@app.route("/api/token-login", methods=["POST"])
+def api_token_login():
+    """Authenticate and return an API token. Rejects superadmin."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "message": "Invalid request"}), 400
+
+        username = data.get("username", "")
+        password = data.get("password", "")
+
+        from dracs.users import _superadmin_username
+
+        if username == _superadmin_username():
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": "Superadmin cannot authenticate via API token. "
+                        "Use the web interface.",
+                    }
+                ),
+                403,
+            )
+
+        result = authenticate_user(username, password)
+        if not result:
+            audit_log(
+                "token_login", user=username, source=_client_ip(), result="denied"
+            )
+            return jsonify({"success": False, "message": "Invalid credentials"}), 401
+
+        auth_username, auth_role = result
+        expiry = int(os.environ.get("DRACS_TOKEN_EXPIRY", "36000"))
+
+        from dracs.tokens import cleanup_expired_tokens, generate_token
+
+        cleanup_expired_tokens()
+        token_data = generate_token(auth_username, auth_role, expiry)
+
+        audit_log("token_login", user=auth_username, source=_client_ip())
+
+        return jsonify(
+            {
+                "success": True,
+                "token": token_data["token"],
+                "role": token_data["role"],
+                "expires_in": token_data["expires_in"],
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+
+@app.route("/api/token-logout", methods=["POST"])
+def api_token_logout():
+    """Invalidate an API token."""
+    try:
+        auth = request.headers.get("Authorization", "")
+        if not auth.startswith("Bearer "):
+            return jsonify({"success": False, "message": "No token provided"}), 400
+
+        token_str = auth[7:]
+        from dracs.tokens import invalidate_token, validate_token
+
+        result = validate_token(token_str)
+        if not result:
+            return (
+                jsonify({"success": False, "message": "Invalid or expired token"}),
+                401,
+            )
+
+        username, _ = result
+        invalidate_token(token_str)
+        audit_log("token_logout", user=username, source=_client_ip())
+
+        return jsonify({"success": True, "message": "Token invalidated"})
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+
+@app.route("/api/change-password", methods=["POST"])
+def api_change_password():
+    """Change the current user's own password."""
+    try:
+        user, err = _require_auth()
+        if err:
+            return err
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "message": "Invalid request"}), 400
+
+        current_password = data.get("current_password", "")
+        new_password = data.get("new_password", "")
+
+        if not current_password or not new_password:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": "Current and new password are required",
+                    }
+                ),
+                400,
+            )
+
+        result = authenticate_user(user, current_password)
+        if not result:
+            return (
+                jsonify({"success": False, "message": "Current password is incorrect"}),
+                401,
+            )
+
+        from dracs.exceptions import ValidationError
+        from dracs.users import _superadmin_username, update_superadmin_password
+
+        try:
+            if user == _superadmin_username():
+                update_superadmin_password(new_password)
+            else:
+                update_user_password(user, new_password)
+        except ValidationError as ve:
+            return jsonify({"success": False, "message": str(ve)}), 400
+
+        audit_log("password_change", user=user, source=_client_ip())
+
+        return jsonify({"success": True, "message": "Password changed successfully"})
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
 
 
 @app.route("/api/refresh", methods=["POST"])

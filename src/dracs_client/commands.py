@@ -1,0 +1,401 @@
+"""Remote command handlers for authenticated dracs-client operations."""
+
+import getpass
+import sys
+
+import requests
+
+from dracs_client.auth import auth_headers
+
+
+def _api_request(method, url, server, verify_ssl, **kwargs):
+    headers = kwargs.pop("headers", {})
+    headers.update(auth_headers(server))
+    timeout = kwargs.pop("timeout", 30)
+    try:
+        resp = getattr(requests, method)(
+            url, verify=verify_ssl, headers=headers, timeout=timeout, **kwargs
+        )
+    except requests.exceptions.SSLError as e:
+        print(
+            f"SSL error: {e}\n"
+            "Use --no-verify or --insecure for self-signed certificates.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    except requests.exceptions.ConnectionError as e:
+        print(f"Connection error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    if resp.status_code == 401:
+        data = resp.json() if resp.content else {}
+        msg = data.get("message", "Authentication required")
+        print(f"Error: {msg}", file=sys.stderr)
+        print("Try: dracs-client --login", file=sys.stderr)
+        sys.exit(1)
+    if resp.status_code == 403:
+        data = resp.json() if resp.content else {}
+        msg = data.get("message", "Insufficient permissions")
+        print(f"Error: {msg}", file=sys.stderr)
+        sys.exit(1)
+
+    return resp
+
+
+def _post_json(url, server, verify_ssl, data):
+    return _api_request(
+        "post",
+        url,
+        server,
+        verify_ssl,
+        json=data,
+    )
+
+
+def _print_result(resp):
+    data = resp.json()
+    if data.get("success"):
+        print(data.get("message", "OK"))
+    else:
+        print(f"Error: {data.get('message', 'Unknown error')}", file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_tsr_generate(args, base_url, verify_ssl, server):
+    from dracs_client.cli import fetch_systems
+
+    systems = fetch_systems(base_url, verify_ssl, server)
+    host = next((s for s in systems if s["name"] == args.target), None)
+    if not host:
+        print("Target host not found.", file=sys.stderr)
+        sys.exit(1)
+
+    resp = _post_json(
+        f"{base_url}/api/tsr-collect",
+        server,
+        verify_ssl,
+        {"hostname": args.target, "service_tag": host["svc_tag"]},
+    )
+    _print_result(resp)
+
+
+def cmd_tsr_status(args, base_url, verify_ssl, server):
+    resp = _post_json(
+        f"{base_url}/api/tsr-status",
+        server,
+        verify_ssl,
+        {"hostname": args.target},
+    )
+    data = resp.json()
+    if data.get("success"):
+        status = data.get("status", {})
+        print(f"State: {status.get('state', 'unknown')}")
+        pct = status.get("percent_complete")
+        if pct:
+            print(f"Progress: {pct}%")
+    else:
+        print(f"Error: {data.get('message', 'Unknown error')}", file=sys.stderr)
+
+
+def cmd_refresh(args, base_url, verify_ssl, server):
+    if args.all:
+        resp = _post_json(f"{base_url}/api/refresh-all", server, verify_ssl, {})
+    elif args.target:
+        resp = _post_json(
+            f"{base_url}/api/refresh",
+            server,
+            verify_ssl,
+            {"hostname": args.target},
+        )
+    elif args.svctag:
+        resp = _post_json(
+            f"{base_url}/api/refresh",
+            server,
+            verify_ssl,
+            {"service_tag": args.svctag},
+        )
+    else:
+        print("Error: --target, --svctag, or --all is required.", file=sys.stderr)
+        sys.exit(1)
+    _print_result(resp)
+
+
+def cmd_fw(args, base_url, verify_ssl, server):
+    if args.list:
+        if args.model:
+            resp = _api_request(
+                "get",
+                f"{base_url}/api/firmware-versions/{args.model}",
+                server,
+                verify_ssl,
+            )
+            data = resp.json()
+            if data.get("success"):
+                versions = data.get("versions", [])
+                if versions:
+                    for v in versions:
+                        print(v)
+                else:
+                    print(f"No firmware versions found for {args.model}")
+            else:
+                print(f"Error: {data.get('message')}", file=sys.stderr)
+        else:
+            print("Error: --model is required with --list.", file=sys.stderr)
+            sys.exit(1)
+    elif args.apply:
+        if not args.version or not args.target:
+            print(
+                "Error: --version and --target are required with --apply.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        if not args.model:
+            print("Error: --model is required with --apply.", file=sys.stderr)
+            sys.exit(1)
+        resp = _post_json(
+            f"{base_url}/api/firmware-update",
+            server,
+            verify_ssl,
+            {
+                "hostname": args.target,
+                "target_version": args.version,
+                "model": args.model,
+            },
+        )
+        _print_result(resp)
+
+
+def cmd_bios(args, base_url, verify_ssl, server):
+    if args.list:
+        if args.model:
+            resp = _api_request(
+                "get",
+                f"{base_url}/api/bios-versions/{args.model}",
+                server,
+                verify_ssl,
+            )
+            data = resp.json()
+            if data.get("success"):
+                versions = data.get("versions", [])
+                if versions:
+                    for v in versions:
+                        print(v)
+                else:
+                    print(f"No BIOS versions found for {args.model}")
+            else:
+                print(f"Error: {data.get('message')}", file=sys.stderr)
+        else:
+            print("Error: --model is required with --list.", file=sys.stderr)
+            sys.exit(1)
+    elif args.apply:
+        if not args.version or not args.target:
+            print(
+                "Error: --version and --target are required with --apply.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        if not args.model:
+            print("Error: --model is required with --apply.", file=sys.stderr)
+            sys.exit(1)
+        resp = _post_json(
+            f"{base_url}/api/bios-update",
+            server,
+            verify_ssl,
+            {
+                "hostname": args.target,
+                "target_bios": args.version,
+                "model": args.model,
+            },
+        )
+        _print_result(resp)
+
+
+def cmd_power(args, base_url, verify_ssl, server):
+    if args.status:
+        if not args.target:
+            print("Error: --target is required with --status.", file=sys.stderr)
+            sys.exit(1)
+        resp = _post_json(
+            f"{base_url}/api/power-status",
+            server,
+            verify_ssl,
+            {"hostname": args.target},
+        )
+        data = resp.json()
+        if data.get("success"):
+            print(f"{args.target}: {data.get('status', 'unknown')}")
+        else:
+            print(f"Error: {data.get('message')}", file=sys.stderr)
+    elif args.action:
+        if not args.target:
+            print("Error: --target is required with --action.", file=sys.stderr)
+            sys.exit(1)
+        resp = _post_json(
+            f"{base_url}/api/power-action",
+            server,
+            verify_ssl,
+            {"hostname": args.target, "action": args.action},
+        )
+        _print_result(resp)
+    else:
+        print(
+            "Error: --status or --action is required for power subcommand.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+
+def cmd_jobs(args, base_url, verify_ssl, server):
+    if args.list:
+        params = "?all=true" if args.all else ""
+        resp = _api_request("get", f"{base_url}/api/jobs{params}", server, verify_ssl)
+        data = resp.json()
+        if data.get("success"):
+            jobs = data.get("jobs", [])
+            if jobs:
+                from tabulate import tabulate
+
+                table = [
+                    [
+                        j.get("id"),
+                        j.get("job_type"),
+                        j.get("target"),
+                        j.get("status"),
+                        j.get("created_at", "")[:19],
+                    ]
+                    for j in jobs
+                ]
+                print(
+                    tabulate(
+                        table,
+                        headers=["ID", "Type", "Target", "Status", "Created"],
+                    )
+                )
+            else:
+                print("No active jobs.")
+    elif args.clear:
+        resp = _post_json(f"{base_url}/api/clear-job-queue", server, verify_ssl, {})
+        _print_result(resp)
+    else:
+        print(
+            "Error: --list or --clear is required for jobs subcommand.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+
+def cmd_idracjobs(args, base_url, verify_ssl, server):
+    if args.list:
+        if not args.target:
+            print("Error: --target is required with --list.", file=sys.stderr)
+            sys.exit(1)
+        resp = _post_json(
+            f"{base_url}/api/job-queue",
+            server,
+            verify_ssl,
+            {"hostname": args.target},
+        )
+        data = resp.json()
+        if data.get("success"):
+            jobs = data.get("jobs", [])
+            if jobs:
+                from tabulate import tabulate
+
+                table = [[j.get("id"), j.get("name"), j.get("status")] for j in jobs]
+                print(tabulate(table, headers=["ID", "Name", "Status"]))
+            else:
+                print(f"No iDRAC jobs for {args.target}.")
+        else:
+            print(f"Error: {data.get('message')}", file=sys.stderr)
+    elif args.clear:
+        if not args.target:
+            print("Error: --target is required with --clear.", file=sys.stderr)
+            sys.exit(1)
+        resp = _post_json(
+            f"{base_url}/api/clear-job-queue",
+            server,
+            verify_ssl,
+            {"hostnames": [args.target]},
+        )
+        _print_result(resp)
+    else:
+        print(
+            "Error: --list or --clear is required for idracjobs subcommand.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+
+def cmd_user(args, base_url, verify_ssl, server):
+    if args.add:
+        if not args.username:
+            print("Error: --username is required with --add.", file=sys.stderr)
+            sys.exit(1)
+        if not args.role:
+            print("Error: --role is required with --add.", file=sys.stderr)
+            sys.exit(1)
+        password = getpass.getpass(f"Password for {args.username}: ")
+        confirm = getpass.getpass("Confirm password: ")
+        if password != confirm:
+            print("Error: passwords do not match.", file=sys.stderr)
+            sys.exit(1)
+        resp = _post_json(
+            f"{base_url}/api/users",
+            server,
+            verify_ssl,
+            {"username": args.username, "password": password, "role": args.role},
+        )
+        _print_result(resp)
+    elif args.remove:
+        if not args.username:
+            print("Error: --username is required with --remove.", file=sys.stderr)
+            sys.exit(1)
+        resp = _api_request(
+            "delete",
+            f"{base_url}/api/users/{args.username}",
+            server,
+            verify_ssl,
+        )
+        _print_result(resp)
+    elif args.list:
+        resp = _api_request("get", f"{base_url}/api/users", server, verify_ssl)
+        data = resp.json()
+        if data.get("success"):
+            users = data.get("users", [])
+            if users:
+                from tabulate import tabulate
+
+                table = [
+                    [
+                        u["username"],
+                        u["role"],
+                        u.get("created_at", "")[:19],
+                        u.get("created_by") or "-",
+                    ]
+                    for u in users
+                ]
+                print(tabulate(table, headers=["Username", "Role", "Created", "By"]))
+            else:
+                print("No users found. Only the superadmin (config) account exists.")
+    elif args.update:
+        if not args.username:
+            print("Error: --username is required with --update.", file=sys.stderr)
+            sys.exit(1)
+        payload = {}
+        if args.role:
+            payload["role"] = args.role
+        else:
+            password = getpass.getpass(f"New password for {args.username}: ")
+            confirm = getpass.getpass("Confirm password: ")
+            if password != confirm:
+                print("Error: passwords do not match.", file=sys.stderr)
+                sys.exit(1)
+            payload["password"] = password
+        resp = _api_request(
+            "patch",
+            f"{base_url}/api/users/{args.username}",
+            server,
+            verify_ssl,
+            json=payload,
+        )
+        _print_result(resp)

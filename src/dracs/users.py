@@ -2,7 +2,9 @@
 
 import os
 import re
+import tempfile
 from datetime import datetime, timezone
+from pathlib import Path
 
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -138,3 +140,40 @@ def update_user_role(username: str, new_role: str) -> bool:
 def get_user(username: str) -> User | None:
     with get_session() as session:
         return session.query(User).filter(User.username == username).first()
+
+
+def update_superadmin_password(new_password: str) -> None:
+    if not new_password:
+        raise ValidationError("Password cannot be empty.")
+
+    from dracs.config import SYSTEM_CONFIG
+
+    config_path = Path(os.environ.get("DRACS_CONF", str(SYSTEM_CONFIG)))
+    if not config_path.exists():
+        raise ValidationError(f"Config file not found: {config_path}")
+
+    lines = config_path.read_text().splitlines(keepends=True)
+    found = False
+    for i, line in enumerate(lines):
+        if line.startswith("WEBADMIN_PASSWORD="):
+            lines[i] = f"WEBADMIN_PASSWORD={new_password}\n"
+            found = True
+            break
+    if not found:
+        lines.append(f"WEBADMIN_PASSWORD={new_password}\n")
+
+    fd, tmp_path = tempfile.mkstemp(dir=str(config_path.parent))
+    try:
+        os.write(fd, "".join(lines).encode())
+        os.close(fd)
+        os.replace(tmp_path, str(config_path))
+    except Exception:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+        raise
+
+    os.environ["WEBADMIN_PASSWORD"] = new_password

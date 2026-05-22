@@ -33,3 +33,20 @@ def load_server_config(server_override: Optional[str] = None) -> str:
         file=sys.stderr,
     )
     sys.exit(1)
+
+
+def load_user_config(user_override: Optional[str] = None) -> Optional[str]:
+    if user_override:
+        return user_override.strip()
+
+    if DRACSRC_PATH.exists():
+        for line in DRACSRC_PATH.read_text().splitlines():
+            line = line.strip()
+            if line.startswith("#") or not line:
+                continue
+            if line.startswith("dracs_user:"):
+                value = line.split(":", 1)[1].strip()
+                if value:
+                    return value
+
+    return None
