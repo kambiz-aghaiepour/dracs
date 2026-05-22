@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.1.1 (2026-05-22)
+
+### Bug Fixes
+
+- Make sure --help works as expected
+  ([`9f2408e`](https://github.com/kambiz-aghaiepour/dracs/commit/9f2408e89eb955b3bb57cdbd702b9ddb8045365f))
+
+### Chores
+
+- Sync spec file version to 2.1.0 [skip ci]
+  ([`80a589b`](https://github.com/kambiz-aghaiepour/dracs/commit/80a589b603737b41a07c32b3a4407eaff69701bf))
+
+
 ## v2.1.0 (2026-05-22)
 
 ### Bug Fixes
