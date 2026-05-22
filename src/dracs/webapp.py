@@ -25,10 +25,20 @@ from pathlib import Path
 from dotenv import load_dotenv
 from flask import Flask, render_template, jsonify, session, request, Response
 from markupsafe import Markup
+from werkzeug.middleware.proxy_fix import ProxyFix
 
+from dracs.audit import audit_log
 from dracs.db import db_initialize, get_session, System
 from dracs.commands import refresh_dell_warranty
 from dracs.snmp import build_idrac_hostname
+from dracs.users import (
+    authenticate as authenticate_user,
+    create_user,
+    delete_user,
+    list_users,
+    update_user_password,
+    update_user_role,
+)
 from dracs.validation import validate_hostname, validate_version
 from dracs.vnc import (
     VncSessionManager,
@@ -51,6 +61,8 @@ else:  # pragma: no cover
 
 
 app = Flask(__name__)
+# Trust one proxy (nginx) for X-Forwarded-For and X-Forwarded-Proto
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 
 # Secret key for sessions (use environment variable in production)
 # Default key is only for development - change in production!
@@ -62,13 +74,6 @@ app.secret_key = os.environ.get(
 # Session security settings
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-
-# Load admin credentials from environment or use defaults
-# Priority: 1) .env file (if exists), 2) environment variables, 3) defaults below
-# This allows local installations to override the password via .env
-# even when gunicorn.conf.py is updated via git pull
-ADMIN_USER = os.environ.get("WEBADMIN_USER", "admin")
-ADMIN_PASSWORD = os.environ.get("WEBADMIN_PASSWORD", "admin")
 
 # Auto-refresh frequency (in seconds, 0 = disabled)
 REFRESH_FREQUENCY = int(os.environ.get("REFRESH_FREQUENCY", "10"))
@@ -134,6 +139,25 @@ if VNC_ENABLE:
 # Initialize database on app startup
 DB_PATH = os.environ.get("DRACS_DB", "warranty.db")
 db_initialize(DB_PATH)
+
+
+def _client_ip() -> str:
+    return request.remote_addr or ""
+
+
+def _require_auth(required_role=None):
+    if not session.get("authenticated", False):
+        return None, (
+            jsonify({"success": False, "message": "Authentication required"}),
+            401,
+        )
+    role = session.get("role", "user")
+    if required_role and role != required_role:
+        return None, (
+            jsonify({"success": False, "message": "Insufficient permissions"}),
+            403,
+        )
+    return session.get("username", ""), None
 
 
 def get_all_systems():
@@ -419,6 +443,7 @@ def index():
     # Add authentication status to template
     is_authenticated = session.get("authenticated", False)
     username = session.get("username", None)
+    user_role = session.get("role", None)
 
     return render_template(
         "index.html",
@@ -428,6 +453,7 @@ def index():
         models_json=json.dumps(models),
         is_authenticated=is_authenticated,
         username=username,
+        user_role=user_role,
         refresh_frequency=REFRESH_FREQUENCY,
         highlight_expired=HIGHLIGHT_EXPIRED,
         highlight_expiring=HIGHLIGHT_EXPIRING,
@@ -452,12 +478,9 @@ def api_systems():
 def api_firmware_versions(model):
     """Get unique firmware versions for systems matching the specified model."""
     try:
-        # Check authentication
-        if not session.get("authenticated", False):
-            return (
-                jsonify({"success": False, "message": "Authentication required"}),
-                401,
-            )
+        _, err = _require_auth(required_role="admin")
+        if err:
+            return err
 
         # Get all systems with the specified model
         with get_session() as db_session:
@@ -478,12 +501,9 @@ def api_firmware_versions(model):
 def api_bios_versions(model):
     """Get unique BIOS versions for systems matching the specified model."""
     try:
-        # Check authentication
-        if not session.get("authenticated", False):
-            return (
-                jsonify({"success": False, "message": "Authentication required"}),
-                401,
-            )
+        _, err = _require_auth(required_role="admin")
+        if err:
+            return err
 
         # Get all systems with the specified model
         with get_session() as db_session:
@@ -502,11 +522,9 @@ def api_bios_versions(model):
 def api_available_firmware(model):
     """List firmware versions available on disk for a model."""
     try:
-        if not session.get("authenticated", False):
-            return (
-                jsonify({"success": False, "message": "Authentication required"}),
-                401,
-            )
+        _, err = _require_auth(required_role="admin")
+        if err:
+            return err
 
         prefix = f"{model}-"
         suffix = ".d9"
@@ -530,11 +548,9 @@ def api_available_firmware(model):
 def api_available_bios(model):
     """List BIOS versions available on disk for a model."""
     try:
-        if not session.get("authenticated", False):
-            return (
-                jsonify({"success": False, "message": "Authentication required"}),
-                401,
-            )
+        _, err = _require_auth(required_role="admin")
+        if err:
+            return err
 
         config_file = Path("BIOS-filename.ini")
         if not config_file.exists():
@@ -565,11 +581,16 @@ def login():
         username = data.get("username", "")
         password = data.get("password", "")
 
-        if username == ADMIN_USER and password == ADMIN_PASSWORD:
+        result = authenticate_user(username, password)
+        if result:
+            auth_username, auth_role = result
             session["authenticated"] = True
-            session["username"] = username
+            session["username"] = auth_username
+            session["role"] = auth_role
+            audit_log("login", user=auth_username, source=_client_ip())
             return jsonify({"success": True, "message": "Login successful"})
         else:
+            audit_log("login", user=username, source=_client_ip(), result="denied")
             return jsonify({"success": False, "message": "Invalid credentials"}), 401
     except Exception as e:
         return jsonify({"success": False, "message": f"Login error: {str(e)}"}), 400
@@ -578,6 +599,7 @@ def login():
 @app.route("/logout", methods=["POST"])
 def logout():
     """Handle logout request."""
+    audit_log("logout", user=session.get("username", ""), source=_client_ip())
     session.clear()
     return jsonify({"success": True, "message": "Logged out successfully"})
 
@@ -589,6 +611,7 @@ def auth_status():
         {
             "authenticated": session.get("authenticated", False),
             "username": session.get("username", None),
+            "role": session.get("role", None),
         }
     )
 
@@ -597,12 +620,9 @@ def auth_status():
 def api_refresh():
     """Refresh warranty and system info for selected system."""
     try:
-        # Check authentication
-        if not session.get("authenticated", False):
-            return (
-                jsonify({"success": False, "message": "Authentication required"}),
-                401,
-            )
+        user, err = _require_auth(required_role="admin")
+        if err:
+            return err
 
         data = request.get_json()
         if not data:
@@ -630,6 +650,13 @@ def api_refresh():
             )
         )
 
+        audit_log(
+            "refresh",
+            target=service_tag or hostname,
+            user=user,
+            source=_client_ip(),
+        )
+
         return jsonify(
             {
                 "success": True,
@@ -645,11 +672,9 @@ def api_refresh():
 def api_refresh_multiple():
     """Queue refresh jobs for multiple systems."""
     try:
-        if not session.get("authenticated", False):
-            return (
-                jsonify({"success": False, "message": "Authentication required"}),
-                401,
-            )
+        user, err = _require_auth(required_role="admin")
+        if err:
+            return err
 
         data = request.get_json()
         if not data:
@@ -670,6 +695,13 @@ def api_refresh_multiple():
                 enqueue_job("refresh", hostname)
                 queued += 1
 
+        audit_log(
+            "refresh_multiple",
+            user=user,
+            source=_client_ip(),
+            details=f"queued={queued}",
+        )
+
         return jsonify(
             {
                 "success": True,
@@ -687,12 +719,9 @@ def api_refresh_multiple():
 def api_test_idrac():
     """Test SSH connectivity to the iDRAC interface."""
     try:
-        # Check authentication
-        if not session.get("authenticated", False):
-            return (
-                jsonify({"success": False, "message": "Authentication required"}),
-                401,
-            )
+        _, err = _require_auth()
+        if err:
+            return err
 
         data = request.get_json()
         if not data:
@@ -715,11 +744,9 @@ def api_test_idrac():
 def api_firmware_update():
     """Queue firmware update for a host via the job queue."""
     try:
-        if not session.get("authenticated", False):
-            return (
-                jsonify({"success": False, "message": "Authentication required"}),
-                401,
-            )
+        user, err = _require_auth(required_role="admin")
+        if err:
+            return err
 
         data = request.get_json()
         if not data:
@@ -755,6 +782,14 @@ def api_firmware_update():
             metadata={"target_version": target_version, "model": model},
         )
 
+        audit_log(
+            "firmware_update",
+            target=hostname,
+            user=user,
+            source=_client_ip(),
+            details=f"version={target_version},model={model},job_id={job_id}",
+        )
+
         return jsonify(
             {
                 "success": True,
@@ -772,11 +807,9 @@ def api_firmware_update():
 def api_bios_update():
     """Queue BIOS update for a host via the job queue."""
     try:
-        if not session.get("authenticated", False):
-            return (
-                jsonify({"success": False, "message": "Authentication required"}),
-                401,
-            )
+        user, err = _require_auth(required_role="admin")
+        if err:
+            return err
 
         data = request.get_json()
         if not data:
@@ -829,6 +862,14 @@ def api_bios_update():
             metadata={"target_bios": target_bios, "model": model},
         )
 
+        audit_log(
+            "bios_update",
+            target=hostname,
+            user=user,
+            source=_client_ip(),
+            details=f"version={target_bios},model={model},job_id={job_id}",
+        )
+
         return jsonify(
             {
                 "success": True,
@@ -846,12 +887,9 @@ def api_bios_update():
 def api_job_queue():
     """Retrieve job queue from iDRAC via SSH."""
     try:
-        # Check authentication
-        if not session.get("authenticated", False):
-            return (
-                jsonify({"success": False, "message": "Authentication required"}),
-                401,
-            )
+        _, err = _require_auth()
+        if err:
+            return err
 
         data = request.get_json()
         if not data:
@@ -966,11 +1004,9 @@ def _clear_single_job_queue(hostname: str) -> None:
 def api_clear_job_queue():
     """Queue clear job queue operations for selected hosts."""
     try:
-        if not session.get("authenticated", False):
-            return (
-                jsonify({"success": False, "message": "Authentication required"}),
-                401,
-            )
+        user, err = _require_auth(required_role="admin")
+        if err:
+            return err
 
         data = request.get_json()
         if not data:
@@ -996,6 +1032,13 @@ def api_clear_job_queue():
         for hostname in hostnames:
             enqueue_job("clear_job_queue", hostname)
 
+        audit_log(
+            "clear_job_queue",
+            user=user,
+            source=_client_ip(),
+            details=f"hosts={','.join(hostnames)}",
+        )
+
         return jsonify(
             {
                 "success": True,
@@ -1011,11 +1054,9 @@ def api_clear_job_queue():
 def api_refresh_all():
     """Queue refresh jobs for all systems in database."""
     try:
-        if not session.get("authenticated", False):
-            return (
-                jsonify({"success": False, "message": "Authentication required"}),
-                401,
-            )
+        user, err = _require_auth(required_role="admin")
+        if err:
+            return err
 
         systems = get_all_systems()
         total_systems = len(systems)
@@ -1026,6 +1067,13 @@ def api_refresh_all():
         from dracs.jobqueue import enqueue_batch
 
         count = enqueue_batch("refresh", "all")
+
+        audit_log(
+            "refresh_all",
+            user=user,
+            source=_client_ip(),
+            details=f"queued={count}",
+        )
 
         return jsonify(
             {
@@ -1044,11 +1092,9 @@ def api_refresh_all():
 def api_power_status():
     """Check system power status via racadm."""
     try:
-        if not session.get("authenticated", False):
-            return (
-                jsonify({"success": False, "message": "Authentication required"}),
-                401,
-            )
+        _, err = _require_auth(required_role="admin")
+        if err:
+            return err
 
         data = request.get_json()
         if not data:
@@ -1132,11 +1178,9 @@ def api_power_action():
     VALID_ACTIONS = {"powerup", "powerdown", "graceshutdown", "hardreset", "powercycle"}
 
     try:
-        if not session.get("authenticated", False):
-            return (
-                jsonify({"success": False, "message": "Authentication required"}),
-                401,
-            )
+        user, err = _require_auth(required_role="admin")
+        if err:
+            return err
 
         data = request.get_json()
         if not data:
@@ -1197,6 +1241,13 @@ def api_power_action():
                 "hardreset": "Hard reboot",
                 "powercycle": "Graceful reboot",
             }[action]
+            audit_log(
+                "power_action",
+                target=hostname,
+                user=user,
+                source=_client_ip(),
+                details=action,
+            )
             return jsonify(
                 {
                     "success": True,
@@ -1466,11 +1517,12 @@ def _generate_tsr_index(hostname: str) -> None:
 @app.route("/api/latest-firmware", methods=["POST"])
 def api_latest_firmware():
     """Stream latest firmware check and download progress via SSE."""
-    if not session.get("authenticated", False):
-        return (
-            jsonify({"success": False, "message": "Authentication required"}),
-            401,
-        )
+    user, err = _require_auth(required_role="admin")
+    if err:
+        return err
+
+    _audit_user = user
+    _audit_source = _client_ip()
 
     data = request.get_json()
     if not data:
@@ -1596,6 +1648,14 @@ def api_latest_firmware():
                     f"{hostname} already running firmware version {pkg_version}.",
                 )
 
+            audit_log(
+                "firmware_download",
+                target=hostname,
+                user=_audit_user,
+                source=_audit_source,
+                details=f"model={model},version={pkg_version}",
+            )
+
             yield _sse_event(
                 "complete",
                 "",
@@ -1675,11 +1735,12 @@ def _update_bios_filename_ini(model: str, version: str, filename: str) -> None:
 @app.route("/api/latest-bios", methods=["POST"])
 def api_latest_bios():
     """Stream latest BIOS check and download progress via SSE."""
-    if not session.get("authenticated", False):
-        return (
-            jsonify({"success": False, "message": "Authentication required"}),
-            401,
-        )
+    user, err = _require_auth(required_role="admin")
+    if err:
+        return err
+
+    _audit_user = user
+    _audit_source = _client_ip()
 
     data = request.get_json()
     if not data:
@@ -1802,6 +1863,14 @@ def api_latest_bios():
                     "status",
                     f"{hostname} already running BIOS version {version}.",
                 )
+
+            audit_log(
+                "bios_download",
+                target=hostname,
+                user=_audit_user,
+                source=_audit_source,
+                details=f"model={model},version={version}",
+            )
 
             yield _sse_event(
                 "complete",
@@ -1951,11 +2020,9 @@ def _get_sa_jobs(hostname: str) -> list | None:
 def api_tsr_status():
     """Check TSR job status for a host."""
     try:
-        if not session.get("authenticated", False):
-            return (
-                jsonify({"success": False, "message": "Authentication required"}),
-                401,
-            )
+        _, err = _require_auth()
+        if err:
+            return err
 
         data = request.get_json()
         if not data:
@@ -2051,11 +2118,9 @@ def api_tsr_list(hostname):
 def api_tsr_collect():
     """Initiate a TSR collection on a host via the job queue."""
     try:
-        if not session.get("authenticated", False):
-            return (
-                jsonify({"success": False, "message": "Authentication required"}),
-                401,
-            )
+        user, err = _require_auth()
+        if err:
+            return err
 
         data = request.get_json()
         if not data:
@@ -2085,6 +2150,13 @@ def api_tsr_collect():
 
         job_id = enqueue_job("tsr", hostname)
 
+        audit_log(
+            "tsr_collect",
+            target=hostname,
+            user=user,
+            source=_client_ip(),
+        )
+
         return jsonify(
             {
                 "success": True,
@@ -2101,11 +2173,9 @@ def api_tsr_collect():
 def api_jobs():
     """List active jobs (authenticated)."""
     try:
-        if not session.get("authenticated", False):
-            return (
-                jsonify({"success": False, "message": "Authentication required"}),
-                401,
-            )
+        _, err = _require_auth(required_role="admin")
+        if err:
+            return err
 
         from dracs.jobqueue import get_active_jobs
 
@@ -2121,15 +2191,160 @@ def api_jobs():
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
 
 
+@app.route("/api/users", methods=["GET"])
+def api_users_list():
+    """List all users."""
+    try:
+        _, err = _require_auth(required_role="admin")
+        if err:
+            return err
+        return jsonify({"success": True, "users": list_users()})
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+
+@app.route("/api/users", methods=["POST"])
+def api_users_create():
+    """Create a new user."""
+    try:
+        user, err = _require_auth(required_role="admin")
+        if err:
+            return err
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "message": "Invalid request"}), 400
+
+        username = data.get("username", "").strip()
+        password = data.get("password", "")
+        role = data.get("role", "user").strip()
+
+        from dracs.exceptions import ValidationError
+
+        try:
+            create_user(username, password, role, created_by=user)
+        except ValidationError as ve:
+            return jsonify({"success": False, "message": str(ve)}), 400
+
+        audit_log(
+            "user_create",
+            target=username,
+            user=user,
+            source=_client_ip(),
+            details=f"role={role}",
+        )
+
+        return jsonify(
+            {
+                "success": True,
+                "message": f"User '{username}' created with role '{role}'.",
+            }
+        )
+
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+
+@app.route("/api/users/<username>", methods=["DELETE"])
+def api_users_delete(username):
+    """Delete a user."""
+    try:
+        user, err = _require_auth(required_role="admin")
+        if err:
+            return err
+
+        if username == user:
+            return (
+                jsonify({"success": False, "message": "Cannot delete yourself"}),
+                400,
+            )
+
+        from dracs.exceptions import ValidationError
+
+        try:
+            deleted = delete_user(username)
+        except ValidationError as ve:
+            return jsonify({"success": False, "message": str(ve)}), 400
+
+        if not deleted:
+            return jsonify({"success": False, "message": "User not found"}), 404
+
+        audit_log(
+            "user_delete",
+            target=username,
+            user=user,
+            source=_client_ip(),
+        )
+
+        return jsonify({"success": True, "message": f"User '{username}' deleted."})
+
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+
+@app.route("/api/users/<username>", methods=["PATCH"])
+def api_users_update(username):
+    """Update a user's password or role."""
+    try:
+        user, err = _require_auth(required_role="admin")
+        if err:
+            return err
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "message": "Invalid request"}), 400
+
+        from dracs.exceptions import ValidationError
+
+        new_password = data.get("password")
+        new_role = data.get("role")
+        changes = []
+
+        try:
+            if new_password:
+                if not update_user_password(username, new_password):
+                    return jsonify({"success": False, "message": "User not found"}), 404
+                changes.append("password")
+
+            if new_role:
+                if not update_user_role(username, new_role):
+                    return jsonify({"success": False, "message": "User not found"}), 404
+                changes.append(f"role={new_role}")
+        except ValidationError as ve:
+            return jsonify({"success": False, "message": str(ve)}), 400
+
+        if not changes:
+            return (
+                jsonify({"success": False, "message": "No changes provided"}),
+                400,
+            )
+
+        audit_log(
+            "user_update",
+            target=username,
+            user=user,
+            source=_client_ip(),
+            details=",".join(changes),
+        )
+
+        return jsonify(
+            {
+                "success": True,
+                "message": f"User '{username}' updated: {', '.join(changes)}.",
+            }
+        )
+
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+
 @app.route("/api/vnc-session", methods=["POST"])
 def api_vnc_session_create():
     """Create a VNC console session for a host."""
     try:
-        if not session.get("authenticated", False):
-            return (
-                jsonify({"success": False, "message": "Authentication required"}),
-                401,
-            )
+        user, err = _require_auth()
+        if err:
+            return err
 
         if not VNC_ENABLE or vnc_manager is None:
             return (
@@ -2159,6 +2374,14 @@ def api_vnc_session_create():
             )
 
         token = vnc_manager.create_session(hostname, idrac_fqdn, int(vnc_port))
+
+        audit_log(
+            "vnc_session_create",
+            target=hostname,
+            user=user,
+            source=_client_ip(),
+        )
+
         return jsonify({"success": True, "token": token})
 
     except MaxSessionsError as e:
@@ -2171,11 +2394,9 @@ def api_vnc_session_create():
 def api_vnc_session_delete(token):
     """Destroy a VNC console session."""
     try:
-        if not session.get("authenticated", False):
-            return (
-                jsonify({"success": False, "message": "Authentication required"}),
-                401,
-            )
+        user, err = _require_auth()
+        if err:
+            return err
 
         if not VNC_ENABLE or vnc_manager is None:
             return (
@@ -2184,6 +2405,14 @@ def api_vnc_session_delete(token):
             )
 
         vnc_manager.remove_session(token)
+
+        audit_log(
+            "vnc_session_delete",
+            user=user,
+            source=_client_ip(),
+            details=f"token={token}",
+        )
+
         return jsonify({"success": True, "message": "Session closed"})
 
     except Exception as e:
@@ -2193,11 +2422,9 @@ def api_vnc_session_delete(token):
 @app.route("/console/<token>")
 def console_view(token):
     """Serve the noVNC console viewer for a session."""
-    if not session.get("authenticated", False):
-        return (
-            jsonify({"success": False, "message": "Authentication required"}),
-            401,
-        )
+    _, err = _require_auth()
+    if err:
+        return err
 
     if not VNC_ENABLE or vnc_manager is None:
         return (

@@ -40,9 +40,12 @@ Simple, portable, self-contained dynamic CLI inventory tool for managing Dell ba
     - [10. BIOS Operations](#10-bios-operations)
     - [11. iDRAC Job Queue Operations](#11-idrac-job-queue-operations)
     - [12. Job Queue Management](#12-job-queue-management)
+    - [13. User Management](#13-user-management)
   - [🌐 Web Interface](#-web-interface-dracs-webapp)
   - [📡 Remote Client](#-remote-client-dracs-client)
   - [📅 Scheduled Tasks](#-scheduled-tasks)
+  - [👤 User Management](#-user-management)
+  - [📋 Audit Logging](#-audit-logging)
   - [⚙️ Command Reference](#-command-reference)
   - [📝 Tips & Troubleshooting](#-tips-troubleshooting)
   <!--toc:end-->
@@ -61,6 +64,9 @@ Simple, portable, self-contained dynamic CLI inventory tool for managing Dell ba
 - **Firmware & BIOS Management:** Download latest versions from Dell with SHA256 verification, archive originals, apply or force-apply from the CLI or web UI
 - **TSR Management:** Collect, list, and download Dell Tech Support Reports from CLI or web interface
 - **iDRAC Job Queue:** View and clear iDRAC job queues across hosts from CLI or web UI
+- **Multi-User RBAC:** Role-based access control with admin and user roles. Admins have full access; users can access consoles, generate TSRs, view job queues, and test iDRAC connectivity
+- **User Management:** Create, delete, and manage users via the web interface or CLI (`dracs user`). A bootstrap superadmin account is configured via the config file
+- **Audit Logging:** All admin actions (firmware/BIOS updates, power operations, user management, etc.) are logged to `/var/log/dracs/audit.log` with timestamps, user attribution, and source IP tracking
 - **RPM Packaging:** Available as `python3-dracs` (server) and `dracs-client` (remote CLI) via COPR
 - **SQLite Backend:** No heavy database setup required; everything is stored in a local .db file
 - **Command Aliases:** Short aliases for all commands (e.g., `a` for add, `li` for list, `t` for tsr, `j` for jobs)
@@ -174,7 +180,7 @@ WEBADMIN_PASSWORD=admin
 
 **Note:** Obtain Dell API credentials from [Dell TechDirect](https://techdirect.dell.com)
 
-**Security:** The `WEBADMIN_USER` and `WEBADMIN_PASSWORD` control access to the web interface. Change these from the defaults before deploying to production.
+**Security:** The `WEBADMIN_USER` and `WEBADMIN_PASSWORD` define the **superadmin** account — a bootstrap admin that always has full access and cannot be modified or deleted via the web interface or CLI. Additional users with admin or user roles can be created through the web UI or `dracs user` CLI command. Change the superadmin credentials from the defaults before deploying to production.
 
 The `FLASK_SECRET_KEY` is used to cryptographically sign session cookies. The default value is for development only. For production, generate a secure key:
 
@@ -208,7 +214,7 @@ The `[DEFAULT]` section applies to all hosts. Add a section named after a specif
 
 ## 📖 Usage
 
-DRACS uses subcommands for different operations: **add**, **discover**, **edit**, **lookup**, **list**, **refresh**, and **remove**.
+DRACS uses subcommands for different operations: **add**, **discover**, **edit**, **lookup**, **list**, **refresh**, **remove**, **tsr**, **fw**, **bios**, **jobs**, **idracjobs**, and **user**.
 
 ### 1. Add a New System
 
@@ -532,6 +538,30 @@ dracs jobs --clear
 dracs j --list
 ```
 
+### 13. User Management
+
+Manage DRACS user accounts from the command line.
+
+```bash
+# Add a user (prompts for password interactively)
+dracs user --add --username jsmith --role user
+
+# List all users
+dracs user --list
+
+# Change a user's role
+dracs user --update --username jsmith --role admin
+
+# Change a user's password (prompts interactively)
+dracs user --update --username jsmith
+
+# Remove a user
+dracs user --remove --username jsmith
+
+# Using alias
+dracs u --list
+```
+
 ## 🌐 Web Interface (dracs-webapp)
 
 DRACS includes a full-featured web interface for managing Dell systems. Start it with `dracs-webapp` from the directory containing your `.env` or `dracs.conf` file.
@@ -554,7 +584,17 @@ The web interface provides:
 - **Multi-select** — click to select, shift-click for range, Ctrl-click for toggle
 - **Dark mode** — toggle via the theme button
 
-### Admin Actions (requires login)
+### Role-Based Access
+
+The web interface supports three access tiers:
+
+**Unauthenticated** — can view the inventory table and TSR reports.
+
+**User role** — can additionally access consoles (VNC), generate TSRs, view iDRAC job queues, and test iDRAC connectivity.
+
+**Admin role** — full access to all operations including firmware/BIOS management, power control, system refresh, job queue management, and user management.
+
+### Admin Actions (requires admin role)
 
 When logged in as an admin, a toolbar appears with these buttons:
 
@@ -573,6 +613,7 @@ When logged in as an admin, a toolbar appears with these buttons:
 | **Power On/Off** | Power actions including graceful/hard shutdown and graceful/hard reboot |
 | **Job Queue** | View the iDRAC job queue for the selected host |
 | **Clear Job Queue** | Clear all non-applied iDRAC jobs for selected hosts |
+| **Users** | Manage user accounts (add, delete, change role/password) |
 
 ### RPM Installation
 
@@ -593,6 +634,8 @@ The RPM installs:
 - `/usr/bin/dracs-client` — remote client CLI
 - `/etc/dracs/` — configuration directory
 - `/var/lib/dracs/` — data directory (database, firmware, BIOS, TSR files)
+- `/var/log/dracs/` — audit and application logs
+- `/etc/logrotate.d/dracs` — log rotation configuration (weekly, 52 weeks retention)
 - Systemd service: `dracs-webapp.service`
 
 ```bash
@@ -681,6 +724,120 @@ target = model:R660
 
 **Target options:** `all`, `model:<MODEL>`, or a specific hostname
 
+## 👤 User Management
+
+DRACS supports multi-user access with two roles: **admin** (full access) and **user** (limited access). Users are stored in the SQLite database alongside system inventory data.
+
+### Superadmin (Bootstrap Account)
+
+The `WEBADMIN_USER` / `WEBADMIN_PASSWORD` defined in `/etc/dracs/dracs.conf` (or `.env`) serves as the **superadmin** account. This account:
+
+- Always has the admin role
+- Cannot be modified or deleted via the web interface or CLI
+- Can only be changed by editing the config file directly
+- Serves as a recovery mechanism if all DB users are deleted
+
+No other user can be created with the same username as the superadmin.
+
+### Managing Users via CLI
+
+```bash
+# Add a user (prompts for password interactively)
+dracs user --add --username jsmith --role user
+
+# List all users
+dracs user --list
+
+# Change a user's role
+dracs user --update --username jsmith --role admin
+
+# Change a user's password (prompts interactively)
+dracs user --update --username jsmith
+
+# Remove a user
+dracs user --remove --username jsmith
+
+# Using alias
+dracs u --list
+```
+
+### Managing Users via Web Interface
+
+Admin users can click the **Users** link in the header to open the user management panel. From there, admins can:
+
+- View all users and their roles
+- Add new users with a username, password, and role
+- Delete users
+- Promote/demote users between admin and user roles
+- Change user passwords
+
+### Role Permissions
+
+| Action | Admin | User | Unauthenticated |
+|--------|:-----:|:----:|:---------------:|
+| View inventory | Yes | Yes | Yes |
+| View TSR reports | Yes | Yes | Yes |
+| Console (VNC) | Yes | Yes | No |
+| Generate TSR | Yes | Yes | No |
+| Test iDRAC | Yes | Yes | No |
+| View iDRAC job queue | Yes | Yes | No |
+| Firmware/BIOS updates | Yes | No | No |
+| Power operations | Yes | No | No |
+| System refresh | Yes | No | No |
+| Clear job queue | Yes | No | No |
+| Download latest firmware/BIOS | Yes | No | No |
+| User management | Yes | No | No |
+
+## 📋 Audit Logging
+
+DRACS logs all administrative actions to an audit log file for accountability and compliance.
+
+### Log Location
+
+- **RPM installation:** `/var/log/dracs/audit.log`
+- **Development:** `logs/audit.log` (relative to working directory, configurable via `DRACS_LOG_DIR`)
+
+### Log Format
+
+Each line is a space-separated key=value entry:
+
+```
+2026-05-22T14:30:45.123456Z user=admin source=10.0.0.5 action=firmware_update target=server01 result=success details=version=7.10.60.00,model=R660
+2026-05-22T14:31:02.654321Z user=admin source=10.0.0.5 action=power_action target=server02 result=success details=graceshutdown
+2026-05-22T14:31:15.000000Z user=jsmith source=10.0.0.5 action=tsr_collect target=server03 result=success
+2026-05-22T14:32:00.000000Z user=baduser source=10.0.0.5 action=login target=- result=denied
+2026-05-22T14:35:00.000000Z user=root source=cli action=add target=server04 result=success details=svctag=ABC1234
+```
+
+### Audited Actions
+
+The following actions are logged from both the web interface and CLI:
+
+| Action | Source | Details Captured |
+|--------|--------|-----------------|
+| `login` / `logout` | webapp | username, result (success/denied) |
+| `firmware_update` | webapp, cli | hostname, version, model |
+| `bios_update` | webapp, cli | hostname, version, model |
+| `power_action` | webapp | hostname, action type |
+| `tsr_collect` / `tsr_generate` | webapp, cli | hostname |
+| `refresh` / `refresh_all` | webapp, cli | target, count |
+| `clear_job_queue` | webapp, cli | hostnames |
+| `vnc_session_create` / `vnc_session_delete` | webapp | hostname, token |
+| `user_create` / `user_delete` / `user_update` | webapp, cli | username, role |
+| `add` / `edit` / `remove` | cli | hostname, service tag |
+| `fw_apply` / `bios_apply` | cli | hostname, version |
+
+### Log Rotation
+
+The RPM installs a logrotate configuration at `/etc/logrotate.d/dracs`:
+
+- **Rotation:** weekly
+- **Retention:** 52 weeks (1 year)
+- **Compression:** enabled with delayed compression
+- **Strategy:** `copytruncate` (no service restart needed)
+
+For non-RPM installations, a built-in `RotatingFileHandler` provides backup rotation at 10 MB with 5 backup files.
+
 ## ⚙️ Command Reference
 
 ### Global Arguments (apply to all commands)
@@ -709,6 +866,7 @@ target = model:R660
 | `bios`       |       | action flag                              | `--list` `--apply` `-m/--model` `--version` `-t/--target` `--force` `--yes`                            |
 | `jobs`       | `j`   | action flag                              | `--list` `--clear` `--cancel JOB_ID` `--all`                                                           |
 | `idracjobs`  | `ij`  | action flag                              | `--list` `--clear` `-t/--target` `-m/--model` `--all` `-f/--force`                                     |
+| `user`       | `u`   | action flag                              | `--add` `--remove` `--list` `--update` `--username` `--role`                                            |
 
 ### Filter Options for `list` Command
 

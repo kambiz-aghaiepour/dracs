@@ -1,0 +1,10 @@
+/var/log/dracs/*.log {
+    weekly
+    rotate 52
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+    su dracs dracs
+}

@@ -1380,7 +1380,10 @@
             </div>
             <div class="auth-section">
                 {% if is_authenticated %}
-                    <span class="username-display">Logged in as <strong>{{ username }}</strong></span>
+                    <span class="username-display">Logged in as <strong>{{ username }}</strong> ({{ user_role }})</span>
+                    {% if user_role == 'admin' %}
+                    <a href="#" class="logout-link" onclick="showUserManagementModal(event)" style="margin-right: 8px;">Users</a>
+                    {% endif %}
                     <a href="#" class="logout-link" onclick="handleLogout(event)">Logout</a>
                 {% else %}
                     <a href="#" class="login-link" onclick="showLoginModal(event)">Login</a>
@@ -1500,7 +1503,7 @@
             </div>
         </div>
 
-        {% if is_authenticated %}
+        {% if user_role == 'admin' %}
         <div class="admin-actions">
             <button id="refresh-btn" class="btn btn-success" onclick="handleRefreshSelected()" disabled>
                 Refresh Selected (<span id="selected-count">0</span>)
@@ -1537,7 +1540,7 @@
         </div>
         {% endif %}
 
-        {% if is_authenticated %}
+        {% if user_role == 'admin' %}
         <div style="margin-bottom: 10px;">
             {% if vnc_enabled %}
             <button id="console-btn" class="btn btn-primary" disabled onclick="handleConsoleClick()">
@@ -1565,6 +1568,25 @@
             <button id="view-tsr-btn" class="btn btn-primary" disabled onclick="handleViewTsrClick()">
                 View TSRs
             </button>
+        </div>
+        {% elif user_role == 'user' %}
+        <div style="margin-bottom: 10px;">
+            {% if vnc_enabled %}
+            <button id="console-btn" class="btn btn-primary" disabled onclick="handleConsoleClick()">
+                Console
+            </button>
+            {% endif %}
+            <button id="generate-tsr-btn" class="btn btn-primary" disabled onclick="handleGenerateTsrClick()">
+                Generate TSR
+            </button>
+            <button id="view-tsr-btn" class="btn btn-primary" disabled onclick="handleViewTsrClick()">
+                View TSRs
+            </button>
+            <div class="job-queue-container" style="display: inline-block;">
+                <button id="job-queue-btn" class="btn btn-primary" disabled onclick="handleJobQueueClick()">
+                    Job Queue
+                </button>
+            </div>
         </div>
         {% else %}
         <div style="margin-bottom: 10px;">
@@ -1652,6 +1674,86 @@
                 </div>
             </div>
         </div>
+
+        {% if user_role == 'admin' %}
+        <div id="user-management-modal" class="modal-overlay">
+            <div class="modal-content" style="max-width: 700px;">
+                <div class="modal-header">
+                    <h2>User Management</h2>
+                </div>
+                <div class="modal-body">
+                    <div id="user-list-container">
+                        <table id="user-table" style="width: 100%; border-collapse: collapse; margin-bottom: 16px;">
+                            <thead>
+                                <tr>
+                                    <th style="text-align: left; padding: 6px; border-bottom: 2px solid #ccc;">Username</th>
+                                    <th style="text-align: left; padding: 6px; border-bottom: 2px solid #ccc;">Role</th>
+                                    <th style="text-align: left; padding: 6px; border-bottom: 2px solid #ccc;">Created</th>
+                                    <th style="text-align: center; padding: 6px; border-bottom: 2px solid #ccc;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="user-table-body"></tbody>
+                        </table>
+                    </div>
+                    <hr style="margin: 12px 0;">
+                    <h3 style="margin: 8px 0;">Add User</h3>
+                    <form id="add-user-form" onsubmit="handleAddUser(event)">
+                        <div style="display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap;">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label for="new-username">Username</label>
+                                <input type="text" id="new-username" required minlength="3" maxlength="32" pattern="[a-zA-Z0-9_-]+" autocomplete="off">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label for="new-password">Password</label>
+                                <input type="password" id="new-password" required autocomplete="new-password">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label for="new-confirm-password">Confirm</label>
+                                <input type="password" id="new-confirm-password" required autocomplete="new-password">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label for="new-role">Role</label>
+                                <select id="new-role">
+                                    <option value="user">user</option>
+                                    <option value="admin">admin</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primary" style="height: 34px;">Add</button>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="hideUserManagementModal()">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="change-password-modal" class="modal-overlay">
+            <div class="modal-content" style="max-width: 400px;">
+                <div class="modal-header">
+                    <h2>Change Password</h2>
+                </div>
+                <div class="modal-body">
+                    <p>Changing password for <strong id="cp-username-display"></strong></p>
+                    <form id="change-password-form" onsubmit="submitChangePassword(event)">
+                        <input type="hidden" id="cp-username">
+                        <div class="form-group">
+                            <label for="cp-new-password">New Password</label>
+                            <input type="password" id="cp-new-password" required autocomplete="new-password">
+                        </div>
+                        <div class="form-group">
+                            <label for="cp-confirm-password">Confirm Password</label>
+                            <input type="password" id="cp-confirm-password" required autocomplete="new-password">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="hideChangePasswordModal()">Cancel</button>
+                    <button type="submit" form="change-password-form" class="btn btn-primary">Change Password</button>
+                </div>
+            </div>
+        </div>
+        {% endif %}
 
         <!-- Notification -->
         <div id="notification" class="notification">
@@ -1988,6 +2090,7 @@
     <script>
         // Authentication and admin functionality
         let isAuthenticated = {{ 'true' if is_authenticated else 'false' }};
+        let userRole = '{{ user_role|default("", true) }}';
         let selectedRows = [];  // Changed to array for multi-select
         let selectedSystems = [];  // Changed to array for multi-select
         let refreshFrequency = {{ refresh_frequency }};  // Auto-refresh frequency in seconds
@@ -2063,6 +2166,144 @@
         function hideLoginModal() {
             document.getElementById('login-modal').classList.remove('active');
             document.getElementById('login-form').reset();
+        }
+
+        function showUserManagementModal(event) {
+            event.preventDefault();
+            document.getElementById('user-management-modal').classList.add('active');
+            loadUserList();
+        }
+
+        function hideUserManagementModal() {
+            document.getElementById('user-management-modal').classList.remove('active');
+        }
+
+        async function loadUserList() {
+            try {
+                const response = await fetch('/api/users');
+                const data = await response.json();
+                if (!data.success) return;
+                const tbody = document.getElementById('user-table-body');
+                tbody.innerHTML = '';
+                data.users.forEach(u => {
+                    const tr = document.createElement('tr');
+                    const created = u.created_at ? u.created_at.split('T')[0] : '-';
+                    tr.innerHTML = `
+                        <td style="padding: 6px; border-bottom: 1px solid #eee;">${u.username}</td>
+                        <td style="padding: 6px; border-bottom: 1px solid #eee;">${u.role}</td>
+                        <td style="padding: 6px; border-bottom: 1px solid #eee;">${created}</td>
+                        <td style="padding: 6px; border-bottom: 1px solid #eee; text-align: center;">
+                            <button class="btn btn-secondary" style="font-size: 12px; padding: 2px 8px;" onclick="handleToggleRole('${u.username}', '${u.role}')">
+                                ${u.role === 'admin' ? 'Demote' : 'Promote'}
+                            </button>
+                            <button class="btn btn-secondary" style="font-size: 12px; padding: 2px 8px;" onclick="handleChangePassword('${u.username}')">
+                                Password
+                            </button>
+                            <button class="btn btn-force" style="font-size: 12px; padding: 2px 8px;" onclick="handleDeleteUser('${u.username}')">
+                                Delete
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                if (data.users.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" style="padding: 12px; text-align: center; color: #888;">No users. Only the superadmin (config) account exists.</td></tr>';
+                }
+            } catch (e) {
+                console.error('Failed to load users:', e);
+            }
+        }
+
+        async function handleAddUser(event) {
+            event.preventDefault();
+            const username = document.getElementById('new-username').value;
+            const password = document.getElementById('new-password').value;
+            const confirm = document.getElementById('new-confirm-password').value;
+            const role = document.getElementById('new-role').value;
+            if (password !== confirm) {
+                showNotification('Passwords do not match', 'error');
+                return;
+            }
+            try {
+                const response = await fetch('/api/users', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username, password, role})
+                });
+                const data = await response.json();
+                showNotification(data.message, data.success ? 'success' : 'error');
+                if (data.success) {
+                    document.getElementById('add-user-form').reset();
+                    loadUserList();
+                }
+            } catch (e) {
+                showNotification('Error creating user', 'error');
+            }
+        }
+
+        async function handleDeleteUser(username) {
+            if (!window.confirm(`Delete user "${username}"?`)) return;
+            try {
+                const response = await fetch(`/api/users/${username}`, {method: 'DELETE'});
+                const data = await response.json();
+                showNotification(data.message, data.success ? 'success' : 'error');
+                if (data.success) loadUserList();
+            } catch (e) {
+                showNotification('Error deleting user', 'error');
+            }
+        }
+
+        async function handleToggleRole(username, currentRole) {
+            const newRole = currentRole === 'admin' ? 'user' : 'admin';
+            try {
+                const response = await fetch(`/api/users/${username}`, {
+                    method: 'PATCH',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({role: newRole})
+                });
+                const data = await response.json();
+                showNotification(data.message, data.success ? 'success' : 'error');
+                if (data.success) loadUserList();
+            } catch (e) {
+                showNotification('Error updating role', 'error');
+            }
+        }
+
+        function handleChangePassword(username) {
+            document.getElementById('cp-username').value = username;
+            document.getElementById('cp-username-display').textContent = username;
+            document.getElementById('change-password-form').reset();
+            document.getElementById('cp-username').value = username;
+            document.getElementById('change-password-modal').classList.add('active');
+            document.getElementById('cp-new-password').focus();
+        }
+
+        function hideChangePasswordModal() {
+            document.getElementById('change-password-modal').classList.remove('active');
+            document.getElementById('change-password-form').reset();
+        }
+
+        async function submitChangePassword(event) {
+            event.preventDefault();
+            const username = document.getElementById('cp-username').value;
+            const newPassword = document.getElementById('cp-new-password').value;
+            const confirm = document.getElementById('cp-confirm-password').value;
+            if (newPassword !== confirm) {
+                showNotification('Passwords do not match', 'error');
+                return;
+            }
+            try {
+                const response = await fetch(`/api/users/${username}`, {
+                    method: 'PATCH',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({password: newPassword})
+                });
+                const data = await response.json();
+                showNotification(data.message, data.success ? 'success' : 'error');
+                if (data.success) hideChangePasswordModal();
+            } catch (e) {
+                showNotification('Error changing password', 'error');
+            }
         }
 
         // Login handler
@@ -4590,6 +4831,26 @@
                 hideLoginModal();
             }
         });
+
+        // Close user management modal on background click
+        const userMgmtModal = document.getElementById('user-management-modal');
+        if (userMgmtModal) {
+            userMgmtModal.addEventListener('click', function(event) {
+                if (event.target === this) {
+                    hideUserManagementModal();
+                }
+            });
+        }
+
+        // Close change password modal on background click
+        const cpModal = document.getElementById('change-password-modal');
+        if (cpModal) {
+            cpModal.addEventListener('click', function(event) {
+                if (event.target === this) {
+                    hideChangePasswordModal();
+                }
+            });
+        }
 
         // Close firmware confirmation modal on background click
         document.getElementById('firmware-confirm-modal').addEventListener('click', function(event) {

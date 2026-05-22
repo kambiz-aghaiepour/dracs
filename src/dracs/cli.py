@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import getpass
 import logging
 import os
 import shutil
@@ -7,6 +8,7 @@ import sys
 from pathlib import Path
 
 import dracs.commands as commands
+from dracs.audit import audit_log
 from dracs.db import db_initialize
 from dracs.exceptions import (
     APIError,
@@ -72,7 +74,8 @@ class CustomParser(argparse.ArgumentParser):
             print("    jobs (j)        Job queue operations")
             print("    idracjobs (ij)  iDRAC job queue operations")
             print("    fw              Firmware operations")
-            print("    bios            BIOS operations\n")
+            print("    bios            BIOS operations")
+            print("    user (u)        User management\n")
             self.print_usage()
             sys.exit(2)
         # Fall back to default behavior for other errors
@@ -378,6 +381,16 @@ async def main() -> None:
         "--yes", action="store_true", help="Skip confirmation prompt"
     )
 
+    # --- USER COMMAND ---
+    parser_user = subparsers.add_parser("user", aliases=["u"], help="User management")
+    user_action = parser_user.add_mutually_exclusive_group(required=True)
+    user_action.add_argument("--add", action="store_true", help="Add a user")
+    user_action.add_argument("--remove", action="store_true", help="Remove a user")
+    user_action.add_argument("--list", action="store_true", help="List users")
+    user_action.add_argument("--update", action="store_true", help="Update a user")
+    parser_user.add_argument("--username", help="Username")
+    parser_user.add_argument("--role", choices=["admin", "user"], help="User role")
+
     args = parser.parse_args()
 
     # Set up logging based on command-line flags
@@ -464,9 +477,22 @@ async def main() -> None:
 
     elif args.command in ["add", "a"]:
         await commands.add_dell_warranty(target_tag, args.target, args.model, warranty)
+        audit_log(
+            "add",
+            target=args.target,
+            user=getpass.getuser(),
+            source="cli",
+            details=f"svctag={target_tag},model={args.model}",
+        )
     elif args.command in ["edit", "e"]:
         await commands.edit_dell_warranty(
             target_tag, args.target, args.model, args.idrac, args.bios, warranty
+        )
+        audit_log(
+            "edit",
+            target=args.target or target_tag or "",
+            user=getpass.getuser(),
+            source="cli",
         )
     elif args.command in ["lookup", "l"]:
         await commands.lookup_dell_warranty(
@@ -483,6 +509,12 @@ async def main() -> None:
             )
     elif args.command in ["remove", "r"]:
         await commands.remove_dell_warranty(target_tag, args.target, warranty)
+        audit_log(
+            "remove",
+            target=args.target or target_tag or "",
+            user=getpass.getuser(),
+            source="cli",
+        )
     elif args.command in ["list", "li"]:
         await commands.list_dell_warranty(
             target_tag,
@@ -510,8 +542,20 @@ async def main() -> None:
             await commands.tsr_list(args.target, warranty, args.last)
         elif args.download:
             await commands.tsr_download(args.target, warranty)
+            audit_log(
+                "tsr_download",
+                target=args.target,
+                user=getpass.getuser(),
+                source="cli",
+            )
         elif args.generate:
             await commands.tsr_generate(args.target, warranty)
+            audit_log(
+                "tsr_generate",
+                target=args.target,
+                user=getpass.getuser(),
+                source="cli",
+            )
         elif args.status:
             await commands.tsr_status(args.target, warranty)
     elif args.command in ["jobs", "j"]:
@@ -519,8 +563,15 @@ async def main() -> None:
             await commands.list_jobs(args.all, warranty)
         elif args.clear:
             await commands.clear_jobs(warranty)
+            audit_log("jobs_clear", user=getpass.getuser(), source="cli")
         elif args.cancel:
             await commands.cancel_job_cmd(args.cancel, warranty)
+            audit_log(
+                "jobs_cancel",
+                user=getpass.getuser(),
+                source="cli",
+                details=f"job_id={args.cancel}",
+            )
     elif args.command in ["idracjobs", "ij"]:
         if args.list:
             if not args.target:
@@ -533,6 +584,12 @@ async def main() -> None:
         elif args.clear:
             await commands.idrac_jobs_clear(
                 args.target, args.model, args.all, args.force, warranty
+            )
+            audit_log(
+                "idracjobs_clear",
+                target=args.target or args.model or "all",
+                user=getpass.getuser(),
+                source="cli",
             )
     elif args.command == "fw":
         if args.list:
@@ -547,6 +604,13 @@ async def main() -> None:
             await commands.fw_apply(
                 args.version, args.target, args.force, args.yes, warranty
             )
+            audit_log(
+                "fw_apply",
+                target=args.target,
+                user=getpass.getuser(),
+                source="cli",
+                details=f"version={args.version}",
+            )
     elif args.command == "bios":
         if args.list:
             await commands.bios_list(args.model, warranty)
@@ -559,6 +623,95 @@ async def main() -> None:
                 sys.exit(1)
             await commands.bios_apply(
                 args.version, args.target, args.force, args.yes, warranty
+            )
+            audit_log(
+                "bios_apply",
+                target=args.target,
+                user=getpass.getuser(),
+                source="cli",
+                details=f"version={args.version}",
+            )
+    elif args.command in ["user", "u"]:
+        from dracs.users import (
+            create_user as _create_user,
+            delete_user as _delete_user,
+            list_users as _list_users,
+            update_user_password as _update_password,
+            update_user_role as _update_role,
+        )
+        from tabulate import tabulate
+
+        if args.add:
+            if not args.username:
+                print("Error: --username is required with --add.", file=sys.stderr)
+                sys.exit(1)
+            if not args.role:
+                print("Error: --role is required with --add.", file=sys.stderr)
+                sys.exit(1)
+            password = getpass.getpass(f"Password for {args.username}: ")
+            confirm = getpass.getpass("Confirm password: ")
+            if password != confirm:
+                print("Error: passwords do not match.", file=sys.stderr)
+                sys.exit(1)
+            _create_user(
+                args.username, password, args.role, created_by=getpass.getuser()
+            )
+            print(f"User '{args.username}' created with role '{args.role}'.")
+            audit_log(
+                "user_create",
+                target=args.username,
+                user=getpass.getuser(),
+                source="cli",
+                details=f"role={args.role}",
+            )
+        elif args.remove:
+            if not args.username:
+                print("Error: --username is required with --remove.", file=sys.stderr)
+                sys.exit(1)
+            if _delete_user(args.username):
+                print(f"User '{args.username}' deleted.")
+                audit_log(
+                    "user_delete",
+                    target=args.username,
+                    user=getpass.getuser(),
+                    source="cli",
+                )
+            else:
+                print(f"User '{args.username}' not found.", file=sys.stderr)
+                sys.exit(1)
+        elif args.list:
+            users = _list_users()
+            if users:
+                table = [
+                    [u["username"], u["role"], u["created_at"], u["created_by"] or "-"]
+                    for u in users
+                ]
+                print(tabulate(table, headers=["Username", "Role", "Created", "By"]))
+            else:
+                print("No users found. Only the superadmin (config) account exists.")
+        elif args.update:
+            if not args.username:
+                print("Error: --username is required with --update.", file=sys.stderr)
+                sys.exit(1)
+            changes = []
+            if not args.role:
+                password = getpass.getpass(f"New password for {args.username}: ")
+                confirm = getpass.getpass("Confirm password: ")
+                if password != confirm:
+                    print("Error: passwords do not match.", file=sys.stderr)
+                    sys.exit(1)
+                _update_password(args.username, password)
+                changes.append("password")
+            if args.role:
+                _update_role(args.username, args.role)
+                changes.append(f"role={args.role}")
+            print(f"User '{args.username}' updated: {', '.join(changes)}.")
+            audit_log(
+                "user_update",
+                target=args.username,
+                user=getpass.getuser(),
+                source="cli",
+                details=",".join(changes),
             )
 
 
