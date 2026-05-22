@@ -149,8 +149,8 @@ def _refresh_bearer_token():
 
         try:
             refresh_token(auth[7:])
-        except Exception:  # noqa: S110
-            pass
+        except Exception as e:
+            app.logger.debug("Token refresh failed: %s", e)
 
 
 def _client_ip() -> str:
