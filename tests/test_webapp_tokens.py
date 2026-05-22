@@ -376,9 +376,7 @@ class TestTokenLoginEdgeCases:
         )
         token = login_resp.get_json()["token"]
 
-        with patch(
-            "dracs.tokens.validate_token", side_effect=RuntimeError("db error")
-        ):
+        with patch("dracs.tokens.validate_token", side_effect=RuntimeError("db error")):
             resp = client.post(
                 "/api/token-logout",
                 headers={"Authorization": f"Bearer {token}"},
