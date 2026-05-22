@@ -515,7 +515,7 @@ def main() -> None:
     pre_parser.add_argument("--logout", action="store_true")
     pre_parser.add_argument("--user")
 
-    pre_args, remaining = pre_parser.parse_known_args()
+    pre_args, _ = pre_parser.parse_known_args()
 
     server = load_server_config(pre_args.server)
     verify_ssl = not pre_args.no_verify

@@ -143,14 +143,14 @@ db_initialize(DB_PATH)
 
 @app.before_request
 def _refresh_bearer_token():
-    try:
-        auth = request.headers.get("Authorization", "")
-        if isinstance(auth, str) and auth.startswith("Bearer "):
-            from dracs.tokens import refresh_token
+    auth = request.headers.get("Authorization", "")
+    if isinstance(auth, str) and auth.startswith("Bearer "):
+        from dracs.tokens import refresh_token
 
+        try:
             refresh_token(auth[7:])
-    except Exception:
-        pass
+        except Exception:  # noqa: S110
+            pass
 
 
 def _client_ip() -> str:

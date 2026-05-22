@@ -168,7 +168,10 @@ def update_superadmin_password(new_password: str) -> None:
         os.close(fd)
         os.replace(tmp_path, str(config_path))
     except Exception:
-        os.close(fd) if not os.get_inheritable(fd) else None
+        try:
+            os.close(fd)
+        except OSError:
+            pass
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
         raise
