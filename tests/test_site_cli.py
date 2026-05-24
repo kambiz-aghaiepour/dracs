@@ -125,3 +125,115 @@ class TestClientSiteArgument:
             fetch_systems("http://localhost", True, "")
             call_url = mock_get.call_args[0][0]
             assert "site=" not in call_url
+
+    def test_client_sites_command_runs(self, capsys):
+        with patch("dracs_client.cli.requests.get") as mock_get:
+            mock_resp = MagicMock()
+            mock_resp.json.return_value = {
+                "success": True,
+                "sites": [
+                    {"name": "Default", "host_count": 5},
+                    {"name": "Site2", "host_count": 3},
+                ],
+            }
+            mock_get.return_value = mock_resp
+
+            with patch("dracs_client.cli.auth_headers", return_value={}):
+                with patch("dracs_client.cli.get_current_role", return_value="user"):
+                    with patch(
+                        "dracs_client.cli.load_server_config",
+                        return_value="testserver",
+                    ):
+                        with patch(
+                            "sys.argv",
+                            [
+                                "dracs-client",
+                                "-s",
+                                "testserver",
+                                "sites",
+                            ],
+                        ):
+                            from dracs_client.cli import main
+
+                            main()
+
+            output = capsys.readouterr().out
+            assert "Default" in output
+            assert "Site2" in output
+
+    def test_client_sites_command_with_site_param(self, capsys):
+        with patch("dracs_client.cli.requests.get") as mock_get:
+            mock_resp = MagicMock()
+            mock_resp.json.return_value = {
+                "success": True,
+                "sites": [{"name": "Default", "host_count": 5}],
+            }
+            mock_get.return_value = mock_resp
+
+            with patch("dracs_client.cli.auth_headers", return_value={}):
+                with patch("dracs_client.cli.get_current_role", return_value="user"):
+                    with patch(
+                        "dracs_client.cli.load_server_config",
+                        return_value="testserver",
+                    ):
+                        with patch(
+                            "sys.argv",
+                            [
+                                "dracs-client",
+                                "-s",
+                                "testserver",
+                                "--site",
+                                "Default",
+                                "sites",
+                            ],
+                        ):
+                            from dracs_client.cli import main
+
+                            main()
+
+            call_url = mock_get.call_args[0][0]
+            assert "site=Default" in call_url
+
+
+class TestResolveTargetsWithSite:
+    def test_resolve_all_with_site_filter(self, cli_db):
+        from dracs.db import get_default_site_id
+
+        site2 = create_site("Site2")
+        upsert_system(
+            cli_db,
+            "TAG003",
+            "server03",
+            "R660",
+            "7.0.0",
+            "2.1.0",
+            "Jan 1, 2027",
+            1893456000,
+            site_id=site2["id"],
+        )
+
+        from dracs.jobqueue import _resolve_targets
+
+        default_id = get_default_site_id()
+        result = _resolve_targets("all", site_id=default_id)
+        assert "server01" in result
+        assert "server03" not in result
+
+    def test_resolve_model_with_site_filter(self, cli_db):
+        site2 = create_site("Site2")
+        upsert_system(
+            cli_db,
+            "TAG003",
+            "server03",
+            "R660",
+            "7.0.0",
+            "2.1.0",
+            "Jan 1, 2027",
+            1893456000,
+            site_id=site2["id"],
+        )
+
+        from dracs.jobqueue import _resolve_targets
+
+        result = _resolve_targets("model:R660", site_id=site2["id"])
+        assert result == ["server03"]

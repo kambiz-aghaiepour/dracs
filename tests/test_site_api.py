@@ -373,6 +373,88 @@ class TestSitesCrudEdgeCases:
         assert resp.status_code == 401
 
 
+class TestSitesCrudExceptionPaths:
+    def test_create_duplicate_site_returns_error(self, site_client):
+        _login(site_client)
+        site_client.post(
+            "/api/sites",
+            data=json.dumps({"name": "Site2"}),
+            content_type="application/json",
+        )
+        resp = site_client.post(
+            "/api/sites",
+            data=json.dumps({"name": "Site2"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+    def test_delete_site_with_hosts_returns_error(self, site_client, site_db):
+        _login(site_client)
+        site_client.post(
+            "/api/sites",
+            data=json.dumps({"name": "Site2"}),
+            content_type="application/json",
+        )
+        from dracs.db import get_site_by_name
+
+        site = get_site_by_name("Site2")
+        upsert_system(
+            site_db,
+            "TAG999",
+            "sitehost",
+            "R660",
+            "7.0.0",
+            "2.1.0",
+            "Jan 1, 2027",
+            1893456000,
+            site_id=site["id"],
+        )
+        resp = site_client.delete("/api/sites/Site2")
+        assert resp.status_code == 400
+
+    def test_rename_to_duplicate_returns_error(self, site_client):
+        _login(site_client)
+        site_client.post(
+            "/api/sites",
+            data=json.dumps({"name": "Site2"}),
+            content_type="application/json",
+        )
+        resp = site_client.patch(
+            "/api/sites/Site2",
+            data=json.dumps({"name": "Default"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+    def test_config_set_exception_returns_500(self, site_client):
+        _login(site_client)
+        with patch("dracs.sites.set_site_ini_config", side_effect=OSError("disk full")):
+            resp = site_client.put(
+                "/api/sites/Default/config",
+                data=json.dumps({"defaults": {"username": "root"}}),
+                content_type="application/json",
+            )
+            assert resp.status_code == 500
+
+    def test_delete_site_exception_returns_500(self, site_client):
+        _login(site_client)
+        with patch("dracs.db.delete_site", side_effect=RuntimeError("db error")):
+            resp = site_client.delete("/api/sites/Default")
+            assert resp.status_code == 500
+
+
+class TestGetRequestedSiteUnknown:
+    def test_unknown_site_returns_none_id(self, site_client):
+        import dracs.webapp as webapp_mod
+
+        with webapp_mod.app.test_request_context("/?site=NoSuchSite"):
+            from dracs.webapp import _get_requested_site
+
+            site_id, site_name = _get_requested_site()
+            assert site_id is None
+            assert site_name == "NoSuchSite"
+
+
 class TestRefreshAllSiteAware:
     @patch("dracs.jobqueue.enqueue_batch", return_value=2)
     def test_refresh_all_with_site(self, mock_enqueue, site_client):
