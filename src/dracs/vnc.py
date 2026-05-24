@@ -108,6 +108,9 @@ def get_vnc_credentials(hostname: str) -> tuple:
     config_file = Path("drac-passwords.ini")
 
     if not config_file.exists():
+        config_file = Path("/etc/dracs/drac-passwords.ini")
+
+    if not config_file.exists():
         return (5901, "")
 
     config = configparser.ConfigParser()
