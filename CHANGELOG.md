@@ -2,6 +2,33 @@
 
 <!-- version list -->
 
+## v2.2.0 (2026-05-24)
+
+### Bug Fixes
+
+- Black code issue, and codecov
+  ([`a376c0c`](https://github.com/kambiz-aghaiepour/dracs/commit/a376c0c12616c1d2d7323c3f39fabb9466cf9fdc))
+
+- Codacy flagged issues
+  ([`9151f1f`](https://github.com/kambiz-aghaiepour/dracs/commit/9151f1fd13f64d8125586fcc57ce413f2f6f4ca2))
+
+- Codecov/patch had dropped below 99%
+  ([`02b51e6`](https://github.com/kambiz-aghaiepour/dracs/commit/02b51e67f6e70893c1f841f66c88bdfffaf1bcbc))
+
+- Lint checks failed.
+  ([`1903e26`](https://github.com/kambiz-aghaiepour/dracs/commit/1903e2663430f32ca851523d664cc085edd03298))
+
+### Chores
+
+- Sync spec file version to 2.1.2 [skip ci]
+  ([`8debb2e`](https://github.com/kambiz-aghaiepour/dracs/commit/8debb2e91f8d40cd014a67e99c70c67a04fc6420))
+
+### Features
+
+- Add multi-site support with per-site RBAC
+  ([`cf1d766`](https://github.com/kambiz-aghaiepour/dracs/commit/cf1d7664196d96f1bc4eaf4dcb092d891b2ef11d))
+
+
 ## v2.1.2 (2026-05-24)
 
 ### Bug Fixes
