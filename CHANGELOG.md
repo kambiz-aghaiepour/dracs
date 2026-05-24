@@ -2,6 +2,27 @@
 
 <!-- version list -->
 
+## v2.3.0 (2026-05-24)
+
+### Bug Fixes
+
+- Codacy issue flagged
+  ([`8d6d136`](https://github.com/kambiz-aghaiepour/dracs/commit/8d6d136a5e0301e63b3769eca0465fb3fe7ef40b))
+
+- Codecov dropped from last patch.
+  ([`10c7c5a`](https://github.com/kambiz-aghaiepour/dracs/commit/10c7c5a6992f3db3206092696153d2aed03b5491))
+
+### Chores
+
+- Sync spec file version to 2.2.1 [skip ci]
+  ([`6d6a58a`](https://github.com/kambiz-aghaiepour/dracs/commit/6d6a58a9a6d0537eca9111128879228e2e50e062))
+
+### Features
+
+- Propagate site filtering through CLI commands and add fw/bios summary endpoints
+  ([`49159a0`](https://github.com/kambiz-aghaiepour/dracs/commit/49159a03a7c3acbe1ffc51614de3e768ca6723f2))
+
+
 ## v2.2.1 (2026-05-24)
 
 ### Bug Fixes
