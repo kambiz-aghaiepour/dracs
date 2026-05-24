@@ -1379,20 +1379,20 @@
                 </div>
             </div>
             <div class="auth-section">
-                <select id="site-select" onchange="switchSite(this.value)" style="margin-right: 8px; padding: 4px 8px; border-radius: 4px; border: 1px solid #ccc;">
+                <select id="site-select" onchange="switchSite(this.value)" style="margin-right: 4px; padding: 4px 8px; border-radius: 4px; border: 1px solid #ccc;">
                     {% for site in all_sites %}
                     <option value="{{ site }}" {% if site == current_site %}selected{% endif %}>{{ site }}</option>
                     {% endfor %}
                 </select>
+                {% if is_superadmin %}
+                <a href="#" class="logout-link" onclick="showSiteManagementModal(event)" style="margin-right: 8px;" title="Global Configuration">&#9881;</a>
+                {% endif %}
                 {% if is_authenticated %}
                     <span class="username-display">Logged in as <strong>{{ username }}</strong> ({{ user_role }})</span>
                     {% if user_role == 'admin' %}
                     <a href="#" class="logout-link" onclick="showUserManagementModal(event)" style="margin-right: 8px;">Users</a>
                     {% endif %}
-                    {% if is_superadmin %}
-                    <a href="#" class="logout-link" onclick="showSiteManagementModal(event)" style="margin-right: 8px;" title="Global Configuration">&#9881;</a>
-                    {% endif %}
-                    <a href="#" class="logout-link" onclick="showSelfPasswordModal(event)" style="margin-right: 8px;">Change Password</a>
+                    <a href="#" class="logout-link" onclick="showSelfPasswordModal(event)" style="margin-right: 8px;">Password</a>
                     <a href="#" class="logout-link" onclick="handleLogout(event)">Logout</a>
                 {% else %}
                     <a href="#" class="login-link" onclick="showLoginModal(event)">Login</a>
@@ -2195,6 +2195,21 @@
                 });
             }
         }
+        async function refreshSiteDropdown() {
+            const resp = await fetch('/api/sites');
+            const data = await resp.json();
+            if (!data.success) return;
+            const select = document.getElementById('site-select');
+            const currentValue = select.value;
+            select.innerHTML = '';
+            data.sites.forEach(site => {
+                const opt = document.createElement('option');
+                opt.value = site.name;
+                opt.textContent = site.name;
+                if (site.name === currentValue) opt.selected = true;
+                select.appendChild(opt);
+            });
+        }
         async function handleAddSite() {
             const name = prompt('Enter new site name (alphanumeric only):');
             if (!name) return;
@@ -2206,6 +2221,7 @@
             const data = await resp.json();
             if (data.success) {
                 loadSiteList();
+                refreshSiteDropdown();
                 showNotification('Site created: ' + name, 'success');
             } else {
                 showNotification(data.message, 'error');
@@ -2219,6 +2235,7 @@
             const data = await resp.json();
             if (data.success) {
                 loadSiteList();
+                refreshSiteDropdown();
                 showNotification('Site deleted', 'success');
                 window._selectedSite = null;
             } else {
@@ -2227,9 +2244,10 @@
         }
         async function handleRenameSite() {
             if (!window._selectedSite) { showNotification('Select a site first', 'error'); return; }
-            const newName = prompt('Enter new name for "' + window._selectedSite.name + '":', window._selectedSite.name);
-            if (!newName || newName === window._selectedSite.name) return;
-            const resp = await fetch('/api/sites/' + encodeURIComponent(window._selectedSite.name), {
+            const oldName = window._selectedSite.name;
+            const newName = prompt('Enter new name for "' + oldName + '":', oldName);
+            if (!newName || newName === oldName) return;
+            const resp = await fetch('/api/sites/' + encodeURIComponent(oldName), {
                 method: 'PATCH',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({name: newName})
@@ -2237,6 +2255,12 @@
             const data = await resp.json();
             if (data.success) {
                 loadSiteList();
+                await refreshSiteDropdown();
+                const select = document.getElementById('site-select');
+                if (currentSite === oldName) {
+                    select.value = newName;
+                    switchSite(newName);
+                }
                 showNotification('Site renamed to ' + newName, 'success');
                 window._selectedSite = null;
             } else {
