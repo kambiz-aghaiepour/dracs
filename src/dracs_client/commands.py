@@ -39,6 +39,15 @@ def _api_request(method, url, server, verify_ssl, **kwargs):
         print(f"Error: {msg}", file=sys.stderr)
         sys.exit(1)
 
+    if resp.status_code >= 400:
+        try:
+            data = resp.json() if resp.content else {}
+        except (ValueError, requests.exceptions.JSONDecodeError):
+            data = {}
+        msg = data.get("message", f"HTTP {resp.status_code}")
+        print(f"Error: {msg}", file=sys.stderr)
+        sys.exit(1)
+
     return resp
 
 
@@ -183,7 +192,11 @@ def cmd_fw(args, base_url, verify_ssl, server):
                 server,
                 verify_ssl,
             )
-            data = resp.json()
+            try:
+                data = resp.json()
+            except (ValueError, requests.exceptions.JSONDecodeError):
+                print("Error: unexpected response from server", file=sys.stderr)
+                sys.exit(1)
             if data.get("success"):
                 _render_version_summary(data["models"], "Firmware")
             else:
@@ -238,7 +251,11 @@ def cmd_bios(args, base_url, verify_ssl, server):
                 server,
                 verify_ssl,
             )
-            data = resp.json()
+            try:
+                data = resp.json()
+            except (ValueError, requests.exceptions.JSONDecodeError):
+                print("Error: unexpected response from server", file=sys.stderr)
+                sys.exit(1)
             if data.get("success"):
                 _render_version_summary(data["models"], "BIOS")
             else:
