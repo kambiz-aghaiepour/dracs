@@ -209,8 +209,9 @@ def cmd_tsr(
     args: argparse.Namespace, base_url: str, verify_ssl: bool, server: str
 ) -> None:
     hostname = args.target
+    site = getattr(args, "site", None)
 
-    systems = fetch_systems(base_url, verify_ssl, server)
+    systems = fetch_systems(base_url, verify_ssl, server, site=site)
     host_found = any(s["name"] == hostname for s in systems)
     if not host_found:
         print("Target host not found.")
@@ -581,6 +582,19 @@ def main() -> None:
             table = [[s["name"], s["host_count"]] for s in data["sites"]]
             print(tabulate(table, headers=["Site", "Hosts"], tablefmt="simple"))
         return
+
+    if getattr(args, "site", None):
+        headers = auth_headers(server) if server else {}
+        resp = requests.get(
+            f"{base_url}/api/sites", verify=verify_ssl, timeout=30, headers=headers
+        )
+        data = resp.json()
+        site_names = (
+            [s["name"] for s in data.get("sites", [])] if data.get("success") else []
+        )
+        if args.site not in site_names:
+            print(f"Error: site '{args.site}' not found.", file=sys.stderr)
+            sys.exit(1)
 
     if args.command in ["list", "li"]:
         cmd_list(args, base_url, verify_ssl, server)

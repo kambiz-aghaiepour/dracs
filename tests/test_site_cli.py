@@ -84,6 +84,44 @@ class TestSiteArgument:
             _run_cli(cli_db, "--site", "NoSuch", "sites")
         assert exc_info.value.code == 1
 
+    def test_list_filters_by_site(self, cli_db, capsys):
+        site2 = create_site("Site2")
+        upsert_system(
+            cli_db,
+            "TAG002",
+            "site2host",
+            "R660",
+            "7.0.0",
+            "2.1.0",
+            "Jan 1, 2027",
+            1893456000,
+            site_id=site2["id"],
+        )
+
+        _run_cli(cli_db, "--site", "Site2", "li")
+        output = capsys.readouterr().out
+        assert "site2host" in output
+        assert "server01" not in output
+
+    def test_list_default_site_only(self, cli_db, capsys):
+        site2 = create_site("Site2")
+        upsert_system(
+            cli_db,
+            "TAG002",
+            "site2host",
+            "R660",
+            "7.0.0",
+            "2.1.0",
+            "Jan 1, 2027",
+            1893456000,
+            site_id=site2["id"],
+        )
+
+        _run_cli(cli_db, "li")
+        output = capsys.readouterr().out
+        assert "server01" in output
+        assert "site2host" not in output
+
 
 class TestClientSiteArgument:
     def test_client_accepts_site_arg(self):
@@ -193,6 +231,174 @@ class TestClientSiteArgument:
 
             call_url = mock_get.call_args[0][0]
             assert "site=Default" in call_url
+
+    def test_client_invalid_site_exits(self, capsys):
+        with patch("dracs_client.cli.requests.get") as mock_get:
+            mock_resp = MagicMock()
+            mock_resp.json.return_value = {
+                "success": True,
+                "sites": [{"name": "Default", "host_count": 5}],
+            }
+            mock_get.return_value = mock_resp
+
+            with patch("dracs_client.cli.auth_headers", return_value={}):
+                with patch("dracs_client.cli.get_current_role", return_value="user"):
+                    with patch(
+                        "dracs_client.cli.load_server_config",
+                        return_value="testserver",
+                    ):
+                        with patch(
+                            "sys.argv",
+                            [
+                                "dracs-client",
+                                "-s",
+                                "testserver",
+                                "--site",
+                                "NoSuchSite",
+                                "list",
+                            ],
+                        ):
+                            from dracs_client.cli import main
+
+                            with pytest.raises(SystemExit) as exc_info:
+                                main()
+                            assert exc_info.value.code == 1
+
+        output = capsys.readouterr().err
+        assert "not found" in output
+
+
+class TestClientSiteUrl:
+    def test_site_url_appends(self):
+        from dracs_client.commands import _site_url
+
+        assert _site_url("http://x/api/test", "Site2") == "http://x/api/test?site=Site2"
+
+    def test_site_url_appends_with_existing_param(self):
+        from dracs_client.commands import _site_url
+
+        result = _site_url("http://x/api/test?all=true", "Site2")
+        assert result == "http://x/api/test?all=true&site=Site2"
+
+    def test_site_url_none_returns_original(self):
+        from dracs_client.commands import _site_url
+
+        assert _site_url("http://x/api/test", None) == "http://x/api/test"
+
+
+class TestRenderVersionSummary:
+    def test_render_with_data(self, capsys):
+        from dracs_client.commands import _render_version_summary
+
+        models = [
+            {
+                "model": "R660",
+                "installed": [{"version": "7.0.0", "count": 5}],
+                "available": ["7.1.0"],
+            }
+        ]
+        _render_version_summary(models, "Firmware")
+        output = capsys.readouterr().out
+        assert "R660" in output
+        assert "7.0.0" in output
+        assert "(5)" in output
+
+    def test_render_empty(self, capsys):
+        from dracs_client.commands import _render_version_summary
+
+        _render_version_summary([], "Firmware")
+        output = capsys.readouterr().out
+        assert "No systems found" in output
+
+
+class TestFwBiosListEmpty:
+    def test_fw_list_no_systems(self, cli_db, capsys):
+        from dracs.db import get_default_site_id
+
+        site2 = create_site("EmptySite")
+        _run_cli(cli_db, "--site", "EmptySite", "fw", "--list")
+        output = capsys.readouterr().out
+        assert "No systems found" in output
+
+    def test_bios_list_no_systems(self, cli_db, capsys):
+        create_site("EmptySite")
+        _run_cli(cli_db, "--site", "EmptySite", "bios", "--list")
+        output = capsys.readouterr().out
+        assert "No systems found" in output
+
+
+class TestClientPowerWithSite:
+    def test_power_status_passes_site(self):
+        from dracs_client.commands import cmd_power
+
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"success": True, "status": "On"}
+        mock_resp.status_code = 200
+        with patch("dracs_client.commands._post_json", return_value=mock_resp) as mock:
+            args = MagicMock()
+            args.status = True
+            args.action = None
+            args.target = "host01"
+            args.site = "Site2"
+            cmd_power(args, "http://test", True, "server")
+            call_url = mock.call_args[0][0]
+            assert "site=Site2" in call_url
+
+
+class TestClientFwBiosSummary:
+    def test_fw_list_no_model_renders_summary(self, capsys):
+        from dracs_client.commands import cmd_fw
+
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            "success": True,
+            "models": [
+                {
+                    "model": "R660",
+                    "installed": [{"version": "7.0.0", "count": 3}],
+                    "available": ["7.1.0"],
+                }
+            ],
+        }
+        mock_resp.status_code = 200
+        with patch("dracs_client.commands._api_request", return_value=mock_resp):
+            args = MagicMock()
+            args.list = True
+            args.apply = False
+            args.model = None
+            args.site = None
+            cmd_fw(args, "http://test", True, "server")
+
+        output = capsys.readouterr().out
+        assert "R660" in output
+        assert "7.0.0" in output
+
+    def test_bios_list_no_model_renders_summary(self, capsys):
+        from dracs_client.commands import cmd_bios
+
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            "success": True,
+            "models": [
+                {
+                    "model": "R660",
+                    "installed": [{"version": "2.1.0", "count": 5}],
+                    "available": [],
+                }
+            ],
+        }
+        mock_resp.status_code = 200
+        with patch("dracs_client.commands._api_request", return_value=mock_resp):
+            args = MagicMock()
+            args.list = True
+            args.apply = False
+            args.model = None
+            args.site = "Site2"
+            cmd_bios(args, "http://test", True, "server")
+
+        output = capsys.readouterr().out
+        assert "R660" in output
+        assert "2.1.0" in output
 
 
 class TestResolveTargetsWithSite:

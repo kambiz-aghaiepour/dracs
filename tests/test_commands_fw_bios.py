@@ -267,49 +267,56 @@ class TestBiosApply:
 
 class TestCliRouting:
     @patch("dracs.commands.fw_list", new_callable=AsyncMock)
+    @patch("dracs.db.get_default_site_id", return_value=1)
     @patch("dracs.cli.db_initialize")
-    def test_fw_list(self, mock_db, mock_list):
+    def test_fw_list(self, mock_db, mock_site, mock_list):
         mock_list.return_value = None
         run_main_with_args(["fw", "--list"])
         mock_list.assert_called_once()
 
     @patch("dracs.commands.fw_list", new_callable=AsyncMock)
+    @patch("dracs.db.get_default_site_id", return_value=1)
     @patch("dracs.cli.db_initialize")
-    def test_fw_list_with_model(self, mock_db, mock_list):
+    def test_fw_list_with_model(self, mock_db, mock_site, mock_list):
         mock_list.return_value = None
         run_main_with_args(["fw", "--list", "-m", "R660"])
         mock_list.assert_called_once()
         assert mock_list.call_args[0][0] == "R660"
 
     @patch("dracs.commands.fw_apply", new_callable=AsyncMock)
+    @patch("dracs.db.get_default_site_id", return_value=1)
     @patch("dracs.cli.db_initialize")
-    def test_fw_apply(self, mock_db, mock_apply):
+    def test_fw_apply(self, mock_db, mock_site, mock_apply):
         mock_apply.return_value = None
         run_main_with_args(["fw", "--apply", "--version", "7.00.00", "-t", "host01"])
         mock_apply.assert_called_once()
 
+    @patch("dracs.db.get_default_site_id", return_value=1)
     @patch("dracs.cli.db_initialize")
-    def test_fw_apply_missing_args(self, mock_db, capsys):
+    def test_fw_apply_missing_args(self, mock_db, mock_site, capsys):
         with pytest.raises(SystemExit) as exc_info:
             run_main_with_args(["fw", "--apply"])
         assert exc_info.value.code == 1
 
     @patch("dracs.commands.bios_list", new_callable=AsyncMock)
+    @patch("dracs.db.get_default_site_id", return_value=1)
     @patch("dracs.cli.db_initialize")
-    def test_bios_list(self, mock_db, mock_list):
+    def test_bios_list(self, mock_db, mock_site, mock_list):
         mock_list.return_value = None
         run_main_with_args(["bios", "--list"])
         mock_list.assert_called_once()
 
     @patch("dracs.commands.bios_apply", new_callable=AsyncMock)
+    @patch("dracs.db.get_default_site_id", return_value=1)
     @patch("dracs.cli.db_initialize")
-    def test_bios_apply(self, mock_db, mock_apply):
+    def test_bios_apply(self, mock_db, mock_site, mock_apply):
         mock_apply.return_value = None
         run_main_with_args(["bios", "--apply", "--version", "2.5.0", "-t", "host01"])
         mock_apply.assert_called_once()
 
+    @patch("dracs.db.get_default_site_id", return_value=1)
     @patch("dracs.cli.db_initialize")
-    def test_bios_apply_missing_args(self, mock_db, capsys):
+    def test_bios_apply_missing_args(self, mock_db, mock_site, capsys):
         with pytest.raises(SystemExit) as exc_info:
             run_main_with_args(["bios", "--apply"])
         assert exc_info.value.code == 1

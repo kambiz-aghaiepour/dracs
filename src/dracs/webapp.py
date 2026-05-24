@@ -2563,6 +2563,60 @@ def api_users_update(username):
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
 
 
+@app.route("/api/fw-summary")
+def api_fw_summary():
+    """Firmware version summary grouped by model."""
+    from collections import Counter
+
+    site_id, _ = _get_requested_site()
+    _, err = _require_auth(required_role="admin", site_id=site_id)
+    if err:
+        return err
+
+    systems = get_all_systems(site_id=site_id)
+    models = sorted(set(s.model for s in systems if s.model))
+    result = []
+    for m in models:
+        model_systems = [s for s in systems if s.model == m]
+        counts = Counter(s.idrac_version for s in model_systems if s.idrac_version)
+        installed = sorted(counts.keys(), reverse=True)
+        installed_data = [{"version": v, "count": counts[v]} for v in installed]
+
+        from dracs.commands import _get_available_firmware_versions
+
+        available = _get_available_firmware_versions(m)
+        other = sorted([v for v in available if v not in counts], reverse=True)
+        result.append({"model": m, "installed": installed_data, "available": other})
+    return jsonify({"success": True, "models": result})
+
+
+@app.route("/api/bios-summary")
+def api_bios_summary():
+    """BIOS version summary grouped by model."""
+    from collections import Counter
+
+    site_id, _ = _get_requested_site()
+    _, err = _require_auth(required_role="admin", site_id=site_id)
+    if err:
+        return err
+
+    systems = get_all_systems(site_id=site_id)
+    models = sorted(set(s.model for s in systems if s.model))
+    result = []
+    for m in models:
+        model_systems = [s for s in systems if s.model == m]
+        counts = Counter(s.bios_version for s in model_systems if s.bios_version)
+        installed = sorted(counts.keys(), reverse=True)
+        installed_data = [{"version": v, "count": counts[v]} for v in installed]
+
+        from dracs.commands import _get_available_bios_versions
+
+        available = _get_available_bios_versions(m)
+        other = sorted([v for v in available if v not in counts], reverse=True)
+        result.append({"model": m, "installed": installed_data, "available": other})
+    return jsonify({"success": True, "models": result})
+
+
 @app.route("/api/sites")
 def api_sites_list():
     """List all sites with host counts."""
@@ -2594,7 +2648,7 @@ def api_sites_create():
                 jsonify(
                     {
                         "success": False,
-                        "message": "Invalid site name. Use alphanumeric characters only, max 32.",
+                        "message": "Invalid site name. Use alphanumeric characters or underscores only, max 32.",
                     }
                 ),
                 400,
@@ -2666,7 +2720,7 @@ def api_sites_rename(name):
                 jsonify(
                     {
                         "success": False,
-                        "message": "Invalid site name. Use alphanumeric characters only, max 32.",
+                        "message": "Invalid site name. Use alphanumeric characters or underscores only, max 32.",
                     }
                 ),
                 400,

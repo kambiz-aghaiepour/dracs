@@ -27,8 +27,8 @@ class TestValidateSiteName:
     def test_invalid_hyphen(self):
         assert validate_site_name("my-site") is False
 
-    def test_invalid_underscore(self):
-        assert validate_site_name("my_site") is False
+    def test_valid_underscore(self):
+        assert validate_site_name("my_site") is True
 
     def test_invalid_space(self):
         assert validate_site_name("my site") is False

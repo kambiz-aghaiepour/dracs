@@ -455,6 +455,81 @@ class TestGetRequestedSiteUnknown:
             assert site_name == "NoSuchSite"
 
 
+class TestFwBiosSummaryEndpoints:
+    def test_fw_summary(self, site_client):
+        _login(site_client)
+        resp = site_client.get("/api/fw-summary")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["success"] is True
+        assert len(data["models"]) >= 1
+        model = data["models"][0]
+        assert model["model"] == "R660"
+        assert len(model["installed"]) >= 1
+        assert model["installed"][0]["version"] == "7.0.0"
+        assert model["installed"][0]["count"] == 2
+
+    def test_fw_summary_with_site(self, site_client, site_db):
+        _login(site_client)
+        site2 = create_site("Site2")
+        upsert_system(
+            site_db,
+            "TAG003",
+            "server03",
+            "R660",
+            "8.0.0",
+            "3.0.0",
+            "Jan 1, 2028",
+            1924992000,
+            site_id=site2["id"],
+        )
+        resp = site_client.get("/api/fw-summary?site=Site2")
+        data = resp.get_json()
+        assert data["success"] is True
+        assert len(data["models"]) == 1
+        assert data["models"][0]["installed"][0]["version"] == "8.0.0"
+
+    def test_fw_summary_unauthenticated(self, site_client):
+        resp = site_client.get("/api/fw-summary")
+        assert resp.status_code == 401
+
+    def test_bios_summary(self, site_client):
+        _login(site_client)
+        resp = site_client.get("/api/bios-summary")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["success"] is True
+        assert len(data["models"]) >= 1
+        model = data["models"][0]
+        assert model["model"] == "R660"
+        assert len(model["installed"]) >= 1
+        assert model["installed"][0]["version"] == "2.1.0"
+
+    def test_bios_summary_with_site(self, site_client, site_db):
+        _login(site_client)
+        site2 = create_site("Site2")
+        upsert_system(
+            site_db,
+            "TAG003",
+            "server03",
+            "R660",
+            "8.0.0",
+            "3.0.0",
+            "Jan 1, 2028",
+            1924992000,
+            site_id=site2["id"],
+        )
+        resp = site_client.get("/api/bios-summary?site=Site2")
+        data = resp.get_json()
+        assert data["success"] is True
+        assert len(data["models"]) == 1
+        assert data["models"][0]["installed"][0]["version"] == "3.0.0"
+
+    def test_bios_summary_unauthenticated(self, site_client):
+        resp = site_client.get("/api/bios-summary")
+        assert resp.status_code == 401
+
+
 class TestRefreshAllSiteAware:
     @patch("dracs.jobqueue.enqueue_batch", return_value=2)
     def test_refresh_all_with_site(self, mock_enqueue, site_client):

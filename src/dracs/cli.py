@@ -437,9 +437,19 @@ async def main() -> None:
     if args.site:
         from dracs.db import get_site_by_name
 
-        if get_site_by_name(args.site) is None:
+        _site = get_site_by_name(args.site)
+        if _site is None:
             print(f"Error: site '{args.site}' not found.", file=sys.stderr)
             sys.exit(1)
+
+    def _resolve_site_id():
+        if args.site:
+            from dracs.db import get_site_by_name
+
+            return get_site_by_name(args.site)["id"]
+        from dracs.db import get_default_site_id
+
+        return get_default_site_id()
 
     if args.command == "sites":
         from dracs.db import list_sites
@@ -462,7 +472,7 @@ async def main() -> None:
                 )
                 auto_add = response in ["y", "yes"]
             await commands.discover_dell_systems_batch(
-                hosts, warranty, auto_add, show_discovered
+                hosts, warranty, auto_add, show_discovered, site_id=_resolve_site_id()
             )
         else:
             # Single host discover
@@ -475,7 +485,11 @@ async def main() -> None:
                 # Auto-add without prompting
                 logger.info("Auto-adding system to database (--add flag provided)")
                 await commands.add_dell_warranty(
-                    discovered_tag, args.target, discovered_model, warranty
+                    discovered_tag,
+                    args.target,
+                    discovered_model,
+                    warranty,
+                    site_id=_resolve_site_id(),
                 )
             else:
                 # Prompt user
@@ -489,14 +503,20 @@ async def main() -> None:
                 if response in ["y", "yes"]:
                     logger.info("User confirmed, adding system to database")
                     await commands.add_dell_warranty(
-                        discovered_tag, args.target, discovered_model, warranty
+                        discovered_tag,
+                        args.target,
+                        discovered_model,
+                        warranty,
+                        site_id=_resolve_site_id(),
                     )
                 else:
                     logger.info("User declined, not adding to database")
                     print("System not added to database")
 
     elif args.command in ["add", "a"]:
-        await commands.add_dell_warranty(target_tag, args.target, args.model, warranty)
+        await commands.add_dell_warranty(
+            target_tag, args.target, args.model, warranty, site_id=_resolve_site_id()
+        )
         audit_log(
             "add",
             target=args.target,
@@ -520,9 +540,13 @@ async def main() -> None:
         )
     elif args.command in ["refresh", "rf"]:
         if args.all:
-            await commands.refresh_all_systems(warranty, args.verbose)
+            await commands.refresh_all_systems(
+                warranty, args.verbose, site_id=_resolve_site_id()
+            )
         elif args.model:
-            await commands.refresh_by_model(args.model, warranty, args.verbose)
+            await commands.refresh_by_model(
+                args.model, warranty, args.verbose, site_id=_resolve_site_id()
+            )
         else:
             await commands.refresh_dell_warranty(
                 target_tag, args.target, warranty, args.verbose
@@ -556,6 +580,7 @@ async def main() -> None:
             args.json,
             args.host_only,
             warranty,
+            site_id=_resolve_site_id(),
         )
     elif args.command in ["tsr", "t"]:
         if args.list:
@@ -613,7 +638,7 @@ async def main() -> None:
             )
     elif args.command == "fw":
         if args.list:
-            await commands.fw_list(args.model, warranty)
+            await commands.fw_list(args.model, warranty, site_id=_resolve_site_id())
         elif args.apply:
             if not args.version or not args.target:
                 print(
@@ -633,7 +658,7 @@ async def main() -> None:
             )
     elif args.command == "bios":
         if args.list:
-            await commands.bios_list(args.model, warranty)
+            await commands.bios_list(args.model, warranty, site_id=_resolve_site_id())
         elif args.apply:
             if not args.version or not args.target:
                 print(

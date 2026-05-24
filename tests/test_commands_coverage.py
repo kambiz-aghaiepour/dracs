@@ -412,7 +412,9 @@ class TestRefreshByModel:
         asyncio.run(refresh_by_model("R660", temp_db, verbose=True))
         output = capsys.readouterr().out
         assert "Queued 2 refresh jobs for model R660" in output
-        mock_enqueue.assert_called_once_with("refresh", "model:R660")
+        mock_enqueue.assert_called_once()
+        args, kwargs = mock_enqueue.call_args
+        assert args == ("refresh", "model:R660")
 
     def test_refresh_by_model_empty_raises(self, temp_db):
         db_initialize(temp_db)
@@ -428,7 +430,9 @@ class TestRefreshByModel:
         asyncio.run(refresh_by_model("R660", temp_db, verbose=False))
         output = capsys.readouterr().out
         assert "Queued 1 refresh jobs for model R660" in output
-        mock_enqueue.assert_called_once_with("refresh", "model:R660")
+        mock_enqueue.assert_called_once()
+        args, kwargs = mock_enqueue.call_args
+        assert args == ("refresh", "model:R660")
 
 
 # ---------------------------------------------------------------------------
@@ -447,7 +451,9 @@ class TestRefreshAllSystems:
         asyncio.run(refresh_all_systems(temp_db, verbose=True))
         output = capsys.readouterr().out
         assert "Queued 2 refresh jobs for all systems" in output
-        mock_enqueue.assert_called_once_with("refresh", "all")
+        mock_enqueue.assert_called_once()
+        args, kwargs = mock_enqueue.call_args
+        assert args == ("refresh", "all")
 
     def test_refresh_all_empty_raises(self, temp_db):
         db_initialize(temp_db)
@@ -463,7 +469,9 @@ class TestRefreshAllSystems:
         asyncio.run(refresh_all_systems(temp_db, verbose=False))
         output = capsys.readouterr().out
         assert "Queued 1 refresh jobs for all systems" in output
-        mock_enqueue.assert_called_once_with("refresh", "all")
+        mock_enqueue.assert_called_once()
+        args, kwargs = mock_enqueue.call_args
+        assert args == ("refresh", "all")
 
 
 # ---------------------------------------------------------------------------
