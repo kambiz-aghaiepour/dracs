@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.3.1 (2026-05-24)
+
+### Bug Fixes
+
+- Traceback on bad response from server
+  ([`2df2403`](https://github.com/kambiz-aghaiepour/dracs/commit/2df2403d294aced3802f6b65d80d7addffe991a1))
+
+### Chores
+
+- Sync spec file version to 2.3.0 [skip ci]
+  ([`0dc2732`](https://github.com/kambiz-aghaiepour/dracs/commit/0dc2732970efd512eb905d0af97e1b897cb1232f))
+
+
 ## v2.3.0 (2026-05-24)
 
 ### Bug Fixes
