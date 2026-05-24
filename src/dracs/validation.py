@@ -66,7 +66,7 @@ def validate_site_name(name: Optional[str]) -> bool:
         return False
     if len(name) > 32:
         return False
-    if not re.match(r"^[a-zA-Z0-9]+$", name):
+    if not re.match(r"^[a-zA-Z0-9_]+$", name):
         return False
     return True
 

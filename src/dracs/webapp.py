@@ -2569,7 +2569,7 @@ def api_fw_summary():
     from collections import Counter
 
     site_id, _ = _get_requested_site()
-    user, err = _require_auth(required_role="admin", site_id=site_id)
+    _, err = _require_auth(required_role="admin", site_id=site_id)
     if err:
         return err
 
@@ -2596,7 +2596,7 @@ def api_bios_summary():
     from collections import Counter
 
     site_id, _ = _get_requested_site()
-    user, err = _require_auth(required_role="admin", site_id=site_id)
+    _, err = _require_auth(required_role="admin", site_id=site_id)
     if err:
         return err
 
@@ -2648,7 +2648,7 @@ def api_sites_create():
                 jsonify(
                     {
                         "success": False,
-                        "message": "Invalid site name. Use alphanumeric characters only, max 32.",
+                        "message": "Invalid site name. Use alphanumeric characters or underscores only, max 32.",
                     }
                 ),
                 400,
@@ -2720,7 +2720,7 @@ def api_sites_rename(name):
                 jsonify(
                     {
                         "success": False,
-                        "message": "Invalid site name. Use alphanumeric characters only, max 32.",
+                        "message": "Invalid site name. Use alphanumeric characters or underscores only, max 32.",
                     }
                 ),
                 400,

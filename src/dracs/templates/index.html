@@ -2211,7 +2211,7 @@
             });
         }
         async function handleAddSite() {
-            const name = prompt('Enter new site name (alphanumeric only):');
+            const name = prompt('Enter new site name (alphanumeric and underscores only):');
             if (!name) return;
             const resp = await fetch('/api/sites', {
                 method: 'POST',
