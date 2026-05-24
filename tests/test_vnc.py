@@ -2,6 +2,7 @@ import json
 import os
 import socket
 import tempfile
+import threading
 import time
 from pathlib import Path
 from unittest.mock import patch, MagicMock
@@ -195,11 +196,37 @@ class TestVncSessionManager:
         removed = manager.cleanup_expired()
         assert removed == 0
 
+    def test_cleanup_race_file_removed(self, manager, token_dir):
+        token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        token_file = Path(token_dir) / token
+        original_stat = Path.stat
+
+        def stat_raises(self_path, *args, **kwargs):
+            if self_path == token_file:
+                raise FileNotFoundError()
+            return original_stat(self_path, *args, **kwargs)
+
+        with patch.object(Path, "stat", stat_raises):
+            removed = manager.cleanup_expired()
+        assert removed == 0
+
     def test_token_dir_created(self, tmp_path):
         new_dir = str(tmp_path / "new" / "nested" / "dir")
         mgr = VncSessionManager(new_dir, timeout_minutes=30, max_sessions=5)
         assert Path(new_dir).exists()
         mgr.stop()
+
+    def test_cleanup_thread_calls_cleanup(self, tmp_path):
+        token_dir = str(tmp_path / "vnc-tokens-thread")
+        original_wait = threading.Event.wait
+
+        def fast_wait(self_event, timeout=None):
+            return original_wait(self_event, timeout=0.01)
+
+        with patch.object(threading.Event, "wait", fast_wait):
+            mgr = VncSessionManager(token_dir, timeout_minutes=30, max_sessions=5)
+            time.sleep(0.1)
+            mgr.stop()
 
     def test_stop(self, manager):
         manager.stop()
@@ -347,6 +374,20 @@ class TestWebsockifyLifecycle:
         dracs.vnc._pid_file.unlink(missing_ok=True)
         stop_websockify()
         mock_proc.kill.assert_called_once()
+        assert dracs.vnc._websockify_process is None
+
+    def test_stop_process_kill_race(self):
+        import subprocess
+        import dracs.vnc
+
+        mock_proc = MagicMock()
+        mock_proc.wait.side_effect = subprocess.TimeoutExpired(
+            cmd="websockify", timeout=5
+        )
+        mock_proc.kill.side_effect = ProcessLookupError()
+        dracs.vnc._websockify_process = mock_proc
+        dracs.vnc._pid_file.unlink(missing_ok=True)
+        stop_websockify()
         assert dracs.vnc._websockify_process is None
 
     def test_stop_process_already_gone(self):
