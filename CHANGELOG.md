@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.2.1 (2026-05-24)
+
+### Bug Fixes
+
+- Display issues with site dropdown
+  ([`9935260`](https://github.com/kambiz-aghaiepour/dracs/commit/99352604ccb7f2e565a92d6077e821edc03091e3))
+
+### Chores
+
+- Sync spec file version to 2.2.0 [skip ci]
+  ([`75d2436`](https://github.com/kambiz-aghaiepour/dracs/commit/75d2436148b2bf4468a45c09c974d720e5120005))
+
+
 ## v2.2.0 (2026-05-24)
 
 ### Bug Fixes
