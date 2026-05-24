@@ -161,6 +161,25 @@ class TestUsersApiWithSiteRoles:
         assert roles[0]["role"] == "admin"
 
 
+class TestCreateUserBadSiteRoles:
+    def test_invalid_site_role_ignored(self, users_client):
+        _login(users_client)
+        resp = users_client.post(
+            "/api/users",
+            data=json.dumps(
+                {
+                    "username": "badroles",
+                    "password": "pass123",
+                    "role": "user",
+                    "site_roles": [{"site_id": 9999, "role": "admin"}],
+                }
+            ),
+            content_type="application/json",
+        )
+        data = resp.get_json()
+        assert data["success"] is True
+
+
 class TestUserSiteRolesEndpoint:
     def test_get_site_roles(self, users_client):
         _login(users_client)
