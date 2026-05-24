@@ -256,14 +256,32 @@ class TestMainRouting:
 
     def test_route_fw(self, capsys):
         resp = MagicMock()
-        resp.json.return_value = {"success": True, "versions": ["7.0.0"]}
+        resp.json.return_value = {
+            "success": True,
+            "models": [
+                {
+                    "model": "R660",
+                    "installed": [{"version": "7.0.0", "count": 3}],
+                    "available": [],
+                }
+            ],
+        }
         resp.status_code = 200
         self._run_main_admin(["fw", "--list", "-m", "R660"], resp)
         assert "7.0.0" in capsys.readouterr().out
 
     def test_route_bios(self, capsys):
         resp = MagicMock()
-        resp.json.return_value = {"success": True, "versions": ["2.1.0"]}
+        resp.json.return_value = {
+            "success": True,
+            "models": [
+                {
+                    "model": "R660",
+                    "installed": [{"version": "2.1.0", "count": 5}],
+                    "available": [],
+                }
+            ],
+        }
         resp.status_code = 200
         self._run_main_admin(["bios", "--list", "-m", "R660"], resp)
         assert "2.1.0" in capsys.readouterr().out

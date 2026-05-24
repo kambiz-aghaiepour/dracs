@@ -574,8 +574,16 @@ def main() -> None:
         if site_param:
             url += f"?site={site_param}"
         headers = auth_headers(server) if server else {}
-        resp = requests.get(url, verify=verify_ssl, timeout=30, headers=headers)
-        data = resp.json()
+        try:
+            resp = requests.get(url, verify=verify_ssl, timeout=30, headers=headers)
+        except requests.exceptions.ConnectionError as e:
+            print(f"Connection error: {e}", file=sys.stderr)
+            sys.exit(1)
+        try:
+            data = resp.json()
+        except (ValueError, requests.exceptions.JSONDecodeError):
+            print(f"Error: HTTP {resp.status_code}", file=sys.stderr)
+            sys.exit(1)
         if data.get("success") and data.get("sites"):
             from tabulate import tabulate
 
@@ -585,10 +593,20 @@ def main() -> None:
 
     if getattr(args, "site", None):
         headers = auth_headers(server) if server else {}
-        resp = requests.get(
-            f"{base_url}/api/sites", verify=verify_ssl, timeout=30, headers=headers
-        )
-        data = resp.json()
+        try:
+            resp = requests.get(
+                f"{base_url}/api/sites",
+                verify=verify_ssl,
+                timeout=30,
+                headers=headers,
+            )
+            data = resp.json()
+        except (
+            ValueError,
+            requests.exceptions.JSONDecodeError,
+            requests.exceptions.ConnectionError,
+        ):
+            data = {}
         site_names = (
             [s["name"] for s in data.get("sites", [])] if data.get("success") else []
         )
