@@ -2698,7 +2698,7 @@ def api_sites_rename(name):
 @app.route("/api/sites/<name>/config")
 def api_sites_config_get(name):
     """Get site credential configuration (superadmin only)."""
-    user, err = _require_auth(required_role="admin")
+    _, err = _require_auth(required_role="admin")
     if err:
         return err
     if not session.get("is_superadmin", False):

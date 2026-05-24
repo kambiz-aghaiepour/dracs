@@ -572,11 +572,7 @@ def main() -> None:
         url = f"{base_url}/api/sites"
         if site_param:
             url += f"?site={site_param}"
-        headers = {}
-        if server:
-            from dracs_client.auth import auth_headers
-
-            headers = auth_headers(server)
+        headers = auth_headers(server) if server else {}
         resp = requests.get(url, verify=verify_ssl, timeout=30, headers=headers)
         data = resp.json()
         if data.get("success") and data.get("sites"):
