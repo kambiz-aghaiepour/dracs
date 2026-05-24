@@ -39,6 +39,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from dracs.audit import audit_log
 from dracs.db import db_initialize, get_session, System
 from dracs.commands import refresh_dell_warranty
+from dracs.sites import migrate_passwords_ini
 from dracs.snmp import build_idrac_hostname
 from dracs.users import (
     authenticate as authenticate_user,
@@ -148,6 +149,9 @@ if VNC_ENABLE:
 # Initialize database on app startup
 DB_PATH = os.environ.get("DRACS_DB", "warranty.db")
 db_initialize(DB_PATH)
+
+# Migrate drac-passwords.ini to site-prefixed format on first startup
+migrate_passwords_ini()
 
 
 @app.before_request
@@ -2751,6 +2755,23 @@ def api_sites_create():
         from dracs.db import create_site
 
         site = create_site(name)
+
+        from dracs.sites import get_site_ini_config, set_site_ini_config
+
+        existing = get_site_ini_config(name)
+        if not existing["defaults"]:
+            set_site_ini_config(
+                name,
+                {
+                    "defaults": {
+                        "username": "root",
+                        "password": "calvin",
+                        "vnc_port": "5901",
+                        "vnc_password": "",
+                    }
+                },
+            )
+
         audit_log(
             "site_create",
             target=name,
