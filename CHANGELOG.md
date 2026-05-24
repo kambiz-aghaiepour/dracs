@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v2.3.2 (2026-05-24)
+
+### Bug Fixes
+
+- Error handling for various flags
+  ([`8bf141a`](https://github.com/kambiz-aghaiepour/dracs/commit/8bf141a6ce3e540295a47cae544fce6a37f9479b))
+
+- Get codecov/patch above threshold
+  ([`f12b508`](https://github.com/kambiz-aghaiepour/dracs/commit/f12b508a6e315be97215b6d343dbc0eaf93fdbc1))
+
+### Chores
+
+- Sync spec file version to 2.3.1 [skip ci]
+  ([`e525488`](https://github.com/kambiz-aghaiepour/dracs/commit/e525488759426fc8d754055cf362cbb42088c92f))
+
+
 ## v2.3.1 (2026-05-24)
 
 ### Bug Fixes
