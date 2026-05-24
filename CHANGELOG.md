@@ -2,6 +2,31 @@
 
 <!-- version list -->
 
+## v2.3.3 (2026-05-24)
+
+### Bug Fixes
+
+- Codecov/patch missed
+  ([`d576795`](https://github.com/kambiz-aghaiepour/dracs/commit/d576795acd2df75f51c903bd78c9aeebd9c6c0a4))
+
+- Ensure codecov on the client
+  ([`94c814a`](https://github.com/kambiz-aghaiepour/dracs/commit/94c814a7a01b0f1bea4019168681dc72d0ae0063))
+
+- Ensure migration of drac-passwords.ini
+  ([`9607ea9`](https://github.com/kambiz-aghaiepour/dracs/commit/9607ea92f6798d56f7f1db57b60404568dce13d0))
+
+- Get codecov/patch to succeed
+  ([`ca57270`](https://github.com/kambiz-aghaiepour/dracs/commit/ca572707d6e905856a57f0399995e4df2476e83c))
+
+- Separate the user management
+  ([`002b48e`](https://github.com/kambiz-aghaiepour/dracs/commit/002b48ed0a9b5ebbfa7dcd68f61b045408efdfc1))
+
+### Chores
+
+- Sync spec file version to 2.3.2 [skip ci]
+  ([`53a7fc0`](https://github.com/kambiz-aghaiepour/dracs/commit/53a7fc043975949de2d33c72ba884cc3d95f67f2))
+
+
 ## v2.3.2 (2026-05-24)
 
 ### Bug Fixes
