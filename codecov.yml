@@ -6,3 +6,7 @@ coverage:
     patch:
       default:
         target: 99%
+
+ignore:
+  - "tests/**"
+  - ".github/**"

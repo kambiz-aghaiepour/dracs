@@ -434,6 +434,10 @@ async def main() -> None:
 
     db_initialize(warranty)
 
+    from dracs.sites import migrate_passwords_ini
+
+    migrate_passwords_ini()
+
     if args.site:
         from dracs.db import get_site_by_name
 

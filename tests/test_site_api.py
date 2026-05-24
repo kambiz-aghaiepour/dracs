@@ -45,7 +45,8 @@ def site_db():
 
 
 @pytest.fixture
-def site_client(site_db):
+def site_client(site_db, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
     with patch.dict(
         os.environ,
         {

@@ -23,13 +23,23 @@ from urllib.parse import quote as url_quote, urlunparse
 import defusedxml.ElementTree as defused_ET
 from pathlib import Path
 from dotenv import load_dotenv
-from flask import Flask, render_template, jsonify, session, request, Response
+from flask import (
+    Flask,
+    render_template,
+    jsonify,
+    session,
+    request,
+    redirect,
+    url_for,
+    Response,
+)
 from markupsafe import Markup
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from dracs.audit import audit_log
 from dracs.db import db_initialize, get_session, System
 from dracs.commands import refresh_dell_warranty
+from dracs.sites import migrate_passwords_ini
 from dracs.snmp import build_idrac_hostname
 from dracs.users import (
     authenticate as authenticate_user,
@@ -139,6 +149,9 @@ if VNC_ENABLE:
 # Initialize database on app startup
 DB_PATH = os.environ.get("DRACS_DB", "warranty.db")
 db_initialize(DB_PATH)
+
+# Migrate drac-passwords.ini to site-prefixed format on first startup
+migrate_passwords_ini()
 
 
 @app.before_request
@@ -2451,6 +2464,16 @@ def api_users_create():
         except ValidationError as ve:
             return jsonify({"success": False, "message": str(ve)}), 400
 
+        site_roles = data.get("site_roles", [])
+        if site_roles:
+            from dracs.users import set_user_site_role
+
+            for sr in site_roles:
+                try:
+                    set_user_site_role(username, sr["site_id"], sr["role"])
+                except (ValidationError, KeyError):
+                    pass
+
         audit_log(
             "user_create",
             target=username,
@@ -2535,6 +2558,26 @@ def api_users_update(username):
                 if not update_user_role(username, new_role):
                     return jsonify({"success": False, "message": "User not found"}), 404
                 changes.append(f"role={new_role}")
+
+            site_roles = data.get("site_roles")
+            if site_roles is not None:
+                from dracs.users import (
+                    get_user_site_roles,
+                    remove_user_site_role,
+                    set_user_site_role,
+                )
+
+                existing = get_user_site_roles(username)
+                existing_site_ids = {r["site_id"] for r in existing}
+                new_site_ids = {sr["site_id"] for sr in site_roles}
+
+                for sid in existing_site_ids - new_site_ids:
+                    remove_user_site_role(username, sid)
+
+                for sr in site_roles:
+                    set_user_site_role(username, sr["site_id"], sr["role"])
+
+                changes.append("site_roles")
         except ValidationError as ve:
             return jsonify({"success": False, "message": str(ve)}), 400
 
@@ -2561,6 +2604,55 @@ def api_users_update(username):
 
     except Exception as e:
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+
+@app.route("/users")
+def users_page():
+    """Full-page user management."""
+    from dracs.db import list_sites
+
+    is_authenticated = session.get("authenticated", False)
+    if not is_authenticated:
+        return redirect(url_for("index"))
+
+    username = session.get("username", "")
+    user_role = session.get("role", "")
+    is_superadmin = session.get("is_superadmin", False)
+
+    if user_role != "admin" and not is_superadmin:
+        return redirect(url_for("index"))
+
+    all_sites = list_sites()
+
+    if not is_superadmin:
+        from dracs.users import get_user_site_roles
+
+        admin_sites = get_user_site_roles(username)
+        admin_site_ids = {r["site_id"] for r in admin_sites if r["role"] == "admin"}
+        all_sites = [s for s in all_sites if s["id"] in admin_site_ids]
+
+    return render_template(
+        "users.html",
+        username=username,
+        user_role=user_role,
+        is_superadmin=is_superadmin,
+        all_sites=all_sites,
+    )
+
+
+@app.route("/api/users/<username>/site-roles")
+def api_user_site_roles(username):
+    """Get site roles for a specific user."""
+    try:
+        _, err = _require_auth(required_role="admin")
+        if err:
+            return err
+        from dracs.users import get_user_site_roles
+
+        roles = get_user_site_roles(username)
+        return jsonify({"success": True, "site_roles": roles})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
 
 
 @app.route("/api/fw-summary")
@@ -2663,6 +2755,23 @@ def api_sites_create():
         from dracs.db import create_site
 
         site = create_site(name)
+
+        from dracs.sites import get_site_ini_config, set_site_ini_config
+
+        existing = get_site_ini_config(name)
+        if not existing["defaults"]:
+            set_site_ini_config(
+                name,
+                {
+                    "defaults": {
+                        "username": "root",
+                        "password": "calvin",
+                        "vnc_port": "5901",
+                        "vnc_password": "",
+                    }
+                },
+            )
+
         audit_log(
             "site_create",
             target=name,

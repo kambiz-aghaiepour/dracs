@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DRACS - User Management</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; color: #333; }
+        .header { display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; background: #1a1a2e; color: white; }
+        .header h1 { font-size: 1.3em; }
+        .header-right { display: flex; align-items: center; gap: 12px; }
+        .header-right span { font-size: 0.9em; opacity: 0.8; }
+        .container { max-width: 1100px; margin: 24px auto; padding: 0 24px; }
+        .card { background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); padding: 24px; margin-bottom: 24px; }
+        .card h2 { margin-bottom: 16px; font-size: 1.2em; border-bottom: 2px solid #eee; padding-bottom: 8px; }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 8px 12px; border-bottom: 2px solid #ddd; font-weight: 600; font-size: 0.9em; color: #555; }
+        td { padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 0.9em; }
+        tr.selectable { cursor: pointer; }
+        tr.selectable:hover { background: #f0f4ff; }
+        tr.selected { background: #dbeafe; }
+        .site-roles-cell { font-size: 0.85em; }
+        .site-role-tag { display: inline-block; padding: 2px 8px; margin: 1px 4px 1px 0; border-radius: 4px; background: #e8f4fd; color: #1565c0; font-size: 0.85em; }
+        .site-role-tag.admin { background: #fce4ec; color: #c62828; }
+        .btn { padding: 6px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9em; font-weight: 500; }
+        .btn-primary { background: #1976d2; color: white; }
+        .btn-primary:hover { background: #1565c0; }
+        .btn-secondary { background: #e0e0e0; color: #333; }
+        .btn-secondary:hover { background: #bdbdbd; }
+        .btn-danger { background: #ef5350; color: white; }
+        .btn-danger:hover { background: #c62828; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .actions-bar { display: flex; gap: 8px; margin-top: 16px; }
+        .form-panel { margin-top: 16px; padding: 16px; border: 1px solid #e0e0e0; border-radius: 6px; background: #fafafa; }
+        .form-panel h3 { margin-bottom: 12px; }
+        .form-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 12px; }
+        .form-group { display: flex; flex-direction: column; gap: 4px; }
+        .form-group label { font-size: 0.85em; font-weight: 500; color: #555; }
+        .form-group input, .form-group select { padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9em; }
+        .site-roles-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+        .site-roles-grid label { font-size: 0.85em; }
+        .site-role-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+        .site-role-row .site-name { min-width: 120px; font-weight: 500; font-size: 0.9em; }
+        .site-role-row select { padding: 4px 8px; font-size: 0.85em; }
+        .notification { position: fixed; top: 16px; right: 16px; padding: 12px 20px; border-radius: 6px; color: white; z-index: 1000; animation: fadeIn 0.3s; }
+        .notification.success { background: #43a047; }
+        .notification.error { background: #e53935; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        .footer-bar { text-align: center; margin-top: 24px; padding-bottom: 24px; }
+        .change-pw-inline { margin-top: 8px; padding: 8px; background: #f5f5f5; border-radius: 4px; display: flex; gap: 8px; align-items: flex-end; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>DRACS - User Management</h1>
+        <div class="header-right">
+            <span>Logged in as <strong>{{ username }}</strong> ({{ user_role }})</span>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <h2>Users</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Site Roles</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody id="user-table-body"></tbody>
+            </table>
+            <div class="actions-bar">
+                <button class="btn btn-primary" onclick="showAddPanel()">Add</button>
+                <button class="btn btn-secondary" id="btn-modify" disabled onclick="showModifyPanel()">Modify</button>
+                <button class="btn btn-secondary" id="btn-password" disabled onclick="showPasswordPanel()">Password</button>
+                <button class="btn btn-danger" id="btn-delete" disabled onclick="handleDeleteUser()">Delete</button>
+            </div>
+
+            <div id="add-panel" class="form-panel" style="display:none;">
+                <h3>Add User</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Username</label>
+                        <input type="text" id="add-username" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" id="add-password" autocomplete="new-password">
+                    </div>
+                    <div class="form-group">
+                        <label>Confirm</label>
+                        <input type="password" id="add-confirm" autocomplete="new-password">
+                    </div>
+                </div>
+                <h4 style="margin: 8px 0 4px;">Site Roles</h4>
+                <div id="add-site-roles"></div>
+                <div style="margin-top: 12px; display: flex; gap: 8px;">
+                    <button class="btn btn-primary" onclick="submitAddUser()">Save</button>
+                    <button class="btn btn-secondary" onclick="hidePanel('add-panel')">Cancel</button>
+                </div>
+            </div>
+
+            <div id="modify-panel" class="form-panel" style="display:none;">
+                <h3>Modify User: <span id="modify-username-display"></span></h3>
+                <h4 style="margin: 8px 0 4px;">Site Roles</h4>
+                <div id="modify-site-roles"></div>
+                <div style="margin-top: 12px; display: flex; gap: 8px;">
+                    <button class="btn btn-primary" onclick="submitModifyUser()">Save</button>
+                    <button class="btn btn-secondary" onclick="hidePanel('modify-panel')">Cancel</button>
+                </div>
+            </div>
+
+            <div id="password-panel" class="form-panel" style="display:none;">
+                <h3>Change Password: <span id="pw-username-display"></span></h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>New Password</label>
+                        <input type="password" id="pw-new" autocomplete="new-password">
+                    </div>
+                    <div class="form-group">
+                        <label>Confirm</label>
+                        <input type="password" id="pw-confirm" autocomplete="new-password">
+                    </div>
+                    <button class="btn btn-primary" onclick="submitPasswordChange()">Save</button>
+                    <button class="btn btn-secondary" onclick="hidePanel('password-panel')">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer-bar">
+            <button class="btn btn-secondary" onclick="window.location.href='/'">Close</button>
+        </div>
+    </div>
+
+    <script>
+        const allSites = {{ all_sites | tojson }};
+        const isSuperadmin = {{ 'true' if is_superadmin else 'false' }};
+        let users = [];
+        let selectedUser = null;
+
+        function showNotification(msg, type) {
+            const el = document.createElement('div');
+            el.className = 'notification ' + type;
+            el.textContent = msg;
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 3000);
+        }
+
+        function hidePanel(id) {
+            document.getElementById(id).style.display = 'none';
+        }
+
+        function selectUser(username) {
+            selectedUser = users.find(u => u.username === username) || null;
+            document.querySelectorAll('#user-table-body tr').forEach(r => {
+                r.classList.toggle('selected', r.dataset.username === username);
+            });
+            document.getElementById('btn-modify').disabled = !selectedUser;
+            document.getElementById('btn-password').disabled = !selectedUser;
+            document.getElementById('btn-delete').disabled = !selectedUser;
+            hidePanel('add-panel');
+            hidePanel('modify-panel');
+            hidePanel('password-panel');
+        }
+
+        function renderSiteRoleDropdowns(containerId, currentRoles) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            const roleMap = {};
+            if (currentRoles) {
+                currentRoles.forEach(r => { roleMap[r.site_id] = r.role; });
+            }
+            allSites.forEach(site => {
+                const row = document.createElement('div');
+                row.className = 'site-role-row';
+                const currentRole = roleMap[site.id] || '';
+                row.innerHTML = `
+                    <span class="site-name">${site.name}</span>
+                    <select data-site-id="${site.id}">
+                        <option value="" ${!currentRole ? 'selected' : ''}>(none)</option>
+                        <option value="user" ${currentRole === 'user' ? 'selected' : ''}>user</option>
+                        <option value="admin" ${currentRole === 'admin' ? 'selected' : ''}>admin</option>
+                    </select>
+                `;
+                container.appendChild(row);
+            });
+        }
+
+        function collectSiteRoles(containerId) {
+            const selects = document.querySelectorAll('#' + containerId + ' select[data-site-id]');
+            const roles = [];
+            selects.forEach(sel => {
+                if (sel.value) {
+                    roles.push({ site_id: parseInt(sel.dataset.siteId), role: sel.value });
+                }
+            });
+            return roles;
+        }
+
+        async function loadUsers() {
+            const resp = await fetch('/api/users');
+            const data = await resp.json();
+            if (!data.success) return;
+            users = data.users;
+            const tbody = document.getElementById('user-table-body');
+            tbody.innerHTML = '';
+            users.forEach(u => {
+                const tr = document.createElement('tr');
+                tr.className = 'selectable';
+                tr.dataset.username = u.username;
+                tr.onclick = () => selectUser(u.username);
+
+                const rolesHtml = (u.site_roles || []).map(r => {
+                    const cls = r.role === 'admin' ? 'site-role-tag admin' : 'site-role-tag';
+                    return `<span class="${cls}">${r.site_name}: ${r.role}</span>`;
+                }).join('');
+
+                tr.innerHTML = `
+                    <td>${u.username}</td>
+                    <td class="site-roles-cell">${rolesHtml || '<em style="color:#999;">none</em>'}</td>
+                    <td>${(u.created_at || '').substring(0, 19)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+            selectedUser = null;
+            document.getElementById('btn-modify').disabled = true;
+            document.getElementById('btn-password').disabled = true;
+            document.getElementById('btn-delete').disabled = true;
+        }
+
+        function showAddPanel() {
+            hidePanel('modify-panel');
+            hidePanel('password-panel');
+            document.getElementById('add-username').value = '';
+            document.getElementById('add-password').value = '';
+            document.getElementById('add-confirm').value = '';
+            renderSiteRoleDropdowns('add-site-roles', []);
+            document.getElementById('add-panel').style.display = 'block';
+            document.getElementById('add-username').focus();
+        }
+
+        async function submitAddUser() {
+            const username = document.getElementById('add-username').value.trim();
+            const password = document.getElementById('add-password').value;
+            const confirm = document.getElementById('add-confirm').value;
+            if (!username) { showNotification('Username required', 'error'); return; }
+            if (!password) { showNotification('Password required', 'error'); return; }
+            if (password !== confirm) { showNotification('Passwords do not match', 'error'); return; }
+
+            const siteRoles = collectSiteRoles('add-site-roles');
+            const globalRole = siteRoles.some(r => r.role === 'admin') ? 'admin' : 'user';
+
+            const resp = await fetch('/api/users', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ username, password, role: globalRole, site_roles: siteRoles })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                hidePanel('add-panel');
+                loadUsers();
+                showNotification('User created: ' + username, 'success');
+            } else {
+                showNotification(data.message, 'error');
+            }
+        }
+
+        function showModifyPanel() {
+            if (!selectedUser) return;
+            hidePanel('add-panel');
+            hidePanel('password-panel');
+            document.getElementById('modify-username-display').textContent = selectedUser.username;
+            renderSiteRoleDropdowns('modify-site-roles', selectedUser.site_roles || []);
+            document.getElementById('modify-panel').style.display = 'block';
+        }
+
+        async function submitModifyUser() {
+            if (!selectedUser) return;
+            const siteRoles = collectSiteRoles('modify-site-roles');
+
+            const resp = await fetch('/api/users/' + encodeURIComponent(selectedUser.username), {
+                method: 'PATCH',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ site_roles: siteRoles })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                hidePanel('modify-panel');
+                loadUsers();
+                showNotification('User updated', 'success');
+            } else {
+                showNotification(data.message, 'error');
+            }
+        }
+
+        function showPasswordPanel() {
+            if (!selectedUser) return;
+            hidePanel('add-panel');
+            hidePanel('modify-panel');
+            document.getElementById('pw-username-display').textContent = selectedUser.username;
+            document.getElementById('pw-new').value = '';
+            document.getElementById('pw-confirm').value = '';
+            document.getElementById('password-panel').style.display = 'block';
+            document.getElementById('pw-new').focus();
+        }
+
+        async function submitPasswordChange() {
+            if (!selectedUser) return;
+            const pw = document.getElementById('pw-new').value;
+            const confirm = document.getElementById('pw-confirm').value;
+            if (!pw) { showNotification('Password required', 'error'); return; }
+            if (pw !== confirm) { showNotification('Passwords do not match', 'error'); return; }
+
+            const resp = await fetch('/api/users/' + encodeURIComponent(selectedUser.username), {
+                method: 'PATCH',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ password: pw })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                hidePanel('password-panel');
+                showNotification('Password changed', 'success');
+            } else {
+                showNotification(data.message, 'error');
+            }
+        }
+
+        async function handleDeleteUser() {
+            if (!selectedUser) return;
+            if (!confirm('Delete user "' + selectedUser.username + '"?')) return;
+            const resp = await fetch('/api/users/' + encodeURIComponent(selectedUser.username), {
+                method: 'DELETE'
+            });
+            const data = await resp.json();
+            if (data.success) {
+                loadUsers();
+                showNotification('User deleted', 'success');
+            } else {
+                showNotification(data.message, 'error');
+            }
+        }
+
+        loadUsers();
+    </script>
+</body>
+</html>

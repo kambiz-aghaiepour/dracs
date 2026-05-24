@@ -1390,7 +1390,7 @@
                 {% if is_authenticated %}
                     <span class="username-display">Logged in as <strong>{{ username }}</strong> ({{ user_role }})</span>
                     {% if user_role == 'admin' %}
-                    <a href="#" class="logout-link" onclick="showUserManagementModal(event)" style="margin-right: 8px;">Users</a>
+                    <a href="/users" class="logout-link" style="margin-right: 8px;">Users</a>
                     {% endif %}
                     <a href="#" class="logout-link" onclick="showSelfPasswordModal(event)" style="margin-right: 8px;">Password</a>
                     <a href="#" class="logout-link" onclick="handleLogout(event)">Logout</a>
