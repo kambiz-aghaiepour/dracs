@@ -434,15 +434,12 @@ async def main() -> None:
 
     db_initialize(warranty)
 
-    site_id = None
     if args.site:
         from dracs.db import get_site_by_name
 
-        site = get_site_by_name(args.site)
-        if site is None:
+        if get_site_by_name(args.site) is None:
             print(f"Error: site '{args.site}' not found.", file=sys.stderr)
             sys.exit(1)
-        site_id = site["id"]
 
     if args.command == "sites":
         from dracs.db import list_sites
