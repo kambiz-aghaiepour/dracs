@@ -52,6 +52,37 @@ def _post_json(url, server, verify_ssl, data):
     )
 
 
+def _render_version_summary(models, label):
+    from rich.console import Console
+    from rich.table import Table
+
+    if not models:
+        print("No systems found.")
+        return
+
+    console = Console()
+    table = Table(show_header=True, header_style="bold cyan", show_lines=True)
+    table.add_column("Model")
+    table.add_column("Installed Versions")
+    table.add_column("Other Versions")
+
+    for m in models:
+        installed_lines = "\n".join(
+            f"{i['version']} ({i['count']})" for i in m["installed"]
+        )
+        other_lines = "\n".join(m.get("available", []))
+        table.add_row(m["model"], installed_lines, other_lines)
+
+    console.print(table)
+
+
+def _site_url(url, site):
+    if not site:
+        return url
+    sep = "&" if "?" in url else "?"
+    return f"{url}{sep}site={site}"
+
+
 def _print_result(resp):
     data = resp.json()
     if data.get("success"):
@@ -62,9 +93,10 @@ def _print_result(resp):
 
 
 def cmd_tsr_generate(args, base_url, verify_ssl, server):
+    site = getattr(args, "site", None)
     from dracs_client.cli import fetch_systems
 
-    systems = fetch_systems(base_url, verify_ssl, server)
+    systems = fetch_systems(base_url, verify_ssl, server, site=site)
     host = next((s for s in systems if s["name"] == args.target), None)
     if not host:
         print("Target host not found.", file=sys.stderr)
@@ -80,8 +112,9 @@ def cmd_tsr_generate(args, base_url, verify_ssl, server):
 
 
 def cmd_tsr_status(args, base_url, verify_ssl, server):
+    site = getattr(args, "site", None)
     resp = _post_json(
-        f"{base_url}/api/tsr-status",
+        _site_url(f"{base_url}/api/tsr-status", site),
         server,
         verify_ssl,
         {"hostname": args.target},
@@ -98,18 +131,21 @@ def cmd_tsr_status(args, base_url, verify_ssl, server):
 
 
 def cmd_refresh(args, base_url, verify_ssl, server):
+    site = getattr(args, "site", None)
     if args.all:
-        resp = _post_json(f"{base_url}/api/refresh-all", server, verify_ssl, {})
+        resp = _post_json(
+            _site_url(f"{base_url}/api/refresh-all", site), server, verify_ssl, {}
+        )
     elif args.target:
         resp = _post_json(
-            f"{base_url}/api/refresh",
+            _site_url(f"{base_url}/api/refresh", site),
             server,
             verify_ssl,
             {"hostname": args.target},
         )
     elif args.svctag:
         resp = _post_json(
-            f"{base_url}/api/refresh",
+            _site_url(f"{base_url}/api/refresh", site),
             server,
             verify_ssl,
             {"service_tag": args.svctag},
@@ -121,11 +157,12 @@ def cmd_refresh(args, base_url, verify_ssl, server):
 
 
 def cmd_fw(args, base_url, verify_ssl, server):
+    site = getattr(args, "site", None)
     if args.list:
         if args.model:
             resp = _api_request(
                 "get",
-                f"{base_url}/api/firmware-versions/{args.model}",
+                _site_url(f"{base_url}/api/firmware-versions/{args.model}", site),
                 server,
                 verify_ssl,
             )
@@ -140,8 +177,17 @@ def cmd_fw(args, base_url, verify_ssl, server):
             else:
                 print(f"Error: {data.get('message')}", file=sys.stderr)
         else:
-            print("Error: --model is required with --list.", file=sys.stderr)
-            sys.exit(1)
+            resp = _api_request(
+                "get",
+                _site_url(f"{base_url}/api/fw-summary", site),
+                server,
+                verify_ssl,
+            )
+            data = resp.json()
+            if data.get("success"):
+                _render_version_summary(data["models"], "Firmware")
+            else:
+                print(f"Error: {data.get('message')}", file=sys.stderr)
     elif args.apply:
         if not args.version or not args.target:
             print(
@@ -153,7 +199,7 @@ def cmd_fw(args, base_url, verify_ssl, server):
             print("Error: --model is required with --apply.", file=sys.stderr)
             sys.exit(1)
         resp = _post_json(
-            f"{base_url}/api/firmware-update",
+            _site_url(f"{base_url}/api/firmware-update", site),
             server,
             verify_ssl,
             {
@@ -166,11 +212,12 @@ def cmd_fw(args, base_url, verify_ssl, server):
 
 
 def cmd_bios(args, base_url, verify_ssl, server):
+    site = getattr(args, "site", None)
     if args.list:
         if args.model:
             resp = _api_request(
                 "get",
-                f"{base_url}/api/bios-versions/{args.model}",
+                _site_url(f"{base_url}/api/bios-versions/{args.model}", site),
                 server,
                 verify_ssl,
             )
@@ -185,8 +232,17 @@ def cmd_bios(args, base_url, verify_ssl, server):
             else:
                 print(f"Error: {data.get('message')}", file=sys.stderr)
         else:
-            print("Error: --model is required with --list.", file=sys.stderr)
-            sys.exit(1)
+            resp = _api_request(
+                "get",
+                _site_url(f"{base_url}/api/bios-summary", site),
+                server,
+                verify_ssl,
+            )
+            data = resp.json()
+            if data.get("success"):
+                _render_version_summary(data["models"], "BIOS")
+            else:
+                print(f"Error: {data.get('message')}", file=sys.stderr)
     elif args.apply:
         if not args.version or not args.target:
             print(
@@ -198,7 +254,7 @@ def cmd_bios(args, base_url, verify_ssl, server):
             print("Error: --model is required with --apply.", file=sys.stderr)
             sys.exit(1)
         resp = _post_json(
-            f"{base_url}/api/bios-update",
+            _site_url(f"{base_url}/api/bios-update", site),
             server,
             verify_ssl,
             {
@@ -211,12 +267,13 @@ def cmd_bios(args, base_url, verify_ssl, server):
 
 
 def cmd_power(args, base_url, verify_ssl, server):
+    site = getattr(args, "site", None)
     if args.status:
         if not args.target:
             print("Error: --target is required with --status.", file=sys.stderr)
             sys.exit(1)
         resp = _post_json(
-            f"{base_url}/api/power-status",
+            _site_url(f"{base_url}/api/power-status", site),
             server,
             verify_ssl,
             {"hostname": args.target},
@@ -231,7 +288,7 @@ def cmd_power(args, base_url, verify_ssl, server):
             print("Error: --target is required with --action.", file=sys.stderr)
             sys.exit(1)
         resp = _post_json(
-            f"{base_url}/api/power-action",
+            _site_url(f"{base_url}/api/power-action", site),
             server,
             verify_ssl,
             {"hostname": args.target, "action": args.action},
@@ -246,9 +303,12 @@ def cmd_power(args, base_url, verify_ssl, server):
 
 
 def cmd_jobs(args, base_url, verify_ssl, server):
+    site = getattr(args, "site", None)
     if args.list:
         params = "?all=true" if args.all else ""
-        resp = _api_request("get", f"{base_url}/api/jobs{params}", server, verify_ssl)
+        resp = _api_request(
+            "get", _site_url(f"{base_url}/api/jobs{params}", site), server, verify_ssl
+        )
         data = resp.json()
         if data.get("success"):
             jobs = data.get("jobs", [])
@@ -274,7 +334,12 @@ def cmd_jobs(args, base_url, verify_ssl, server):
             else:
                 print("No active jobs.")
     elif args.clear:
-        resp = _post_json(f"{base_url}/api/clear-job-queue", server, verify_ssl, {})
+        resp = _post_json(
+            _site_url(f"{base_url}/api/clear-job-queue", site),
+            server,
+            verify_ssl,
+            {},
+        )
         _print_result(resp)
     else:
         print(
@@ -285,12 +350,13 @@ def cmd_jobs(args, base_url, verify_ssl, server):
 
 
 def cmd_idracjobs(args, base_url, verify_ssl, server):
+    site = getattr(args, "site", None)
     if args.list:
         if not args.target:
             print("Error: --target is required with --list.", file=sys.stderr)
             sys.exit(1)
         resp = _post_json(
-            f"{base_url}/api/job-queue",
+            _site_url(f"{base_url}/api/job-queue", site),
             server,
             verify_ssl,
             {"hostname": args.target},
@@ -312,7 +378,7 @@ def cmd_idracjobs(args, base_url, verify_ssl, server):
             print("Error: --target is required with --clear.", file=sys.stderr)
             sys.exit(1)
         resp = _post_json(
-            f"{base_url}/api/clear-job-queue",
+            _site_url(f"{base_url}/api/clear-job-queue", site),
             server,
             verify_ssl,
             {"hostnames": [args.target]},

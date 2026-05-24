@@ -47,6 +47,7 @@ async def add_dell_warranty(
     model: str,
     warranty: str,
     warranty_results: Optional[Dict] = None,
+    site_id: int | None = None,
 ) -> None:
     idrac_host = build_idrac_hostname(hostname)
     community_string = os.getenv("SNMP_COMMUNITY", "public")
@@ -87,6 +88,7 @@ async def add_dell_warranty(
             bios_version,
             results[0].exp_date,
             results[0].exp_epoch,
+            site_id=site_id,
         )
         logger.info(f"Successfully updated record for {service_tag}")
     else:
@@ -112,6 +114,7 @@ async def add_dell_warranty(
             bios_version,
             h_date,
             h_epoch,
+            site_id=site_id,
         )
         logger.info(f"Successfully added record for {service_tag}")
 
@@ -280,6 +283,7 @@ async def list_dell_warranty(
     printjson: bool,
     host_only: bool,
     warranty: str,
+    site_id: Optional[int] = None,
 ) -> None:
     db_initialize(warranty)
 
@@ -294,6 +298,8 @@ async def list_dell_warranty(
 
     with get_session() as session:
         query = session.query(System)
+        if site_id is not None:
+            query = query.filter(System.site_id == site_id)
 
         if service_tag:
             query = query.filter(System.svc_tag == service_tag)
@@ -444,7 +450,9 @@ async def refresh_dell_warranty(
         )
 
 
-async def refresh_by_model(model: str, warranty: str, verbose: bool = False) -> None:
+async def refresh_by_model(
+    model: str, warranty: str, verbose: bool = False, site_id: int | None = None
+) -> None:
     from dracs.jobqueue import enqueue_batch
 
     db_initialize(warranty)
@@ -453,11 +461,13 @@ async def refresh_by_model(model: str, warranty: str, verbose: bool = False) -> 
     if len(results) == 0:
         raise DatabaseError(f"No systems found with model {model}")
 
-    count = enqueue_batch("refresh", f"model:{model}")
+    count = enqueue_batch("refresh", f"model:{model}", site_id=site_id)
     print(f"Queued {count} refresh jobs for model {model}.")
 
 
-async def refresh_all_systems(warranty: str, verbose: bool = False) -> None:
+async def refresh_all_systems(
+    warranty: str, verbose: bool = False, site_id: int | None = None
+) -> None:
     from dracs.jobqueue import enqueue_batch
 
     db_initialize(warranty)
@@ -466,7 +476,7 @@ async def refresh_all_systems(warranty: str, verbose: bool = False) -> None:
     if len(results) == 0:
         raise DatabaseError("No systems found in database")
 
-    count = enqueue_batch("refresh", "all")
+    count = enqueue_batch("refresh", "all", site_id=site_id)
     print(f"Queued {count} refresh jobs for all systems.")
 
 
@@ -497,7 +507,9 @@ async def discover_dell_system(hostname: str, warranty: str) -> Tuple[str, str]:
     return (service_tag, model)
 
 
-async def _discover_single_host(hostname: str, warranty: str, auto_add: bool) -> dict:
+async def _discover_single_host(
+    hostname: str, warranty: str, auto_add: bool, site_id: int | None = None
+) -> dict:
     result = {"hostname": hostname, "status": "ok", "error": None}
     try:
         service_tag, model = await discover_dell_system(hostname, warranty)
@@ -505,7 +517,9 @@ async def _discover_single_host(hostname: str, warranty: str, auto_add: bool) ->
         result["model"] = model
 
         if auto_add:
-            await add_dell_warranty(service_tag, hostname, model, warranty)
+            await add_dell_warranty(
+                service_tag, hostname, model, warranty, site_id=site_id
+            )
             result["added"] = True
         else:
             result["added"] = False
@@ -518,9 +532,13 @@ async def _discover_single_host(hostname: str, warranty: str, auto_add: bool) ->
 
 
 async def discover_dell_systems_batch(
-    hosts: List[str], warranty: str, auto_add: bool, show_discovered: bool = False
+    hosts: List[str],
+    warranty: str,
+    auto_add: bool,
+    show_discovered: bool = False,
+    site_id: int | None = None,
 ) -> None:
-    tasks = [_discover_single_host(h, warranty, False) for h in hosts]
+    tasks = [_discover_single_host(h, warranty, False, site_id=site_id) for h in hosts]
     results = await asyncio.gather(*tasks)
 
     if auto_add:
@@ -536,6 +554,7 @@ async def discover_dell_systems_batch(
                     r["model"],
                     warranty,
                     warranty_results=warranty_results,
+                    site_id=site_id,
                 )
                 for r in discovered
             ]
@@ -951,7 +970,9 @@ def _version_sort_key(v: str):
     return tuple(map(int, v.split(".")))
 
 
-async def fw_list(model_filter: str | None, warranty: str) -> None:
+async def fw_list(
+    model_filter: str | None, warranty: str, site_id: int | None = None
+) -> None:
     from collections import Counter
 
     from rich.console import Console
@@ -961,6 +982,8 @@ async def fw_list(model_filter: str | None, warranty: str) -> None:
 
     with get_session() as session:
         query = session.query(System)
+        if site_id is not None:
+            query = query.filter(System.site_id == site_id)
         if model_filter:
             query = query.filter(System.model == model_filter)
         systems = query.all()
@@ -1049,7 +1072,9 @@ async def fw_apply(
     print(f"Firmware update {version} queued for {hostname} (job {job_id})")
 
 
-async def bios_list(model_filter: str | None, warranty: str) -> None:
+async def bios_list(
+    model_filter: str | None, warranty: str, site_id: int | None = None
+) -> None:
     from collections import Counter
 
     from rich.console import Console
@@ -1059,6 +1084,8 @@ async def bios_list(model_filter: str | None, warranty: str) -> None:
 
     with get_session() as session:
         query = session.query(System)
+        if site_id is not None:
+            query = query.filter(System.site_id == site_id)
         if model_filter:
             query = query.filter(System.model == model_filter)
         systems = query.all()

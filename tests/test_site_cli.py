@@ -84,6 +84,44 @@ class TestSiteArgument:
             _run_cli(cli_db, "--site", "NoSuch", "sites")
         assert exc_info.value.code == 1
 
+    def test_list_filters_by_site(self, cli_db, capsys):
+        site2 = create_site("Site2")
+        upsert_system(
+            cli_db,
+            "TAG002",
+            "site2host",
+            "R660",
+            "7.0.0",
+            "2.1.0",
+            "Jan 1, 2027",
+            1893456000,
+            site_id=site2["id"],
+        )
+
+        _run_cli(cli_db, "--site", "Site2", "li")
+        output = capsys.readouterr().out
+        assert "site2host" in output
+        assert "server01" not in output
+
+    def test_list_default_site_only(self, cli_db, capsys):
+        site2 = create_site("Site2")
+        upsert_system(
+            cli_db,
+            "TAG002",
+            "site2host",
+            "R660",
+            "7.0.0",
+            "2.1.0",
+            "Jan 1, 2027",
+            1893456000,
+            site_id=site2["id"],
+        )
+
+        _run_cli(cli_db, "li")
+        output = capsys.readouterr().out
+        assert "server01" in output
+        assert "site2host" not in output
+
 
 class TestClientSiteArgument:
     def test_client_accepts_site_arg(self):
@@ -193,6 +231,41 @@ class TestClientSiteArgument:
 
             call_url = mock_get.call_args[0][0]
             assert "site=Default" in call_url
+
+    def test_client_invalid_site_exits(self, capsys):
+        with patch("dracs_client.cli.requests.get") as mock_get:
+            mock_resp = MagicMock()
+            mock_resp.json.return_value = {
+                "success": True,
+                "sites": [{"name": "Default", "host_count": 5}],
+            }
+            mock_get.return_value = mock_resp
+
+            with patch("dracs_client.cli.auth_headers", return_value={}):
+                with patch("dracs_client.cli.get_current_role", return_value="user"):
+                    with patch(
+                        "dracs_client.cli.load_server_config",
+                        return_value="testserver",
+                    ):
+                        with patch(
+                            "sys.argv",
+                            [
+                                "dracs-client",
+                                "-s",
+                                "testserver",
+                                "--site",
+                                "NoSuchSite",
+                                "list",
+                            ],
+                        ):
+                            from dracs_client.cli import main
+
+                            with pytest.raises(SystemExit) as exc_info:
+                                main()
+                            assert exc_info.value.code == 1
+
+        output = capsys.readouterr().err
+        assert "not found" in output
 
 
 class TestResolveTargetsWithSite:
