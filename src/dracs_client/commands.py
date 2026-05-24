@@ -168,39 +168,20 @@ def cmd_refresh(args, base_url, verify_ssl, server):
 def cmd_fw(args, base_url, verify_ssl, server):
     site = getattr(args, "site", None)
     if args.list:
+        url = _site_url(f"{base_url}/api/fw-summary", site)
         if args.model:
-            resp = _api_request(
-                "get",
-                _site_url(f"{base_url}/api/firmware-versions/{args.model}", site),
-                server,
-                verify_ssl,
-            )
+            sep = "&" if "?" in url else "?"
+            url = f"{url}{sep}model={args.model}"
+        resp = _api_request("get", url, server, verify_ssl)
+        try:
             data = resp.json()
-            if data.get("success"):
-                versions = data.get("versions", [])
-                if versions:
-                    for v in versions:
-                        print(v)
-                else:
-                    print(f"No firmware versions found for {args.model}")
-            else:
-                print(f"Error: {data.get('message')}", file=sys.stderr)
+        except (ValueError, requests.exceptions.JSONDecodeError):
+            print("Error: unexpected response from server", file=sys.stderr)
+            sys.exit(1)
+        if data.get("success"):
+            _render_version_summary(data["models"], "Firmware")
         else:
-            resp = _api_request(
-                "get",
-                _site_url(f"{base_url}/api/fw-summary", site),
-                server,
-                verify_ssl,
-            )
-            try:
-                data = resp.json()
-            except (ValueError, requests.exceptions.JSONDecodeError):
-                print("Error: unexpected response from server", file=sys.stderr)
-                sys.exit(1)
-            if data.get("success"):
-                _render_version_summary(data["models"], "Firmware")
-            else:
-                print(f"Error: {data.get('message')}", file=sys.stderr)
+            print(f"Error: {data.get('message')}", file=sys.stderr)
     elif args.apply:
         if not args.version or not args.target:
             print(
@@ -227,39 +208,20 @@ def cmd_fw(args, base_url, verify_ssl, server):
 def cmd_bios(args, base_url, verify_ssl, server):
     site = getattr(args, "site", None)
     if args.list:
+        url = _site_url(f"{base_url}/api/bios-summary", site)
         if args.model:
-            resp = _api_request(
-                "get",
-                _site_url(f"{base_url}/api/bios-versions/{args.model}", site),
-                server,
-                verify_ssl,
-            )
+            sep = "&" if "?" in url else "?"
+            url = f"{url}{sep}model={args.model}"
+        resp = _api_request("get", url, server, verify_ssl)
+        try:
             data = resp.json()
-            if data.get("success"):
-                versions = data.get("versions", [])
-                if versions:
-                    for v in versions:
-                        print(v)
-                else:
-                    print(f"No BIOS versions found for {args.model}")
-            else:
-                print(f"Error: {data.get('message')}", file=sys.stderr)
+        except (ValueError, requests.exceptions.JSONDecodeError):
+            print("Error: unexpected response from server", file=sys.stderr)
+            sys.exit(1)
+        if data.get("success"):
+            _render_version_summary(data["models"], "BIOS")
         else:
-            resp = _api_request(
-                "get",
-                _site_url(f"{base_url}/api/bios-summary", site),
-                server,
-                verify_ssl,
-            )
-            try:
-                data = resp.json()
-            except (ValueError, requests.exceptions.JSONDecodeError):
-                print("Error: unexpected response from server", file=sys.stderr)
-                sys.exit(1)
-            if data.get("success"):
-                _render_version_summary(data["models"], "BIOS")
-            else:
-                print(f"Error: {data.get('message')}", file=sys.stderr)
+            print(f"Error: {data.get('message')}", file=sys.stderr)
     elif args.apply:
         if not args.version or not args.target:
             print(

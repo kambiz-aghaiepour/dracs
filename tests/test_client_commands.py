@@ -109,17 +109,44 @@ class TestCmdRefresh:
 
 class TestCmdFw:
     def test_fw_list(self, capsys):
-        resp = _mock_resp(200, {"success": True, "versions": ["7.0.0", "7.1.0"]})
+        resp = _mock_resp(
+            200,
+            {
+                "success": True,
+                "models": [
+                    {
+                        "model": "R660",
+                        "installed": [{"version": "7.0.0", "count": 3}],
+                        "available": ["7.1.0"],
+                    }
+                ],
+            },
+        )
         args = MagicMock(list=True, apply=False, model="R660")
         with patch("dracs_client.commands._api_request", return_value=resp):
             cmd_fw(args, "https://s", True, "s")
         out = capsys.readouterr().out
         assert "7.0.0" in out
 
-    def test_fw_list_no_model_exits(self):
+    def test_fw_list_no_model(self, capsys):
+        resp = _mock_resp(
+            200,
+            {
+                "success": True,
+                "models": [
+                    {
+                        "model": "R660",
+                        "installed": [{"version": "7.0.0", "count": 3}],
+                        "available": [],
+                    }
+                ],
+            },
+        )
         args = MagicMock(list=True, apply=False, model=None)
-        with pytest.raises(SystemExit):
+        with patch("dracs_client.commands._api_request", return_value=resp):
             cmd_fw(args, "https://s", True, "s")
+        out = capsys.readouterr().out
+        assert "R660" in out
 
     def test_fw_apply(self, capsys):
         args = MagicMock(
@@ -143,25 +170,51 @@ class TestCmdFw:
             cmd_fw(args, "https://s", True, "s")
 
     def test_fw_list_empty(self, capsys):
-        resp = _mock_resp(200, {"success": True, "versions": []})
+        resp = _mock_resp(200, {"success": True, "models": []})
         args = MagicMock(list=True, apply=False, model="R660")
         with patch("dracs_client.commands._api_request", return_value=resp):
             cmd_fw(args, "https://s", True, "s")
-        assert "No firmware" in capsys.readouterr().out
+        assert "No systems found" in capsys.readouterr().out
 
 
 class TestCmdBios:
     def test_bios_list(self, capsys):
-        resp = _mock_resp(200, {"success": True, "versions": ["2.1.0"]})
+        resp = _mock_resp(
+            200,
+            {
+                "success": True,
+                "models": [
+                    {
+                        "model": "R660",
+                        "installed": [{"version": "2.1.0", "count": 5}],
+                        "available": [],
+                    }
+                ],
+            },
+        )
         args = MagicMock(list=True, apply=False, model="R660")
         with patch("dracs_client.commands._api_request", return_value=resp):
             cmd_bios(args, "https://s", True, "s")
         assert "2.1.0" in capsys.readouterr().out
 
-    def test_bios_list_no_model_exits(self):
+    def test_bios_list_no_model(self, capsys):
+        resp = _mock_resp(
+            200,
+            {
+                "success": True,
+                "models": [
+                    {
+                        "model": "R660",
+                        "installed": [{"version": "2.1.0", "count": 5}],
+                        "available": [],
+                    }
+                ],
+            },
+        )
         args = MagicMock(list=True, apply=False, model=None)
-        with pytest.raises(SystemExit):
+        with patch("dracs_client.commands._api_request", return_value=resp):
             cmd_bios(args, "https://s", True, "s")
+        assert "R660" in capsys.readouterr().out
 
     def test_bios_apply(self, capsys):
         args = MagicMock(
@@ -466,11 +519,11 @@ class TestCmdBiosErrors:
         assert "Server error" in capsys.readouterr().err
 
     def test_bios_list_empty(self, capsys):
-        resp = _mock_resp(200, {"success": True, "versions": []})
+        resp = _mock_resp(200, {"success": True, "models": []})
         args = MagicMock(list=True, apply=False, model="R660")
         with patch("dracs_client.commands._api_request", return_value=resp):
             cmd_bios(args, "https://s", True, "s")
-        assert "No BIOS" in capsys.readouterr().out
+        assert "No systems found" in capsys.readouterr().out
 
     def test_bios_apply_no_version_exits(self):
         args = MagicMock(

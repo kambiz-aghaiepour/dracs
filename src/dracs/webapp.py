@@ -2574,6 +2574,9 @@ def api_fw_summary():
         return err
 
     systems = get_all_systems(site_id=site_id)
+    model_filter = request.args.get("model")
+    if model_filter:
+        systems = [s for s in systems if s.model == model_filter]
     models = sorted(set(s.model for s in systems if s.model))
     result = []
     for m in models:
@@ -2601,6 +2604,9 @@ def api_bios_summary():
         return err
 
     systems = get_all_systems(site_id=site_id)
+    model_filter = request.args.get("model")
+    if model_filter:
+        systems = [s for s in systems if s.model == model_filter]
     models = sorted(set(s.model for s in systems if s.model))
     result = []
     for m in models:
