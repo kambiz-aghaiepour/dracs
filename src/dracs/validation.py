@@ -61,6 +61,16 @@ def read_host_list(filepath: str) -> List[str]:
     return hosts
 
 
+def validate_site_name(name: Optional[str]) -> bool:
+    if not name or not isinstance(name, str):
+        return False
+    if len(name) > 32:
+        return False
+    if not re.match(r"^[a-zA-Z0-9]+$", name):
+        return False
+    return True
+
+
 def validate_version(version: Optional[str]) -> bool:
     """
     Validates version string format (e.g., 2.1.0).

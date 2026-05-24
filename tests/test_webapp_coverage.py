@@ -99,10 +99,10 @@ class TestGetIdracCredentialsWithConfig:
 
         ini = tmp_path / "drac-passwords.ini"
         ini.write_text(
-            "[DEFAULT]\n"
+            "[Default-DEFAULTS]\n"
             "username = root\n"
             "password = calvin\n"
-            "[myhost]\n"
+            "[Default-myhost]\n"
             "username = admin\n"
             "password = secret123\n"
         )
@@ -115,7 +115,9 @@ class TestGetIdracCredentialsWithConfig:
         from dracs.webapp import get_idrac_credentials
 
         ini = tmp_path / "drac-passwords.ini"
-        ini.write_text("[DEFAULT]\n" "username = superuser\n" "password = superpass\n")
+        ini.write_text(
+            "[Default-DEFAULTS]\n" "username = superuser\n" "password = superpass\n"
+        )
         monkeypatch.chdir(tmp_path)
         user, pwd = get_idrac_credentials("unknown-host")
         assert user == "superuser"
@@ -676,8 +678,8 @@ class TestCredentialsNoConfigFile:
 
         ini = tmp_path / "drac-passwords.ini"
         ini.write_text(
-            "[DEFAULT]\nusername = admin\npassword = secret\n\n"
-            "[myhost]\nusername = hostuser\npassword = hostpass\n"
+            "[Default-DEFAULTS]\nusername = admin\npassword = secret\n\n"
+            "[Default-myhost]\nusername = hostuser\npassword = hostpass\n"
         )
         monkeypatch.chdir(tmp_path)
         user, pwd = get_idrac_credentials("myhost")
@@ -735,7 +737,9 @@ class TestRefreshAllEnqueueBatch:
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["queued"] == 6
-        mock_enqueue.assert_called_once_with("refresh", "all")
+        mock_enqueue.assert_called_once()
+        args, kwargs = mock_enqueue.call_args
+        assert args == ("refresh", "all")
 
 
 # ---------------------------------------------------------------------------

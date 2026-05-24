@@ -505,7 +505,9 @@ class TestRefreshAllEndpoint:
         data = resp.get_json()
         assert data["queued"] == 2
         assert data["total"] == 2
-        mock_enqueue.assert_called_once_with("refresh", "all")
+        mock_enqueue.assert_called_once()
+        args, kwargs = mock_enqueue.call_args
+        assert args == ("refresh", "all")
 
 
 class TestFirmwareVersionsEndpoint:
@@ -587,10 +589,7 @@ class TestHelperFunctions:
     def test_get_idrac_credentials_no_file(self):
         from dracs.webapp import get_idrac_credentials
 
-        with patch("dracs.webapp.Path") as mock_path:
-            mock_path.return_value.__truediv__ = lambda s, n: MagicMock(
-                exists=lambda: False
-            )
+        with patch("dracs.webapp._find_passwords_ini", return_value=None):
             username, password = get_idrac_credentials("server01")
         assert username == "root"
         assert password == "calvin"

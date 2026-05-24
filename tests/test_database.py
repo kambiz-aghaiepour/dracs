@@ -30,6 +30,7 @@ def test_db_initialize_table_schema(temp_db):
         "bios_version",
         "exp_date",
         "exp_epoch",
+        "site_id",
     ]
 
     assert column_names == expected_columns

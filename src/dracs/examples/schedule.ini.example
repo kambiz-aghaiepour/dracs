@@ -8,6 +8,7 @@
 #   time     = HH:MM (24-hour format)
 #   day      = monday | tuesday | ... | sunday (required for weekly)
 #   target   = all | model:<model> | <hostname>
+#   site     = <site_name> (optional, defaults to primary site)
 #
 # Examples:
 #

@@ -8,7 +8,7 @@ from pathlib import Path
 
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from dracs.db import User, get_session
+from dracs.db import Site, User, UserSiteRole, get_session
 from dracs.exceptions import ValidationError
 
 _USERNAME_RE = re.compile(r"^[a-zA-Z0-9_-]{3,32}$")
@@ -56,6 +56,15 @@ def create_user(
             created_by=created_by,
         )
         session.add(user)
+        session.flush()
+
+        default_site = (
+            session.query(Site).filter(Site.is_primary == True).first()  # noqa: E712
+        )
+        if default_site:
+            mapping = UserSiteRole(user_id=user.id, site_id=default_site.id, role=role)
+            session.add(mapping)
+
         session.commit()
         session.refresh(user)
         return user
@@ -133,6 +142,19 @@ def update_user_role(username: str, new_role: str) -> bool:
         if not user:
             return False
         user.role = new_role
+
+        default_site = (
+            session.query(Site).filter(Site.is_primary == True).first()  # noqa: E712
+        )
+        if default_site:
+            mapping = (
+                session.query(UserSiteRole)
+                .filter_by(user_id=user.id, site_id=default_site.id)
+                .first()
+            )
+            if mapping:
+                mapping.role = new_role
+
         session.commit()
         return True
 
@@ -140,6 +162,84 @@ def update_user_role(username: str, new_role: str) -> bool:
 def get_user(username: str) -> User | None:
     with get_session() as session:
         return session.query(User).filter(User.username == username).first()
+
+
+def set_user_site_role(username: str, site_id: int, role: str) -> None:
+    if role not in _VALID_ROLES:
+        raise ValidationError(f"Invalid role: '{role}'. Must be 'admin' or 'user'.")
+
+    with get_session() as session:
+        user = session.query(User).filter(User.username == username).first()
+        if user is None:
+            raise ValidationError(f"User '{username}' not found.")
+        site = session.get(Site, site_id)
+        if site is None:
+            raise ValidationError(f"Site ID {site_id} not found.")
+
+        existing = (
+            session.query(UserSiteRole)
+            .filter_by(user_id=user.id, site_id=site_id)
+            .first()
+        )
+        if existing:
+            existing.role = role
+        else:
+            mapping = UserSiteRole(user_id=user.id, site_id=site_id, role=role)
+            session.add(mapping)
+        session.commit()
+
+
+def remove_user_site_role(username: str, site_id: int) -> bool:
+    with get_session() as session:
+        user = session.query(User).filter(User.username == username).first()
+        if user is None:
+            return False
+
+        deleted = (
+            session.query(UserSiteRole)
+            .filter_by(user_id=user.id, site_id=site_id)
+            .delete()
+        )
+        session.commit()
+        return deleted > 0
+
+
+def get_user_site_roles(username: str) -> list[dict]:
+    with get_session() as session:
+        user = session.query(User).filter(User.username == username).first()
+        if user is None:
+            return []
+
+        results = (
+            session.query(UserSiteRole, Site)
+            .join(Site, UserSiteRole.site_id == Site.id)
+            .filter(UserSiteRole.user_id == user.id)
+            .all()
+        )
+        return [
+            {
+                "site_id": role.site_id,
+                "site_name": site.name,
+                "role": role.role,
+            }
+            for role, site in results
+        ]
+
+
+def get_user_role_for_site(username: str, site_id: int) -> str | None:
+    with get_session() as session:
+        user = session.query(User).filter(User.username == username).first()
+        if user is None:
+            return None
+
+        mapping = (
+            session.query(UserSiteRole)
+            .filter_by(user_id=user.id, site_id=site_id)
+            .first()
+        )
+        if mapping is None:
+            return None
+        return mapping.role
 
 
 def update_superadmin_password(new_password: str) -> None:
