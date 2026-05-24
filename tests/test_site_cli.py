@@ -4,6 +4,7 @@ import tempfile
 from unittest.mock import patch, MagicMock
 
 import pytest
+import requests
 
 from dracs.db import create_site, db_initialize, upsert_system
 
@@ -266,6 +267,140 @@ class TestClientSiteArgument:
 
         output = capsys.readouterr().err
         assert "not found" in output
+
+
+class TestClientErrorHandling:
+    def test_api_request_4xx_exits(self):
+        from dracs_client.commands import _api_request
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 500
+        mock_resp.content = b'{"message": "server error"}'
+        mock_resp.json.return_value = {"message": "server error"}
+
+        with patch("dracs_client.commands.requests.get", return_value=mock_resp):
+            with patch("dracs_client.commands.auth_headers", return_value={}):
+                with pytest.raises(SystemExit):
+                    _api_request("get", "http://x/api/test", "s", True)
+
+    def test_api_request_4xx_no_json_body(self, capsys):
+        from dracs_client.commands import _api_request
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 502
+        mock_resp.content = b"Bad Gateway"
+        mock_resp.json.side_effect = ValueError("No JSON")
+
+        with patch("dracs_client.commands.requests.get", return_value=mock_resp):
+            with patch("dracs_client.commands.auth_headers", return_value={}):
+                with pytest.raises(SystemExit):
+                    _api_request("get", "http://x/api/test", "s", True)
+        assert "HTTP 502" in capsys.readouterr().err
+
+    def test_fw_list_json_decode_error(self, capsys):
+        from dracs_client.commands import cmd_fw
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.side_effect = ValueError("No JSON")
+
+        with patch("dracs_client.commands._api_request", return_value=mock_resp):
+            args = MagicMock()
+            args.list = True
+            args.apply = False
+            args.model = None
+            args.site = None
+            with pytest.raises(SystemExit):
+                cmd_fw(args, "http://test", True, "server")
+        assert "unexpected response" in capsys.readouterr().err
+
+    def test_bios_list_json_decode_error(self, capsys):
+        from dracs_client.commands import cmd_bios
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.side_effect = ValueError("No JSON")
+
+        with patch("dracs_client.commands._api_request", return_value=mock_resp):
+            args = MagicMock()
+            args.list = True
+            args.apply = False
+            args.model = None
+            args.site = None
+            with pytest.raises(SystemExit):
+                cmd_bios(args, "http://test", True, "server")
+        assert "unexpected response" in capsys.readouterr().err
+
+    def test_sites_command_connection_error(self, capsys):
+        with patch(
+            "dracs_client.cli.requests.get",
+            side_effect=requests.exceptions.ConnectionError("refused"),
+        ):
+            with patch("dracs_client.cli.auth_headers", return_value={}):
+                with patch("dracs_client.cli.get_current_role", return_value="user"):
+                    with patch(
+                        "dracs_client.cli.load_server_config",
+                        return_value="testserver",
+                    ):
+                        with patch(
+                            "sys.argv",
+                            ["dracs-client", "-s", "testserver", "sites"],
+                        ):
+                            from dracs_client.cli import main
+
+                            with pytest.raises(SystemExit):
+                                main()
+        assert "Connection error" in capsys.readouterr().err
+
+    def test_sites_command_json_error(self, capsys):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 502
+        mock_resp.json.side_effect = ValueError("No JSON")
+
+        with patch("dracs_client.cli.requests.get", return_value=mock_resp):
+            with patch("dracs_client.cli.auth_headers", return_value={}):
+                with patch("dracs_client.cli.get_current_role", return_value="user"):
+                    with patch(
+                        "dracs_client.cli.load_server_config",
+                        return_value="testserver",
+                    ):
+                        with patch(
+                            "sys.argv",
+                            ["dracs-client", "-s", "testserver", "sites"],
+                        ):
+                            from dracs_client.cli import main
+
+                            with pytest.raises(SystemExit):
+                                main()
+        assert "HTTP 502" in capsys.readouterr().err
+
+    def test_site_validation_connection_error(self, capsys):
+        with patch(
+            "dracs_client.cli.requests.get",
+            side_effect=requests.exceptions.ConnectionError("refused"),
+        ):
+            with patch("dracs_client.cli.auth_headers", return_value={}):
+                with patch("dracs_client.cli.get_current_role", return_value="user"):
+                    with patch(
+                        "dracs_client.cli.load_server_config",
+                        return_value="testserver",
+                    ):
+                        with patch(
+                            "sys.argv",
+                            [
+                                "dracs-client",
+                                "-s",
+                                "testserver",
+                                "--site",
+                                "Site2",
+                                "list",
+                            ],
+                        ):
+                            from dracs_client.cli import main
+
+                            with pytest.raises(SystemExit):
+                                main()
+        assert "not found" in capsys.readouterr().err
 
 
 class TestClientSiteUrl:

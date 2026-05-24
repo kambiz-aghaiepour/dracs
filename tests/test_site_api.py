@@ -529,6 +529,42 @@ class TestFwBiosSummaryEndpoints:
         resp = site_client.get("/api/bios-summary")
         assert resp.status_code == 401
 
+    def test_fw_summary_with_model_filter(self, site_client, site_db):
+        _login(site_client)
+        upsert_system(
+            site_db,
+            "TAG003",
+            "server03",
+            "R650",
+            "6.0.0",
+            "1.5.0",
+            "Jan 1, 2027",
+            1893456000,
+        )
+        resp = site_client.get("/api/fw-summary?model=R660")
+        data = resp.get_json()
+        assert data["success"] is True
+        assert len(data["models"]) == 1
+        assert data["models"][0]["model"] == "R660"
+
+    def test_bios_summary_with_model_filter(self, site_client, site_db):
+        _login(site_client)
+        upsert_system(
+            site_db,
+            "TAG003",
+            "server03",
+            "R650",
+            "6.0.0",
+            "1.5.0",
+            "Jan 1, 2027",
+            1893456000,
+        )
+        resp = site_client.get("/api/bios-summary?model=R660")
+        data = resp.get_json()
+        assert data["success"] is True
+        assert len(data["models"]) == 1
+        assert data["models"][0]["model"] == "R660"
+
 
 class TestRefreshAllSiteAware:
     @patch("dracs.jobqueue.enqueue_batch", return_value=2)
