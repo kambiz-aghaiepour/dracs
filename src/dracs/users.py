@@ -100,16 +100,32 @@ def delete_user(username: str) -> bool:
 def list_users() -> list[dict]:
     with get_session() as session:
         users = session.query(User).order_by(User.username).all()
-        return [
-            {
-                "id": u.id,
-                "username": u.username,
-                "role": u.role,
-                "created_at": u.created_at,
-                "created_by": u.created_by,
-            }
-            for u in users
-        ]
+        result = []
+        for u in users:
+            site_roles = (
+                session.query(UserSiteRole, Site)
+                .join(Site, UserSiteRole.site_id == Site.id)
+                .filter(UserSiteRole.user_id == u.id)
+                .all()
+            )
+            result.append(
+                {
+                    "id": u.id,
+                    "username": u.username,
+                    "role": u.role,
+                    "created_at": u.created_at,
+                    "created_by": u.created_by,
+                    "site_roles": [
+                        {
+                            "site_id": role.site_id,
+                            "site_name": site.name,
+                            "role": role.role,
+                        }
+                        for role, site in site_roles
+                    ],
+                }
+            )
+        return result
 
 
 def update_user_password(username: str, new_password: str) -> bool:
