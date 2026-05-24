@@ -26,8 +26,12 @@ from dracs_client.auth import (
 from dracs_client.config import load_server_config, load_user_config
 
 
-def fetch_systems(base_url: str, verify_ssl: bool, server: str = "") -> List[dict]:
+def fetch_systems(
+    base_url: str, verify_ssl: bool, server: str = "", site: str | None = None
+) -> List[dict]:
     url = f"{base_url}/api/systems"
+    if site:
+        url += f"?site={site}"
     headers = auth_headers(server) if server else {}
     try:
         resp = requests.get(url, verify=verify_ssl, timeout=30, headers=headers)
@@ -107,7 +111,8 @@ def client_side_filter(
 def cmd_list(
     args: argparse.Namespace, base_url: str, verify_ssl: bool, server: str
 ) -> None:
-    systems = fetch_systems(base_url, verify_ssl, server)
+    site = getattr(args, "site", None)
+    systems = fetch_systems(base_url, verify_ssl, server, site=site)
     results = systems_to_tuples(systems)
 
     if args.svctag and args.target:
@@ -427,11 +432,13 @@ def build_parser(role: Optional[str] = None) -> argparse.ArgumentParser:
         "--logout", action="store_true", help="Log out from DRACS server"
     )
     parser.add_argument("--user", help="Username for login")
+    parser.add_argument("--site", help="Site name to operate on")
 
     subparsers = parser.add_subparsers(dest="command")
 
     _add_list_subparser(subparsers)
     _add_tsr_subparser(subparsers, role)
+    subparsers.add_parser("sites", help="List configured sites")
 
     if role == "admin":
         _add_admin_subparsers(subparsers)
@@ -559,6 +566,25 @@ def main() -> None:
     if not args.command:
         parser.print_help()
         sys.exit(1)
+
+    if args.command == "sites":
+        site_param = getattr(args, "site", None)
+        url = f"{base_url}/api/sites"
+        if site_param:
+            url += f"?site={site_param}"
+        headers = {}
+        if server:
+            from dracs_client.auth import auth_headers
+
+            headers = auth_headers(server)
+        resp = requests.get(url, verify=verify_ssl, timeout=30, headers=headers)
+        data = resp.json()
+        if data.get("success") and data.get("sites"):
+            from tabulate import tabulate
+
+            table = [[s["name"], s["host_count"]] for s in data["sites"]]
+            print(tabulate(table, headers=["Site", "Hosts"], tablefmt="simple"))
+        return
 
     if args.command in ["list", "li"]:
         cmd_list(args, base_url, verify_ssl, server)

@@ -157,41 +157,78 @@ def _client_ip() -> str:
     return request.remote_addr or ""
 
 
-def _require_auth(required_role=None):
+def _require_auth(required_role=None, site_id=None):
+    username = None
+    is_superadmin = False
+
     if session.get("authenticated", False):
-        role = session.get("role", "user")
-        if required_role and role != required_role:
+        username = session.get("username", "")
+        is_superadmin = session.get("is_superadmin", False)
+    else:
+        auth = request.headers.get("Authorization", "")
+        if auth.startswith("Bearer "):
+            from dracs.tokens import validate_token
+
+            result = validate_token(auth[7:])
+            if result:
+                from dracs.users import _superadmin_username
+
+                username = result[0]
+                is_superadmin = username == _superadmin_username()
+
+    if username is None:
+        return None, (
+            jsonify({"success": False, "message": "Authentication required"}),
+            401,
+        )
+
+    if is_superadmin:
+        return username, None
+
+    if site_id is not None and required_role:
+        from dracs.users import get_user_role_for_site
+
+        site_role = get_user_role_for_site(username, site_id)
+        if site_role is None:
+            return None, (
+                jsonify({"success": False, "message": "Authentication required"}),
+                401,
+            )
+        if required_role and site_role != required_role:
             return None, (
                 jsonify({"success": False, "message": "Insufficient permissions"}),
                 403,
             )
-        return session.get("username", ""), None
+        return username, None
 
-    auth = request.headers.get("Authorization", "")
-    if auth.startswith("Bearer "):
-        from dracs.tokens import validate_token
-
-        result = validate_token(auth[7:])
-        if result:
-            username, role = result
-            if required_role and role != required_role:
-                return None, (
-                    jsonify({"success": False, "message": "Insufficient permissions"}),
-                    403,
-                )
-            return username, None
-
-    return None, (
-        jsonify({"success": False, "message": "Authentication required"}),
-        401,
-    )
+    role = session.get("role", "user")
+    if required_role and role != required_role:
+        return None, (
+            jsonify({"success": False, "message": "Insufficient permissions"}),
+            403,
+        )
+    return username, None
 
 
-def get_all_systems():
-    """Get all systems from database ordered by hostname."""
+def _get_requested_site():
+    from dracs.db import get_default_site_id, get_site_by_name
+
+    site_name = request.args.get("site")
+    if not site_name:
+        default_id = get_default_site_id()
+        return default_id, "Default"
+    site = get_site_by_name(site_name)
+    if site is None:
+        return None, site_name
+    return site["id"], site["name"]
+
+
+def get_all_systems(site_id=None):
     with get_session() as session:
-        systems = session.query(System).order_by(System.name).all()
-        return systems
+        query = session.query(System).order_by(System.name)
+        if site_id is not None:
+            query = query.filter(System.site_id == site_id)
+        return query.all()
 
 
 def system_to_dict(system):
@@ -207,39 +244,44 @@ def system_to_dict(system):
     }
 
 
-def get_idrac_credentials(hostname: str) -> tuple:
-    """
-    Get iDRAC credentials from drac-passwords.ini file.
-
-    Args:
-        hostname: The hostname to look up credentials for
-
-    Returns:
-        tuple: (username, password)
-    """
+def _find_passwords_ini() -> Path | None:
     config_file = Path("drac-passwords.ini")
+    if config_file.exists():
+        return config_file
+    config_file = Path("/etc/dracs/drac-passwords.ini")
+    if config_file.exists():
+        return config_file
+    return None
 
-    if not config_file.exists():
-        config_file = Path("/etc/dracs/drac-passwords.ini")
 
-    if not config_file.exists():
+def get_idrac_credentials(hostname: str, site: str | None = None) -> tuple:
+    config_file = _find_passwords_ini()
+    if config_file is None:
         return ("root", "calvin")
 
-    config = configparser.ConfigParser()
+    if site is None:
+        site = "Default"
+
+    config = configparser.RawConfigParser()
     config.read(config_file)
 
-    # Check for host-specific section first
-    if hostname in config:
-        username = config[hostname].get(
-            "username", config["DEFAULT"].get("username", "root")
+    host_section = f"{site}-{hostname}"
+    defaults_section = f"{site}-DEFAULTS"
+
+    if host_section in config:
+        username = config.get(
+            host_section, "username",
+            fallback=config.get(defaults_section, "username", fallback="root"),
         )
-        password = config[hostname].get(
-            "password", config["DEFAULT"].get("password", "calvin")
+        password = config.get(
+            host_section, "password",
+            fallback=config.get(defaults_section, "password", fallback="calvin"),
         )
+    elif defaults_section in config:
+        username = config.get(defaults_section, "username", fallback="root")
+        password = config.get(defaults_section, "password", fallback="calvin")
     else:
-        # Use DEFAULT section
-        username = config["DEFAULT"].get("username", "root")
-        password = config["DEFAULT"].get("password", "calvin")
+        return ("root", "calvin")
 
     return (username, password)
 
@@ -456,21 +498,33 @@ def test_idrac_connectivity(hostname: str) -> tuple:
 @app.route("/")
 def index():
     """Main page with inventory table and filters."""
-    systems = get_all_systems()
+    from dracs.db import list_sites
 
-    # Convert systems to dictionaries for JSON serialization
+    site_id, site_name = _get_requested_site()
+    systems = get_all_systems(site_id=site_id)
+
     systems_data = [system_to_dict(s) for s in systems]
 
-    # Extract unique BIOS and firmware versions for dropdowns
     bios_versions = sorted(set(s.bios_version for s in systems if s.bios_version))
     firmware_versions = sorted(set(s.idrac_version for s in systems if s.idrac_version))
-    # Extract unique models (host types) for multi-select dropdown
     models = sorted(set(s.model for s in systems if s.model))
 
-    # Add authentication status to template
     is_authenticated = session.get("authenticated", False)
     username = session.get("username", None)
     user_role = session.get("role", None)
+    is_superadmin = session.get("is_superadmin", False)
+
+    if is_authenticated and not is_superadmin and site_id is not None:
+        from dracs.users import get_user_role_for_site
+
+        site_role = get_user_role_for_site(username, site_id)
+        if site_role is None:
+            user_role = None
+            is_authenticated = False
+        else:
+            user_role = site_role
+
+    all_sites = [s["name"] for s in list_sites()]
 
     return render_template(
         "index.html",
@@ -481,6 +535,9 @@ def index():
         is_authenticated=is_authenticated,
         username=username,
         user_role=user_role,
+        is_superadmin=is_superadmin,
+        current_site=site_name,
+        all_sites=all_sites,
         refresh_frequency=REFRESH_FREQUENCY,
         highlight_expired=HIGHLIGHT_EXPIRED,
         highlight_expiring=HIGHLIGHT_EXPIRING,
@@ -496,7 +553,8 @@ def index():
 @app.route("/api/systems")
 def api_systems():
     """JSON API endpoint to get all systems."""
-    systems = get_all_systems()
+    site_id, _ = _get_requested_site()
+    systems = get_all_systems(site_id=site_id)
     systems_data = [system_to_dict(s) for s in systems]
     return jsonify(systems_data)
 
@@ -611,9 +669,12 @@ def login():
         result = authenticate_user(username, password)
         if result:
             auth_username, auth_role = result
+            from dracs.users import _superadmin_username
+
             session["authenticated"] = True
             session["username"] = auth_username
             session["role"] = auth_role
+            session["is_superadmin"] = auth_username == _superadmin_username()
             audit_log("login", user=auth_username, source=_client_ip())
             return jsonify({"success": True, "message": "Login successful"})
         else:
@@ -1213,11 +1274,12 @@ def api_clear_job_queue():
 def api_refresh_all():
     """Queue refresh jobs for all systems in database."""
     try:
-        user, err = _require_auth(required_role="admin")
+        site_id, _ = _get_requested_site()
+        user, err = _require_auth(required_role="admin", site_id=site_id)
         if err:
             return err
 
-        systems = get_all_systems()
+        systems = get_all_systems(site_id=site_id)
         total_systems = len(systems)
 
         if total_systems == 0:
@@ -1225,7 +1287,7 @@ def api_refresh_all():
 
         from dracs.jobqueue import enqueue_batch
 
-        count = enqueue_batch("refresh", "all")
+        count = enqueue_batch("refresh", "all", site_id=site_id)
 
         audit_log(
             "refresh_all",
@@ -2062,9 +2124,9 @@ TSR_IMAGE_DIR = Path("/var/lib/dracs/web/tsr")
 TFTPBOOT_DIR = Path("/var/lib/tftpboot")
 
 
-def _build_ssh_racadm_cmd(hostname: str, *racadm_args: str) -> list:
+def _build_ssh_racadm_cmd(hostname: str, *racadm_args: str, site: str | None = None) -> list:
     idrac_fqdn = build_idrac_hostname(hostname)
-    username, password = get_idrac_credentials(hostname)
+    username, password = get_idrac_credentials(hostname, site=site)
     return [
         "sshpass",
         "-p",
@@ -2495,6 +2557,183 @@ def api_users_update(username):
 
     except Exception as e:
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+
+@app.route("/api/sites")
+def api_sites_list():
+    """List all sites with host counts."""
+    from dracs.db import list_sites
+
+    sites = list_sites()
+    return jsonify({"success": True, "sites": sites})
+
+
+@app.route("/api/sites", methods=["POST"])
+def api_sites_create():
+    """Create a new site (superadmin only)."""
+    try:
+        user, err = _require_auth(required_role="admin")
+        if err:
+            return err
+        if not session.get("is_superadmin", False):
+            return jsonify({"success": False, "message": "Superadmin required"}), 403
+
+        data = request.get_json()
+        if not data or not data.get("name"):
+            return jsonify({"success": False, "message": "Site name required"}), 400
+
+        from dracs.validation import validate_site_name
+
+        name = data["name"].strip()
+        if not validate_site_name(name):
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": "Invalid site name. Use alphanumeric characters only, max 32.",
+                    }
+                ),
+                400,
+            )
+
+        from dracs.db import create_site
+
+        site = create_site(name)
+        audit_log(
+            "site_create",
+            target=name,
+            user=user,
+            source=_client_ip(),
+        )
+        return jsonify({"success": True, "site": site})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 400
+
+
+@app.route("/api/sites/<name>", methods=["DELETE"])
+def api_sites_delete(name):
+    """Delete a site (superadmin only)."""
+    try:
+        user, err = _require_auth(required_role="admin")
+        if err:
+            return err
+        if not session.get("is_superadmin", False):
+            return jsonify({"success": False, "message": "Superadmin required"}), 403
+
+        from dracs.db import get_site_by_name, delete_site
+
+        site = get_site_by_name(name)
+        if site is None:
+            return jsonify({"success": False, "message": "Site not found"}), 404
+
+        delete_site(site["id"])
+        audit_log(
+            "site_delete",
+            target=name,
+            user=user,
+            source=_client_ip(),
+        )
+        return jsonify({"success": True, "message": f"Site '{name}' deleted."})
+    except ValueError as ve:
+        return jsonify({"success": False, "message": str(ve)}), 400
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route("/api/sites/<name>", methods=["PATCH"])
+def api_sites_rename(name):
+    """Rename a site (superadmin only)."""
+    try:
+        user, err = _require_auth(required_role="admin")
+        if err:
+            return err
+        if not session.get("is_superadmin", False):
+            return jsonify({"success": False, "message": "Superadmin required"}), 403
+
+        data = request.get_json()
+        if not data or not data.get("name"):
+            return jsonify({"success": False, "message": "New name required"}), 400
+
+        from dracs.validation import validate_site_name
+
+        new_name = data["name"].strip()
+        if not validate_site_name(new_name):
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": "Invalid site name. Use alphanumeric characters only, max 32.",
+                    }
+                ),
+                400,
+            )
+
+        from dracs.db import get_site_by_name, rename_site
+        from dracs.sites import rename_site_ini_sections
+
+        site = get_site_by_name(name)
+        if site is None:
+            return jsonify({"success": False, "message": "Site not found"}), 404
+
+        rename_site(site["id"], new_name)
+        rename_site_ini_sections(name, new_name)
+
+        audit_log(
+            "site_rename",
+            target=f"{name} -> {new_name}",
+            user=user,
+            source=_client_ip(),
+        )
+        return jsonify(
+            {"success": True, "message": f"Site '{name}' renamed to '{new_name}'."}
+        )
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 400
+
+
+@app.route("/api/sites/<name>/config")
+def api_sites_config_get(name):
+    """Get site credential configuration (superadmin only)."""
+    user, err = _require_auth(required_role="admin")
+    if err:
+        return err
+    if not session.get("is_superadmin", False):
+        return jsonify({"success": False, "message": "Superadmin required"}), 403
+
+    from dracs.sites import get_site_ini_config
+
+    config = get_site_ini_config(name)
+    return jsonify({"success": True, "config": config})
+
+
+@app.route("/api/sites/<name>/config", methods=["PUT"])
+def api_sites_config_set(name):
+    """Set site credential configuration (superadmin only)."""
+    try:
+        user, err = _require_auth(required_role="admin")
+        if err:
+            return err
+        if not session.get("is_superadmin", False):
+            return jsonify({"success": False, "message": "Superadmin required"}), 403
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "message": "Config data required"}), 400
+
+        from dracs.sites import set_site_ini_config
+
+        set_site_ini_config(name, data)
+        audit_log(
+            "site_config_update",
+            target=name,
+            user=user,
+            source=_client_ip(),
+        )
+        return jsonify(
+            {"success": True, "message": f"Config for site '{name}' updated."}
+        )
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
 
 
 @app.route("/api/vnc-session", methods=["POST"])

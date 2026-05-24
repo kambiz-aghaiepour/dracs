@@ -1379,10 +1379,18 @@
                 </div>
             </div>
             <div class="auth-section">
+                <select id="site-select" onchange="switchSite(this.value)" style="margin-right: 8px; padding: 4px 8px; border-radius: 4px; border: 1px solid #ccc;">
+                    {% for site in all_sites %}
+                    <option value="{{ site }}" {% if site == current_site %}selected{% endif %}>{{ site }}</option>
+                    {% endfor %}
+                </select>
                 {% if is_authenticated %}
                     <span class="username-display">Logged in as <strong>{{ username }}</strong> ({{ user_role }})</span>
                     {% if user_role == 'admin' %}
                     <a href="#" class="logout-link" onclick="showUserManagementModal(event)" style="margin-right: 8px;">Users</a>
+                    {% endif %}
+                    {% if is_superadmin %}
+                    <a href="#" class="logout-link" onclick="showSiteManagementModal(event)" style="margin-right: 8px;" title="Global Configuration">&#9881;</a>
                     {% endif %}
                     <a href="#" class="logout-link" onclick="showSelfPasswordModal(event)" style="margin-right: 8px;">Change Password</a>
                     <a href="#" class="logout-link" onclick="handleLogout(event)">Logout</a>
@@ -1725,6 +1733,34 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="hideUserManagementModal()">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="site-management-modal" class="modal-overlay">
+            <div class="modal-content" style="max-width: 600px;">
+                <div class="modal-header">
+                    <h2>Site Management</h2>
+                </div>
+                <div class="modal-body">
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px;">
+                        <thead>
+                            <tr>
+                                <th style="text-align: left; padding: 6px; border-bottom: 2px solid #ccc;">Site Name</th>
+                                <th style="text-align: left; padding: 6px; border-bottom: 2px solid #ccc;">Hosts</th>
+                                <th style="text-align: left; padding: 6px; border-bottom: 2px solid #ccc;">Primary</th>
+                            </tr>
+                        </thead>
+                        <tbody id="site-table-body"></tbody>
+                    </table>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn btn-primary" onclick="handleAddSite()">Add</button>
+                        <button class="btn btn-secondary" onclick="handleRemoveSite()">Remove</button>
+                        <button class="btn btn-secondary" onclick="handleRenameSite()">Rename</button>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="hideSiteManagementModal()">OK</button>
                 </div>
             </div>
         </div>
@@ -2119,6 +2155,95 @@
     </div>
 
     <script>
+        // Site management
+        const currentSite = '{{ current_site|default("Default", true) }}';
+        function apiUrl(path) {
+            const sep = path.includes('?') ? '&' : '?';
+            return path + sep + 'site=' + encodeURIComponent(currentSite);
+        }
+        function switchSite(siteName) {
+            const url = new URL(window.location);
+            url.searchParams.set('site', siteName);
+            window.location.href = url.toString();
+        }
+        function showSiteManagementModal(event) {
+            if (event) event.preventDefault();
+            document.getElementById('site-management-modal').style.display = 'flex';
+            loadSiteList();
+        }
+        function hideSiteManagementModal() {
+            document.getElementById('site-management-modal').style.display = 'none';
+        }
+        async function loadSiteList() {
+            const resp = await fetch('/api/sites');
+            const data = await resp.json();
+            const tbody = document.getElementById('site-table-body');
+            tbody.innerHTML = '';
+            if (data.success) {
+                data.sites.forEach(site => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `<td style="padding:6px;">${site.name}</td>
+                        <td style="padding:6px;">${site.host_count}</td>
+                        <td style="padding:6px;">${site.is_primary ? 'Yes' : 'No'}</td>`;
+                    tr.style.cursor = 'pointer';
+                    tr.onclick = () => {
+                        document.querySelectorAll('#site-table-body tr').forEach(r => r.classList.remove('selected'));
+                        tr.classList.add('selected');
+                        window._selectedSite = site;
+                    };
+                    tbody.appendChild(tr);
+                });
+            }
+        }
+        async function handleAddSite() {
+            const name = prompt('Enter new site name (alphanumeric only):');
+            if (!name) return;
+            const resp = await fetch('/api/sites', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name: name})
+            });
+            const data = await resp.json();
+            if (data.success) {
+                loadSiteList();
+                showNotification('Site created: ' + name, 'success');
+            } else {
+                showNotification(data.message, 'error');
+            }
+        }
+        async function handleRemoveSite() {
+            if (!window._selectedSite) { showNotification('Select a site first', 'error'); return; }
+            if (window._selectedSite.is_primary) { showNotification('Cannot delete the primary site', 'error'); return; }
+            if (!confirm('Delete site "' + window._selectedSite.name + '"?')) return;
+            const resp = await fetch('/api/sites/' + encodeURIComponent(window._selectedSite.name), {method: 'DELETE'});
+            const data = await resp.json();
+            if (data.success) {
+                loadSiteList();
+                showNotification('Site deleted', 'success');
+                window._selectedSite = null;
+            } else {
+                showNotification(data.message, 'error');
+            }
+        }
+        async function handleRenameSite() {
+            if (!window._selectedSite) { showNotification('Select a site first', 'error'); return; }
+            const newName = prompt('Enter new name for "' + window._selectedSite.name + '":', window._selectedSite.name);
+            if (!newName || newName === window._selectedSite.name) return;
+            const resp = await fetch('/api/sites/' + encodeURIComponent(window._selectedSite.name), {
+                method: 'PATCH',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name: newName})
+            });
+            const data = await resp.json();
+            if (data.success) {
+                loadSiteList();
+                showNotification('Site renamed to ' + newName, 'success');
+                window._selectedSite = null;
+            } else {
+                showNotification(data.message, 'error');
+            }
+        }
+
         // Authentication and admin functionality
         let isAuthenticated = {{ 'true' if is_authenticated else 'false' }};
         let userRole = '{{ user_role|default("", true) }}';
@@ -2358,7 +2483,7 @@
                 return;
             }
             try {
-                const response = await fetch('/api/change-password', {
+                const response = await fetch(apiUrl('/api/change-password'), {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({current_password: currentPassword, new_password: newPassword})
@@ -2779,7 +2904,7 @@
             refreshBtn.textContent = `Refreshing ${selectedSystems.length} system(s)...`;
 
             try {
-                const response = await fetch('/api/refresh-multiple', {
+                const response = await fetch(apiUrl('/api/refresh-multiple'), {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -2837,7 +2962,7 @@
             refreshAllBtn.textContent = 'Refreshing all systems...';
 
             try {
-                const response = await fetch('/api/refresh-all', {
+                const response = await fetch(apiUrl('/api/refresh-all'), {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -2891,7 +3016,7 @@
             try {
                 isRefreshing = true;
                 console.log('DRACS: Refreshing table data...');
-                const response = await fetch('/api/systems');
+                const response = await fetch(apiUrl('/api/systems'));
                 const data = await response.json();
 
                 console.log('DRACS: Received', data.length, 'systems from API');
@@ -3244,7 +3369,7 @@
 
             const hostname = selectedSystems[0].hostname;
             try {
-                const response = await fetch('/api/vnc-session', {
+                const response = await fetch(apiUrl('/api/vnc-session'), {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ hostname: hostname })
@@ -3289,7 +3414,7 @@
             if (!powerBtn) return;
 
             try {
-                const response = await fetch('/api/power-status', {
+                const response = await fetch(apiUrl('/api/power-status'), {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ hostname: hostname })
@@ -3354,7 +3479,7 @@
             }
 
             try {
-                const response = await fetch('/api/power-action', {
+                const response = await fetch(apiUrl('/api/power-action'), {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ hostname: hostname, action: action })
@@ -3419,7 +3544,7 @@
             document.getElementById('latest-firmware-status-modal').classList.add('active');
 
             try {
-                const response = await fetch('/api/latest-firmware', {
+                const response = await fetch(apiUrl('/api/latest-firmware'), {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ model: model, hostname: hostname, current_version: currentVersion })
@@ -3494,7 +3619,7 @@
             closeLatestFirmwareDialog();
 
             try {
-                const response = await fetch('/api/firmware-update', {
+                const response = await fetch(apiUrl('/api/firmware-update'), {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ hostname: hostname, target_version: version, model: model })
@@ -3551,7 +3676,7 @@
             document.getElementById('latest-bios-status-modal').classList.add('active');
 
             try {
-                const response = await fetch('/api/latest-bios', {
+                const response = await fetch(apiUrl('/api/latest-bios'), {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ model: model, hostname: hostname, current_version: currentVersion })
@@ -3626,7 +3751,7 @@
             closeLatestBiosDialog();
 
             try {
-                const response = await fetch('/api/bios-update', {
+                const response = await fetch(apiUrl('/api/bios-update'), {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ hostname: hostname, target_bios: version, model: model })
@@ -3671,7 +3796,7 @@
             if (selectedSystems.length !== 1) return;
             const hostname = selectedSystems[0].hostname;
             const url = window.location.origin + '/tsr/' + hostname + '/';
-            fetch('/api/tsr-ensure-index', {
+            fetch(apiUrl('/api/tsr-ensure-index'), {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({hostname: hostname})
@@ -3698,7 +3823,7 @@
             document.getElementById('tsr-status-modal').classList.add('active');
 
             try {
-                const response = await fetch('/api/tsr-status', {
+                const response = await fetch(apiUrl('/api/tsr-status'), {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ hostname: hostname })
@@ -3768,7 +3893,7 @@
             footerEl.innerHTML = '<button type="button" class="btn btn-secondary" onclick="closeTsrDialog()">Close</button>';
 
             try {
-                const response = await fetch('/api/tsr-collect', {
+                const response = await fetch(apiUrl('/api/tsr-collect'), {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ hostname: hostname, service_tag: serviceTag })
@@ -3793,7 +3918,7 @@
             stopTsrPolling();
             tsrPollTimer = setInterval(async () => {
                 try {
-                    const response = await fetch('/api/tsr-status', {
+                    const response = await fetch(apiUrl('/api/tsr-status'), {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({ hostname: hostname })

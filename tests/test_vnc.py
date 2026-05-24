@@ -242,7 +242,9 @@ class TestGetVncCredentials:
 
     def test_default_section(self, tmp_path, monkeypatch):
         ini = tmp_path / "drac-passwords.ini"
-        ini.write_text("[DEFAULT]\nvnc_port = 5900\nvnc_password = mypass\n")
+        ini.write_text(
+            "[Default-DEFAULTS]\nvnc_port = 5900\nvnc_password = mypass\n"
+        )
         monkeypatch.chdir(tmp_path)
         port, password = get_vnc_credentials("host01")
         assert port == 5900
@@ -251,8 +253,8 @@ class TestGetVncCredentials:
     def test_host_specific_section(self, tmp_path, monkeypatch):
         ini = tmp_path / "drac-passwords.ini"
         ini.write_text(
-            "[DEFAULT]\nvnc_port = 5900\nvnc_password = defaultpass\n\n"
-            "[host01]\nvnc_port = 5902\nvnc_password = hostpass\n"
+            "[Default-DEFAULTS]\nvnc_port = 5900\nvnc_password = defaultpass\n\n"
+            "[Default-host01]\nvnc_port = 5902\nvnc_password = hostpass\n"
         )
         monkeypatch.chdir(tmp_path)
         port, password = get_vnc_credentials("host01")
@@ -262,8 +264,8 @@ class TestGetVncCredentials:
     def test_host_section_falls_back_to_default(self, tmp_path, monkeypatch):
         ini = tmp_path / "drac-passwords.ini"
         ini.write_text(
-            "[DEFAULT]\nvnc_port = 5900\nvnc_password = defaultpass\n\n"
-            "[host01]\nusername = admin\n"
+            "[Default-DEFAULTS]\nvnc_port = 5900\nvnc_password = defaultpass\n\n"
+            "[Default-host01]\nusername = admin\n"
         )
         monkeypatch.chdir(tmp_path)
         port, password = get_vnc_credentials("host01")
@@ -272,9 +274,39 @@ class TestGetVncCredentials:
 
     def test_missing_keys_use_defaults(self, tmp_path, monkeypatch):
         ini = tmp_path / "drac-passwords.ini"
-        ini.write_text("[DEFAULT]\nusername = root\n")
+        ini.write_text("[Default-DEFAULTS]\nusername = root\n")
         monkeypatch.chdir(tmp_path)
         port, password = get_vnc_credentials("host01")
+        assert port == 5901
+        assert password == ""
+
+    def test_site_specific_credentials(self, tmp_path, monkeypatch):
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text(
+            "[Default-DEFAULTS]\nvnc_port = 5900\nvnc_password = defpass\n\n"
+            "[Site2-DEFAULTS]\nvnc_port = 5910\nvnc_password = site2pass\n"
+        )
+        monkeypatch.chdir(tmp_path)
+        port, password = get_vnc_credentials("host01", site="Site2")
+        assert port == 5910
+        assert password == "site2pass"
+
+    def test_site_host_override(self, tmp_path, monkeypatch):
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text(
+            "[Site2-DEFAULTS]\nvnc_port = 5910\nvnc_password = site2pass\n\n"
+            "[Site2-host01]\nvnc_port = 5920\n"
+        )
+        monkeypatch.chdir(tmp_path)
+        port, password = get_vnc_credentials("host01", site="Site2")
+        assert port == 5920
+        assert password == "site2pass"
+
+    def test_unknown_site_returns_defaults(self, tmp_path, monkeypatch):
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text("[Default-DEFAULTS]\nvnc_port = 5900\n")
+        monkeypatch.chdir(tmp_path)
+        port, password = get_vnc_credentials("host01", site="NoSuchSite")
         assert port == 5901
         assert password == ""
 

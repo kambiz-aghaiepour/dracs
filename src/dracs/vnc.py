@@ -104,7 +104,7 @@ class MaxSessionsError(Exception):
     pass
 
 
-def get_vnc_credentials(hostname: str) -> tuple:
+def get_vnc_credentials(hostname: str, site: str | None = None) -> tuple:
     config_file = Path("drac-passwords.ini")
 
     if not config_file.exists():
@@ -113,19 +113,29 @@ def get_vnc_credentials(hostname: str) -> tuple:
     if not config_file.exists():
         return (5901, "")
 
-    config = configparser.ConfigParser()
+    if site is None:
+        site = "Default"
+
+    config = configparser.RawConfigParser()
     config.read(config_file)
 
-    if hostname in config:
-        vnc_port = int(
-            config[hostname].get("vnc_port", config["DEFAULT"].get("vnc_port", "5901"))
+    host_section = f"{site}-{hostname}"
+    defaults_section = f"{site}-DEFAULTS"
+
+    if host_section in config:
+        vnc_port = int(config.get(
+            host_section, "vnc_port",
+            fallback=config.get(defaults_section, "vnc_port", fallback="5901"),
+        ))
+        vnc_password = config.get(
+            host_section, "vnc_password",
+            fallback=config.get(defaults_section, "vnc_password", fallback=""),
         )
-        vnc_password = config[hostname].get(
-            "vnc_password", config["DEFAULT"].get("vnc_password", "")
-        )
+    elif defaults_section in config:
+        vnc_port = int(config.get(defaults_section, "vnc_port", fallback="5901"))
+        vnc_password = config.get(defaults_section, "vnc_password", fallback="")
     else:
-        vnc_port = int(config["DEFAULT"].get("vnc_port", "5901"))
-        vnc_password = config["DEFAULT"].get("vnc_password", "")
+        return (5901, "")
 
     return (vnc_port, vnc_password)
 

@@ -1,0 +1,354 @@
+import configparser
+from pathlib import Path
+
+import pytest
+
+from dracs.sites import (
+    _is_old_format,
+    get_site_ini_config,
+    migrate_passwords_ini,
+    rename_site_ini_sections,
+    set_site_ini_config,
+)
+from dracs.validation import validate_site_name
+from dracs.webapp import get_idrac_credentials
+
+
+class TestValidateSiteName:
+    def test_valid_alphanumeric(self):
+        assert validate_site_name("Site2") is True
+
+    def test_valid_all_caps(self):
+        assert validate_site_name("MAIN") is True
+
+    def test_valid_numbers_only(self):
+        assert validate_site_name("123") is True
+
+    def test_invalid_hyphen(self):
+        assert validate_site_name("my-site") is False
+
+    def test_invalid_underscore(self):
+        assert validate_site_name("my_site") is False
+
+    def test_invalid_space(self):
+        assert validate_site_name("my site") is False
+
+    def test_invalid_empty(self):
+        assert validate_site_name("") is False
+
+    def test_invalid_none(self):
+        assert validate_site_name(None) is False
+
+    def test_too_long(self):
+        assert validate_site_name("A" * 33) is False
+
+    def test_max_length(self):
+        assert validate_site_name("A" * 32) is True
+
+
+class TestIsOldFormat:
+    def test_bare_default_section(self):
+        config = configparser.RawConfigParser()
+        config.read_string("[DEFAULT]\nusername = root\n")
+        assert _is_old_format(config) is True
+
+    def test_bare_hostname_section(self):
+        config = configparser.RawConfigParser()
+        config.read_string("[host01.example.com]\nusername = admin\n")
+        assert _is_old_format(config) is True
+
+    def test_new_format(self):
+        config = configparser.RawConfigParser()
+        config.read_string(
+            "[Default-DEFAULTS]\nusername = root\n\n"
+            "[Default-host01]\nusername = admin\n"
+        )
+        assert _is_old_format(config) is False
+
+    def test_empty_config(self):
+        config = configparser.RawConfigParser()
+        assert _is_old_format(config) is False
+
+
+class TestMigratePasswordsIni:
+    def test_migrate_old_format(self, tmp_path):
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text(
+            "[DEFAULT]\n"
+            "username = root\n"
+            "password = calvin\n"
+            "vnc_port = 5901\n\n"
+            "[host01.example.com]\n"
+            "username = admin\n"
+            "password = admin\n"
+        )
+
+        result = migrate_passwords_ini(ini)
+        assert result is True
+
+        backup = tmp_path / "drac-passwords.ini.bak"
+        assert backup.exists()
+
+        config = configparser.RawConfigParser()
+        config.read(ini)
+        assert "Default-DEFAULTS" in config.sections()
+        assert "Default-host01.example.com" in config.sections()
+        assert config.get("Default-DEFAULTS", "username") == "root"
+        assert config.get("Default-host01.example.com", "username") == "admin"
+
+    def test_migrate_creates_backup(self, tmp_path):
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text("[DEFAULT]\nusername = root\n")
+
+        migrate_passwords_ini(ini)
+
+        backup = tmp_path / "drac-passwords.ini.bak"
+        assert backup.exists()
+        assert "username = root" in backup.read_text()
+
+    def test_idempotent_skip_new_format(self, tmp_path):
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text("[Default-DEFAULTS]\nusername = root\n")
+
+        result = migrate_passwords_ini(ini)
+        assert result is False
+
+    def test_no_file_returns_false(self):
+        result = migrate_passwords_ini(None)
+        assert result is False
+
+    def test_host_only_no_default(self, tmp_path):
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text("[host01]\nusername = admin\npassword = secret\n")
+
+        result = migrate_passwords_ini(ini)
+        assert result is True
+
+        config = configparser.RawConfigParser()
+        config.read(ini)
+        assert "Default-host01" in config.sections()
+        assert config.get("Default-host01", "username") == "admin"
+
+
+class TestGetIdracCredentialsSiteAware:
+    def test_default_site_implicit(self, tmp_path, monkeypatch):
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text(
+            "[Default-DEFAULTS]\nusername = root\npassword = calvin\n"
+        )
+        monkeypatch.chdir(tmp_path)
+
+        user, pwd = get_idrac_credentials("host01")
+        assert user == "root"
+        assert pwd == "calvin"
+
+    def test_explicit_site(self, tmp_path, monkeypatch):
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text(
+            "[Default-DEFAULTS]\nusername = root\npassword = calvin\n\n"
+            "[Site2-DEFAULTS]\nusername = s2user\npassword = s2pass\n"
+        )
+        monkeypatch.chdir(tmp_path)
+
+        user, pwd = get_idrac_credentials("host01", site="Site2")
+        assert user == "s2user"
+        assert pwd == "s2pass"
+
+    def test_host_override_in_site(self, tmp_path, monkeypatch):
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text(
+            "[Site2-DEFAULTS]\nusername = s2user\npassword = s2pass\n\n"
+            "[Site2-host01]\nusername = override\n"
+        )
+        monkeypatch.chdir(tmp_path)
+
+        user, pwd = get_idrac_credentials("host01", site="Site2")
+        assert user == "override"
+        assert pwd == "s2pass"
+
+    def test_unknown_site_returns_hardcoded_defaults(self, tmp_path, monkeypatch):
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text("[Default-DEFAULTS]\nusername = root\npassword = calvin\n")
+        monkeypatch.chdir(tmp_path)
+
+        user, pwd = get_idrac_credentials("host01", site="NoSuchSite")
+        assert user == "root"
+        assert pwd == "calvin"
+
+
+class TestRenameSiteIniSections:
+    def test_rename_sections(self, tmp_path, monkeypatch):
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text(
+            "[Default-DEFAULTS]\nusername = root\n\n"
+            "[Site2-DEFAULTS]\nusername = s2\n\n"
+            "[Site2-host01]\npassword = h1pass\n"
+        )
+        monkeypatch.chdir(tmp_path)
+
+        result = rename_site_ini_sections("Site2", "Lab3")
+        assert result is True
+
+        config = configparser.RawConfigParser()
+        config.read(ini)
+        assert "Lab3-DEFAULTS" in config.sections()
+        assert "Lab3-host01" in config.sections()
+        assert "Site2-DEFAULTS" not in config.sections()
+        assert config.get("Lab3-DEFAULTS", "username") == "s2"
+
+    def test_rename_creates_backup(self, tmp_path, monkeypatch):
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text("[Site2-DEFAULTS]\nusername = s2\n")
+        monkeypatch.chdir(tmp_path)
+
+        rename_site_ini_sections("Site2", "Lab3")
+
+        backup = tmp_path / "drac-passwords.ini.bak"
+        assert backup.exists()
+
+    def test_rename_preserves_other_sites(self, tmp_path, monkeypatch):
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text(
+            "[Default-DEFAULTS]\nusername = root\n\n"
+            "[Site2-DEFAULTS]\nusername = s2\n"
+        )
+        monkeypatch.chdir(tmp_path)
+
+        rename_site_ini_sections("Site2", "Lab3")
+
+        config = configparser.RawConfigParser()
+        config.read(ini)
+        assert "Default-DEFAULTS" in config.sections()
+        assert config.get("Default-DEFAULTS", "username") == "root"
+
+    def test_rename_nonexistent_site(self, tmp_path, monkeypatch):
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text("[Default-DEFAULTS]\nusername = root\n")
+        monkeypatch.chdir(tmp_path)
+
+        result = rename_site_ini_sections("NoSuchSite", "NewName")
+        assert result is False
+
+    def test_rename_no_ini_file(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        result = rename_site_ini_sections("Site2", "Lab3")
+        assert result is False
+
+
+class TestGetSiteIniConfig:
+    def test_get_existing_site(self, tmp_path, monkeypatch):
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text(
+            "[Default-DEFAULTS]\nusername = root\npassword = calvin\n\n"
+            "[Default-host01]\nusername = admin\n"
+        )
+        monkeypatch.chdir(tmp_path)
+
+        result = get_site_ini_config("Default")
+        assert result["defaults"]["username"] == "root"
+        assert "host01" in result["hosts"]
+        assert result["hosts"]["host01"]["username"] == "admin"
+
+    def test_get_nonexistent_site(self, tmp_path, monkeypatch):
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text("[Default-DEFAULTS]\nusername = root\n")
+        monkeypatch.chdir(tmp_path)
+
+        result = get_site_ini_config("NoSuchSite")
+        assert result == {"defaults": {}, "hosts": {}}
+
+    def test_get_no_ini_file(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        result = get_site_ini_config("Default")
+        assert result == {"defaults": {}, "hosts": {}}
+
+
+class TestSetSiteIniConfig:
+    def test_write_new_site_config(self, tmp_path, monkeypatch):
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text("[Default-DEFAULTS]\nusername = root\n")
+        monkeypatch.chdir(tmp_path)
+
+        set_site_ini_config("Site2", {
+            "defaults": {"username": "s2user", "password": "s2pass"},
+            "hosts": {"host01": {"username": "h1user"}},
+        })
+
+        config = configparser.RawConfigParser()
+        config.read(ini)
+        assert config.get("Site2-DEFAULTS", "username") == "s2user"
+        assert config.get("Site2-host01", "username") == "h1user"
+        assert config.get("Default-DEFAULTS", "username") == "root"
+
+    def test_overwrite_existing_site_config(self, tmp_path, monkeypatch):
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text(
+            "[Site2-DEFAULTS]\nusername = old\n\n"
+            "[Site2-host01]\nusername = oldhost\n"
+        )
+        monkeypatch.chdir(tmp_path)
+
+        set_site_ini_config("Site2", {
+            "defaults": {"username": "new"},
+            "hosts": {},
+        })
+
+        config = configparser.RawConfigParser()
+        config.read(ini)
+        assert config.get("Site2-DEFAULTS", "username") == "new"
+        assert "Site2-host01" not in config.sections()
+
+    def test_creates_file_if_missing(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+
+        set_site_ini_config("Default", {
+            "defaults": {"username": "root", "password": "calvin"},
+        })
+
+        ini = tmp_path / "drac-passwords.ini"
+        assert ini.exists()
+
+    def test_creates_backup(self, tmp_path, monkeypatch):
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text("[Default-DEFAULTS]\nusername = root\n")
+        monkeypatch.chdir(tmp_path)
+
+        set_site_ini_config("Site2", {"defaults": {"username": "s2"}})
+
+        backup = tmp_path / "drac-passwords.ini.bak"
+        assert backup.exists()
+
+
+class TestScheduleIniSiteField:
+    def test_parse_with_site(self, tmp_path):
+        from dracs.jobqueue import parse_schedule_config
+
+        ini = tmp_path / "schedule.ini"
+        ini.write_text(
+            "[tsr-site2]\n"
+            "type = tsr\n"
+            "schedule = daily\n"
+            "time = 02:00\n"
+            "target = all\n"
+            "site = Site2\n"
+        )
+
+        tasks = parse_schedule_config(str(ini))
+        assert len(tasks) == 1
+        assert tasks[0]["site"] == "Site2"
+
+    def test_parse_without_site(self, tmp_path):
+        from dracs.jobqueue import parse_schedule_config
+
+        ini = tmp_path / "schedule.ini"
+        ini.write_text(
+            "[refresh-daily]\n"
+            "type = refresh\n"
+            "schedule = daily\n"
+            "time = 04:00\n"
+            "target = all\n"
+        )
+
+        tasks = parse_schedule_config(str(ini))
+        assert len(tasks) == 1
+        assert tasks[0]["site"] is None

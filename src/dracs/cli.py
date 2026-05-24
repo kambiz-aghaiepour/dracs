@@ -143,8 +143,11 @@ async def main() -> None:
         help="Database URL (e.g. sqlite:///warranty.db, postgresql://user:pass@host/db) "
         "or path to SQLite file",
     )
+    parser.add_argument(
+        "--site",
+        help="Site name to operate on (defaults to primary site)",
+    )
 
-    # Create Subparsers (This makes -a, -e, -l, -r mutually exclusive)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     # --- ADD COMMAND ---
@@ -391,6 +394,8 @@ async def main() -> None:
     parser_user.add_argument("--username", help="Username")
     parser_user.add_argument("--role", choices=["admin", "user"], help="User role")
 
+    subparsers.add_parser("sites", help="List configured sites")
+
     args = parser.parse_args()
 
     # Set up logging based on command-line flags
@@ -429,7 +434,25 @@ async def main() -> None:
 
     db_initialize(warranty)
 
-    # Logic Routing
+    site_id = None
+    if args.site:
+        from dracs.db import get_site_by_name
+
+        site = get_site_by_name(args.site)
+        if site is None:
+            print(f"Error: site '{args.site}' not found.", file=sys.stderr)
+            sys.exit(1)
+        site_id = site["id"]
+
+    if args.command == "sites":
+        from dracs.db import list_sites
+        from tabulate import tabulate
+
+        sites = list_sites()
+        table = [[s["name"], s["host_count"]] for s in sites]
+        print(tabulate(table, headers=["Site", "Hosts"], tablefmt="simple"))
+        return
+
     if args.command in ["discover", "d"]:
         if args.host_list:
             hosts = read_host_list(args.host_list)

@@ -22,6 +22,7 @@ def enqueue_job(
     target: str,
     parent_id: Optional[int] = None,
     metadata: Optional[dict] = None,
+    site_id: Optional[int] = None,
 ) -> int:
     with get_session() as session:
         job = Job(
@@ -31,6 +32,7 @@ def enqueue_job(
             status="pending",
             created_at=datetime.now().isoformat(),
             metadata_json=json_module.dumps(metadata) if metadata else None,
+            site_id=site_id,
         )
         session.add(job)
         session.commit()
@@ -524,6 +526,7 @@ def parse_schedule_config(
             "time": config.get(section, "time", fallback=None),
             "day": config.get(section, "day", fallback=None),
             "target": config.get(section, "target", fallback=None),
+            "site": config.get(section, "site", fallback=None),
         }
         if (
             task["type"] in ("tsr", "refresh", "clear_job_queue")
@@ -536,36 +539,42 @@ def parse_schedule_config(
     return tasks
 
 
-def _resolve_targets(target_spec: str) -> list:
+def _resolve_targets(target_spec: str, site_id: Optional[int] = None) -> list:
     if target_spec == "all":
         with get_session() as session:
-            systems = session.query(System).order_by(System.name).all()
-            return [s.name for s in systems]
+            query = session.query(System).order_by(System.name)
+            if site_id is not None:
+                query = query.filter(System.site_id == site_id)
+            return [s.name for s in query.all()]
     elif target_spec.startswith("model:"):
         model = target_spec.split(":", 1)[1]
         with get_session() as session:
-            systems = session.query(System).filter(System.model == model).all()
-            return [s.name for s in systems]
+            query = session.query(System).filter(System.model == model)
+            if site_id is not None:
+                query = query.filter(System.site_id == site_id)
+            return [s.name for s in query.all()]
     else:
         return [target_spec]
 
 
-def enqueue_batch(job_type: str, target_spec: str) -> int:
-    hostnames = _resolve_targets(target_spec)
+def enqueue_batch(
+    job_type: str, target_spec: str, site_id: Optional[int] = None
+) -> int:
+    hostnames = _resolve_targets(target_spec, site_id=site_id)
     if not hostnames:
         return 0
     if len(hostnames) == 1:
-        enqueue_job(job_type, hostnames[0])
+        enqueue_job(job_type, hostnames[0], site_id=site_id)
         return 1
 
-    parent_id = enqueue_job(job_type, target_spec)
+    parent_id = enqueue_job(job_type, target_spec, site_id=site_id)
     with get_session() as session:
         parent = session.get(Job, parent_id)
         parent.status = "running"
         session.commit()
 
     for hostname in hostnames:
-        enqueue_job(job_type, hostname, parent_id=parent_id)
+        enqueue_job(job_type, hostname, parent_id=parent_id, site_id=site_id)
     return len(hostnames)
 
 

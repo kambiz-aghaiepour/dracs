@@ -1,0 +1,252 @@
+import json
+import os
+import tempfile
+from unittest.mock import patch
+
+import pytest
+
+from dracs.db import (
+    create_site,
+    db_initialize,
+    get_default_site_id,
+    upsert_system,
+)
+from dracs.users import create_user, set_user_site_role
+
+
+@pytest.fixture
+def site_db():
+    fd, path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    db_initialize(path)
+    upsert_system(
+        path, "TAG001", "server01", "R660",
+        "7.0.0", "2.1.0", "Jan 1, 2027", 1893456000,
+    )
+    upsert_system(
+        path, "TAG002", "server02", "R660",
+        "7.0.0", "2.1.0", "Jan 1, 2027", 1893456000,
+    )
+    yield path
+    if os.path.exists(path):
+        os.unlink(path)
+
+
+@pytest.fixture
+def site_client(site_db):
+    with patch.dict(
+        os.environ,
+        {
+            "DRACS_DB": site_db,
+            "DRACS_DNS_STRING": "mgmt-",
+            "DRACS_DNS_MODE": "prefix",
+            "WEBADMIN_USER": "admin",
+            "WEBADMIN_PASSWORD": "admin",
+        },
+    ):
+        import dracs.webapp as webapp_mod
+
+        webapp_mod.DB_PATH = site_db
+        webapp_mod.db_initialize(site_db)
+        webapp_mod.app.config["TESTING"] = True
+        with webapp_mod.app.test_client() as c:
+            yield c
+
+
+def _login(client, username="admin", password="admin"):
+    client.post(
+        "/login",
+        data=json.dumps({"username": username, "password": password}),
+        content_type="application/json",
+    )
+
+
+class TestApiSystemsSiteFilter:
+    def test_default_site_returns_all(self, site_client):
+        resp = site_client.get("/api/systems")
+        data = resp.get_json()
+        assert len(data) == 2
+
+    def test_explicit_default_site(self, site_client):
+        resp = site_client.get("/api/systems?site=Default")
+        data = resp.get_json()
+        assert len(data) == 2
+
+    def test_empty_site_returns_empty(self, site_client):
+        create_site("Site2")
+        resp = site_client.get("/api/systems?site=Site2")
+        data = resp.get_json()
+        assert len(data) == 0
+
+    def test_site_with_systems(self, site_client, site_db):
+        site2 = create_site("Site2")
+        upsert_system(
+            site_db, "TAG003", "server03", "R660",
+            "7.0.0", "2.1.0", "Jan 1, 2027", 1893456000,
+            site_id=site2["id"],
+        )
+
+        resp = site_client.get("/api/systems?site=Site2")
+        data = resp.get_json()
+        assert len(data) == 1
+        assert data[0]["name"] == "server03"
+
+
+class TestIndexRoute:
+    def test_index_default_site(self, site_client):
+        resp = site_client.get("/")
+        assert resp.status_code == 200
+        assert b"server01" in resp.data
+
+    def test_index_with_site_param(self, site_client):
+        create_site("Site2")
+        resp = site_client.get("/?site=Site2")
+        assert resp.status_code == 200
+        assert b"server01" not in resp.data
+
+    def test_index_with_multiple_sites(self, site_client):
+        create_site("Site2")
+        resp = site_client.get("/")
+        assert resp.status_code == 200
+
+    def test_unauthenticated_user_sees_all_sites(self, site_client):
+        create_site("Site2")
+        resp = site_client.get("/?site=Site2")
+        assert resp.status_code == 200
+
+
+class TestSitesCrud:
+    def test_list_sites(self, site_client):
+        _login(site_client)
+        resp = site_client.get("/api/sites")
+        data = resp.get_json()
+        assert data["success"] is True
+        assert len(data["sites"]) == 1
+        assert data["sites"][0]["name"] == "Default"
+
+    def test_list_sites_unauthenticated(self, site_client):
+        resp = site_client.get("/api/sites")
+        data = resp.get_json()
+        assert data["success"] is True
+
+    def test_create_site(self, site_client):
+        _login(site_client)
+        resp = site_client.post(
+            "/api/sites",
+            data=json.dumps({"name": "Site2"}),
+            content_type="application/json",
+        )
+        data = resp.get_json()
+        assert data["success"] is True
+        assert data["site"]["name"] == "Site2"
+
+    def test_create_site_invalid_name(self, site_client):
+        _login(site_client)
+        resp = site_client.post(
+            "/api/sites",
+            data=json.dumps({"name": "bad-name"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+    def test_create_site_non_superadmin_denied(self, site_client):
+        create_user("testuser", "testpass", role="admin")
+        _login(site_client, "testuser", "testpass")
+        resp = site_client.post(
+            "/api/sites",
+            data=json.dumps({"name": "Site2"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 403
+
+    def test_delete_site(self, site_client):
+        _login(site_client)
+        site_client.post(
+            "/api/sites",
+            data=json.dumps({"name": "Site2"}),
+            content_type="application/json",
+        )
+        resp = site_client.delete("/api/sites/Site2")
+        data = resp.get_json()
+        assert data["success"] is True
+
+    def test_delete_primary_site_fails(self, site_client):
+        _login(site_client)
+        resp = site_client.delete("/api/sites/Default")
+        assert resp.status_code == 400
+
+    def test_delete_nonexistent_site(self, site_client):
+        _login(site_client)
+        resp = site_client.delete("/api/sites/NoSuch")
+        assert resp.status_code == 404
+
+    def test_rename_site(self, site_client):
+        _login(site_client)
+        site_client.post(
+            "/api/sites",
+            data=json.dumps({"name": "Site2"}),
+            content_type="application/json",
+        )
+        resp = site_client.patch(
+            "/api/sites/Site2",
+            data=json.dumps({"name": "Lab3"}),
+            content_type="application/json",
+        )
+        data = resp.get_json()
+        assert data["success"] is True
+        assert "Lab3" in data["message"]
+
+    def test_rename_nonexistent_site(self, site_client):
+        _login(site_client)
+        resp = site_client.patch(
+            "/api/sites/NoSuch",
+            data=json.dumps({"name": "NewName"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 404
+
+
+class TestSiteConfig:
+    def test_get_config(self, site_client, tmp_path, monkeypatch):
+        _login(site_client)
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text(
+            "[Default-DEFAULTS]\nusername = root\npassword = calvin\n"
+        )
+        monkeypatch.chdir(tmp_path)
+        resp = site_client.get("/api/sites/Default/config")
+        data = resp.get_json()
+        assert data["success"] is True
+        assert data["config"]["defaults"]["username"] == "root"
+
+    def test_set_config(self, site_client, tmp_path, monkeypatch):
+        _login(site_client)
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text("[Default-DEFAULTS]\nusername = root\n")
+        monkeypatch.chdir(tmp_path)
+
+        resp = site_client.put(
+            "/api/sites/Default/config",
+            data=json.dumps({
+                "defaults": {"username": "newroot", "password": "newpass"},
+            }),
+            content_type="application/json",
+        )
+        data = resp.get_json()
+        assert data["success"] is True
+
+    def test_config_non_superadmin_denied(self, site_client):
+        create_user("testuser", "testpass", role="admin")
+        _login(site_client, "testuser", "testpass")
+        resp = site_client.get("/api/sites/Default/config")
+        assert resp.status_code == 403
+
+
+class TestRefreshAllSiteAware:
+    @patch("dracs.jobqueue.enqueue_batch", return_value=2)
+    def test_refresh_all_with_site(self, mock_enqueue, site_client):
+        _login(site_client)
+        resp = site_client.post("/api/refresh-all?site=Default")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["success"] is True
