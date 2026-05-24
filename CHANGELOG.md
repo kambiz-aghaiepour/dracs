@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.1.2 (2026-05-24)
+
+### Bug Fixes
+
+- Clarify exmaple drac-passwords.ini
+  ([`28a8858`](https://github.com/kambiz-aghaiepour/dracs/commit/28a88581b0ac7ef27791a108651df72700703924))
+
+### Chores
+
+- Sync spec file version to 2.1.1 [skip ci]
+  ([`35cd457`](https://github.com/kambiz-aghaiepour/dracs/commit/35cd45769af9157a10521a0ff8751c49372679bd))
+
+
 ## v2.1.1 (2026-05-22)
 
 ### Bug Fixes
