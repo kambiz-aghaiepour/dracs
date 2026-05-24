@@ -114,7 +114,7 @@ def rename_site_ini_sections(old_name: str, new_name: str) -> bool:
     new_config = configparser.RawConfigParser()
     for section in config.sections():
         if section.startswith(prefix):
-            suffix = section[len(prefix):]
+            suffix = section[len(prefix) :]
             new_section = f"{new_name}-{suffix}"
         else:
             new_section = section
@@ -147,7 +147,7 @@ def get_site_ini_config(site_name: str) -> dict:
 
     for section in config.sections():
         if section.startswith(prefix) and section != defaults_section:
-            hostname = section[len(prefix):]
+            hostname = section[len(prefix) :]
             result["hosts"][hostname] = {}
             for key in config.options(section):
                 result["hosts"][hostname][key] = config.get(section, key)

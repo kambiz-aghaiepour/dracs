@@ -58,11 +58,11 @@ def create_user(
         session.add(user)
         session.flush()
 
-        default_site = session.query(Site).filter(Site.is_primary == True).first()  # noqa: E712
+        default_site = (
+            session.query(Site).filter(Site.is_primary == True).first()
+        )  # noqa: E712
         if default_site:
-            mapping = UserSiteRole(
-                user_id=user.id, site_id=default_site.id, role=role
-            )
+            mapping = UserSiteRole(user_id=user.id, site_id=default_site.id, role=role)
             session.add(mapping)
 
         session.commit()
@@ -143,7 +143,9 @@ def update_user_role(username: str, new_role: str) -> bool:
             return False
         user.role = new_role
 
-        default_site = session.query(Site).filter(Site.is_primary == True).first()  # noqa: E712
+        default_site = (
+            session.query(Site).filter(Site.is_primary == True).first()
+        )  # noqa: E712
         if default_site:
             mapping = (
                 session.query(UserSiteRole)
@@ -182,9 +184,7 @@ def set_user_site_role(username: str, site_id: int, role: str) -> None:
         if existing:
             existing.role = role
         else:
-            mapping = UserSiteRole(
-                user_id=user.id, site_id=site_id, role=role
-            )
+            mapping = UserSiteRole(user_id=user.id, site_id=site_id, role=role)
             session.add(mapping)
         session.commit()
 

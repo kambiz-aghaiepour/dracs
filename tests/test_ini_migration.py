@@ -130,12 +130,40 @@ class TestMigratePasswordsIni:
         assert config.get("Default-host01", "username") == "admin"
 
 
+class TestMigrateWithMixedFormat:
+    def test_migrate_preserves_already_prefixed_sections(self, tmp_path):
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text(
+            "[DEFAULT]\nusername = root\n\n"
+            "[Site2-DEFAULTS]\nusername = s2user\n\n"
+            "[host01]\nusername = admin\n"
+        )
+
+        result = migrate_passwords_ini(ini)
+        assert result is True
+
+        config = configparser.RawConfigParser()
+        config.read(ini)
+        assert "Site2-DEFAULTS" in config.sections()
+        assert "Default-host01" in config.sections()
+
+    def test_colon_delimited_values(self, tmp_path):
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text("[host01]\nusername: colonuser\npassword: colonpass\n")
+
+        result = migrate_passwords_ini(ini)
+        assert result is True
+
+        config = configparser.RawConfigParser()
+        config.read(ini)
+        assert "Default-host01" in config.sections()
+        assert config.get("Default-host01", "username") == "colonuser"
+
+
 class TestGetIdracCredentialsSiteAware:
     def test_default_site_implicit(self, tmp_path, monkeypatch):
         ini = tmp_path / "drac-passwords.ini"
-        ini.write_text(
-            "[Default-DEFAULTS]\nusername = root\npassword = calvin\n"
-        )
+        ini.write_text("[Default-DEFAULTS]\nusername = root\npassword = calvin\n")
         monkeypatch.chdir(tmp_path)
 
         user, pwd = get_idrac_credentials("host01")
@@ -269,10 +297,13 @@ class TestSetSiteIniConfig:
         ini.write_text("[Default-DEFAULTS]\nusername = root\n")
         monkeypatch.chdir(tmp_path)
 
-        set_site_ini_config("Site2", {
-            "defaults": {"username": "s2user", "password": "s2pass"},
-            "hosts": {"host01": {"username": "h1user"}},
-        })
+        set_site_ini_config(
+            "Site2",
+            {
+                "defaults": {"username": "s2user", "password": "s2pass"},
+                "hosts": {"host01": {"username": "h1user"}},
+            },
+        )
 
         config = configparser.RawConfigParser()
         config.read(ini)
@@ -288,10 +319,13 @@ class TestSetSiteIniConfig:
         )
         monkeypatch.chdir(tmp_path)
 
-        set_site_ini_config("Site2", {
-            "defaults": {"username": "new"},
-            "hosts": {},
-        })
+        set_site_ini_config(
+            "Site2",
+            {
+                "defaults": {"username": "new"},
+                "hosts": {},
+            },
+        )
 
         config = configparser.RawConfigParser()
         config.read(ini)
@@ -301,9 +335,12 @@ class TestSetSiteIniConfig:
     def test_creates_file_if_missing(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
 
-        set_site_ini_config("Default", {
-            "defaults": {"username": "root", "password": "calvin"},
-        })
+        set_site_ini_config(
+            "Default",
+            {
+                "defaults": {"username": "root", "password": "calvin"},
+            },
+        )
 
         ini = tmp_path / "drac-passwords.ini"
         assert ini.exists()

@@ -123,12 +123,16 @@ def get_vnc_credentials(hostname: str, site: str | None = None) -> tuple:
     defaults_section = f"{site}-DEFAULTS"
 
     if host_section in config:
-        vnc_port = int(config.get(
-            host_section, "vnc_port",
-            fallback=config.get(defaults_section, "vnc_port", fallback="5901"),
-        ))
+        vnc_port = int(
+            config.get(
+                host_section,
+                "vnc_port",
+                fallback=config.get(defaults_section, "vnc_port", fallback="5901"),
+            )
+        )
         vnc_password = config.get(
-            host_section, "vnc_password",
+            host_section,
+            "vnc_password",
             fallback=config.get(defaults_section, "vnc_password", fallback=""),
         )
     elif defaults_section in config:

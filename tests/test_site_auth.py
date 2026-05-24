@@ -173,8 +173,14 @@ class TestRequireAuthSiteAware:
         self._login(webapp_client)
         site2 = create_site("Site2")
         upsert_system(
-            "", "TAG001", "host01", "R660",
-            "7.0.0", "2.1.0", "Jan 1, 2027", 1893456000,
+            "",
+            "TAG001",
+            "host01",
+            "R660",
+            "7.0.0",
+            "2.1.0",
+            "Jan 1, 2027",
+            1893456000,
             site_id=site2["id"],
         )
 

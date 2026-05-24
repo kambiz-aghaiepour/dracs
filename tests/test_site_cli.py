@@ -14,8 +14,14 @@ def cli_db():
     os.close(fd)
     db_initialize(path)
     upsert_system(
-        path, "TAG001", "server01", "R660",
-        "7.0.0", "2.1.0", "Jan 1, 2027", 1893456000,
+        path,
+        "TAG001",
+        "server01",
+        "R660",
+        "7.0.0",
+        "2.1.0",
+        "Jan 1, 2027",
+        1893456000,
     )
     yield path
     if os.path.exists(path):
@@ -47,8 +53,14 @@ class TestSitesCommand:
         create_site("Site2")
         site3 = create_site("Site3")
         upsert_system(
-            cli_db, "TAG002", "server02", "R660",
-            "7.0.0", "2.1.0", "Jan 1, 2027", 1893456000,
+            cli_db,
+            "TAG002",
+            "server02",
+            "R660",
+            "7.0.0",
+            "2.1.0",
+            "Jan 1, 2027",
+            1893456000,
             site_id=site3["id"],
         )
 

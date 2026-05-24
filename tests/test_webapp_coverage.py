@@ -116,9 +116,7 @@ class TestGetIdracCredentialsWithConfig:
 
         ini = tmp_path / "drac-passwords.ini"
         ini.write_text(
-            "[Default-DEFAULTS]\n"
-            "username = superuser\n"
-            "password = superpass\n"
+            "[Default-DEFAULTS]\n" "username = superuser\n" "password = superpass\n"
         )
         monkeypatch.chdir(tmp_path)
         user, pwd = get_idrac_credentials("unknown-host")

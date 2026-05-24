@@ -270,11 +270,13 @@ def get_idrac_credentials(hostname: str, site: str | None = None) -> tuple:
 
     if host_section in config:
         username = config.get(
-            host_section, "username",
+            host_section,
+            "username",
             fallback=config.get(defaults_section, "username", fallback="root"),
         )
         password = config.get(
-            host_section, "password",
+            host_section,
+            "password",
             fallback=config.get(defaults_section, "password", fallback="calvin"),
         )
     elif defaults_section in config:
@@ -2124,7 +2126,9 @@ TSR_IMAGE_DIR = Path("/var/lib/dracs/web/tsr")
 TFTPBOOT_DIR = Path("/var/lib/tftpboot")
 
 
-def _build_ssh_racadm_cmd(hostname: str, *racadm_args: str, site: str | None = None) -> list:
+def _build_ssh_racadm_cmd(
+    hostname: str, *racadm_args: str, site: str | None = None
+) -> list:
     idrac_fqdn = build_idrac_hostname(hostname)
     username, password = get_idrac_credentials(hostname, site=site)
     return [

@@ -84,14 +84,22 @@ class TestGrandfatherSites:
         default_id = get_default_site_id()
 
         upsert_system(
-            temp_db, "TAG001", "host01", "R660",
-            "7.0.0", "2.1.0", "Jan 1, 2027", 1893456000,
+            temp_db,
+            "TAG001",
+            "host01",
+            "R660",
+            "7.0.0",
+            "2.1.0",
+            "Jan 1, 2027",
+            1893456000,
         )
 
         with get_session() as session:
-            system = session.query(
-                __import__("dracs.db", fromlist=["System"]).System
-            ).filter_by(svc_tag="TAG001").first()
+            system = (
+                session.query(__import__("dracs.db", fromlist=["System"]).System)
+                .filter_by(svc_tag="TAG001")
+                .first()
+            )
             assert system.site_id == default_id
 
     def test_existing_users_get_site_roles(self, temp_db):
@@ -245,12 +253,24 @@ class TestListSites:
     def test_includes_host_count(self, temp_db):
         db_initialize(temp_db)
         upsert_system(
-            temp_db, "TAG001", "host01", "R660",
-            "7.0.0", "2.1.0", "Jan 1, 2027", 1893456000,
+            temp_db,
+            "TAG001",
+            "host01",
+            "R660",
+            "7.0.0",
+            "2.1.0",
+            "Jan 1, 2027",
+            1893456000,
         )
         upsert_system(
-            temp_db, "TAG002", "host02", "R660",
-            "7.0.0", "2.1.0", "Jan 1, 2027", 1893456000,
+            temp_db,
+            "TAG002",
+            "host02",
+            "R660",
+            "7.0.0",
+            "2.1.0",
+            "Jan 1, 2027",
+            1893456000,
         )
 
         sites = list_sites()
@@ -309,8 +329,14 @@ class TestDeleteSite:
         db_initialize(temp_db)
         site = create_site("Site2")
         upsert_system(
-            temp_db, "TAG001", "host01", "R660",
-            "7.0.0", "2.1.0", "Jan 1, 2027", 1893456000,
+            temp_db,
+            "TAG001",
+            "host01",
+            "R660",
+            "7.0.0",
+            "2.1.0",
+            "Jan 1, 2027",
+            1893456000,
             site_id=site["id"],
         )
 
@@ -341,9 +367,7 @@ class TestDeleteSite:
 
         with get_session() as session:
             remaining = (
-                session.query(UserSiteRole)
-                .filter_by(site_id=site["id"])
-                .count()
+                session.query(UserSiteRole).filter_by(site_id=site["id"]).count()
             )
             assert remaining == 0
 
@@ -386,8 +410,14 @@ class TestUpsertSystemSiteId:
         default_id = get_default_site_id()
 
         upsert_system(
-            temp_db, "TAG001", "host01", "R660",
-            "7.0.0", "2.1.0", "Jan 1, 2027", 1893456000,
+            temp_db,
+            "TAG001",
+            "host01",
+            "R660",
+            "7.0.0",
+            "2.1.0",
+            "Jan 1, 2027",
+            1893456000,
         )
 
         with get_session() as session:
@@ -401,8 +431,14 @@ class TestUpsertSystemSiteId:
         site = create_site("Site2")
 
         upsert_system(
-            temp_db, "TAG001", "host01", "R660",
-            "7.0.0", "2.1.0", "Jan 1, 2027", 1893456000,
+            temp_db,
+            "TAG001",
+            "host01",
+            "R660",
+            "7.0.0",
+            "2.1.0",
+            "Jan 1, 2027",
+            1893456000,
             site_id=site["id"],
         )
 
@@ -417,13 +453,25 @@ class TestUpsertSystemSiteId:
         site = create_site("Site2")
 
         upsert_system(
-            temp_db, "TAG001", "host01", "R660",
-            "7.0.0", "2.1.0", "Jan 1, 2027", 1893456000,
+            temp_db,
+            "TAG001",
+            "host01",
+            "R660",
+            "7.0.0",
+            "2.1.0",
+            "Jan 1, 2027",
+            1893456000,
             site_id=site["id"],
         )
         upsert_system(
-            temp_db, "TAG001", "host01", "R660",
-            "8.0.0", "3.0.0", "Jan 1, 2028", 1924992000,
+            temp_db,
+            "TAG001",
+            "host01",
+            "R660",
+            "8.0.0",
+            "3.0.0",
+            "Jan 1, 2028",
+            1924992000,
         )
 
         with get_session() as session:
@@ -437,12 +485,24 @@ class TestUpsertSystemSiteId:
         site2 = create_site("Site2")
 
         upsert_system(
-            temp_db, "TAG001", "host01", "R660",
-            "7.0.0", "2.1.0", "Jan 1, 2027", 1893456000,
+            temp_db,
+            "TAG001",
+            "host01",
+            "R660",
+            "7.0.0",
+            "2.1.0",
+            "Jan 1, 2027",
+            1893456000,
         )
         upsert_system(
-            temp_db, "TAG001", "host01", "R660",
-            "7.0.0", "2.1.0", "Jan 1, 2027", 1893456000,
+            temp_db,
+            "TAG001",
+            "host01",
+            "R660",
+            "7.0.0",
+            "2.1.0",
+            "Jan 1, 2027",
+            1893456000,
             site_id=site2["id"],
         )
 

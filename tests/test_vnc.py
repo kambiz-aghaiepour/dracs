@@ -242,9 +242,7 @@ class TestGetVncCredentials:
 
     def test_default_section(self, tmp_path, monkeypatch):
         ini = tmp_path / "drac-passwords.ini"
-        ini.write_text(
-            "[Default-DEFAULTS]\nvnc_port = 5900\nvnc_password = mypass\n"
-        )
+        ini.write_text("[Default-DEFAULTS]\nvnc_port = 5900\nvnc_password = mypass\n")
         monkeypatch.chdir(tmp_path)
         port, password = get_vnc_credentials("host01")
         assert port == 5900

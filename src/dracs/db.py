@@ -152,9 +152,7 @@ def _grandfather_sites(engine) -> None:
     from sqlalchemy import text
 
     with engine.begin() as conn:
-        row = conn.execute(
-            text("SELECT id FROM sites WHERE is_primary = 1")
-        ).fetchone()
+        row = conn.execute(text("SELECT id FROM sites WHERE is_primary = 1")).fetchone()
         if row is None:
             conn.execute(
                 text(
@@ -289,7 +287,9 @@ def get_default_site_id() -> int:
     with get_session() as session:
         site = session.query(Site).filter(Site.is_primary == True).first()  # noqa: E712
         if site is None:
-            raise RuntimeError("Default site not found. Database may not be initialized.")
+            raise RuntimeError(
+                "Default site not found. Database may not be initialized."
+            )
         return site.id
 
 

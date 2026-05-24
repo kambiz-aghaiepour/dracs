@@ -20,12 +20,24 @@ def site_db():
     os.close(fd)
     db_initialize(path)
     upsert_system(
-        path, "TAG001", "server01", "R660",
-        "7.0.0", "2.1.0", "Jan 1, 2027", 1893456000,
+        path,
+        "TAG001",
+        "server01",
+        "R660",
+        "7.0.0",
+        "2.1.0",
+        "Jan 1, 2027",
+        1893456000,
     )
     upsert_system(
-        path, "TAG002", "server02", "R660",
-        "7.0.0", "2.1.0", "Jan 1, 2027", 1893456000,
+        path,
+        "TAG002",
+        "server02",
+        "R660",
+        "7.0.0",
+        "2.1.0",
+        "Jan 1, 2027",
+        1893456000,
     )
     yield path
     if os.path.exists(path):
@@ -81,8 +93,14 @@ class TestApiSystemsSiteFilter:
     def test_site_with_systems(self, site_client, site_db):
         site2 = create_site("Site2")
         upsert_system(
-            site_db, "TAG003", "server03", "R660",
-            "7.0.0", "2.1.0", "Jan 1, 2027", 1893456000,
+            site_db,
+            "TAG003",
+            "server03",
+            "R660",
+            "7.0.0",
+            "2.1.0",
+            "Jan 1, 2027",
+            1893456000,
             site_id=site2["id"],
         )
 
@@ -113,6 +131,23 @@ class TestIndexRoute:
         create_site("Site2")
         resp = site_client.get("/?site=Site2")
         assert resp.status_code == 200
+
+    def test_user_no_role_on_site_treated_as_guest(self, site_client):
+        create_user("testuser", "testpass", role="user")
+        site2 = create_site("Site2")
+        _login(site_client, "testuser", "testpass")
+        resp = site_client.get("/?site=Site2")
+        assert resp.status_code == 200
+        assert b"Login" in resp.data
+
+    def test_user_with_role_on_site_sees_role(self, site_client):
+        create_user("testuser", "testpass", role="admin")
+        site2 = create_site("Site2")
+        set_user_site_role("testuser", site2["id"], "user")
+        _login(site_client, "testuser", "testpass")
+        resp = site_client.get("/?site=Site2")
+        assert resp.status_code == 200
+        assert b"testuser" in resp.data
 
 
 class TestSitesCrud:
@@ -210,9 +245,7 @@ class TestSiteConfig:
     def test_get_config(self, site_client, tmp_path, monkeypatch):
         _login(site_client)
         ini = tmp_path / "drac-passwords.ini"
-        ini.write_text(
-            "[Default-DEFAULTS]\nusername = root\npassword = calvin\n"
-        )
+        ini.write_text("[Default-DEFAULTS]\nusername = root\npassword = calvin\n")
         monkeypatch.chdir(tmp_path)
         resp = site_client.get("/api/sites/Default/config")
         data = resp.get_json()
@@ -227,9 +260,11 @@ class TestSiteConfig:
 
         resp = site_client.put(
             "/api/sites/Default/config",
-            data=json.dumps({
-                "defaults": {"username": "newroot", "password": "newpass"},
-            }),
+            data=json.dumps(
+                {
+                    "defaults": {"username": "newroot", "password": "newpass"},
+                }
+            ),
             content_type="application/json",
         )
         data = resp.get_json()
@@ -240,6 +275,102 @@ class TestSiteConfig:
         _login(site_client, "testuser", "testpass")
         resp = site_client.get("/api/sites/Default/config")
         assert resp.status_code == 403
+
+
+class TestSitesCrudEdgeCases:
+    def test_create_site_unauthenticated(self, site_client):
+        resp = site_client.post(
+            "/api/sites",
+            data=json.dumps({"name": "Site2"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 401
+
+    def test_create_site_missing_name(self, site_client):
+        _login(site_client)
+        resp = site_client.post(
+            "/api/sites",
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+    def test_delete_site_unauthenticated(self, site_client):
+        resp = site_client.delete("/api/sites/Default")
+        assert resp.status_code == 401
+
+    def test_delete_site_non_superadmin(self, site_client):
+        create_user("testuser", "testpass", role="admin")
+        _login(site_client, "testuser", "testpass")
+        resp = site_client.delete("/api/sites/Default")
+        assert resp.status_code == 403
+
+    def test_rename_site_unauthenticated(self, site_client):
+        resp = site_client.patch(
+            "/api/sites/Default",
+            data=json.dumps({"name": "Main"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 401
+
+    def test_rename_site_non_superadmin(self, site_client):
+        create_user("testuser", "testpass", role="admin")
+        _login(site_client, "testuser", "testpass")
+        resp = site_client.patch(
+            "/api/sites/Default",
+            data=json.dumps({"name": "Main"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 403
+
+    def test_rename_site_missing_name(self, site_client):
+        _login(site_client)
+        resp = site_client.patch(
+            "/api/sites/Default",
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+    def test_rename_site_invalid_name(self, site_client):
+        _login(site_client)
+        resp = site_client.patch(
+            "/api/sites/Default",
+            data=json.dumps({"name": "bad-name"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+    def test_config_set_unauthenticated(self, site_client):
+        resp = site_client.put(
+            "/api/sites/Default/config",
+            data=json.dumps({"defaults": {}}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 401
+
+    def test_config_set_non_superadmin(self, site_client):
+        create_user("testuser", "testpass", role="admin")
+        _login(site_client, "testuser", "testpass")
+        resp = site_client.put(
+            "/api/sites/Default/config",
+            data=json.dumps({"defaults": {}}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 403
+
+    def test_config_set_missing_body(self, site_client):
+        _login(site_client)
+        resp = site_client.put(
+            "/api/sites/Default/config",
+            data=json.dumps(None),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+    def test_config_get_unauthenticated(self, site_client):
+        resp = site_client.get("/api/sites/Default/config")
+        assert resp.status_code == 401
 
 
 class TestRefreshAllSiteAware:
