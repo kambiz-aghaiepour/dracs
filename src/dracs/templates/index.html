@@ -418,6 +418,12 @@
             .filters {
                 grid-template-columns: 1fr;
             }
+            .action-panels {
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            }
+            .filters-wrapper.open .filters-content {
+                grid-template-columns: 1fr;
+            }
         }
 
         @media (max-width: 768px) {
@@ -716,12 +722,119 @@
             font-weight: 500;
         }
 
-        /* Admin actions container */
-        .admin-actions {
-            margin-bottom: 15px;
+        /* Action Panel Grid */
+        .action-panels {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px;
+            margin: 16px 0;
+        }
+
+        .action-panel {
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            overflow: hidden;
+            background: white;
+        }
+
+        .panel-header {
+            padding: 8px 12px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: white;
+        }
+
+        .panel-header.inventory { background-color: #28a745; }
+        .panel-header.firmware { background-color: #007bff; }
+        .panel-header.diagnostics { background-color: #17a2b8; }
+        .panel-header.jobs { background-color: #fd7e14; }
+        .panel-header.selection { background-color: #6c757d; }
+
+        .panel-body {
+            padding: 10px;
             display: flex;
-            gap: 10px;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .panel-btn {
+            padding: 7px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        .panel-btn:disabled, .panel-btn.role-disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+            filter: grayscale(60%);
+        }
+
+        .panel-btn:not(:disabled):not(.role-disabled):hover {
+            filter: brightness(0.9);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+        }
+
+        .btn-green { background-color: #28a745; color: white; }
+        .btn-red { background-color: #dc3545; color: white; }
+        .btn-blue { background-color: #007bff; color: white; }
+        .btn-teal { background-color: #17a2b8; color: white; }
+        .btn-orange { background-color: #fd7e14; color: white; }
+        .btn-indigo { background-color: #6610f2; color: white; }
+        .btn-dark-red { background-color: #c82333; color: white; }
+
+        /* Collapsible Filters */
+        .filters-wrapper {
+            background-color: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+
+        .filters-toggle {
+            display: flex;
             align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            cursor: pointer;
+            user-select: none;
+            font-size: 14px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .filters-toggle:hover {
+            background-color: #eef1f4;
+        }
+
+        .filters-toggle-arrow {
+            display: inline-block;
+            font-size: 10px;
+            transition: transform 0.2s;
+            color: #888;
+        }
+
+        .filters-wrapper.open .filters-toggle-arrow {
+            transform: rotate(90deg);
+        }
+
+        .filters-content {
+            display: none;
+            padding: 0 20px 20px 20px;
+        }
+
+        .filters-wrapper.open .filters-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
         }
 
         .firmware-update-container, .bios-update-container, .job-queue-container, .clear-job-queue-container {
@@ -1220,8 +1333,30 @@
             color: #ff6b6b;
         }
 
-        body.dark-theme .admin-actions {
-            background-color: transparent;
+        body.dark-theme .action-panel {
+            background-color: #2d2d2d;
+            border-color: #555;
+        }
+
+        body.dark-theme .panel-body {
+            background-color: #333;
+        }
+
+        body.dark-theme .filters-wrapper {
+            background-color: #3a3a3a;
+            border-color: #555;
+        }
+
+        body.dark-theme .filters-toggle {
+            color: #b0b0b0;
+        }
+
+        body.dark-theme .filters-toggle:hover {
+            background-color: #444;
+        }
+
+        body.dark-theme .filters-toggle-arrow {
+            color: #999;
         }
 
         body.dark-theme .pagination-container {
@@ -1400,7 +1535,12 @@
             </div>
         </div>
 
-        <div class="filters">
+        <div class="filters-wrapper" id="filters-wrapper">
+            <div class="filters-toggle" onclick="toggleFilters()">
+                <span class="filters-toggle-arrow" id="filters-arrow">&#9654;</span>
+                Filters
+            </div>
+            <div class="filters-content" id="filters-content">
             <div class="filter-group-left">
                 <div class="filter-group">
                     <label for="hostname-filter">Hostname Filter</label>
@@ -1510,113 +1650,68 @@
                     </label>
                 </div>
             </div>
+            </div>
         </div>
 
-        {% if user_role == 'admin' %}
-        <div class="admin-actions">
-            <button id="discover-btn" class="btn btn-success" onclick="showDiscoverModal()" style="background-color: #28a745;">
-                Discover
-            </button>
-            <button id="delete-btn" class="btn" onclick="showDeleteModal()" disabled style="background-color: #dc3545; color: white;">
-                Delete
-            </button>
-            <button id="refresh-btn" class="btn btn-success" onclick="handleRefreshSelected()" disabled>
-                Refresh Selected (<span id="selected-count">0</span>)
-            </button>
-            <button id="refresh-all-btn" class="btn btn-success" onclick="handleRefreshAll()">
-                Refresh All Systems
-            </button>
-            <div class="firmware-update-container">
-                <button id="update-firmware-btn" class="btn btn-primary" disabled>
-                    Update Firmware
-                </button>
-                <select id="firmware-version-select" class="firmware-version-select" style="display: none;" onchange="handleFirmwareVersionSelect(event)">
-                    <option value="">Select firmware version...</option>
-                </select>
-            </div>
-            <div class="bios-update-container">
-                <button id="update-bios-btn" class="btn btn-primary" disabled>
-                    Update BIOS
-                </button>
-                <select id="bios-version-select" class="bios-version-select" style="display: none;" onchange="handleBiosVersionSelect(event)">
-                    <option value="">Select BIOS version...</option>
-                </select>
-            </div>
-            <div class="job-queue-container">
-                <button id="job-queue-btn" class="btn btn-primary" disabled onclick="handleJobQueueClick()">
-                    Job Queue
-                </button>
-            </div>
-            <div class="clear-job-queue-container">
-                <button id="clear-job-queue-btn" class="btn btn-primary" disabled onclick="handleClearJobQueueClick()">
-                    Clear Job Queue
-                </button>
-            </div>
-        </div>
-        {% endif %}
+        {% set role_level = {'admin': 2, 'user': 1}.get(user_role, 0) %}
 
-        {% if user_role == 'admin' %}
-        <div style="margin-bottom: 10px;">
-            {% if vnc_enabled %}
-            <button id="console-btn" class="btn btn-primary" disabled onclick="handleConsoleClick()">
-                Console
-            </button>
-            {% endif %}
-            <button id="power-btn" class="btn btn-primary" disabled onclick="handlePowerClick()">
-                Power
-            </button>
-            <button id="latest-firmware-btn" class="btn btn-primary" disabled onclick="handleLatestFirmwareClick()">
-                Latest Firmware
-            </button>
-            <button id="latest-bios-btn" class="btn btn-primary" disabled onclick="handleLatestBiosClick()">
-                Latest BIOS
-            </button>
-            <button id="force-firmware-btn" class="btn btn-force" disabled onclick="handleForceFirmwareClick()">
-                Force Firmware
-            </button>
-            <button id="force-bios-btn" class="btn btn-force" disabled onclick="handleForceBiosClick()">
-                Force BIOS
-            </button>
-            <button id="generate-tsr-btn" class="btn btn-primary" disabled onclick="handleGenerateTsrClick()">
-                Generate TSR
-            </button>
-            <button id="view-tsr-btn" class="btn btn-primary" disabled onclick="handleViewTsrClick()">
-                View TSRs
-            </button>
-        </div>
-        {% elif user_role == 'user' %}
-        <div style="margin-bottom: 10px;">
-            {% if vnc_enabled %}
-            <button id="console-btn" class="btn btn-primary" disabled onclick="handleConsoleClick()">
-                Console
-            </button>
-            {% endif %}
-            <button id="generate-tsr-btn" class="btn btn-primary" disabled onclick="handleGenerateTsrClick()">
-                Generate TSR
-            </button>
-            <button id="view-tsr-btn" class="btn btn-primary" disabled onclick="handleViewTsrClick()">
-                View TSRs
-            </button>
-            <div class="job-queue-container" style="display: inline-block;">
-                <button id="job-queue-btn" class="btn btn-primary" disabled onclick="handleJobQueueClick()">
-                    Job Queue
-                </button>
+        <div class="action-panels">
+            <div class="action-panel">
+                <div class="panel-header inventory">Inventory</div>
+                <div class="panel-body">
+                    <button id="discover-btn" class="panel-btn btn-green{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" {% if role_level < 2 %}disabled{% endif %} onclick="showDiscoverModal()">Discover</button>
+                    <button id="delete-btn" class="panel-btn btn-red{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" disabled onclick="showDeleteModal()">Delete</button>
+                    <button id="refresh-btn" class="panel-btn btn-green{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" disabled onclick="handleRefreshSelected()">Refresh Selected (<span id="selected-count">0</span>)</button>
+                    <button id="refresh-all-btn" class="panel-btn btn-green{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" {% if role_level < 2 %}disabled{% endif %} onclick="handleRefreshAll()">Refresh All</button>
+                </div>
+            </div>
+            <div class="action-panel">
+                <div class="panel-header firmware">Firmware</div>
+                <div class="panel-body">
+                    <button id="update-firmware-btn" class="panel-btn btn-blue{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" disabled>Update Firmware</button>
+                    <button id="latest-firmware-btn" class="panel-btn btn-blue{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" disabled onclick="handleLatestFirmwareClick()">Latest Firmware</button>
+                    <button id="force-firmware-btn" class="panel-btn btn-dark-red{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" disabled onclick="handleForceFirmwareClick()">Force Firmware</button>
+                </div>
+            </div>
+            <div class="action-panel">
+                <div class="panel-header firmware">BIOS</div>
+                <div class="panel-body">
+                    <button id="update-bios-btn" class="panel-btn btn-blue{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" disabled>Update BIOS</button>
+                    <button id="latest-bios-btn" class="panel-btn btn-blue{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" disabled onclick="handleLatestBiosClick()">Latest BIOS</button>
+                    <button id="force-bios-btn" class="panel-btn btn-dark-red{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" disabled onclick="handleForceBiosClick()">Force BIOS</button>
+                </div>
+            </div>
+            <div class="action-panel">
+                <div class="panel-header diagnostics">Diagnostics</div>
+                <div class="panel-body">
+                    <button id="console-btn" class="panel-btn btn-teal{% if role_level < 1 or not vnc_enabled %} role-disabled{% endif %}" data-min-role="user" disabled onclick="handleConsoleClick()">Console</button>
+                    <button id="generate-tsr-btn" class="panel-btn btn-blue{% if role_level < 1 %} role-disabled{% endif %}" data-min-role="user" disabled onclick="handleGenerateTsrClick()">Generate TSR</button>
+                    <button id="view-tsr-btn" class="panel-btn btn-blue" data-min-role="none" disabled onclick="handleViewTsrClick()">View TSRs</button>
+                </div>
+            </div>
+            <div class="action-panel">
+                <div class="panel-header jobs">Jobs &amp; Power</div>
+                <div class="panel-body">
+                    <button id="job-queue-btn" class="panel-btn btn-blue{% if role_level < 1 %} role-disabled{% endif %}" data-min-role="user" disabled onclick="handleJobQueueClick()">Job Queue</button>
+                    <button id="clear-job-queue-btn" class="panel-btn btn-orange{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" disabled onclick="handleClearJobQueueClick()">Clear Job Queue</button>
+                    <button id="power-btn" class="panel-btn btn-indigo{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" disabled onclick="handlePowerClick()">Power</button>
+                </div>
+            </div>
+            <div class="action-panel">
+                <div class="panel-header selection">Selection</div>
+                <div class="panel-body">
+                    <button id="select-all-btn" class="panel-btn btn-green{% if role_level < 1 %} role-disabled{% endif %}" data-min-role="user" {% if role_level < 1 %}disabled{% endif %} onclick="toggleSelectAll()">Select All</button>
+                    <button id="select-shown-btn" class="panel-btn btn-teal{% if role_level < 1 %} role-disabled{% endif %}" data-min-role="user" {% if role_level < 1 %}disabled{% endif %} onclick="selectShown()">Select Shown</button>
+                </div>
             </div>
         </div>
-        {% else %}
-        <div style="margin-bottom: 10px;">
-            <button id="view-tsr-btn" class="btn btn-primary" disabled onclick="handleViewTsrClick()">
-                View TSRs
-            </button>
-        </div>
-        {% endif %}
 
-        {% if is_authenticated %}
-        <div style="margin-bottom: 10px;">
-            <button id="select-all-btn" class="select-all-btn" onclick="toggleSelectAll()">Select All</button>
-            <button id="select-shown-btn" class="select-shown-btn" onclick="selectShown()">Select Shown</button>
-        </div>
-        {% endif %}
+        <select id="firmware-version-select" class="firmware-version-select" style="display: none;" onchange="handleFirmwareVersionSelect(event)">
+            <option value="">Select firmware version...</option>
+        </select>
+        <select id="bios-version-select" class="bios-version-select" style="display: none;" onchange="handleBiosVersionSelect(event)">
+            <option value="">Select BIOS version...</option>
+        </select>
 
         <div class="results-info">
             Showing <span id="results-count">0</span> of <span id="total-count">0</span> systems
@@ -2181,6 +2276,12 @@
         // Authentication and admin functionality
         let isAuthenticated = {{ 'true' if is_authenticated else 'false' }};
         let userRole = '{{ user_role|default("", true) }}';
+        const ROLE_LEVELS = { '': 0, 'none': 0, 'user': 1, 'admin': 2 };
+        function isRoleDisabled(el) { return el && el.classList.contains('role-disabled'); }
+
+        function toggleFilters() {
+            document.getElementById('filters-wrapper').classList.toggle('open');
+        }
         let selectedRows = [];  // Changed to array for multi-select
         let selectedSystems = [];  // Changed to array for multi-select
         let refreshFrequency = {{ refresh_frequency }};  // Auto-refresh frequency in seconds
@@ -2612,9 +2713,9 @@
             const selectedCountEl = document.getElementById('selected-count');
             if (selectedCountEl) selectedCountEl.textContent = selectedCount;
             const refreshBtnEl = document.getElementById('refresh-btn');
-            if (refreshBtnEl) refreshBtnEl.disabled = selectedCount === 0;
+            if (refreshBtnEl && !isRoleDisabled(refreshBtnEl)) refreshBtnEl.disabled = selectedCount === 0;
             const deleteBtnEl = document.getElementById('delete-btn');
-            if (deleteBtnEl) deleteBtnEl.disabled = selectedCount === 0;
+            if (deleteBtnEl && !isRoleDisabled(deleteBtnEl)) deleteBtnEl.disabled = selectedCount === 0;
 
             // Update firmware and job queue button states
             updateFirmwareButtonState();
@@ -2737,7 +2838,7 @@
 
             // Update refresh button state immediately
             const refreshBtn = document.getElementById('refresh-btn');
-            if (refreshBtn) {
+            if (refreshBtn && !isRoleDisabled(refreshBtn)) {
                 refreshBtn.disabled = selectedSystems.length === 0;
             }
 
@@ -3086,6 +3187,7 @@
         async function updateFirmwareButtonState() {
             const updateBtn = document.getElementById('update-firmware-btn');
             if (!updateBtn) return;
+            if (isRoleDisabled(updateBtn)) return;
             const versionSelect = document.getElementById('firmware-version-select');
             const biosUpdateBtn = document.getElementById('update-bios-btn');
             const biosVersionSelect = document.getElementById('bios-version-select');
@@ -3188,6 +3290,7 @@
         // Update BIOS button state
         async function updateBiosButtonState(model, highestSelectedFirmware, modelFirmwareVersions) {
             const biosUpdateBtn = document.getElementById('update-bios-btn');
+            if (isRoleDisabled(biosUpdateBtn)) return;
             const biosVersionSelect = document.getElementById('bios-version-select');
 
             // Get the newest firmware version for this model
@@ -3268,30 +3371,22 @@
         // Update Job Queue button state
         function updateJobQueueButtonState() {
             const jobQueueBtn = document.getElementById('job-queue-btn');
-            if (!jobQueueBtn) return;
+            if (!jobQueueBtn || isRoleDisabled(jobQueueBtn)) return;
 
-            if (selectedSystems.length === 1) {
-                jobQueueBtn.disabled = false;
-            } else {
-                jobQueueBtn.disabled = true;
-            }
+            jobQueueBtn.disabled = selectedSystems.length !== 1;
         }
 
         // Update Clear Job Queue button state
         function updateClearJobQueueButtonState() {
             const clearJobQueueBtn = document.getElementById('clear-job-queue-btn');
-            if (!clearJobQueueBtn) return;
+            if (!clearJobQueueBtn || isRoleDisabled(clearJobQueueBtn)) return;
 
-            if (selectedSystems.length >= 1) {
-                clearJobQueueBtn.disabled = false;
-            } else {
-                clearJobQueueBtn.disabled = true;
-            }
+            clearJobQueueBtn.disabled = selectedSystems.length < 1;
         }
 
         function updateConsoleButtonState() {
             const consoleBtn = document.getElementById('console-btn');
-            if (!consoleBtn) return;
+            if (!consoleBtn || isRoleDisabled(consoleBtn)) return;
 
             if (selectedSystems.length === 1) {
                 consoleBtn.disabled = false;
@@ -3324,7 +3419,7 @@
 
         function updatePowerButtonState() {
             const powerBtn = document.getElementById('power-btn');
-            if (!powerBtn) return;
+            if (!powerBtn || isRoleDisabled(powerBtn)) return;
 
             if (selectedSystems.length === 1) {
                 const hostname = selectedSystems[0].hostname;
@@ -3445,7 +3540,7 @@
 
         function updateLatestFirmwareButtonState() {
             const btn = document.getElementById('latest-firmware-btn');
-            if (!btn) return;
+            if (!btn || isRoleDisabled(btn)) return;
             btn.disabled = selectedSystems.length !== 1;
         }
 
@@ -3577,7 +3672,7 @@
 
         function updateLatestBiosButtonState() {
             const btn = document.getElementById('latest-bios-btn');
-            if (!btn) return;
+            if (!btn || isRoleDisabled(btn)) return;
             btn.disabled = selectedSystems.length !== 1;
         }
 
@@ -3711,7 +3806,7 @@
 
         function updateGenerateTsrButtonState() {
             const btn = document.getElementById('generate-tsr-btn');
-            if (!btn) return;
+            if (!btn || isRoleDisabled(btn)) return;
             btn.disabled = selectedSystems.length !== 1;
         }
 
@@ -3724,7 +3819,7 @@
 
         function updateViewTsrButtonState() {
             const btn = document.getElementById('view-tsr-btn');
-            if (!btn) return;
+            if (!btn || isRoleDisabled(btn)) return;
             btn.disabled = selectedSystems.length !== 1;
         }
 
@@ -4693,8 +4788,8 @@
             if (!forceFwBtn || !forceBiosBtn) return;
 
             if (selectedSystems.length === 1) {
-                forceFwBtn.disabled = false;
-                forceBiosBtn.disabled = false;
+                if (!isRoleDisabled(forceFwBtn)) forceFwBtn.disabled = false;
+                if (!isRoleDisabled(forceBiosBtn)) forceBiosBtn.disabled = false;
             } else {
                 forceFwBtn.disabled = true;
                 forceBiosBtn.disabled = true;
@@ -5830,7 +5925,7 @@
 
                 // Update refresh button immediately
                 const refreshBtn = document.getElementById('refresh-btn');
-                if (refreshBtn) {
+                if (refreshBtn && !isRoleDisabled(refreshBtn)) {
                     refreshBtn.disabled = selectedSystems.length === 0;
                 }
 
