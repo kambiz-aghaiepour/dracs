@@ -1535,6 +1535,65 @@
             </div>
         </div>
 
+        {% set role_level = {'admin': 2, 'user': 1}.get(user_role, 0) %}
+
+        <div class="action-panels">
+            <div class="action-panel">
+                <div class="panel-header inventory">Inventory</div>
+                <div class="panel-body">
+                    <button id="discover-btn" class="panel-btn btn-green{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" {% if role_level < 2 %}disabled{% endif %} onclick="showDiscoverModal()">Discover</button>
+                    <button id="delete-btn" class="panel-btn btn-red{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" disabled onclick="showDeleteModal()">Delete</button>
+                    <button id="refresh-btn" class="panel-btn btn-green{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" disabled onclick="handleRefreshSelected()">Refresh Selected (<span id="selected-count">0</span>)</button>
+                    <button id="refresh-all-btn" class="panel-btn btn-green{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" {% if role_level < 2 %}disabled{% endif %} onclick="handleRefreshAll()">Refresh All</button>
+                </div>
+            </div>
+            <div class="action-panel">
+                <div class="panel-header firmware">Firmware</div>
+                <div class="panel-body">
+                    <button id="update-firmware-btn" class="panel-btn btn-blue{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" disabled>Update Firmware</button>
+                    <select id="firmware-version-select" class="firmware-version-select" style="display: none;" onchange="handleFirmwareVersionSelect(event)">
+                        <option value="">Select firmware version...</option>
+                    </select>
+                    <button id="latest-firmware-btn" class="panel-btn btn-blue{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" disabled onclick="handleLatestFirmwareClick()">Latest Firmware</button>
+                    <button id="force-firmware-btn" class="panel-btn btn-dark-red{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" disabled onclick="handleForceFirmwareClick()">Force Firmware</button>
+                </div>
+            </div>
+            <div class="action-panel">
+                <div class="panel-header firmware">BIOS</div>
+                <div class="panel-body">
+                    <button id="update-bios-btn" class="panel-btn btn-blue{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" disabled>Update BIOS</button>
+                    <select id="bios-version-select" class="bios-version-select" style="display: none;" onchange="handleBiosVersionSelect(event)">
+                        <option value="">Select BIOS version...</option>
+                    </select>
+                    <button id="latest-bios-btn" class="panel-btn btn-blue{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" disabled onclick="handleLatestBiosClick()">Latest BIOS</button>
+                    <button id="force-bios-btn" class="panel-btn btn-dark-red{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" disabled onclick="handleForceBiosClick()">Force BIOS</button>
+                </div>
+            </div>
+            <div class="action-panel">
+                <div class="panel-header diagnostics">Diagnostics</div>
+                <div class="panel-body">
+                    <button id="console-btn" class="panel-btn btn-teal{% if role_level < 1 or not vnc_enabled %} role-disabled{% endif %}" data-min-role="user" disabled onclick="handleConsoleClick()">Console</button>
+                    <button id="generate-tsr-btn" class="panel-btn btn-blue{% if role_level < 1 %} role-disabled{% endif %}" data-min-role="user" disabled onclick="handleGenerateTsrClick()">Generate TSR</button>
+                    <button id="view-tsr-btn" class="panel-btn btn-blue" data-min-role="none" disabled onclick="handleViewTsrClick()">View TSRs</button>
+                </div>
+            </div>
+            <div class="action-panel">
+                <div class="panel-header jobs">Jobs &amp; Power</div>
+                <div class="panel-body">
+                    <button id="job-queue-btn" class="panel-btn btn-blue{% if role_level < 1 %} role-disabled{% endif %}" data-min-role="user" disabled onclick="handleJobQueueClick()">Job Queue</button>
+                    <button id="clear-job-queue-btn" class="panel-btn btn-orange{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" disabled onclick="handleClearJobQueueClick()">Clear Job Queue</button>
+                    <button id="power-btn" class="panel-btn btn-indigo{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" disabled onclick="handlePowerClick()">Power</button>
+                </div>
+            </div>
+            <div class="action-panel">
+                <div class="panel-header selection">Selection</div>
+                <div class="panel-body">
+                    <button id="select-all-btn" class="panel-btn btn-green{% if role_level < 1 %} role-disabled{% endif %}" data-min-role="user" {% if role_level < 1 %}disabled{% endif %} onclick="toggleSelectAll()">Select All</button>
+                    <button id="select-shown-btn" class="panel-btn btn-teal{% if role_level < 1 %} role-disabled{% endif %}" data-min-role="user" {% if role_level < 1 %}disabled{% endif %} onclick="selectShown()">Select Shown</button>
+                </div>
+            </div>
+        </div>
+
         <div class="filters-wrapper" id="filters-wrapper">
             <div class="filters-toggle" onclick="toggleFilters()">
                 <span class="filters-toggle-arrow" id="filters-arrow">&#9654;</span>
@@ -1652,66 +1711,6 @@
             </div>
             </div>
         </div>
-
-        {% set role_level = {'admin': 2, 'user': 1}.get(user_role, 0) %}
-
-        <div class="action-panels">
-            <div class="action-panel">
-                <div class="panel-header inventory">Inventory</div>
-                <div class="panel-body">
-                    <button id="discover-btn" class="panel-btn btn-green{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" {% if role_level < 2 %}disabled{% endif %} onclick="showDiscoverModal()">Discover</button>
-                    <button id="delete-btn" class="panel-btn btn-red{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" disabled onclick="showDeleteModal()">Delete</button>
-                    <button id="refresh-btn" class="panel-btn btn-green{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" disabled onclick="handleRefreshSelected()">Refresh Selected (<span id="selected-count">0</span>)</button>
-                    <button id="refresh-all-btn" class="panel-btn btn-green{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" {% if role_level < 2 %}disabled{% endif %} onclick="handleRefreshAll()">Refresh All</button>
-                </div>
-            </div>
-            <div class="action-panel">
-                <div class="panel-header firmware">Firmware</div>
-                <div class="panel-body">
-                    <button id="update-firmware-btn" class="panel-btn btn-blue{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" disabled>Update Firmware</button>
-                    <button id="latest-firmware-btn" class="panel-btn btn-blue{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" disabled onclick="handleLatestFirmwareClick()">Latest Firmware</button>
-                    <button id="force-firmware-btn" class="panel-btn btn-dark-red{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" disabled onclick="handleForceFirmwareClick()">Force Firmware</button>
-                </div>
-            </div>
-            <div class="action-panel">
-                <div class="panel-header firmware">BIOS</div>
-                <div class="panel-body">
-                    <button id="update-bios-btn" class="panel-btn btn-blue{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" disabled>Update BIOS</button>
-                    <button id="latest-bios-btn" class="panel-btn btn-blue{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" disabled onclick="handleLatestBiosClick()">Latest BIOS</button>
-                    <button id="force-bios-btn" class="panel-btn btn-dark-red{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" disabled onclick="handleForceBiosClick()">Force BIOS</button>
-                </div>
-            </div>
-            <div class="action-panel">
-                <div class="panel-header diagnostics">Diagnostics</div>
-                <div class="panel-body">
-                    <button id="console-btn" class="panel-btn btn-teal{% if role_level < 1 or not vnc_enabled %} role-disabled{% endif %}" data-min-role="user" disabled onclick="handleConsoleClick()">Console</button>
-                    <button id="generate-tsr-btn" class="panel-btn btn-blue{% if role_level < 1 %} role-disabled{% endif %}" data-min-role="user" disabled onclick="handleGenerateTsrClick()">Generate TSR</button>
-                    <button id="view-tsr-btn" class="panel-btn btn-blue" data-min-role="none" disabled onclick="handleViewTsrClick()">View TSRs</button>
-                </div>
-            </div>
-            <div class="action-panel">
-                <div class="panel-header jobs">Jobs &amp; Power</div>
-                <div class="panel-body">
-                    <button id="job-queue-btn" class="panel-btn btn-blue{% if role_level < 1 %} role-disabled{% endif %}" data-min-role="user" disabled onclick="handleJobQueueClick()">Job Queue</button>
-                    <button id="clear-job-queue-btn" class="panel-btn btn-orange{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" disabled onclick="handleClearJobQueueClick()">Clear Job Queue</button>
-                    <button id="power-btn" class="panel-btn btn-indigo{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" disabled onclick="handlePowerClick()">Power</button>
-                </div>
-            </div>
-            <div class="action-panel">
-                <div class="panel-header selection">Selection</div>
-                <div class="panel-body">
-                    <button id="select-all-btn" class="panel-btn btn-green{% if role_level < 1 %} role-disabled{% endif %}" data-min-role="user" {% if role_level < 1 %}disabled{% endif %} onclick="toggleSelectAll()">Select All</button>
-                    <button id="select-shown-btn" class="panel-btn btn-teal{% if role_level < 1 %} role-disabled{% endif %}" data-min-role="user" {% if role_level < 1 %}disabled{% endif %} onclick="selectShown()">Select Shown</button>
-                </div>
-            </div>
-        </div>
-
-        <select id="firmware-version-select" class="firmware-version-select" style="display: none;" onchange="handleFirmwareVersionSelect(event)">
-            <option value="">Select firmware version...</option>
-        </select>
-        <select id="bios-version-select" class="bios-version-select" style="display: none;" onchange="handleBiosVersionSelect(event)">
-            <option value="">Select BIOS version...</option>
-        </select>
 
         <div class="results-info">
             Showing <span id="results-count">0</span> of <span id="total-count">0</span> systems
