@@ -135,6 +135,12 @@ class TestDeleteUser:
         assert delete_user("jsmith") is True
         assert get_user("jsmith") is None
 
+    def test_delete_then_recreate_user(self, user_db):
+        create_user("natasha", "password", "admin")
+        assert delete_user("natasha") is True
+        create_user("natasha", "password2", "admin")
+        assert get_user("natasha") is not None
+
     def test_delete_user_nonexistent(self, user_db):
         assert delete_user("nobody") is False
 
