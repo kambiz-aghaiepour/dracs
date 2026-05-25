@@ -312,6 +312,8 @@ class JobProcessor:
                 execute_bios_update_job(job["target"], meta)
             elif job["job_type"] == "clear_job_queue":
                 execute_clear_job_queue(job["target"])
+            elif job["job_type"] == "discover":
+                execute_discover_job(job["target"], meta)
             else:
                 fail_job(job_id, error=f"Unknown job type: {job['job_type']}")
                 return
@@ -494,6 +496,18 @@ def execute_clear_job_queue(hostname: str) -> None:
     if result.returncode != 0:
         error_msg = result.stderr[:200] if result.stderr else result.stdout[:200]
         raise RuntimeError(f"Clear job queue failed: {error_msg}")
+
+
+def execute_discover_job(hostname: str, metadata: dict) -> None:
+    from dracs.commands import add_dell_warranty, discover_dell_system
+
+    warranty = os.environ.get("DRACS_DB", "warranty.db")
+    site_id = metadata.get("site_id")
+
+    service_tag, model = asyncio.run(discover_dell_system(hostname, warranty))
+    asyncio.run(
+        add_dell_warranty(service_tag, hostname, model, warranty, site_id=site_id)
+    )
 
 
 VALID_DAYS = {

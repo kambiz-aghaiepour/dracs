@@ -2623,6 +2623,99 @@ def api_users_update(username):
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
 
 
+@app.route("/api/discover", methods=["POST"])
+def api_discover():
+    """Bulk discover and add hosts."""
+    try:
+        site_id, site_name = _get_requested_site()
+        user, err = _require_auth(required_role="admin", site_id=site_id)
+        if err:
+            return err
+
+        data = request.get_json()
+        if not data or not data.get("hostnames"):
+            return jsonify({"success": False, "message": "Hostnames required"}), 400
+
+        hostnames = [h.strip() for h in data["hostnames"] if h.strip()]
+        if not hostnames:
+            return jsonify({"success": False, "message": "No valid hostnames"}), 400
+
+        for h in hostnames:
+            if not validate_hostname(h):
+                return (
+                    jsonify({"success": False, "message": f"Invalid hostname: {h}"}),
+                    400,
+                )
+
+        from dracs.jobqueue import enqueue_job
+
+        for hostname in hostnames:
+            enqueue_job(
+                "discover",
+                hostname,
+                metadata={"auto_add": True, "site_id": site_id},
+                site_id=site_id,
+            )
+
+        audit_log(
+            "discover",
+            user=user,
+            source=_client_ip(),
+            details=f"hosts={len(hostnames)},site={site_name}",
+        )
+
+        return jsonify(
+            {
+                "success": True,
+                "message": f"Discovery queued for {len(hostnames)} host(s).",
+                "queued": len(hostnames),
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+
+@app.route("/api/delete-systems", methods=["POST"])
+def api_delete_systems():
+    """Delete one or more systems from the database."""
+    try:
+        site_id, _ = _get_requested_site()
+        user, err = _require_auth(required_role="admin", site_id=site_id)
+        if err:
+            return err
+
+        data = request.get_json()
+        if not data or not data.get("hostnames"):
+            return jsonify({"success": False, "message": "Hostnames required"}), 400
+
+        hostnames = data["hostnames"]
+        deleted = 0
+        with get_session() as sess:
+            for hostname in hostnames:
+                system = sess.query(System).filter(System.name == hostname).first()
+                if system:
+                    sess.delete(system)
+                    deleted += 1
+            sess.commit()
+
+        audit_log(
+            "delete_systems",
+            user=user,
+            source=_client_ip(),
+            details=f"deleted={deleted},requested={len(hostnames)}",
+        )
+
+        return jsonify(
+            {
+                "success": True,
+                "message": f"Deleted {deleted} system(s).",
+                "deleted": deleted,
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+
 @app.route("/sites")
 def sites_page():
     """Full-page site management (superadmin only)."""

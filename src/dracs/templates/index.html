@@ -251,7 +251,7 @@
             background-color: #c82333;
         }
 
-        #custom-filter-textarea {
+        #custom-filter-textarea, #discover-textarea {
             width: 100%;
             min-height: 200px;
             padding: 10px;
@@ -993,7 +993,7 @@
             background-color: #bd2130;
         }
 
-        body.dark-theme #custom-filter-textarea {
+        body.dark-theme #custom-filter-textarea, body.dark-theme #discover-textarea {
             background-color: #333;
             color: #e0e0e0;
             border-color: #555;
@@ -1514,6 +1514,12 @@
 
         {% if user_role == 'admin' %}
         <div class="admin-actions">
+            <button id="discover-btn" class="btn btn-success" onclick="showDiscoverModal()" style="background-color: #28a745;">
+                Discover
+            </button>
+            <button id="delete-btn" class="btn" onclick="showDeleteModal()" disabled style="background-color: #dc3545; color: white;">
+                Delete
+            </button>
             <button id="refresh-btn" class="btn btn-success" onclick="handleRefreshSelected()" disabled>
                 Refresh Selected (<span id="selected-count">0</span>)
             </button>
@@ -2107,6 +2113,40 @@
         </div>
 
         <!-- Custom Filter Modal -->
+        <div id="discover-modal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Bulk Host Discovery</h2>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="discover-textarea">Enter hostnames (one per line)</label>
+                        <textarea id="discover-textarea" placeholder="host01.example.com&#10;host02.example.com&#10;host03.example.com"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="hideDiscoverModal()">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="submitDiscover()">OK</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="delete-confirm-modal" class="modal-overlay">
+            <div class="modal-content" style="max-width: 450px;">
+                <div class="modal-header">
+                    <h2>Confirm Deletion</h2>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to delete <strong id="delete-count-display">0</strong> selected host(s)?</p>
+                    <p style="color: #dc3545; font-size: 0.9em;">This action cannot be undone.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="hideDeleteModal()">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="submitDelete()" style="background-color: #dc3545;">OK</button>
+                </div>
+            </div>
+        </div>
+
         <div id="custom-filter-modal" class="modal-overlay">
             <div class="modal-content">
                 <div class="modal-header">
@@ -2573,6 +2613,8 @@
             if (selectedCountEl) selectedCountEl.textContent = selectedCount;
             const refreshBtnEl = document.getElementById('refresh-btn');
             if (refreshBtnEl) refreshBtnEl.disabled = selectedCount === 0;
+            const deleteBtnEl = document.getElementById('delete-btn');
+            if (deleteBtnEl) deleteBtnEl.disabled = selectedCount === 0;
 
             // Update firmware and job queue button states
             updateFirmwareButtonState();
@@ -4835,6 +4877,69 @@
         }
 
         // Custom Filter Functions
+        function showDiscoverModal() {
+            document.getElementById('discover-textarea').value = '';
+            document.getElementById('discover-modal').classList.add('active');
+            document.getElementById('discover-textarea').focus();
+        }
+        function hideDiscoverModal() {
+            document.getElementById('discover-modal').classList.remove('active');
+        }
+        async function submitDiscover() {
+            const text = document.getElementById('discover-textarea').value.trim();
+            if (!text) { hideDiscoverModal(); return; }
+            const hostnames = text.split('\n').map(h => h.trim()).filter(h => h);
+            if (hostnames.length === 0) { hideDiscoverModal(); return; }
+            hideDiscoverModal();
+            showNotification('Queuing discovery for ' + hostnames.length + ' host(s)...', 'success');
+            try {
+                const response = await fetch(apiUrl('/api/discover'), {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({hostnames: hostnames})
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                } else {
+                    showNotification(data.message || 'Discovery failed', 'error');
+                }
+            } catch (err) {
+                showNotification('Discovery request failed: ' + err.message, 'error');
+            }
+        }
+
+        function showDeleteModal() {
+            if (selectedSystems.length === 0) return;
+            document.getElementById('delete-count-display').textContent = selectedSystems.length;
+            document.getElementById('delete-confirm-modal').classList.add('active');
+        }
+        function hideDeleteModal() {
+            document.getElementById('delete-confirm-modal').classList.remove('active');
+        }
+        async function submitDelete() {
+            const hostnames = selectedSystems.map(s => s.hostname);
+            hideDeleteModal();
+            try {
+                const response = await fetch(apiUrl('/api/delete-systems'), {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({hostnames: hostnames})
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    selectedRows = [];
+                    selectedSystems = [];
+                    refreshTableData();
+                } else {
+                    showNotification(data.message || 'Delete failed', 'error');
+                }
+            } catch (err) {
+                showNotification('Delete request failed: ' + err.message, 'error');
+            }
+        }
+
         function showCustomFilterModal() {
             document.getElementById('custom-filter-modal').classList.add('active');
             document.getElementById('custom-filter-textarea').focus();
@@ -4945,6 +5050,16 @@
                 }
             });
         }
+
+        // Close discover modal on background click
+        document.getElementById('discover-modal').addEventListener('click', function(event) {
+            if (event.target === this) { hideDiscoverModal(); }
+        });
+
+        // Close delete confirmation modal on background click
+        document.getElementById('delete-confirm-modal').addEventListener('click', function(event) {
+            if (event.target === this) { hideDeleteModal(); }
+        });
 
         // Close firmware confirmation modal on background click
         document.getElementById('firmware-confirm-modal').addEventListener('click', function(event) {
