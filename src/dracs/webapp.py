@@ -2631,12 +2631,15 @@ def users_page():
         admin_site_ids = {r["site_id"] for r in admin_sites if r["role"] == "admin"}
         all_sites = [s for s in all_sites if s["id"] in admin_site_ids]
 
+    from_site = request.args.get("site", "")
+
     return render_template(
         "users.html",
         username=username,
         user_role=user_role,
         is_superadmin=is_superadmin,
         all_sites=all_sites,
+        from_site=from_site,
     )
 
 
