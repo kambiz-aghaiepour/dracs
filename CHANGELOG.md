@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.3.9 (2026-05-25)
+
+### Bug Fixes
+
+- Cleanup UI layout and fix a bug with versions
+  ([`67fb175`](https://github.com/kambiz-aghaiepour/dracs/commit/67fb175d2e72c2bf61af5889347b48dc6115b3ba))
+
+### Chores
+
+- Sync spec file version to 2.3.8 [skip ci]
+  ([`7075a40`](https://github.com/kambiz-aghaiepour/dracs/commit/7075a402e0a640aec0e5771e71aba175c5a87af0))
+
+
 ## v2.3.8 (2026-05-25)
 
 ### Bug Fixes
