@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.3.4 (2026-05-25)
+
+### Bug Fixes
+
+- User management theme consistency
+  ([`215ad01`](https://github.com/kambiz-aghaiepour/dracs/commit/215ad01bde850b2b4c16bbc3352459fd7783e971))
+
+### Chores
+
+- Sync spec file version to 2.3.3 [skip ci]
+  ([`aa02fc9`](https://github.com/kambiz-aghaiepour/dracs/commit/aa02fc9b91035a2ae73f9e02aa76276d4adcefe7))
+
+
 ## v2.3.3 (2026-05-24)
 
 ### Bug Fixes
