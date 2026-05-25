@@ -296,9 +296,7 @@ def get_default_site_id() -> int:
 def get_primary_site_name() -> str:
     with get_session() as session:
         site = session.query(Site).filter(Site.is_primary == True).first()  # noqa: E712
-        if site is None:
-            return "Default"
-        return site.name
+        return site.name if site else "Default"
 
 
 def get_site_by_name(name: str) -> Optional[dict]:
