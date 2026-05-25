@@ -5,15 +5,75 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DRACS - User Management</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; color: #333; }
-        .header { display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; background: #1a1a2e; color: white; }
-        .header h1 { font-size: 1.3em; }
-        .header-right { display: flex; align-items: center; gap: 12px; }
-        .header-right span { font-size: 0.9em; opacity: 0.8; }
-        .container { max-width: 1100px; margin: 24px auto; padding: 0 24px; }
-        .card { background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); padding: 24px; margin-bottom: 24px; }
-        .card h2 { margin-bottom: 16px; font-size: 1.2em; border-bottom: 2px solid #eee; padding-bottom: 8px; }
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .logo { height: 48px; width: auto; }
+        .auth-section {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        .username-display { font-size: 14px; color: #555; }
+        .theme-toggle {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-left: 20px;
+        }
+        .theme-toggle label {
+            font-size: 14px;
+            color: #555;
+            font-weight: 500;
+        }
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 24px;
+            background-color: #ccc;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background-color: white;
+            top: 2px;
+            left: 2px;
+            transition: transform 0.3s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .toggle-switch.active { background-color: #007bff; }
+        .toggle-switch.active::after { transform: translateX(26px); }
+
+        h2 { margin-bottom: 16px; font-size: 1.2em; border-bottom: 2px solid #eee; padding-bottom: 8px; }
         table { width: 100%; border-collapse: collapse; }
         th { text-align: left; padding: 8px 12px; border-bottom: 2px solid #ddd; font-weight: 600; font-size: 0.9em; color: #555; }
         td { padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 0.9em; }
@@ -38,8 +98,6 @@
         .form-group { display: flex; flex-direction: column; gap: 4px; }
         .form-group label { font-size: 0.85em; font-weight: 500; color: #555; }
         .form-group input, .form-group select { padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9em; }
-        .site-roles-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
-        .site-roles-grid label { font-size: 0.85em; }
         .site-role-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
         .site-role-row .site-name { min-width: 120px; font-weight: 500; font-size: 0.9em; }
         .site-role-row select { padding: 4px 8px; font-size: 0.85em; }
@@ -47,99 +105,168 @@
         .notification.success { background: #43a047; }
         .notification.error { background: #e53935; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
-        .footer-bar { text-align: center; margin-top: 24px; padding-bottom: 24px; }
-        .change-pw-inline { margin-top: 8px; padding: 8px; background: #f5f5f5; border-radius: 4px; display: flex; gap: 8px; align-items: flex-end; }
+        .footer-bar { text-align: center; margin-top: 24px; }
+
+        /* Dark Theme */
+        body.dark-theme { background-color: #1a1a1a; }
+        body.dark-theme .container { background-color: #2d2d2d; color: #e0e0e0; }
+        body.dark-theme h1, body.dark-theme h2, body.dark-theme h3, body.dark-theme h4 { color: #e0e0e0; }
+        body.dark-theme h2 { border-bottom-color: #444; }
+        body.dark-theme .username-display { color: #b0b0b0; }
+        body.dark-theme .theme-toggle label { color: #b0b0b0; }
+        body.dark-theme th { color: #b0b0b0; border-bottom-color: #555; }
+        body.dark-theme td { color: #e0e0e0; border-bottom-color: #444; }
+        body.dark-theme tr.selectable:hover { background: #3a3a3a; }
+        body.dark-theme tr.selected { background: #2a6ba8; }
+        body.dark-theme .form-panel { background: #3a3a3a; border-color: #555; }
+        body.dark-theme .form-group label { color: #b0b0b0; }
+        body.dark-theme .form-group input, body.dark-theme .form-group select { background-color: #4a4a4a; color: #e0e0e0; border-color: #555; }
+        body.dark-theme .site-role-row select { background-color: #4a4a4a; color: #e0e0e0; border-color: #555; }
+        body.dark-theme .site-role-row .site-name { color: #e0e0e0; }
+        body.dark-theme .btn-secondary { background: #555; color: #e0e0e0; }
+        body.dark-theme .btn-secondary:hover { background: #666; }
+        body.dark-theme .btn-primary { background: #1e5a8e; }
+        body.dark-theme .btn-primary:hover { background: #2a6ba8; }
+        body.dark-theme .btn-danger { background: #c62828; }
+        body.dark-theme .site-role-tag { background: #1e3a5f; color: #80b3e0; }
+        body.dark-theme .site-role-tag.admin { background: #5c1e1e; color: #ff8a80; }
+        body.dark-theme .notification.success { background: #1e4d2b; }
+        body.dark-theme .notification.error { background: #5c1e1e; }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>DRACS - User Management</h1>
-        <div class="header-right">
-            <span>Logged in as <strong>{{ username }}</strong> ({{ user_role }})</span>
-        </div>
-    </div>
-
     <div class="container">
-        <div class="card">
-            <h2>Users</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Username</th>
-                        <th>Site Roles</th>
-                        <th>Created</th>
-                    </tr>
-                </thead>
-                <tbody id="user-table-body"></tbody>
-            </table>
-            <div class="actions-bar">
-                <button class="btn btn-primary" onclick="showAddPanel()">Add</button>
-                <button class="btn btn-secondary" id="btn-modify" disabled onclick="showModifyPanel()">Modify</button>
-                <button class="btn btn-secondary" id="btn-password" disabled onclick="showPasswordPanel()">Password</button>
-                <button class="btn btn-danger" id="btn-delete" disabled onclick="handleDeleteUser()">Delete</button>
-            </div>
-
-            <div id="add-panel" class="form-panel" style="display:none;">
-                <h3>Add User</h3>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Username</label>
-                        <input type="text" id="add-username" autocomplete="off">
-                    </div>
-                    <div class="form-group">
-                        <label>Password</label>
-                        <input type="password" id="add-password" autocomplete="new-password">
-                    </div>
-                    <div class="form-group">
-                        <label>Confirm</label>
-                        <input type="password" id="add-confirm" autocomplete="new-password">
-                    </div>
-                </div>
-                <h4 style="margin: 8px 0 4px;">Site Roles</h4>
-                <div id="add-site-roles"></div>
-                <div style="margin-top: 12px; display: flex; gap: 8px;">
-                    <button class="btn btn-primary" onclick="submitAddUser()">Save</button>
-                    <button class="btn btn-secondary" onclick="hidePanel('add-panel')">Cancel</button>
+        <div class="header">
+            <div class="header-left">
+                <img src="{{ url_for('static', filename='images/dracs.svg') }}" alt="DRACS Logo" class="logo">
+                <h1 style="margin: 0; border: none; padding: 0;">DRACS User Management</h1>
+                <div class="theme-toggle">
+                    <label for="theme-toggle-switch">Dark Mode</label>
+                    <div id="theme-toggle-switch" class="toggle-switch" onclick="toggleTheme()"></div>
                 </div>
             </div>
+            <div class="auth-section">
+                <span class="username-display">Logged in as <strong>{{ username }}</strong> ({{ user_role }})</span>
+            </div>
+        </div>
 
-            <div id="modify-panel" class="form-panel" style="display:none;">
-                <h3>Modify User: <span id="modify-username-display"></span></h3>
-                <h4 style="margin: 8px 0 4px;">Site Roles</h4>
-                <div id="modify-site-roles"></div>
-                <div style="margin-top: 12px; display: flex; gap: 8px;">
-                    <button class="btn btn-primary" onclick="submitModifyUser()">Save</button>
-                    <button class="btn btn-secondary" onclick="hidePanel('modify-panel')">Cancel</button>
+        <h2>Users</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Site Roles</th>
+                    <th>Created</th>
+                </tr>
+            </thead>
+            <tbody id="user-table-body"></tbody>
+        </table>
+        <div class="actions-bar">
+            <button class="btn btn-primary" onclick="showAddPanel()">Add</button>
+            <button class="btn btn-secondary" id="btn-modify" disabled onclick="showModifyPanel()">Modify</button>
+            <button class="btn btn-secondary" id="btn-password" disabled onclick="showPasswordPanel()">Password</button>
+            <button class="btn btn-danger" id="btn-delete" disabled onclick="handleDeleteUser()">Delete</button>
+        </div>
+
+        <div id="add-panel" class="form-panel" style="display:none;">
+            <h3>Add User</h3>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="add-username" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="add-password" autocomplete="new-password">
+                </div>
+                <div class="form-group">
+                    <label>Confirm</label>
+                    <input type="password" id="add-confirm" autocomplete="new-password">
                 </div>
             </div>
+            <h4 style="margin: 8px 0 4px;">Site Roles</h4>
+            <div id="add-site-roles"></div>
+            <div style="margin-top: 12px; display: flex; gap: 8px;">
+                <button class="btn btn-primary" onclick="submitAddUser()">Save</button>
+                <button class="btn btn-secondary" onclick="hidePanel('add-panel')">Cancel</button>
+            </div>
+        </div>
 
-            <div id="password-panel" class="form-panel" style="display:none;">
-                <h3>Change Password: <span id="pw-username-display"></span></h3>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>New Password</label>
-                        <input type="password" id="pw-new" autocomplete="new-password">
-                    </div>
-                    <div class="form-group">
-                        <label>Confirm</label>
-                        <input type="password" id="pw-confirm" autocomplete="new-password">
-                    </div>
-                    <button class="btn btn-primary" onclick="submitPasswordChange()">Save</button>
-                    <button class="btn btn-secondary" onclick="hidePanel('password-panel')">Cancel</button>
+        <div id="modify-panel" class="form-panel" style="display:none;">
+            <h3>Modify User: <span id="modify-username-display"></span></h3>
+            <h4 style="margin: 8px 0 4px;">Site Roles</h4>
+            <div id="modify-site-roles"></div>
+            <div style="margin-top: 12px; display: flex; gap: 8px;">
+                <button class="btn btn-primary" onclick="submitModifyUser()">Save</button>
+                <button class="btn btn-secondary" onclick="hidePanel('modify-panel')">Cancel</button>
+            </div>
+        </div>
+
+        <div id="password-panel" class="form-panel" style="display:none;">
+            <h3>Change Password: <span id="pw-username-display"></span></h3>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>New Password</label>
+                    <input type="password" id="pw-new" autocomplete="new-password">
                 </div>
+                <div class="form-group">
+                    <label>Confirm</label>
+                    <input type="password" id="pw-confirm" autocomplete="new-password">
+                </div>
+                <button class="btn btn-primary" onclick="submitPasswordChange()">Save</button>
+                <button class="btn btn-secondary" onclick="hidePanel('password-panel')">Cancel</button>
             </div>
         </div>
 
         <div class="footer-bar">
-            <button class="btn btn-secondary" onclick="window.location.href='/'">Close</button>
+            <button class="btn btn-secondary" id="close-btn">Close</button>
         </div>
     </div>
 
     <script>
         const allSites = {{ all_sites | tojson }};
         const isSuperadmin = {{ 'true' if is_superadmin else 'false' }};
+        const fromSite = '{{ from_site|default("", true) }}';
         let users = [];
         let selectedUser = null;
+
+        // Theme management — shared with main page via localStorage
+        function toggleTheme() {
+            const body = document.body;
+            const toggleSwitch = document.getElementById('theme-toggle-switch');
+            if (body.classList.contains('dark-theme')) {
+                body.classList.remove('dark-theme');
+                toggleSwitch.classList.remove('active');
+                localStorage.setItem('theme', 'light');
+            } else {
+                body.classList.add('dark-theme');
+                toggleSwitch.classList.add('active');
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+
+        function applySavedTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            const body = document.body;
+            const toggleSwitch = document.getElementById('theme-toggle-switch');
+            if (savedTheme === 'dark') {
+                body.classList.add('dark-theme');
+                if (toggleSwitch) {
+                    toggleSwitch.classList.add('active');
+                }
+            }
+        }
+
+        applySavedTheme();
+
+        // Close button — return to originating site
+        document.getElementById('close-btn').onclick = function() {
+            let url = '/';
+            if (fromSite) {
+                url += '?site=' + encodeURIComponent(fromSite);
+            }
+            window.location.href = url;
+        };
 
         function showNotification(msg, type) {
             const el = document.createElement('div');
