@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.3.8 (2026-05-25)
+
+### Bug Fixes
+
+- Improve UI designe
+  ([`a93185a`](https://github.com/kambiz-aghaiepour/dracs/commit/a93185a7369efc21ae062e052a735fbfd2c1d0f5))
+
+### Chores
+
+- Sync spec file version to 2.3.7 [skip ci]
+  ([`847ef20`](https://github.com/kambiz-aghaiepour/dracs/commit/847ef20c79f1364b5b8a39848e975605aae475cc))
+
+
 ## v2.3.7 (2026-05-25)
 
 ### Bug Fixes
