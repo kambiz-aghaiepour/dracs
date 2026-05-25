@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v2.3.6 (2026-05-25)
+
+### Bug Fixes
+
+- Codecov shortage - add tests
+  ([`19de679`](https://github.com/kambiz-aghaiepour/dracs/commit/19de6794f480eaeaa65ae513a0cc84c45ef1cc82))
+
+- Various bugs with credentials lookups
+  ([`ffd3f62`](https://github.com/kambiz-aghaiepour/dracs/commit/ffd3f62eb6067f1d49d4bc70c7af6154c7cedc22))
+
+### Chores
+
+- Sync spec file version to 2.3.5 [skip ci]
+  ([`de62182`](https://github.com/kambiz-aghaiepour/dracs/commit/de62182be5e53c1b4a755dc63918c8aeb4fd2cd1))
+
+
 ## v2.3.5 (2026-05-25)
 
 ### Bug Fixes
