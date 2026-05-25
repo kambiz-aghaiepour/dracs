@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v2.3.12 (2026-05-25)
+
+### Bug Fixes
+
+- Admin restrictions bug fix
+  ([`b66f04f`](https://github.com/kambiz-aghaiepour/dracs/commit/b66f04f86deb3902914b2d014aebab7b0563581b))
+
+- Black code standard failed.
+  ([`d975bb5`](https://github.com/kambiz-aghaiepour/dracs/commit/d975bb5b1e5c9d5c3e791daa2e423ed5b1b1a6aa))
+
+### Chores
+
+- Sync spec file version to 2.3.11 [skip ci]
+  ([`a56be1a`](https://github.com/kambiz-aghaiepour/dracs/commit/a56be1a23b5841d5cc8aa1256ecea36e96b7a5ce))
+
+
 ## v2.3.11 (2026-05-25)
 
 ### Bug Fixes
