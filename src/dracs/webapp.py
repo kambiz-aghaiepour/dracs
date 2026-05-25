@@ -2530,14 +2530,10 @@ def api_users_delete(username):
 
             all_sites = list_sites()
             admin_sites = get_user_site_roles(user)
-            admin_site_ids = {
-                r["site_id"] for r in admin_sites if r["role"] == "admin"
-            }
+            admin_site_ids = {r["site_id"] for r in admin_sites if r["role"] == "admin"}
             if len(admin_site_ids) < len(all_sites):
                 return (
-                    jsonify(
-                        {"success": False, "message": "Insufficient permissions"}
-                    ),
+                    jsonify({"success": False, "message": "Insufficient permissions"}),
                     403,
                 )
 
@@ -2778,8 +2774,8 @@ def users_page():
         admin_sites = get_user_site_roles(username)
         admin_site_ids = {r["site_id"] for r in admin_sites if r["role"] == "admin"}
         all_sites = [s for s in all_sites_full if s["id"] in admin_site_ids]
-        can_delete = (
-            len(all_sites_full) > 0 and len(admin_site_ids) >= len(all_sites_full)
+        can_delete = len(all_sites_full) > 0 and len(admin_site_ids) >= len(
+            all_sites_full
         )
     else:
         all_sites = all_sites_full
