@@ -719,6 +719,70 @@ class TestDiscoverEndpoint:
         assert resp.status_code == 400
 
 
+class TestDiscoverEndpointErrors:
+    def test_discover_exception_returns_500(self, site_client):
+        _login(site_client)
+        with patch("dracs.webapp.validate_hostname", side_effect=RuntimeError("boom")):
+            resp = site_client.post(
+                "/api/discover",
+                data=json.dumps({"hostnames": ["host01"]}),
+                content_type="application/json",
+            )
+            assert resp.status_code == 500
+
+    def test_delete_exception_returns_500(self, site_client):
+        _login(site_client)
+        with patch("dracs.webapp.get_session", side_effect=RuntimeError("db error")):
+            resp = site_client.post(
+                "/api/delete-systems",
+                data=json.dumps({"hostnames": ["server01"]}),
+                content_type="application/json",
+            )
+            assert resp.status_code == 500
+
+
+class TestExecuteDiscoverJob:
+    def test_discover_job_calls_discover_and_add(self):
+        from unittest.mock import AsyncMock
+
+        with patch(
+            "dracs.commands.discover_dell_system",
+            new_callable=AsyncMock,
+            return_value=("TAG123", "R660"),
+        ) as mock_discover:
+            with patch(
+                "dracs.commands.add_dell_warranty", new_callable=AsyncMock
+            ) as mock_add:
+                from dracs.jobqueue import execute_discover_job
+
+                execute_discover_job("newhost01", {"auto_add": True, "site_id": 1})
+                mock_discover.assert_called_once()
+                mock_add.assert_called_once()
+                call_kwargs = mock_add.call_args
+                assert call_kwargs[1]["site_id"] == 1
+
+
+class TestJobProcessorDiscover:
+    def test_processor_dispatches_discover(self):
+        from unittest.mock import AsyncMock
+
+        with patch("dracs.jobqueue.execute_discover_job") as mock_exec:
+            from dracs.jobqueue import JobProcessor
+
+            processor = JobProcessor()
+            job = {
+                "id": 99,
+                "job_type": "discover",
+                "target": "newhost",
+                "metadata": {"auto_add": True, "site_id": 1},
+            }
+            with patch("dracs.jobqueue.complete_job"):
+                processor._execute_job(job)
+            mock_exec.assert_called_once_with(
+                "newhost", {"auto_add": True, "site_id": 1}
+            )
+
+
 class TestRefreshAllSiteAware:
     @patch("dracs.jobqueue.enqueue_batch", return_value=2)
     def test_refresh_all_with_site(self, mock_enqueue, site_client):
