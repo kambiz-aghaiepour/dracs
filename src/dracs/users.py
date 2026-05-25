@@ -92,6 +92,7 @@ def delete_user(username: str) -> bool:
         user = session.query(User).filter(User.username == username).first()
         if not user:
             return False
+        session.query(UserSiteRole).filter(UserSiteRole.user_id == user.id).delete()
         session.delete(user)
         session.commit()
         return True
