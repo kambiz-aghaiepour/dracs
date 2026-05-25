@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.3.5 (2026-05-25)
+
+### Bug Fixes
+
+- Make the site config page a separate page
+  ([`2ff6c50`](https://github.com/kambiz-aghaiepour/dracs/commit/2ff6c50981fa785a7c14cbd0e24149da73495332))
+
+### Chores
+
+- Sync spec file version to 2.3.4 [skip ci]
+  ([`859d06f`](https://github.com/kambiz-aghaiepour/dracs/commit/859d06f0ec87d17fc38ed5f111af4730de1b7fbc))
+
+
 ## v2.3.4 (2026-05-25)
 
 ### Bug Fixes
