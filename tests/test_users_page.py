@@ -202,3 +202,52 @@ class TestUserSiteRolesEndpoint:
         data = resp.get_json()
         assert data["success"] is True
         assert data["site_roles"] == []
+
+
+class TestDeletePermissions:
+    def test_site_scoped_admin_cannot_delete(self, users_client, users_db):
+        create_site("second-site")
+        create_user("siteadmin", "pass123", role="admin")
+        default_id = get_default_site_id()
+        set_user_site_role("siteadmin", default_id, "admin")
+        create_user("victim", "pass123", role="user")
+        _login(users_client, "siteadmin", "pass123")
+        resp = users_client.delete("/api/users/victim")
+        assert resp.status_code == 403
+        data = resp.get_json()
+        assert data["success"] is False
+
+    def test_superadmin_can_delete(self, users_client):
+        create_user("victim2", "pass123", role="user")
+        _login(users_client)
+        resp = users_client.delete("/api/users/victim2")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["success"] is True
+
+    def test_all_site_admin_can_delete(self, users_client, users_db):
+        create_user("globaladmin", "pass123", role="admin")
+        from dracs.db import list_sites
+
+        for site in list_sites():
+            set_user_site_role("globaladmin", site["id"], "admin")
+        create_user("victim3", "pass123", role="user")
+        _login(users_client, "globaladmin", "pass123")
+        resp = users_client.delete("/api/users/victim3")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["success"] is True
+
+    def test_users_page_hides_delete_for_site_admin(self, users_client, users_db):
+        create_site("other-site")
+        create_user("partialadmin", "pass123", role="admin")
+        default_id = get_default_site_id()
+        set_user_site_role("partialadmin", default_id, "admin")
+        _login(users_client, "partialadmin", "pass123")
+        resp = users_client.get("/users")
+        assert b'id="btn-delete"' not in resp.data
+
+    def test_users_page_shows_delete_for_superadmin(self, users_client):
+        _login(users_client)
+        resp = users_client.get("/users")
+        assert b'id="btn-delete"' in resp.data

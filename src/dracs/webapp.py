@@ -2524,6 +2524,23 @@ def api_users_delete(username):
                 400,
             )
 
+        if not session.get("is_superadmin", False):
+            from dracs.db import list_sites
+            from dracs.users import get_user_site_roles
+
+            all_sites = list_sites()
+            admin_sites = get_user_site_roles(user)
+            admin_site_ids = {
+                r["site_id"] for r in admin_sites if r["role"] == "admin"
+            }
+            if len(admin_site_ids) < len(all_sites):
+                return (
+                    jsonify(
+                        {"success": False, "message": "Insufficient permissions"}
+                    ),
+                    403,
+                )
+
         from dracs.exceptions import ValidationError
 
         try:
@@ -2752,14 +2769,20 @@ def users_page():
     if user_role != "admin" and not is_superadmin:
         return redirect(url_for("index"))
 
-    all_sites = list_sites()
+    all_sites_full = list_sites()
+    can_delete = is_superadmin
 
     if not is_superadmin:
         from dracs.users import get_user_site_roles
 
         admin_sites = get_user_site_roles(username)
         admin_site_ids = {r["site_id"] for r in admin_sites if r["role"] == "admin"}
-        all_sites = [s for s in all_sites if s["id"] in admin_site_ids]
+        all_sites = [s for s in all_sites_full if s["id"] in admin_site_ids]
+        can_delete = (
+            len(all_sites_full) > 0 and len(admin_site_ids) >= len(all_sites_full)
+        )
+    else:
+        all_sites = all_sites_full
 
     from_site = request.args.get("site", "")
 
@@ -2768,6 +2791,7 @@ def users_page():
         username=username,
         user_role=user_role,
         is_superadmin=is_superadmin,
+        can_delete=can_delete,
         all_sites=all_sites,
         from_site=from_site,
     )
