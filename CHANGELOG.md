@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.3.10 (2026-05-25)
+
+### Bug Fixes
+
+- Avoid flashing effect when switching pages
+  ([`d1d704a`](https://github.com/kambiz-aghaiepour/dracs/commit/d1d704ab1602b58684326bc151e672c38be6fd83))
+
+### Chores
+
+- Sync spec file version to 2.3.9 [skip ci]
+  ([`0cd0cb2`](https://github.com/kambiz-aghaiepour/dracs/commit/0cd0cb2a5c7efdb19af1954ced01042481eb5e6d))
+
+
 ## v2.3.9 (2026-05-25)
 
 ### Bug Fixes
