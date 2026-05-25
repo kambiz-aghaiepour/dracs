@@ -593,10 +593,11 @@ class TestVncButtonVisibility:
         resp = vnc_client.get("/")
         assert b'id="console-btn"' in resp.data
 
-    def test_button_hidden_when_vnc_disabled(self, vnc_disabled_client):
+    def test_button_disabled_when_vnc_disabled(self, vnc_disabled_client):
         _login(vnc_disabled_client)
         resp = vnc_disabled_client.get("/")
-        assert b'id="console-btn"' not in resp.data
+        assert b'id="console-btn"' in resp.data
+        assert b"role-disabled" in resp.data
 
 
 class TestParseConsoleSize:
