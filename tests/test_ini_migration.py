@@ -7,6 +7,7 @@ from dracs.sites import (
     _is_old_format,
     get_site_ini_config,
     migrate_passwords_ini,
+    remove_site_ini_sections,
     rename_site_ini_sections,
     set_site_ini_config,
 )
@@ -158,6 +159,47 @@ class TestMigrateWithMixedFormat:
         config.read(ini)
         assert "Default-host01" in config.sections()
         assert config.get("Default-host01", "username") == "colonuser"
+
+
+class TestRemoveSiteIniSections:
+    def test_remove_sections(self, tmp_path, monkeypatch):
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text(
+            "[Default-DEFAULTS]\nusername = root\n\n"
+            "[Site2-DEFAULTS]\nusername = s2\n\n"
+            "[Site2-host01]\npassword = h1pass\n"
+        )
+        monkeypatch.chdir(tmp_path)
+
+        result = remove_site_ini_sections("Site2")
+        assert result is True
+
+        config = configparser.RawConfigParser()
+        config.read(ini)
+        assert "Site2-DEFAULTS" not in config.sections()
+        assert "Site2-host01" not in config.sections()
+        assert "Default-DEFAULTS" in config.sections()
+
+    def test_remove_creates_backup(self, tmp_path, monkeypatch):
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text("[Site2-DEFAULTS]\nusername = s2\n")
+        monkeypatch.chdir(tmp_path)
+
+        remove_site_ini_sections("Site2")
+        assert (tmp_path / "drac-passwords.ini.bak").exists()
+
+    def test_remove_nonexistent_site(self, tmp_path, monkeypatch):
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text("[Default-DEFAULTS]\nusername = root\n")
+        monkeypatch.chdir(tmp_path)
+
+        result = remove_site_ini_sections("NoSuch")
+        assert result is False
+
+    def test_remove_no_ini_file(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        result = remove_site_ini_sections("Site2")
+        assert result is False
 
 
 class TestGetIdracCredentialsSiteAware:

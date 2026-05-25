@@ -95,6 +95,31 @@ def migrate_passwords_ini(config_path: Path | None = None) -> bool:
     return True
 
 
+def remove_site_ini_sections(site_name: str) -> bool:
+    config_path = _find_passwords_ini()
+    if config_path is None:
+        return False
+
+    backup_path = config_path.with_suffix(config_path.suffix + ".bak")
+    shutil.copy2(str(config_path), str(backup_path))
+
+    config = configparser.RawConfigParser()
+    config.read(config_path)
+
+    prefix = f"{site_name}-"
+    removed = False
+    for section in list(config.sections()):
+        if section.startswith(prefix):
+            config.remove_section(section)
+            removed = True
+
+    if removed:
+        with open(config_path, "w") as f:
+            config.write(f)
+
+    return removed
+
+
 def rename_site_ini_sections(old_name: str, new_name: str) -> bool:
     config_path = _find_passwords_ini()
     if config_path is None:
