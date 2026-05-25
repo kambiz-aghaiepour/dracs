@@ -612,6 +612,113 @@ class TestDeleteSiteIniCleanup:
         assert "TestDel-DEFAULTS" not in ini.read_text()
 
 
+class TestDeleteSystemsEndpoint:
+    def test_delete_single_system(self, site_client):
+        _login(site_client)
+        resp = site_client.post(
+            "/api/delete-systems",
+            data=json.dumps({"hostnames": ["server01"]}),
+            content_type="application/json",
+        )
+        data = resp.get_json()
+        assert data["success"] is True
+        assert data["deleted"] == 1
+
+        systems = site_client.get("/api/systems").get_json()
+        hostnames = [s["name"] for s in systems]
+        assert "server01" not in hostnames
+
+    def test_delete_multiple_systems(self, site_client):
+        _login(site_client)
+        resp = site_client.post(
+            "/api/delete-systems",
+            data=json.dumps({"hostnames": ["server01", "server02"]}),
+            content_type="application/json",
+        )
+        data = resp.get_json()
+        assert data["success"] is True
+        assert data["deleted"] == 2
+
+    def test_delete_nonexistent_system(self, site_client):
+        _login(site_client)
+        resp = site_client.post(
+            "/api/delete-systems",
+            data=json.dumps({"hostnames": ["nosuchhost"]}),
+            content_type="application/json",
+        )
+        data = resp.get_json()
+        assert data["success"] is True
+        assert data["deleted"] == 0
+
+    def test_delete_unauthenticated(self, site_client):
+        resp = site_client.post(
+            "/api/delete-systems",
+            data=json.dumps({"hostnames": ["server01"]}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 401
+
+    def test_delete_missing_hostnames(self, site_client):
+        _login(site_client)
+        resp = site_client.post(
+            "/api/delete-systems",
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+
+class TestDiscoverEndpoint:
+    def test_discover_queues_jobs(self, site_client):
+        _login(site_client)
+        with patch("dracs.jobqueue.enqueue_job") as mock_enqueue:
+            mock_enqueue.return_value = 1
+            resp = site_client.post(
+                "/api/discover",
+                data=json.dumps({"hostnames": ["newhost01", "newhost02"]}),
+                content_type="application/json",
+            )
+            data = resp.get_json()
+            assert data["success"] is True
+            assert data["queued"] == 2
+            assert mock_enqueue.call_count == 2
+
+    def test_discover_unauthenticated(self, site_client):
+        resp = site_client.post(
+            "/api/discover",
+            data=json.dumps({"hostnames": ["host01"]}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 401
+
+    def test_discover_invalid_hostname(self, site_client):
+        _login(site_client)
+        resp = site_client.post(
+            "/api/discover",
+            data=json.dumps({"hostnames": ["bad hostname!"]}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+    def test_discover_missing_hostnames(self, site_client):
+        _login(site_client)
+        resp = site_client.post(
+            "/api/discover",
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+    def test_discover_empty_list(self, site_client):
+        _login(site_client)
+        resp = site_client.post(
+            "/api/discover",
+            data=json.dumps({"hostnames": ["", "  "]}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+
 class TestRefreshAllSiteAware:
     @patch("dracs.jobqueue.enqueue_batch", return_value=2)
     def test_refresh_all_with_site(self, mock_enqueue, site_client):
