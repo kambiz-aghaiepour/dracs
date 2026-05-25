@@ -1,4 +1,6 @@
 import configparser
+import os
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -200,6 +202,164 @@ class TestRemoveSiteIniSections:
         monkeypatch.chdir(tmp_path)
         result = remove_site_ini_sections("Site2")
         assert result is False
+
+
+class TestCredentialSiteResolution:
+    def test_idrac_resolves_site_from_host(self, tmp_path, monkeypatch):
+        from dracs.db import create_site, db_initialize, upsert_system
+
+        fd, db_path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        db_initialize(db_path)
+        site2 = create_site("Site2")
+        upsert_system(
+            db_path,
+            "TAG001",
+            "host01",
+            "R660",
+            "7.0.0",
+            "2.1.0",
+            "Jan 2027",
+            1893456000,
+            site_id=site2["id"],
+        )
+
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text(
+            "[Default-DEFAULTS]\nusername = root\npassword = calvin\n\n"
+            "[Site2-DEFAULTS]\nusername = site2user\npassword = site2pass\n"
+        )
+        monkeypatch.chdir(tmp_path)
+
+        user, pwd = get_idrac_credentials("host01")
+        assert user == "site2user"
+        assert pwd == "site2pass"
+        os.unlink(db_path)
+
+    def test_vnc_resolves_site_from_host(self, tmp_path, monkeypatch):
+        from dracs.db import create_site, db_initialize, upsert_system
+        from dracs.vnc import get_vnc_credentials
+
+        fd, db_path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        db_initialize(db_path)
+        site2 = create_site("Site2")
+        upsert_system(
+            db_path,
+            "TAG001",
+            "host01",
+            "R660",
+            "7.0.0",
+            "2.1.0",
+            "Jan 2027",
+            1893456000,
+            site_id=site2["id"],
+        )
+
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text(
+            "[Default-DEFAULTS]\nvnc_port = 5901\nvnc_password = defpass\n\n"
+            "[Site2-DEFAULTS]\nvnc_port = 5910\nvnc_password = s2pass\n"
+        )
+        monkeypatch.chdir(tmp_path)
+
+        port, pwd = get_vnc_credentials("host01")
+        assert port == 5910
+        assert pwd == "s2pass"
+        os.unlink(db_path)
+
+    def test_idrac_falls_back_to_primary_site_name(self, tmp_path, monkeypatch):
+        from dracs.db import db_initialize, rename_site, get_default_site_id
+
+        fd, db_path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        db_initialize(db_path)
+        rename_site(get_default_site_id(), "MainSite")
+
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text(
+            "[MainSite-DEFAULTS]\nusername = mainuser\npassword = mainpass\n"
+        )
+        monkeypatch.chdir(tmp_path)
+
+        user, pwd = get_idrac_credentials("unknown_host")
+        assert user == "mainuser"
+        assert pwd == "mainpass"
+        os.unlink(db_path)
+
+    def test_vnc_resolves_primary_for_host_without_site_id(self, tmp_path, monkeypatch):
+        from dracs.db import (
+            db_initialize,
+            get_session,
+            System,
+            rename_site,
+            get_default_site_id,
+        )
+        from dracs.vnc import get_vnc_credentials
+        from sqlalchemy import text
+
+        fd, db_path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        db_initialize(db_path)
+        rename_site(get_default_site_id(), "MySite")
+
+        with get_session() as sess:
+            sess.execute(
+                text(
+                    "INSERT INTO systems (svc_tag, name, model) "
+                    "VALUES ('NOTAG', 'orphan_host', 'R660')"
+                )
+            )
+            sess.commit()
+
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text("[MySite-DEFAULTS]\nvnc_port = 5555\nvnc_password = mypass\n")
+        monkeypatch.chdir(tmp_path)
+
+        port, pwd = get_vnc_credentials("orphan_host")
+        assert port == 5555
+        assert pwd == "mypass"
+        os.unlink(db_path)
+
+    def test_vnc_falls_back_to_primary_for_default_host(self, tmp_path, monkeypatch):
+        from dracs.db import db_initialize, upsert_system
+        from dracs.vnc import get_vnc_credentials
+
+        fd, db_path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        db_initialize(db_path)
+        upsert_system(
+            db_path,
+            "TAG001",
+            "defhost",
+            "R660",
+            "7.0.0",
+            "2.1.0",
+            "Jan 2027",
+            1893456000,
+        )
+
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text("[Default-DEFAULTS]\nvnc_port = 5999\nvnc_password = defvnc\n")
+        monkeypatch.chdir(tmp_path)
+
+        port, pwd = get_vnc_credentials("defhost")
+        assert port == 5999
+        assert pwd == "defvnc"
+        os.unlink(db_path)
+
+    def test_primary_site_name(self, temp_db):
+        from dracs.db import (
+            db_initialize,
+            get_primary_site_name,
+            get_default_site_id,
+            rename_site,
+        )
+
+        db_initialize(temp_db)
+        assert get_primary_site_name() == "Default"
+        rename_site(get_default_site_id(), "RDU2")
+        assert get_primary_site_name() == "RDU2"
 
 
 class TestGetIdracCredentialsSiteAware:

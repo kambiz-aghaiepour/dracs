@@ -224,12 +224,12 @@ def _require_auth(required_role=None, site_id=None):
 
 
 def _get_requested_site():
-    from dracs.db import get_default_site_id, get_site_by_name
+    from dracs.db import get_default_site_id, get_primary_site_name, get_site_by_name
 
     site_name = request.args.get("site")
     if not site_name:
         default_id = get_default_site_id()
-        return default_id, "Default"
+        return default_id, get_primary_site_name()
     site = get_site_by_name(site_name)
     if site is None:
         return None, site_name
@@ -267,13 +267,30 @@ def _find_passwords_ini() -> Path | None:
     return None
 
 
+def _resolve_site_for_host(hostname: str) -> str:
+    try:
+        with get_session() as sess:
+            from dracs.db import Site
+
+            system = sess.query(System).filter(System.name == hostname).first()
+            if system and system.site_id:
+                site_obj = sess.get(Site, system.site_id)
+                if site_obj:
+                    return site_obj.name
+        from dracs.db import get_primary_site_name
+
+        return get_primary_site_name()
+    except Exception:
+        return "Default"
+
+
 def get_idrac_credentials(hostname: str, site: str | None = None) -> tuple:
     config_file = _find_passwords_ini()
     if config_file is None:
         return ("root", "calvin")
 
     if site is None:
-        site = "Default"
+        site = _resolve_site_for_host(hostname)
 
     config = configparser.RawConfigParser()
     config.read(config_file)
@@ -2962,8 +2979,9 @@ def api_vnc_session_create():
                 400,
             )
 
+        _, site_name = _get_requested_site()
         idrac_fqdn = build_idrac_hostname(hostname)
-        vnc_port, _ = get_vnc_credentials(hostname)
+        vnc_port, _ = get_vnc_credentials(hostname, site=site_name)
 
         reachable, error_msg = check_vnc_connectivity(idrac_fqdn, int(vnc_port))
         if not reachable:

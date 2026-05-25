@@ -114,7 +114,19 @@ def get_vnc_credentials(hostname: str, site: str | None = None) -> tuple:
         return (5901, "")
 
     if site is None:
-        site = "Default"
+        try:
+            from dracs.db import System, Site, get_session, get_primary_site_name
+
+            with get_session() as sess:
+                system = sess.query(System).filter(System.name == hostname).first()
+                if system and system.site_id:
+                    site_obj = sess.get(Site, system.site_id)
+                    if site_obj:
+                        site = site_obj.name
+            if site is None:
+                site = get_primary_site_name()
+        except Exception:
+            site = "Default"
 
     config = configparser.RawConfigParser()
     config.read(config_file)
