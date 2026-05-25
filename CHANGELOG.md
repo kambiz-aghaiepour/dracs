@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v2.3.7 (2026-05-25)
+
+### Bug Fixes
+
+- Add missing discover and delete
+  ([`10de2a4`](https://github.com/kambiz-aghaiepour/dracs/commit/10de2a4653e7099b530bfcc99ca5be10dbed1a67))
+
+- Codecov/patch miss
+  ([`a157b1b`](https://github.com/kambiz-aghaiepour/dracs/commit/a157b1b2faad0edb8b60039e53c22dbd1684853d))
+
+### Chores
+
+- Sync spec file version to 2.3.6 [skip ci]
+  ([`1cc5991`](https://github.com/kambiz-aghaiepour/dracs/commit/1cc59915ad07953d32cb39fa8585ba1100a38d21))
+
+
 ## v2.3.6 (2026-05-25)
 
 ### Bug Fixes
