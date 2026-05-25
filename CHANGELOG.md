@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.3.11 (2026-05-25)
+
+### Bug Fixes
+
+- User management bug
+  ([`6d58083`](https://github.com/kambiz-aghaiepour/dracs/commit/6d5808381a23c8a8be1b5529c59ef44a0641eb1c))
+
+### Chores
+
+- Sync spec file version to 2.3.10 [skip ci]
+  ([`51cdb25`](https://github.com/kambiz-aghaiepour/dracs/commit/51cdb2511615b2cd2150ae36c93c9442872f7c0e))
+
+
 ## v2.3.10 (2026-05-25)
 
 ### Bug Fixes
