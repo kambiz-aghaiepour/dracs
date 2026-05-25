@@ -2606,6 +2606,26 @@ def api_users_update(username):
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
 
 
+@app.route("/sites")
+def sites_page():
+    """Full-page site management (superadmin only)."""
+    is_authenticated = session.get("authenticated", False)
+    if not is_authenticated:
+        return redirect(url_for("index"))
+    if not session.get("is_superadmin", False):
+        return redirect(url_for("index"))
+
+    from_site = request.args.get("site", "")
+
+    return render_template(
+        "sites.html",
+        username=session.get("username", ""),
+        user_role=session.get("role", ""),
+        is_superadmin=True,
+        from_site=from_site,
+    )
+
+
 @app.route("/users")
 def users_page():
     """Full-page user management."""
@@ -2803,6 +2823,11 @@ def api_sites_delete(name):
             return jsonify({"success": False, "message": "Site not found"}), 404
 
         delete_site(site["id"])
+
+        from dracs.sites import remove_site_ini_sections
+
+        remove_site_ini_sections(name)
+
         audit_log(
             "site_delete",
             target=name,

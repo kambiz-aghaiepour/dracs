@@ -567,6 +567,51 @@ class TestFwBiosSummaryEndpoints:
         assert data["models"][0]["model"] == "R660"
 
 
+class TestSitesPageRoute:
+    def test_unauthenticated_redirects(self, site_client):
+        resp = site_client.get("/sites")
+        assert resp.status_code == 302
+
+    def test_non_superadmin_redirects(self, site_client):
+        create_user("adminuser", "pass123", role="admin")
+        from dracs.users import set_user_site_role
+
+        default_id = get_default_site_id()
+        set_user_site_role("adminuser", default_id, "admin")
+        _login(site_client, "adminuser", "pass123")
+        resp = site_client.get("/sites")
+        assert resp.status_code == 302
+
+    def test_superadmin_access(self, site_client):
+        _login(site_client)
+        resp = site_client.get("/sites")
+        assert resp.status_code == 200
+        assert b"Site Management" in resp.data
+
+    def test_preserves_site_param(self, site_client):
+        _login(site_client)
+        resp = site_client.get("/sites?site=SomePlace")
+        assert resp.status_code == 200
+        assert b"SomePlace" in resp.data
+
+
+class TestDeleteSiteIniCleanup:
+    def test_delete_removes_ini_sections(self, site_client, tmp_path, monkeypatch):
+        _login(site_client)
+        monkeypatch.chdir(tmp_path)
+        site_client.post(
+            "/api/sites",
+            data=json.dumps({"name": "TestDel"}),
+            content_type="application/json",
+        )
+        ini = tmp_path / "drac-passwords.ini"
+        assert ini.exists()
+        assert "TestDel-DEFAULTS" in ini.read_text()
+
+        site_client.delete("/api/sites/TestDel")
+        assert "TestDel-DEFAULTS" not in ini.read_text()
+
+
 class TestRefreshAllSiteAware:
     @patch("dracs.jobqueue.enqueue_batch", return_value=2)
     def test_refresh_all_with_site(self, mock_enqueue, site_client):

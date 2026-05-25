@@ -1385,7 +1385,7 @@
                     {% endfor %}
                 </select>
                 {% if is_superadmin %}
-                <a href="#" class="logout-link" onclick="showSiteManagementModal(event)" style="margin-right: 8px;" title="Global Configuration">&#9881;</a>
+                <a href="/sites?site={{ current_site }}" class="logout-link" style="margin-right: 8px;" title="Site Management">&#9881;</a>
                 {% endif %}
                 {% if is_authenticated %}
                     <span class="username-display">Logged in as <strong>{{ username }}</strong> ({{ user_role }})</span>
@@ -1733,34 +1733,6 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="hideUserManagementModal()">Close</button>
-                </div>
-            </div>
-        </div>
-
-        <div id="site-management-modal" class="modal-overlay">
-            <div class="modal-content" style="max-width: 600px;">
-                <div class="modal-header">
-                    <h2>Site Management</h2>
-                </div>
-                <div class="modal-body">
-                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px;">
-                        <thead>
-                            <tr>
-                                <th style="text-align: left; padding: 6px; border-bottom: 2px solid #ccc;">Site Name</th>
-                                <th style="text-align: left; padding: 6px; border-bottom: 2px solid #ccc;">Hosts</th>
-                                <th style="text-align: left; padding: 6px; border-bottom: 2px solid #ccc;">Primary</th>
-                            </tr>
-                        </thead>
-                        <tbody id="site-table-body"></tbody>
-                    </table>
-                    <div style="display: flex; gap: 8px;">
-                        <button class="btn btn-primary" onclick="handleAddSite()">Add</button>
-                        <button class="btn btn-secondary" onclick="handleRemoveSite()">Remove</button>
-                        <button class="btn btn-secondary" onclick="handleRenameSite()">Rename</button>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="hideSiteManagementModal()">OK</button>
                 </div>
             </div>
         </div>
@@ -2166,108 +2138,6 @@
             url.searchParams.set('site', siteName);
             window.location.href = url.toString();
         }
-        function showSiteManagementModal(event) {
-            if (event) event.preventDefault();
-            document.getElementById('site-management-modal').style.display = 'flex';
-            loadSiteList();
-        }
-        function hideSiteManagementModal() {
-            document.getElementById('site-management-modal').style.display = 'none';
-        }
-        async function loadSiteList() {
-            const resp = await fetch('/api/sites');
-            const data = await resp.json();
-            const tbody = document.getElementById('site-table-body');
-            tbody.innerHTML = '';
-            if (data.success) {
-                data.sites.forEach(site => {
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `<td style="padding:6px;">${site.name}</td>
-                        <td style="padding:6px;">${site.host_count}</td>
-                        <td style="padding:6px;">${site.is_primary ? 'Yes' : 'No'}</td>`;
-                    tr.style.cursor = 'pointer';
-                    tr.onclick = () => {
-                        document.querySelectorAll('#site-table-body tr').forEach(r => r.classList.remove('selected'));
-                        tr.classList.add('selected');
-                        window._selectedSite = site;
-                    };
-                    tbody.appendChild(tr);
-                });
-            }
-        }
-        async function refreshSiteDropdown() {
-            const resp = await fetch('/api/sites');
-            const data = await resp.json();
-            if (!data.success) return;
-            const select = document.getElementById('site-select');
-            const currentValue = select.value;
-            select.innerHTML = '';
-            data.sites.forEach(site => {
-                const opt = document.createElement('option');
-                opt.value = site.name;
-                opt.textContent = site.name;
-                if (site.name === currentValue) opt.selected = true;
-                select.appendChild(opt);
-            });
-        }
-        async function handleAddSite() {
-            const name = prompt('Enter new site name (alphanumeric and underscores only):');
-            if (!name) return;
-            const resp = await fetch('/api/sites', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({name: name})
-            });
-            const data = await resp.json();
-            if (data.success) {
-                loadSiteList();
-                refreshSiteDropdown();
-                showNotification('Site created: ' + name, 'success');
-            } else {
-                showNotification(data.message, 'error');
-            }
-        }
-        async function handleRemoveSite() {
-            if (!window._selectedSite) { showNotification('Select a site first', 'error'); return; }
-            if (window._selectedSite.is_primary) { showNotification('Cannot delete the primary site', 'error'); return; }
-            if (!confirm('Delete site "' + window._selectedSite.name + '"?')) return;
-            const resp = await fetch('/api/sites/' + encodeURIComponent(window._selectedSite.name), {method: 'DELETE'});
-            const data = await resp.json();
-            if (data.success) {
-                loadSiteList();
-                refreshSiteDropdown();
-                showNotification('Site deleted', 'success');
-                window._selectedSite = null;
-            } else {
-                showNotification(data.message, 'error');
-            }
-        }
-        async function handleRenameSite() {
-            if (!window._selectedSite) { showNotification('Select a site first', 'error'); return; }
-            const oldName = window._selectedSite.name;
-            const newName = prompt('Enter new name for "' + oldName + '":', oldName);
-            if (!newName || newName === oldName) return;
-            const resp = await fetch('/api/sites/' + encodeURIComponent(oldName), {
-                method: 'PATCH',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({name: newName})
-            });
-            const data = await resp.json();
-            if (data.success) {
-                loadSiteList();
-                await refreshSiteDropdown();
-                const select = document.getElementById('site-select');
-                if (currentSite === oldName) {
-                    select.value = newName;
-                    switchSite(newName);
-                }
-                showNotification('Site renamed to ' + newName, 'success');
-                window._selectedSite = null;
-            } else {
-                showNotification(data.message, 'error');
-            }
-        }
-
         // Authentication and admin functionality
         let isAuthenticated = {{ 'true' if is_authenticated else 'false' }};
         let userRole = '{{ user_role|default("", true) }}';

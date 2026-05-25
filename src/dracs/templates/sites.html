@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DRACS - Site Management</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .header-left { display: flex; align-items: center; gap: 15px; }
+        .logo { height: 48px; width: auto; }
+        .auth-section { display: flex; gap: 15px; align-items: center; }
+        .username-display { font-size: 14px; color: #555; }
+        .theme-toggle { display: flex; align-items: center; gap: 10px; margin-left: 20px; }
+        .theme-toggle label { font-size: 14px; color: #555; font-weight: 500; }
+        .toggle-switch { position: relative; width: 50px; height: 24px; background-color: #ccc; border-radius: 12px; cursor: pointer; transition: background-color 0.3s; }
+        .toggle-switch::after { content: ''; position: absolute; width: 20px; height: 20px; border-radius: 50%; background-color: white; top: 2px; left: 2px; transition: transform 0.3s; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        .toggle-switch.active { background-color: #007bff; }
+        .toggle-switch.active::after { transform: translateX(26px); }
+
+        h2 { margin-bottom: 16px; font-size: 1.2em; border-bottom: 2px solid #eee; padding-bottom: 8px; }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 8px 12px; border-bottom: 2px solid #ddd; font-weight: 600; font-size: 0.9em; color: #555; }
+        td { padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 0.9em; }
+        tr.selectable { cursor: pointer; }
+        tr.selectable:hover { background: #f0f4ff; }
+        tr.selected { background: #dbeafe; }
+        .btn { padding: 6px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9em; font-weight: 500; }
+        .btn-primary { background: #1976d2; color: white; }
+        .btn-primary:hover { background: #1565c0; }
+        .btn-secondary { background: #e0e0e0; color: #333; }
+        .btn-secondary:hover { background: #bdbdbd; }
+        .btn-danger { background: #ef5350; color: white; }
+        .btn-danger:hover { background: #c62828; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .actions-bar { display: flex; gap: 8px; margin-top: 16px; }
+        .form-panel { margin-top: 16px; padding: 16px; border: 1px solid #e0e0e0; border-radius: 6px; background: #fafafa; }
+        .form-panel h3 { margin-bottom: 12px; }
+        .form-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 12px; }
+        .form-group { display: flex; flex-direction: column; gap: 4px; }
+        .form-group label { font-size: 0.85em; font-weight: 500; color: #555; }
+        .form-group input, .form-group select { padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9em; }
+        .notification { position: fixed; top: 16px; right: 16px; padding: 12px 20px; border-radius: 6px; color: white; z-index: 1000; animation: fadeIn 0.3s; }
+        .notification.success { background: #43a047; }
+        .notification.error { background: #e53935; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        .footer-bar { text-align: center; margin-top: 24px; }
+        .primary-tag { display: inline-block; padding: 1px 6px; border-radius: 3px; background: #e8f5e9; color: #2e7d32; font-size: 0.8em; margin-left: 4px; }
+
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; justify-content: center; align-items: center; }
+        .modal-overlay.active { display: flex; }
+        .modal-box { background: white; border-radius: 8px; padding: 24px; min-width: 360px; max-width: 500px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+        .modal-box h3 { margin-top: 0; margin-bottom: 16px; }
+        .modal-box .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+
+        .host-override-row { display: flex; gap: 8px; align-items: center; padding: 4px 0; flex-wrap: wrap; }
+        .host-override-row input { width: 140px; padding: 4px 8px; font-size: 0.85em; border: 1px solid #ccc; border-radius: 4px; }
+        .host-override-row .btn { padding: 4px 10px; font-size: 0.8em; }
+
+        /* Dark Theme */
+        body.dark-theme { background-color: #1a1a1a; }
+        body.dark-theme .container { background-color: #2d2d2d; color: #e0e0e0; }
+        body.dark-theme h1, body.dark-theme h2, body.dark-theme h3, body.dark-theme h4 { color: #e0e0e0; }
+        body.dark-theme h2 { border-bottom-color: #444; }
+        body.dark-theme .username-display { color: #b0b0b0; }
+        body.dark-theme .theme-toggle label { color: #b0b0b0; }
+        body.dark-theme th { color: #b0b0b0; border-bottom-color: #555; }
+        body.dark-theme td { color: #e0e0e0; border-bottom-color: #444; }
+        body.dark-theme tr.selectable:hover { background: #3a3a3a; }
+        body.dark-theme tr.selected { background: #2a6ba8; }
+        body.dark-theme .form-panel { background: #3a3a3a; border-color: #555; }
+        body.dark-theme .form-group label { color: #b0b0b0; }
+        body.dark-theme .form-group input { background-color: #4a4a4a; color: #e0e0e0; border-color: #555; }
+        body.dark-theme .host-override-row input { background-color: #4a4a4a; color: #e0e0e0; border-color: #555; }
+        body.dark-theme .btn-secondary { background: #555; color: #e0e0e0; }
+        body.dark-theme .btn-secondary:hover { background: #666; }
+        body.dark-theme .btn-primary { background: #1e5a8e; }
+        body.dark-theme .btn-primary:hover { background: #2a6ba8; }
+        body.dark-theme .btn-danger { background: #c62828; }
+        body.dark-theme .primary-tag { background: #1e4d2b; color: #90ee90; }
+        body.dark-theme .modal-overlay { background: rgba(0,0,0,0.8); }
+        body.dark-theme .modal-box { background: #2d2d2d; color: #e0e0e0; }
+        body.dark-theme .modal-box input { background-color: #4a4a4a; color: #e0e0e0; border-color: #555; }
+        body.dark-theme .notification.success { background: #1e4d2b; }
+        body.dark-theme .notification.error { background: #5c1e1e; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-left">
+                <img src="{{ url_for('static', filename='images/dracs.svg') }}" alt="DRACS Logo" class="logo">
+                <h1 style="margin: 0; border: none; padding: 0;">DRACS Site Management</h1>
+                <div class="theme-toggle">
+                    <label for="theme-toggle-switch">Dark Mode</label>
+                    <div id="theme-toggle-switch" class="toggle-switch" onclick="toggleTheme()"></div>
+                </div>
+            </div>
+            <div class="auth-section">
+                <span class="username-display">Logged in as <strong>{{ username }}</strong> ({{ user_role }})</span>
+            </div>
+        </div>
+
+        <h2>Sites</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Site Name</th>
+                    <th>Hosts</th>
+                    <th>Primary</th>
+                </tr>
+            </thead>
+            <tbody id="site-table-body"></tbody>
+        </table>
+        <div class="actions-bar">
+            <button class="btn btn-primary" onclick="showAddModal()">Add</button>
+            <button class="btn btn-secondary" id="btn-rename" disabled onclick="showRenameModal()">Rename</button>
+            <button class="btn btn-secondary" id="btn-manage" disabled onclick="showManagePanel()">Manage</button>
+            <button class="btn btn-danger" id="btn-remove" disabled onclick="showRemoveModal()">Remove</button>
+        </div>
+
+        <div id="manage-panel" class="form-panel" style="display:none;">
+            <h3>Manage Site: <span id="manage-site-name"></span></h3>
+            <h4 style="margin: 8px 0 4px;">Default Credentials</h4>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="manage-username" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="text" id="manage-password" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label>VNC Port</label>
+                    <input type="text" id="manage-vnc-port" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label>VNC Password</label>
+                    <input type="text" id="manage-vnc-password" autocomplete="off">
+                </div>
+            </div>
+            <h4 style="margin: 16px 0 4px;">Host-Specific Overrides</h4>
+            <div id="host-overrides-list"></div>
+            <div style="margin-top: 8px;">
+                <button class="btn btn-secondary" onclick="addHostOverrideRow()">+ Add Host Override</button>
+            </div>
+            <div style="margin-top: 16px; display: flex; gap: 8px;">
+                <button class="btn btn-primary" onclick="saveManage()">Save</button>
+                <button class="btn btn-secondary" onclick="hideManagePanel()">Cancel</button>
+            </div>
+        </div>
+
+        <div class="footer-bar">
+            <button class="btn btn-secondary" id="close-btn">Close</button>
+        </div>
+    </div>
+
+    <!-- Add Site Modal -->
+    <div id="add-modal" class="modal-overlay">
+        <div class="modal-box">
+            <h3>Add Site</h3>
+            <div class="form-group">
+                <label>Site Name (alphanumeric and underscores only)</label>
+                <input type="text" id="add-site-name" style="width:100%; margin-top:4px;">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-primary" onclick="submitAdd()">Add</button>
+                <button class="btn btn-secondary" onclick="closeModal('add-modal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rename Site Modal -->
+    <div id="rename-modal" class="modal-overlay">
+        <div class="modal-box">
+            <h3>Rename Site: <span id="rename-current-name"></span></h3>
+            <div class="form-group">
+                <label>New Name</label>
+                <input type="text" id="rename-new-name" style="width:100%; margin-top:4px;">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-primary" onclick="submitRename()">Rename</button>
+                <button class="btn btn-secondary" onclick="closeModal('rename-modal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Remove Site Modal -->
+    <div id="remove-modal" class="modal-overlay">
+        <div class="modal-box">
+            <h3>Remove Site</h3>
+            <p>Are you sure you want to remove <strong id="remove-site-name"></strong>?</p>
+            <p style="font-size:0.85em; color:#999; margin-top:8px;">This will also remove all credential settings for this site.</p>
+            <div class="modal-actions">
+                <button class="btn btn-danger" onclick="submitRemove()">Remove</button>
+                <button class="btn btn-secondary" onclick="closeModal('remove-modal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const fromSite = '{{ from_site|default("", true) }}';
+        let sites = [];
+        let selectedSite = null;
+
+        function toggleTheme() {
+            const body = document.body;
+            const ts = document.getElementById('theme-toggle-switch');
+            if (body.classList.contains('dark-theme')) {
+                body.classList.remove('dark-theme');
+                ts.classList.remove('active');
+                localStorage.setItem('theme', 'light');
+            } else {
+                body.classList.add('dark-theme');
+                ts.classList.add('active');
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+        (function() {
+            if (localStorage.getItem('theme') === 'dark') {
+                document.body.classList.add('dark-theme');
+                const ts = document.getElementById('theme-toggle-switch');
+                if (ts) ts.classList.add('active');
+            }
+        })();
+
+        document.getElementById('close-btn').onclick = function() {
+            let url = '/';
+            if (fromSite) url += '?site=' + encodeURIComponent(fromSite);
+            window.location.href = url;
+        };
+
+        function showNotification(msg, type) {
+            const el = document.createElement('div');
+            el.className = 'notification ' + type;
+            el.textContent = msg;
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 3000);
+        }
+
+        function openModal(id) { document.getElementById(id).classList.add('active'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+        function selectSite(name) {
+            selectedSite = sites.find(s => s.name === name) || null;
+            document.querySelectorAll('#site-table-body tr').forEach(r => {
+                r.classList.toggle('selected', r.dataset.name === name);
+            });
+            const hasSel = !!selectedSite;
+            const canRemove = hasSel && !selectedSite.is_primary;
+            document.getElementById('btn-rename').disabled = !hasSel;
+            document.getElementById('btn-manage').disabled = !hasSel;
+            document.getElementById('btn-remove').disabled = !canRemove;
+            hideManagePanel();
+        }
+
+        async function loadSites() {
+            const resp = await fetch('/api/sites');
+            const data = await resp.json();
+            if (!data.success) return;
+            sites = data.sites;
+            const tbody = document.getElementById('site-table-body');
+            tbody.innerHTML = '';
+            sites.forEach(s => {
+                const tr = document.createElement('tr');
+                tr.className = 'selectable';
+                tr.dataset.name = s.name;
+                tr.onclick = () => selectSite(s.name);
+                const primaryBadge = s.is_primary ? '<span class="primary-tag">Primary</span>' : '';
+                tr.innerHTML = `
+                    <td>${s.name} ${primaryBadge}</td>
+                    <td>${s.host_count}</td>
+                    <td>${s.is_primary ? 'Yes' : 'No'}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+            selectedSite = null;
+            document.getElementById('btn-rename').disabled = true;
+            document.getElementById('btn-manage').disabled = true;
+            document.getElementById('btn-remove').disabled = true;
+        }
+
+        // Add
+        function showAddModal() {
+            document.getElementById('add-site-name').value = '';
+            openModal('add-modal');
+            document.getElementById('add-site-name').focus();
+        }
+        async function submitAdd() {
+            const name = document.getElementById('add-site-name').value.trim();
+            if (!name) { showNotification('Site name required', 'error'); return; }
+            const resp = await fetch('/api/sites', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name: name})
+            });
+            const data = await resp.json();
+            if (data.success) {
+                closeModal('add-modal');
+                loadSites();
+                showNotification('Site created: ' + name, 'success');
+            } else {
+                showNotification(data.message, 'error');
+            }
+        }
+
+        // Rename
+        function showRenameModal() {
+            if (!selectedSite) return;
+            document.getElementById('rename-current-name').textContent = selectedSite.name;
+            document.getElementById('rename-new-name').value = selectedSite.name;
+            openModal('rename-modal');
+            document.getElementById('rename-new-name').focus();
+            document.getElementById('rename-new-name').select();
+        }
+        async function submitRename() {
+            if (!selectedSite) return;
+            const newName = document.getElementById('rename-new-name').value.trim();
+            if (!newName || newName === selectedSite.name) { closeModal('rename-modal'); return; }
+            const resp = await fetch('/api/sites/' + encodeURIComponent(selectedSite.name), {
+                method: 'PATCH',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name: newName})
+            });
+            const data = await resp.json();
+            if (data.success) {
+                closeModal('rename-modal');
+                loadSites();
+                showNotification('Site renamed to ' + newName, 'success');
+            } else {
+                showNotification(data.message, 'error');
+            }
+        }
+
+        // Remove
+        function showRemoveModal() {
+            if (!selectedSite || selectedSite.is_primary) return;
+            document.getElementById('remove-site-name').textContent = selectedSite.name;
+            openModal('remove-modal');
+        }
+        async function submitRemove() {
+            if (!selectedSite) return;
+            const resp = await fetch('/api/sites/' + encodeURIComponent(selectedSite.name), {method: 'DELETE'});
+            const data = await resp.json();
+            if (data.success) {
+                closeModal('remove-modal');
+                loadSites();
+                showNotification('Site removed', 'success');
+            } else {
+                showNotification(data.message, 'error');
+            }
+        }
+
+        // Manage
+        function hideManagePanel() { document.getElementById('manage-panel').style.display = 'none'; }
+
+        async function showManagePanel() {
+            if (!selectedSite) return;
+            document.getElementById('manage-site-name').textContent = selectedSite.name;
+
+            const resp = await fetch('/api/sites/' + encodeURIComponent(selectedSite.name) + '/config');
+            const data = await resp.json();
+            if (!data.success) { showNotification(data.message || 'Failed to load config', 'error'); return; }
+
+            const cfg = data.config;
+            document.getElementById('manage-username').value = cfg.defaults.username || '';
+            document.getElementById('manage-password').value = cfg.defaults.password || '';
+            document.getElementById('manage-vnc-port').value = cfg.defaults.vnc_port || '5901';
+            document.getElementById('manage-vnc-password').value = cfg.defaults.vnc_password || '';
+
+            const list = document.getElementById('host-overrides-list');
+            list.innerHTML = '';
+            for (const [hostname, overrides] of Object.entries(cfg.hosts || {})) {
+                addHostOverrideRow(hostname, overrides);
+            }
+
+            document.getElementById('manage-panel').style.display = 'block';
+        }
+
+        function addHostOverrideRow(hostname, overrides) {
+            hostname = hostname || '';
+            overrides = overrides || {};
+            const list = document.getElementById('host-overrides-list');
+            const row = document.createElement('div');
+            row.className = 'host-override-row';
+            row.innerHTML = `
+                <input type="text" placeholder="hostname" value="${hostname}" class="ho-hostname">
+                <input type="text" placeholder="username" value="${overrides.username || ''}" class="ho-username">
+                <input type="text" placeholder="password" value="${overrides.password || ''}" class="ho-password">
+                <input type="text" placeholder="vnc_port" value="${overrides.vnc_port || ''}" class="ho-vnc-port" style="width:80px;">
+                <input type="text" placeholder="vnc_password" value="${overrides.vnc_password || ''}" class="ho-vnc-password">
+                <button class="btn btn-danger" onclick="this.parentElement.remove()">Remove</button>
+            `;
+            list.appendChild(row);
+        }
+
+        async function saveManage() {
+            if (!selectedSite) return;
+            const defaults = {
+                username: document.getElementById('manage-username').value,
+                password: document.getElementById('manage-password').value,
+                vnc_port: document.getElementById('manage-vnc-port').value,
+                vnc_password: document.getElementById('manage-vnc-password').value,
+            };
+
+            const hosts = {};
+            document.querySelectorAll('#host-overrides-list .host-override-row').forEach(row => {
+                const hn = row.querySelector('.ho-hostname').value.trim();
+                if (!hn) return;
+                const entry = {};
+                const u = row.querySelector('.ho-username').value.trim();
+                const p = row.querySelector('.ho-password').value.trim();
+                const vp = row.querySelector('.ho-vnc-port').value.trim();
+                const vpw = row.querySelector('.ho-vnc-password').value.trim();
+                if (u) entry.username = u;
+                if (p) entry.password = p;
+                if (vp) entry.vnc_port = vp;
+                if (vpw) entry.vnc_password = vpw;
+                if (Object.keys(entry).length > 0) hosts[hn] = entry;
+            });
+
+            const resp = await fetch('/api/sites/' + encodeURIComponent(selectedSite.name) + '/config', {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({defaults: defaults, hosts: hosts})
+            });
+            const data = await resp.json();
+            if (data.success) {
+                hideManagePanel();
+                showNotification('Site config saved', 'success');
+            } else {
+                showNotification(data.message, 'error');
+            }
+        }
+
+        loadSites();
+    </script>
+</body>
+</html>
