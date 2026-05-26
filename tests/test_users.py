@@ -6,13 +6,12 @@ from unittest.mock import patch
 
 import pytest
 
-from dracs.db import db_initialize, User
+from dracs.db import db_initialize, get_session, User
 from dracs.exceptions import ValidationError
 from dracs.users import (
     authenticate,
     create_user,
     delete_user,
-    get_user,
     list_users,
     update_superadmin_password,
     update_user_password,
@@ -133,13 +132,18 @@ class TestDeleteUser:
     def test_delete_user_success(self, user_db):
         create_user("jsmith", "password", "user")
         assert delete_user("jsmith") is True
-        assert get_user("jsmith") is None
+        with get_session() as session:
+            assert session.query(User).filter(User.username == "jsmith").first() is None
 
     def test_delete_then_recreate_user(self, user_db):
         create_user("natasha", "password", "admin")
         assert delete_user("natasha") is True
         create_user("natasha", "password2", "admin")
-        assert get_user("natasha") is not None
+        with get_session() as session:
+            assert (
+                session.query(User).filter(User.username == "natasha").first()
+                is not None
+            )
 
     def test_delete_user_nonexistent(self, user_db):
         assert delete_user("nobody") is False
@@ -247,14 +251,3 @@ class TestUpdateSuperadminPassword:
         with patch.dict(os.environ, {"DRACS_CONF": "/nonexistent/path"}):
             with pytest.raises(ValidationError, match="Config file not found"):
                 update_superadmin_password("newpass")
-
-
-class TestGetUser:
-    def test_get_user_exists(self, user_db):
-        create_user("jsmith", "pass", "user")
-        user = get_user("jsmith")
-        assert user is not None
-        assert user.username == "jsmith"
-
-    def test_get_user_nonexistent(self, user_db):
-        assert get_user("nobody") is None

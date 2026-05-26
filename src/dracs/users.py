@@ -176,11 +176,6 @@ def update_user_role(username: str, new_role: str) -> bool:
         return True
 
 
-def get_user(username: str) -> User | None:
-    with get_session() as session:
-        return session.query(User).filter(User.username == username).first()
-
-
 def set_user_site_role(username: str, site_id: int, role: str) -> None:
     if role not in _VALID_ROLES:
         raise ValidationError(f"Invalid role: '{role}'. Must be 'admin' or 'user'.")

@@ -29,7 +29,7 @@ class TestAddDellWarranty:
 
         from dracs.db import query_by_service_tag
 
-        results = query_by_service_tag(temp_db, "TAG001")
+        results = query_by_service_tag("TAG001")
         assert len(results) == 1
         assert results[0][2] == "R660"
 
@@ -55,7 +55,7 @@ class TestAddDellWarranty:
 
         from dracs.db import query_by_service_tag
 
-        results = query_by_service_tag(temp_db, "TAG001")
+        results = query_by_service_tag("TAG001")
         assert len(results) == 1
         assert results[0][4] == "3.0.0"
 
@@ -79,7 +79,7 @@ class TestAddDellWarranty:
 
         from dracs.db import query_by_service_tag
 
-        results = query_by_service_tag(temp_db, "TAG001")
+        results = query_by_service_tag("TAG001")
         assert len(results) == 1
 
     @patch("dracs.commands.get_snmp_value", new_callable=AsyncMock)
@@ -158,7 +158,7 @@ class TestEditDellWarranty:
 
         from dracs.db import query_by_service_tag
 
-        results = query_by_service_tag(temp_db, "TAG001")
+        results = query_by_service_tag("TAG001")
         assert results[0][3] == "8.0.0"
 
     @patch("dracs.commands.get_snmp_value", new_callable=AsyncMock)
@@ -185,7 +185,7 @@ class TestEditDellWarranty:
 
         from dracs.db import query_by_service_tag
 
-        results = query_by_service_tag(temp_db, "TAG001")
+        results = query_by_service_tag("TAG001")
         assert results[0][4] == "3.0.0"
 
     def test_edit_not_found_raises(self, temp_db):
@@ -229,7 +229,7 @@ class TestEditDellWarranty:
 
         from dracs.db import query_by_service_tag
 
-        results = query_by_service_tag(temp_db, "TAG001")
+        results = query_by_service_tag("TAG001")
         assert results[0][2] == "R760"
 
 
@@ -365,7 +365,7 @@ class TestRemoveDellWarranty:
 
         from dracs.db import query_by_service_tag
 
-        results = query_by_service_tag(temp_db, "TAG001")
+        results = query_by_service_tag("TAG001")
         assert len(results) == 0
 
     def test_remove_by_hostname(self, temp_db, capsys):
