@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v2.3.13 (2026-05-26)
+
+### Bug Fixes
+
+- Incorporate review feedback.
+  ([`4dc0cd4`](https://github.com/kambiz-aghaiepour/dracs/commit/4dc0cd4bd34c326dd895db141f35c561202469d5))
+
+- Refactor and DRY fixes
+  ([`aaf1a97`](https://github.com/kambiz-aghaiepour/dracs/commit/aaf1a977d332712f803585e3abf00b2ce3c3f901))
+
+### Chores
+
+- Fix black formatting
+  ([`ca06b75`](https://github.com/kambiz-aghaiepour/dracs/commit/ca06b752b1e07173a4fa8dedf380ee5db292dd23))
+
+- Sync spec file version to 2.3.12 [skip ci]
+  ([`e285958`](https://github.com/kambiz-aghaiepour/dracs/commit/e285958c513f2f6aaf7492d647a59cf158f55eb0))
+
+
 ## v2.3.12 (2026-05-25)
 
 ### Bug Fixes
