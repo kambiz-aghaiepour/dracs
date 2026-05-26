@@ -140,7 +140,10 @@ class TestDeleteUser:
         assert delete_user("natasha") is True
         create_user("natasha", "password2", "admin")
         with get_session() as session:
-            assert session.query(User).filter(User.username == "natasha").first() is not None
+            assert (
+                session.query(User).filter(User.username == "natasha").first()
+                is not None
+            )
 
     def test_delete_user_nonexistent(self, user_db):
         assert delete_user("nobody") is False
