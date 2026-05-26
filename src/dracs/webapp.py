@@ -482,7 +482,10 @@ def test_idrac_connectivity(hostname: str) -> tuple:
         if result.returncode == 0:
             # Use regex to check for "Status.*Ready" pattern
             if re.search(r"Status.*Ready", result.stdout, re.IGNORECASE):
-                return (True, f"iDRAC Access Succeeded for {hostname}")
+                return (
+                    True,
+                    f"iDRAC Access Succeeded for {build_idrac_hostname(hostname)}",
+                )
             else:
                 return (
                     False,
