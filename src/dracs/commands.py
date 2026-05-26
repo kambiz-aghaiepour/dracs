@@ -371,9 +371,9 @@ async def refresh_dell_warranty(
     db_initialize(warranty)
 
     if service_tag:
-        results = query_by_service_tag(warranty, service_tag)
+        results = query_by_service_tag(service_tag)
     elif hostname:
-        results = query_by_hostname(warranty, hostname)
+        results = query_by_hostname(hostname)
     else:
         raise ValidationError("Either service tag or hostname must be provided")
 
@@ -456,7 +456,7 @@ async def refresh_by_model(
     from dracs.jobqueue import enqueue_batch
 
     db_initialize(warranty)
-    results = query_by_model(warranty, model)
+    results = query_by_model(model)
 
     if len(results) == 0:
         raise DatabaseError(f"No systems found with model {model}")
@@ -471,7 +471,7 @@ async def refresh_all_systems(
     from dracs.jobqueue import enqueue_batch
 
     db_initialize(warranty)
-    results = query_all_systems(warranty)
+    results = query_all_systems()
 
     if len(results) == 0:
         raise DatabaseError("No systems found in database")
@@ -662,7 +662,7 @@ async def tsr_list(
 ) -> None:
     db_initialize(warranty)
 
-    results = query_by_hostname(warranty, hostname)
+    results = query_by_hostname(hostname)
     if not results:
         raise DatabaseError(f"Host {hostname} not found in database")
 
@@ -682,7 +682,7 @@ async def tsr_list(
 async def tsr_download(hostname: str, warranty: str) -> None:
     db_initialize(warranty)
 
-    results = query_by_hostname(warranty, hostname)
+    results = query_by_hostname(hostname)
     if not results:
         raise DatabaseError(f"Host {hostname} not found in database")
 
@@ -703,7 +703,7 @@ async def tsr_generate(hostname: str, warranty: str) -> None:
 
     db_initialize(warranty)
 
-    results = query_by_hostname(warranty, hostname)
+    results = query_by_hostname(hostname)
     if not results:
         raise DatabaseError(f"Host {hostname} not found in database")
 
@@ -729,7 +729,7 @@ async def tsr_status(hostname: str, warranty: str) -> None:
 
     db_initialize(warranty)
 
-    results = query_by_hostname(warranty, hostname)
+    results = query_by_hostname(hostname)
     if not results:
         raise DatabaseError(f"Host {hostname} not found in database")
 
@@ -812,7 +812,7 @@ async def idrac_jobs_list(hostname: str, warranty: str) -> None:
 
     db_initialize(warranty)
 
-    results = query_by_hostname(warranty, hostname)
+    results = query_by_hostname(hostname)
     if not results:
         raise DatabaseError(f"Host {hostname} not found in database")
 
@@ -872,7 +872,7 @@ async def idrac_jobs_clear(
         )
 
     if hostname:
-        results = query_by_hostname(warranty, hostname)
+        results = query_by_hostname(hostname)
         if not results:
             raise DatabaseError(f"Host {hostname} not found in database")
 
@@ -893,7 +893,7 @@ async def idrac_jobs_clear(
         print(f"Clear job queue queued for {hostname}.")
 
     elif model:
-        results = query_by_model(warranty, model)
+        results = query_by_model(model)
         if not results:
             raise DatabaseError(f"No systems found with model {model}")
 
@@ -914,7 +914,7 @@ async def idrac_jobs_clear(
         print(f"Clear job queue queued for {count} {model} hosts.")
 
     elif all_hosts:
-        results = query_all_systems(warranty)
+        results = query_all_systems()
         if not results:
             raise DatabaseError("No systems found in database")
 
@@ -1030,7 +1030,7 @@ async def fw_apply(
 
     db_initialize(warranty)
 
-    results = query_by_hostname(warranty, hostname)
+    results = query_by_hostname(hostname)
     if not results:
         raise DatabaseError(f"Host {hostname} not found in database")
 
@@ -1132,7 +1132,7 @@ async def bios_apply(
 
     db_initialize(warranty)
 
-    results = query_by_hostname(warranty, hostname)
+    results = query_by_hostname(hostname)
     if not results:
         raise DatabaseError(f"Host {hostname} not found in database")
 

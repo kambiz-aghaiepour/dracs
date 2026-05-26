@@ -61,7 +61,7 @@ def test_upsert_system_insert(temp_db):
         1735689600,
     )
 
-    results = query_by_service_tag(temp_db, "ABC1234")
+    results = query_by_service_tag("ABC1234")
     assert len(results) == 1
     assert results[0][0] == "ABC1234"
     assert results[0][1] == "server01"
@@ -92,7 +92,7 @@ def test_upsert_system_update(temp_db):
         1767225600,
     )
 
-    results = query_by_service_tag(temp_db, "ABC1234")
+    results = query_by_service_tag("ABC1234")
     assert len(results) == 1
     assert results[0][2] == "R760"
     assert results[0][3] == "8.0.0"
@@ -112,7 +112,7 @@ def test_query_by_hostname(temp_db):
         1735689600,
     )
 
-    results = query_by_hostname(temp_db, "server01")
+    results = query_by_hostname("server01")
     assert len(results) == 1
     assert results[0][0] == "ABC1234"
 
@@ -120,7 +120,7 @@ def test_query_by_hostname(temp_db):
 def test_query_by_hostname_not_found(temp_db):
     db_initialize(temp_db)
 
-    results = query_by_hostname(temp_db, "nonexistent")
+    results = query_by_hostname("nonexistent")
     assert len(results) == 0
 
 

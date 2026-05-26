@@ -220,25 +220,25 @@ def get_session():
         session.close()
 
 
-def query_by_service_tag(db_url: str, service_tag: str) -> List[tuple]:
+def query_by_service_tag(service_tag: str) -> List[tuple]:
     with get_session() as session:
         results = session.query(System).filter(System.svc_tag == service_tag).all()
         return [r.to_tuple() for r in results]
 
 
-def query_by_hostname(db_url: str, hostname: str) -> List[tuple]:
+def query_by_hostname(hostname: str) -> List[tuple]:
     with get_session() as session:
         results = session.query(System).filter(System.name == hostname).all()
         return [r.to_tuple() for r in results]
 
 
-def query_by_model(db_url: str, model: str) -> List[tuple]:
+def query_by_model(model: str) -> List[tuple]:
     with get_session() as session:
         results = session.query(System).filter(System.model == model).all()
         return [r.to_tuple() for r in results]
 
 
-def query_all_systems(db_url: str) -> List[tuple]:
+def query_all_systems() -> List[tuple]:
     with get_session() as session:
         results = session.query(System).order_by(System.name).all()
         return [r.to_tuple() for r in results]
