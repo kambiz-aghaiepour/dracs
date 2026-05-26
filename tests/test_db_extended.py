@@ -72,7 +72,7 @@ class TestQueryByModel:
             1735689600,
         )
 
-        results = query_by_model(temp_db, "R660")
+        results = query_by_model("R660")
         assert len(results) == 2
         tags = {r[0] for r in results}
         assert tags == {"TAG001", "TAG003"}
@@ -89,7 +89,7 @@ class TestQueryByModel:
             "Jan 1, 2027",
             1735689600,
         )
-        results = query_by_model(temp_db, "R750")
+        results = query_by_model("R750")
         assert len(results) == 0
 
 
@@ -127,7 +127,7 @@ class TestQueryAllSystems:
             1735689600,
         )
 
-        results = query_all_systems(temp_db)
+        results = query_all_systems()
         assert len(results) == 3
         assert results[0][1] == "alpha"
         assert results[1][1] == "bravo"
@@ -135,7 +135,7 @@ class TestQueryAllSystems:
 
     def test_returns_empty_when_no_systems(self, temp_db):
         db_initialize(temp_db)
-        results = query_all_systems(temp_db)
+        results = query_all_systems()
         assert len(results) == 0
 
 

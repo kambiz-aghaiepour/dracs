@@ -472,28 +472,7 @@ def test_idrac_connectivity(hostname: str) -> tuple:
     if not validate_hostname(hostname):
         return (False, f"Invalid hostname: {hostname}")
     try:
-        # Build iDRAC FQDN
-        idrac_fqdn = build_idrac_hostname(hostname)
-
-        # Get credentials
-        username, password = get_idrac_credentials(hostname)
-
-        # Test SSH connectivity using sshpass
-        cmd = [
-            "sshpass",
-            "-p",
-            password,
-            "ssh",
-            "-o",
-            "StrictHostKeyChecking=no",
-            "-o",
-            "UserKnownHostsFile=/dev/null",
-            "-o",
-            "ConnectTimeout=10",
-            f"{username}@{idrac_fqdn}",
-            "racadm",
-            "getremoteservicesstatus",
-        ]
+        cmd = _build_ssh_racadm_cmd(hostname, "getremoteservicesstatus")
 
         result = subprocess.run(  # nosec # nosemgrep
             cmd, capture_output=True, text=True, timeout=15  # nosemgrep
@@ -503,7 +482,7 @@ def test_idrac_connectivity(hostname: str) -> tuple:
         if result.returncode == 0:
             # Use regex to check for "Status.*Ready" pattern
             if re.search(r"Status.*Ready", result.stdout, re.IGNORECASE):
-                return (True, f"iDRAC Access Succeeded for {idrac_fqdn}")
+                return (True, f"iDRAC Access Succeeded for {hostname}")
             else:
                 return (
                     False,
@@ -1154,29 +1133,7 @@ def api_job_queue():
         if not validate_hostname(hostname):
             return jsonify({"success": False, "message": "Invalid hostname"}), 400
 
-        # Build iDRAC FQDN
-        idrac_fqdn = build_idrac_hostname(hostname)
-
-        # Get credentials
-        username, password = get_idrac_credentials(hostname)
-
-        # Build job queue command
-        cmd = [
-            "sshpass",
-            "-p",
-            password,
-            "ssh",
-            "-o",
-            "StrictHostKeyChecking=no",
-            "-o",
-            "UserKnownHostsFile=/dev/null",
-            "-o",
-            "ConnectTimeout=10",
-            f"{username}@{idrac_fqdn}",
-            "racadm",
-            "jobqueue",
-            "view",
-        ]
+        cmd = _build_ssh_racadm_cmd(hostname, "jobqueue", "view")
 
         # Run command and capture output
         result = subprocess.run(  # nosec # nosemgrep
@@ -1218,30 +1175,7 @@ def _clear_single_job_queue(hostname: str) -> None:
             print(f"Invalid hostname: {hostname}")
             return
 
-        # Build iDRAC FQDN
-        idrac_fqdn = build_idrac_hostname(hostname)
-
-        # Get credentials
-        username, password = get_idrac_credentials(hostname)
-
-        # Build clear job queue command
-        cmd = [
-            "sshpass",
-            "-p",
-            password,
-            "ssh",
-            "-o",
-            "StrictHostKeyChecking=no",
-            "-o",
-            "UserKnownHostsFile=/dev/null",
-            "-o",
-            "ConnectTimeout=10",
-            f"{username}@{idrac_fqdn}",
-            "racadm",
-            "jobqueue",
-            "delete",
-            "--all",
-        ]
+        cmd = _build_ssh_racadm_cmd(hostname, "jobqueue", "delete", "--all")
 
         # Run command and wait for completion (prevents zombie processes)
         subprocess.run(  # nosec # nosemgrep
@@ -1363,25 +1297,7 @@ def api_power_status():
                 400,
             )
 
-        idrac_fqdn = build_idrac_hostname(hostname)
-        username, password = get_idrac_credentials(hostname)
-
-        cmd = [
-            "sshpass",
-            "-p",
-            password,
-            "ssh",
-            "-o",
-            "StrictHostKeyChecking=no",
-            "-o",
-            "UserKnownHostsFile=/dev/null",
-            "-o",
-            "ConnectTimeout=10",
-            f"{username}@{idrac_fqdn}",
-            "racadm",
-            "serveraction",
-            "powerstatus",
-        ]
+        cmd = _build_ssh_racadm_cmd(hostname, "serveraction", "powerstatus")
 
         result = subprocess.run(  # nosec # nosemgrep
             cmd, capture_output=True, text=True, timeout=15  # nosemgrep
@@ -1462,25 +1378,7 @@ def api_power_action():
                 400,
             )
 
-        idrac_fqdn = build_idrac_hostname(hostname)
-        username, password = get_idrac_credentials(hostname)
-
-        cmd = [
-            "sshpass",
-            "-p",
-            password,
-            "ssh",
-            "-o",
-            "StrictHostKeyChecking=no",
-            "-o",
-            "UserKnownHostsFile=/dev/null",
-            "-o",
-            "ConnectTimeout=10",
-            f"{username}@{idrac_fqdn}",
-            "racadm",
-            "serveraction",
-            action,
-        ]
+        cmd = _build_ssh_racadm_cmd(hostname, "serveraction", action)
 
         result = subprocess.run(  # nosec # nosemgrep
             cmd, capture_output=True, text=True, timeout=30  # nosemgrep
