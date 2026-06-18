@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v2.3.15 (2026-06-18)
+
+### Bug Fixes
+
+- Allow for role-less users
+  ([`e6bda26`](https://github.com/kambiz-aghaiepour/dracs/commit/e6bda2669a2378bda6d60a51ec580ad8b1f4df24))
+
+- Black formatting
+  ([`21c3b46`](https://github.com/kambiz-aghaiepour/dracs/commit/21c3b46a0975cef38659b22b541fa10468ae201b))
+
+### Chores
+
+- Sync spec file version to 2.3.14 [skip ci]
+  ([`a41b119`](https://github.com/kambiz-aghaiepour/dracs/commit/a41b119ec0cffbeecdff4841bd0c80401386f546))
+
+
 ## v2.3.14 (2026-06-18)
 
 ### Bug Fixes
