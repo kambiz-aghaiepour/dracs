@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.3.17 (2026-06-18)
+
+### Bug Fixes
+
+- Use dracs.png to make pypi reference render
+  ([`74f62c8`](https://github.com/kambiz-aghaiepour/dracs/commit/74f62c89e4d04be10f4a6edce39026c683cc2402))
+
+### Chores
+
+- Sync spec file version to 2.3.16 [skip ci]
+  ([`84133ce`](https://github.com/kambiz-aghaiepour/dracs/commit/84133ce3db1187c4f2372338ef3100200305828c))
+
+
 ## v2.3.16 (2026-06-18)
 
 ### Bug Fixes
