@@ -140,6 +140,13 @@ VNC_CONSOLE_WIDTH, VNC_CONSOLE_HEIGHT = _parse_console_size(
     os.environ.get("VNC_CONSOLE_SIZE", "800x600")
 )
 
+# QUADS integration
+QUADS_ENABLE = os.environ.get("QUADS", "false").lower() in ("true", "1", "yes")
+QUADS_URL = os.environ.get("QUADS_URL", "").rstrip("/")
+
+_QUADS_CACHE_TTL = 86400
+_quads_host_cache: dict = {}
+
 vnc_manager = None
 if VNC_ENABLE:
     from dracs.vnc import get_token_dir
@@ -168,6 +175,57 @@ def _refresh_bearer_token():
 
 def _client_ip() -> str:
     return request.remote_addr or ""
+
+
+def _quads_cache_get(username: str):
+    entry = _quads_host_cache.get(username)
+    if entry is None:
+        return None
+    hosts, ts = entry
+    if time.time() - ts > _QUADS_CACHE_TTL:
+        _quads_host_cache.pop(username, None)
+        return None
+    return hosts
+
+
+def _quads_cache_set(username: str, hosts) -> None:
+    _quads_host_cache[username] = (frozenset(hosts), time.time())
+
+
+def _quads_cache_invalidate(username: str) -> None:
+    _quads_host_cache.pop(username, None)
+
+
+def _fetch_quads_hosts(username: str):
+    if not QUADS_ENABLE or not QUADS_URL:
+        return None
+    url = f"{QUADS_URL}/api/v3/schedules/current"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "dracs-webapp/1.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:  # nosec
+            schedules = json.loads(resp.read().decode())
+    except Exception:
+        return None
+    return frozenset(
+        s["host"]["name"]
+        for s in schedules
+        if s.get("assignment")
+        and s.get("host")
+        and (
+            s["assignment"].get("owner") == username
+            or username in (s["assignment"].get("ccuser") or [])
+        )
+    )
+
+
+def _get_quads_hosts_for_user(username: str):
+    cached = _quads_cache_get(username)
+    if cached is not None:
+        return cached
+    hosts = _fetch_quads_hosts(username)
+    if hosts is not None:
+        _quads_cache_set(username, hosts)
+    return hosts
 
 
 def _require_auth(required_role=None, site_id=None):
@@ -537,6 +595,21 @@ def index():
         else:
             user_role = site_role
 
+    is_quads_user = False
+    quads_empty = False
+    if QUADS_ENABLE and is_authenticated and not is_superadmin:
+        from dracs.users import get_user_site_roles
+
+        if not get_user_site_roles(username):
+            allowed = _get_quads_hosts_for_user(username)
+            if allowed is not None:
+                is_quads_user = True
+                if not allowed:
+                    systems_data = []
+                    quads_empty = True
+                else:
+                    systems_data = [s for s in systems_data if s["name"] in allowed]
+
     all_sites = [s["name"] for s in list_sites()]
 
     return render_template(
@@ -560,6 +633,8 @@ def index():
         vnc_enabled=VNC_ENABLE,
         vnc_console_width=VNC_CONSOLE_WIDTH,
         vnc_console_height=VNC_CONSOLE_HEIGHT,
+        is_quads_user=is_quads_user,
+        quads_empty=quads_empty,
     )
 
 
@@ -569,6 +644,16 @@ def api_systems():
     site_id, _ = _get_requested_site()
     systems = get_all_systems(site_id=site_id)
     systems_data = [system_to_dict(s) for s in systems]
+    is_authenticated = session.get("authenticated", False)
+    username = session.get("username")
+    is_superadmin = session.get("is_superadmin", False)
+    if QUADS_ENABLE and is_authenticated and not is_superadmin:
+        from dracs.users import get_user_site_roles
+
+        if not get_user_site_roles(username):
+            allowed = _get_quads_hosts_for_user(username)
+            if allowed is not None:
+                systems_data = [s for s in systems_data if s["name"] in allowed]
     return jsonify(systems_data)
 
 
@@ -700,7 +785,9 @@ def login():
 @app.route("/logout", methods=["POST"])
 def logout():
     """Handle logout request."""
-    audit_log("logout", user=session.get("username", ""), source=_client_ip())
+    username = session.get("username", "")
+    _quads_cache_invalidate(username)
+    audit_log("logout", user=username, source=_client_ip())
     session.clear()
     return jsonify({"success": True, "message": "Logged out successfully"})
 

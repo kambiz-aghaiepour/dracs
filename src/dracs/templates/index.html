@@ -344,6 +344,13 @@
             font-size: 16px;
         }
 
+        .quads-empty-message {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+            font-size: 16px;
+        }
+
         /* Pagination controls */
         .pagination-container {
             display: flex;
@@ -1573,7 +1580,7 @@
             <div class="action-panel">
                 <div class="panel-header diagnostics">Diagnostics</div>
                 <div class="panel-body">
-                    <button id="console-btn" class="panel-btn btn-teal{% if role_level < 1 or not vnc_enabled %} role-disabled{% endif %}" data-min-role="user" disabled onclick="handleConsoleClick()">Console</button>
+                    <button id="console-btn" class="panel-btn btn-teal{% if (role_level < 1 and not is_quads_user) or not vnc_enabled %} role-disabled{% endif %}" data-min-role="user" disabled onclick="handleConsoleClick()">Console</button>
                     <button id="generate-tsr-btn" class="panel-btn btn-blue{% if role_level < 1 %} role-disabled{% endif %}" data-min-role="user" disabled onclick="handleGenerateTsrClick()">Generate TSR</button>
                     <button id="view-tsr-btn" class="panel-btn btn-blue" data-min-role="none" disabled onclick="handleViewTsrClick()">View TSRs</button>
                 </div>
@@ -1738,6 +1745,11 @@
             <div id="no-results" class="no-results" style="display: none;">
                 No systems match your filters
             </div>
+            {% if quads_empty %}
+            <div class="quads-empty-message">
+                No hosts are currently assigned to you in QUADS.
+            </div>
+            {% endif %}
         </div>
 
         <!-- Pagination Controls -->

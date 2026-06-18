@@ -37,6 +37,8 @@ OPTIONAL_ENV_DEFAULTS = {
     "VNC_WEBSOCKIFY_PORT": "6080",
     "VNC_CONSOLE_SIZE": "800x600",
     "DRACS_TOKEN_EXPIRY": "36000",
+    "QUADS": "false",
+    "QUADS_URL": "",
 }
 
 
