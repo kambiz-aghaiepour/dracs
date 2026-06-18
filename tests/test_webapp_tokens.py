@@ -7,9 +7,9 @@ from unittest.mock import patch
 
 import pytest
 
-from dracs.db import db_initialize, upsert_system
+from dracs.db import db_initialize, get_default_site_id, upsert_system
 from dracs.tokens import generate_token
-from dracs.users import create_user
+from dracs.users import create_user, set_user_site_role
 
 
 @pytest.fixture
@@ -137,6 +137,10 @@ class TestTokenLogout:
 class TestBearerAuth:
     def test_bearer_token_works_for_protected_endpoint(self, client, webapp_db):
         create_user("jsmith", "secret", "admin")
+        try:
+            set_user_site_role("jsmith", get_default_site_id(), "admin")
+        except RuntimeError:
+            pass
         login_resp = client.post(
             "/api/token-login",
             data=json.dumps({"username": "jsmith", "password": "secret"}),
