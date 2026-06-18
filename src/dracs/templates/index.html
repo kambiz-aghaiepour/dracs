@@ -2419,7 +2419,7 @@
                 const response = await fetch('/api/users', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({username, password, role})
+                    body: JSON.stringify({username, password, role, site_roles: []})
                 });
                 const data = await response.json();
                 showNotification(data.message, data.success ? 'success' : 'error');
