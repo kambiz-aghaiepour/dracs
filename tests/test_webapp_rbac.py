@@ -7,8 +7,8 @@ from unittest.mock import patch
 
 import pytest
 
-from dracs.db import db_initialize, upsert_system
-from dracs.users import create_user
+from dracs.db import db_initialize, get_default_site_id, upsert_system
+from dracs.users import create_user, remove_user_site_role
 
 
 @pytest.fixture
@@ -428,3 +428,19 @@ class TestIndexRoleContext:
         resp = client.get("/")
         assert resp.status_code == 200
         assert b"admin" in resp.data
+
+    def test_index_shows_authenticated_for_no_site_role_user(self, client, webapp_db):
+        create_user("norole", "testpass", "user")
+        site_id = get_default_site_id()
+        if site_id is not None:
+            remove_user_site_role("norole", site_id)
+        client.post(
+            "/login",
+            data=json.dumps({"username": "norole", "password": "testpass"}),
+            content_type="application/json",
+        )
+        resp = client.get("/")
+        assert resp.status_code == 200
+        assert b"Logged in as" in resp.data
+        assert b"norole" in resp.data
+        assert b"handleLogout" in resp.data

@@ -534,7 +534,6 @@ def index():
         site_role = get_user_role_for_site(username, site_id)
         if site_role is None:
             user_role = None
-            is_authenticated = False
         else:
             user_role = site_role
 
