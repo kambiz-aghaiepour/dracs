@@ -76,7 +76,9 @@ class TestUserAdd:
 
     def test_add_user_no_primary_site(self, run_cli, user_cli_db, capsys):
         with patch("dracs.cli.getpass.getpass", side_effect=["secret", "secret"]):
-            with patch("dracs.db.get_default_site_id", side_effect=RuntimeError("no site")):
+            with patch(
+                "dracs.db.get_default_site_id", side_effect=RuntimeError("no site")
+            ):
                 run_cli("user", "--add", "--username", "nositeuser", "--role", "user")
         captured = capsys.readouterr()
         assert "created" in captured.out.lower()
