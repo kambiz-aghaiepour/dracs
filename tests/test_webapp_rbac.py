@@ -8,7 +8,12 @@ from unittest.mock import patch
 import pytest
 
 from dracs.db import db_initialize, get_default_site_id, upsert_system
-from dracs.users import create_user, get_user_site_roles, remove_user_site_role, set_user_site_role
+from dracs.users import (
+    create_user,
+    get_user_site_roles,
+    remove_user_site_role,
+    set_user_site_role,
+)
 
 
 @pytest.fixture
