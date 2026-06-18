@@ -10,7 +10,7 @@
 [![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
-<img src="image/dracs.svg" alt="DRACS" width="128" height="128" />
+<img src="https://raw.githubusercontent.com/kambiz-aghaiepour/dracs/main/image/dracs.png" alt="DRACS" width="128" height="128" />
 
 Simple, portable, self-contained dynamic CLI inventory tool for managing Dell bare-metal systems inventory, warranty and lifecycle.
 
