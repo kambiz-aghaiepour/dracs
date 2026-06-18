@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.3.19 (2026-06-18)
+
+### Bug Fixes
+
+- Need to allow for role-less users
+  ([`9369454`](https://github.com/kambiz-aghaiepour/dracs/commit/9369454bb7d11cd8d9f5017cb01358abee270f6a))
+
+### Chores
+
+- Sync spec file version to 2.3.18 [skip ci]
+  ([`4841f64`](https://github.com/kambiz-aghaiepour/dracs/commit/4841f64f7535a35f36248f464ba1608ee647282b))
+
+
 ## v2.3.18 (2026-06-18)
 
 ### Bug Fixes
