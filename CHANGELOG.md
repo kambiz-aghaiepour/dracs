@@ -2,6 +2,28 @@
 
 <!-- version list -->
 
+## v2.3.18 (2026-06-18)
+
+### Bug Fixes
+
+- Black
+  ([`367cdc2`](https://github.com/kambiz-aghaiepour/dracs/commit/367cdc2f9902e8ea9dd1072248a9cd97769f8d55))
+
+- Black
+  ([`5cc75f2`](https://github.com/kambiz-aghaiepour/dracs/commit/5cc75f25644e744fa79c6551273c077890c23b3b))
+
+- Codecov patch fell short
+  ([`d175fe9`](https://github.com/kambiz-aghaiepour/dracs/commit/d175fe93aca53c6cee0683057f1b9f40c4bb6030))
+
+- Role-less user management
+  ([`78fd116`](https://github.com/kambiz-aghaiepour/dracs/commit/78fd11694285dc531a55f6ce1d766f06aceb4bf6))
+
+### Chores
+
+- Sync spec file version to 2.3.17 [skip ci]
+  ([`41290ee`](https://github.com/kambiz-aghaiepour/dracs/commit/41290eeef6df92345e0abcf86a4281d8f7cccdb2))
+
+
 ## v2.3.17 (2026-06-18)
 
 ### Bug Fixes
