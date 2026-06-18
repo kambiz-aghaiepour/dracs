@@ -2381,10 +2381,16 @@ def api_users_create():
         except ValidationError as ve:
             return jsonify({"success": False, "message": str(ve)}), 400
 
-        site_roles = data.get("site_roles", [])
-        if site_roles:
-            from dracs.users import set_user_site_role
+        site_roles = data.get("site_roles")
+        if site_roles is not None:
+            from dracs.users import (
+                get_user_site_roles,
+                remove_user_site_role,
+                set_user_site_role,
+            )
 
+            for r in get_user_site_roles(username):
+                remove_user_site_role(username, r["site_id"])
             for sr in site_roles:
                 try:
                     set_user_site_role(username, sr["site_id"], sr["role"])
