@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v2.4.0 (2026-06-18)
+
+### Chores
+
+- Sync spec file version to 2.3.19 [skip ci]
+  ([`718ae67`](https://github.com/kambiz-aghaiepour/dracs/commit/718ae67aeac0cbece6eca43e59ffc1bb844eabb4))
+
+### Features
+
+- Add quads support for non-role users
+  ([`b303d27`](https://github.com/kambiz-aghaiepour/dracs/commit/b303d27e84c103e9630cadc8506943a2d8dec9e2))
+
+- Quads filtering
+  ([`886cdcf`](https://github.com/kambiz-aghaiepour/dracs/commit/886cdcfa616f746cc20c45586a267613434aede2))
+
+
 ## v2.3.19 (2026-06-18)
 
 ### Bug Fixes
