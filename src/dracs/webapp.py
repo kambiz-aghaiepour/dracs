@@ -2383,7 +2383,11 @@ def api_users_create():
 
         site_roles = data.get("site_roles")
         if site_roles is not None:
-            from dracs.users import get_user_site_roles, remove_user_site_role, set_user_site_role
+            from dracs.users import (
+                get_user_site_roles,
+                remove_user_site_role,
+                set_user_site_role,
+            )
 
             for r in get_user_site_roles(username):
                 remove_user_site_role(username, r["site_id"])

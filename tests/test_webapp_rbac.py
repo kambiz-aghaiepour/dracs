@@ -447,11 +447,20 @@ class TestIndexRoleContext:
 
 
 class TestUserCreationSiteRoles:
-    def test_create_with_empty_site_roles_produces_no_site_roles(self, client, webapp_db):
+    def test_create_with_empty_site_roles_produces_no_site_roles(
+        self, client, webapp_db
+    ):
         _login_admin(client)
         resp = client.post(
             "/api/users",
-            data=json.dumps({"username": "ghostuser", "password": "pass123", "role": "user", "site_roles": []}),
+            data=json.dumps(
+                {
+                    "username": "ghostuser",
+                    "password": "pass123",
+                    "role": "user",
+                    "site_roles": [],
+                }
+            ),
             content_type="application/json",
         )
         assert resp.get_json()["success"] is True
@@ -461,7 +470,9 @@ class TestUserCreationSiteRoles:
         _login_admin(client)
         resp = client.post(
             "/api/users",
-            data=json.dumps({"username": "defaultuser", "password": "pass123", "role": "user"}),
+            data=json.dumps(
+                {"username": "defaultuser", "password": "pass123", "role": "user"}
+            ),
             content_type="application/json",
         )
         assert resp.get_json()["success"] is True
