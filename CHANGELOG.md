@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v2.3.14 (2026-06-18)
+
+### Bug Fixes
+
+- Display bug for users without roles
+  ([`beb3e8f`](https://github.com/kambiz-aghaiepour/dracs/commit/beb3e8fea3e943a9ea203024be6832286c29f11b))
+
+- Minor codecov issue
+  ([`17acb1d`](https://github.com/kambiz-aghaiepour/dracs/commit/17acb1d4caa633e6cca5600b869edf49b8ffad79))
+
+### Chores
+
+- Sync spec file version to 2.3.13 [skip ci]
+  ([`fa9bc09`](https://github.com/kambiz-aghaiepour/dracs/commit/fa9bc0924aab071d5dd811eff4da22858b40803a))
+
+
 ## v2.3.13 (2026-05-26)
 
 ### Bug Fixes
