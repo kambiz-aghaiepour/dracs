@@ -490,3 +490,16 @@ class TestUserCreationSiteRoles:
         )
         assert resp.get_json()["success"] is True
         assert get_user_site_roles("defaultuser") != []
+
+    def test_create_without_site_roles_key_no_primary_site(self, client, webapp_db):
+        _login_admin(client)
+        with patch("dracs.db.get_default_site_id", side_effect=RuntimeError("no site")):
+            resp = client.post(
+                "/api/users",
+                data=json.dumps(
+                    {"username": "nosituser", "password": "pass123", "role": "user"}
+                ),
+                content_type="application/json",
+            )
+        assert resp.get_json()["success"] is True
+        assert get_user_site_roles("nosituser") == []
