@@ -102,7 +102,7 @@ class TestGrandfatherSites:
             )
             assert system.site_id == default_id
 
-    def test_existing_users_get_site_roles(self, temp_db):
+    def test_reinitialize_does_not_assign_site_roles(self, temp_db):
         db_initialize(temp_db)
 
         create_user("testuser", "password123", role="admin")
@@ -124,17 +124,19 @@ class TestGrandfatherSites:
                 )
                 .first()
             )
-            assert role is not None
-            assert role.role == "admin"
+            assert role is None
 
-    def test_user_site_role_not_duplicated(self, temp_db):
+    def test_explicit_site_role_not_duplicated_on_reinitialize(self, temp_db):
+        from dracs.users import set_user_site_role
+
         db_initialize(temp_db)
 
         create_user("testuser", "password123", role="user")
+        default_id = get_default_site_id()
+        set_user_site_role("testuser", default_id, "user")
         db_initialize(temp_db)
         db_initialize(temp_db)
 
-        default_id = get_default_site_id()
         with get_session() as session:
             from dracs.db import User
 
