@@ -175,24 +175,6 @@ def _grandfather_sites(engine) -> None:
             {"sid": default_id},
         )
 
-        users = conn.execute(text("SELECT id, role FROM users")).fetchall()
-        for user_id, role in users:
-            existing = conn.execute(
-                text(
-                    "SELECT id FROM user_site_roles "
-                    "WHERE user_id = :uid AND site_id = :sid"
-                ),
-                {"uid": user_id, "sid": default_id},
-            ).fetchone()
-            if existing is None:
-                conn.execute(
-                    text(
-                        "INSERT INTO user_site_roles (user_id, site_id, role) "
-                        "VALUES (:uid, :sid, :role)"
-                    ),
-                    {"uid": user_id, "sid": default_id, "role": role},
-                )
-
 
 def db_initialize(db_url: str) -> None:
     global _engine, _SessionFactory

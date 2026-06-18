@@ -173,3 +173,37 @@ class TestDbInitializeNonSqlite:
         with get_session() as session:
             count = session.query(System).count()
             assert count == 0
+
+
+class TestGrandfatherIdempotency:
+    def test_reinitialize_does_not_re_add_removed_site_role(self, temp_db):
+        from dracs.db import get_default_site_id
+        from dracs.users import (
+            create_user,
+            get_user_site_roles,
+            set_user_site_role,
+            remove_user_site_role,
+        )
+
+        db_initialize(temp_db)
+        create_user("norole", "pass", "user")
+        site_id = get_default_site_id()
+        remove_user_site_role("norole", site_id)
+        assert get_user_site_roles("norole") == []
+
+        # Simulate webapp restart
+        db_initialize(temp_db)
+        assert get_user_site_roles("norole") == []
+
+    def test_reinitialize_preserves_existing_site_roles(self, temp_db):
+        from dracs.db import get_default_site_id
+        from dracs.users import create_user, get_user_site_roles, set_user_site_role
+
+        db_initialize(temp_db)
+        create_user("withrole", "pass", "user")
+        set_user_site_role("withrole", get_default_site_id(), "user")
+
+        db_initialize(temp_db)
+        roles = get_user_site_roles("withrole")
+        assert len(roles) == 1
+        assert roles[0]["role"] == "user"
