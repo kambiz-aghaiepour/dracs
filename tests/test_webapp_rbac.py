@@ -8,7 +8,12 @@ from unittest.mock import patch
 import pytest
 
 from dracs.db import db_initialize, get_default_site_id, upsert_system
-from dracs.users import create_user, get_user_site_roles, remove_user_site_role
+from dracs.users import (
+    create_user,
+    get_user_site_roles,
+    remove_user_site_role,
+    set_user_site_role,
+)
 
 
 @pytest.fixture
@@ -54,6 +59,10 @@ def _login_admin(client):
 
 def _login_user(client, webapp_db):
     create_user("testuser", "testpass", "user")
+    try:
+        set_user_site_role("testuser", get_default_site_id(), "user")
+    except RuntimeError:
+        pass
     client.post(
         "/login",
         data=json.dumps({"username": "testuser", "password": "testpass"}),
@@ -358,6 +367,10 @@ class TestUserManagementAPI:
 
     def test_delete_superadmin_via_validation(self, client, webapp_db):
         create_user("otheradmin", "pass", "admin")
+        try:
+            set_user_site_role("otheradmin", get_default_site_id(), "admin")
+        except RuntimeError:
+            pass
         client.post(
             "/login",
             data=json.dumps({"username": "otheradmin", "password": "pass"}),
@@ -477,3 +490,16 @@ class TestUserCreationSiteRoles:
         )
         assert resp.get_json()["success"] is True
         assert get_user_site_roles("defaultuser") != []
+
+    def test_create_without_site_roles_key_no_primary_site(self, client, webapp_db):
+        _login_admin(client)
+        with patch("dracs.db.get_default_site_id", side_effect=RuntimeError("no site")):
+            resp = client.post(
+                "/api/users",
+                data=json.dumps(
+                    {"username": "nosituser", "password": "pass123", "role": "user"}
+                ),
+                content_type="application/json",
+            )
+        assert resp.get_json()["success"] is True
+        assert get_user_site_roles("nosituser") == []

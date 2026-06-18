@@ -705,6 +705,13 @@ async def main() -> None:
             _create_user(
                 args.username, password, args.role, created_by=getpass.getuser()
             )
+            from dracs.db import get_default_site_id
+            from dracs.users import set_user_site_role as _set_site_role
+
+            try:
+                _set_site_role(args.username, get_default_site_id(), args.role)
+            except RuntimeError:
+                pass
             print(f"User '{args.username}' created with role '{args.role}'.")
             audit_log(
                 "user_create",

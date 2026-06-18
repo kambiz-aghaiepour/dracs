@@ -56,15 +56,6 @@ def create_user(
             created_by=created_by,
         )
         session.add(user)
-        session.flush()
-
-        default_site = (
-            session.query(Site).filter(Site.is_primary == True).first()  # noqa: E712
-        )
-        if default_site:
-            mapping = UserSiteRole(user_id=user.id, site_id=default_site.id, role=role)
-            session.add(mapping)
-
         session.commit()
         session.refresh(user)
         return user
