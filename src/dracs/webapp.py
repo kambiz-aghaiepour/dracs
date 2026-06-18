@@ -178,8 +178,6 @@ def _client_ip() -> str:
 
 
 def _quads_cache_get(username: str):
-    import time
-
     entry = _quads_host_cache.get(username)
     if entry is None:
         return None
@@ -191,8 +189,6 @@ def _quads_cache_get(username: str):
 
 
 def _quads_cache_set(username: str, hosts) -> None:
-    import time
-
     _quads_host_cache[username] = (frozenset(hosts), time.time())
 
 
