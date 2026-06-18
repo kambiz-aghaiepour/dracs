@@ -8,7 +8,7 @@ from unittest.mock import patch
 import pytest
 
 from dracs.db import db_initialize, get_default_site_id, upsert_system
-from dracs.users import create_user, remove_user_site_role
+from dracs.users import create_user, get_user_site_roles, remove_user_site_role
 
 
 @pytest.fixture
@@ -444,3 +444,25 @@ class TestIndexRoleContext:
         assert b"Logged in as" in resp.data
         assert b"norole" in resp.data
         assert b"handleLogout" in resp.data
+
+
+class TestUserCreationSiteRoles:
+    def test_create_with_empty_site_roles_produces_no_site_roles(self, client, webapp_db):
+        _login_admin(client)
+        resp = client.post(
+            "/api/users",
+            data=json.dumps({"username": "ghostuser", "password": "pass123", "role": "user", "site_roles": []}),
+            content_type="application/json",
+        )
+        assert resp.get_json()["success"] is True
+        assert get_user_site_roles("ghostuser") == []
+
+    def test_create_without_site_roles_key_keeps_default(self, client, webapp_db):
+        _login_admin(client)
+        resp = client.post(
+            "/api/users",
+            data=json.dumps({"username": "defaultuser", "password": "pass123", "role": "user"}),
+            content_type="application/json",
+        )
+        assert resp.get_json()["success"] is True
+        assert get_user_site_roles("defaultuser") != []
