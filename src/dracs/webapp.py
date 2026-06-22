@@ -600,13 +600,19 @@ def index():
         from dracs.users import get_user_role_for_site
 
         site_cfg = get_site_ini_config(site_name)
-        site_quads_enabled = site_cfg["defaults"].get("quads_enabled", "false").lower() in (
+        site_quads_enabled = site_cfg["defaults"].get(
+            "quads_enabled", "false"
+        ).lower() in (
             "true",
             "1",
             "yes",
         )
         site_quads_url = site_cfg["defaults"].get("quads_url", "").rstrip("/")
-        if site_quads_enabled and site_quads_url and get_user_role_for_site(username, site_id) is None:
+        if (
+            site_quads_enabled
+            and site_quads_url
+            and get_user_role_for_site(username, site_id) is None
+        ):
             allowed = _get_quads_hosts_for_user(username, site_id, site_quads_url)
             if allowed is not None:
                 is_quads_user = True
@@ -658,13 +664,19 @@ def api_systems():
         from dracs.users import get_user_role_for_site
 
         site_cfg = get_site_ini_config(site_name)
-        site_quads_enabled = site_cfg["defaults"].get("quads_enabled", "false").lower() in (
+        site_quads_enabled = site_cfg["defaults"].get(
+            "quads_enabled", "false"
+        ).lower() in (
             "true",
             "1",
             "yes",
         )
         site_quads_url = site_cfg["defaults"].get("quads_url", "").rstrip("/")
-        if site_quads_enabled and site_quads_url and get_user_role_for_site(username, site_id) is None:
+        if (
+            site_quads_enabled
+            and site_quads_url
+            and get_user_role_for_site(username, site_id) is None
+        ):
             allowed = _get_quads_hosts_for_user(username, site_id, site_quads_url)
             if allowed is not None:
                 systems_data = [s for s in systems_data if s["name"] in allowed]

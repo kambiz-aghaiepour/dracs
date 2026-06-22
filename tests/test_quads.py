@@ -600,7 +600,9 @@ class TestQuadsVerifyEndpoint:
         return mock_resp
 
     def test_verify_success(self, quads_client, quads_webapp_db):
-        with patch.dict(os.environ, {"WEBADMIN_USER": "admin", "WEBADMIN_PASSWORD": "admin"}):
+        with patch.dict(
+            os.environ, {"WEBADMIN_USER": "admin", "WEBADMIN_PASSWORD": "admin"}
+        ):
             _superadmin_login(quads_client)
         with patch("urllib.request.urlopen", return_value=self._make_ok_resp()):
             resp = quads_client.post(
@@ -613,7 +615,9 @@ class TestQuadsVerifyEndpoint:
         assert data["success"] is True
 
     def test_verify_unreachable(self, quads_client, quads_webapp_db):
-        with patch.dict(os.environ, {"WEBADMIN_USER": "admin", "WEBADMIN_PASSWORD": "admin"}):
+        with patch.dict(
+            os.environ, {"WEBADMIN_USER": "admin", "WEBADMIN_PASSWORD": "admin"}
+        ):
             _superadmin_login(quads_client)
         with patch("urllib.request.urlopen", side_effect=OSError("refused")):
             resp = quads_client.post(
@@ -627,7 +631,9 @@ class TestQuadsVerifyEndpoint:
         assert "QUADS unreachable" in data["message"]
 
     def test_verify_empty_url(self, quads_client, quads_webapp_db):
-        with patch.dict(os.environ, {"WEBADMIN_USER": "admin", "WEBADMIN_PASSWORD": "admin"}):
+        with patch.dict(
+            os.environ, {"WEBADMIN_USER": "admin", "WEBADMIN_PASSWORD": "admin"}
+        ):
             _superadmin_login(quads_client)
         resp = quads_client.post(
             "/api/sites/Default/quads-verify",
