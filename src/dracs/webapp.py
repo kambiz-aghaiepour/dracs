@@ -140,10 +140,7 @@ VNC_CONSOLE_WIDTH, VNC_CONSOLE_HEIGHT = _parse_console_size(
     os.environ.get("VNC_CONSOLE_SIZE", "800x600")
 )
 
-# QUADS integration
-QUADS_ENABLE = os.environ.get("QUADS", "false").lower() in ("true", "1", "yes")
-QUADS_URL = os.environ.get("QUADS_URL", "").rstrip("/")
-
+# QUADS integration — configured per-site via Manage Site UI
 _QUADS_CACHE_TTL = 86400
 _quads_host_cache: dict = {}
 
@@ -177,29 +174,30 @@ def _client_ip() -> str:
     return request.remote_addr or ""
 
 
-def _quads_cache_get(username: str):
-    entry = _quads_host_cache.get(username)
+def _quads_cache_get(username: str, site_id):
+    entry = _quads_host_cache.get((username, site_id))
     if entry is None:
         return None
     hosts, ts = entry
     if time.time() - ts > _QUADS_CACHE_TTL:
-        _quads_host_cache.pop(username, None)
+        _quads_host_cache.pop((username, site_id), None)
         return None
     return hosts
 
 
-def _quads_cache_set(username: str, hosts) -> None:
-    _quads_host_cache[username] = (frozenset(hosts), time.time())
+def _quads_cache_set(username: str, site_id, hosts) -> None:
+    _quads_host_cache[(username, site_id)] = (frozenset(hosts), time.time())
 
 
 def _quads_cache_invalidate(username: str) -> None:
-    _quads_host_cache.pop(username, None)
+    for key in [k for k in _quads_host_cache if k[0] == username]:
+        _quads_host_cache.pop(key, None)
 
 
-def _fetch_quads_hosts(username: str):
-    if not QUADS_ENABLE or not QUADS_URL:
+def _fetch_quads_hosts(username: str, quads_url: str):
+    if not quads_url:
         return None
-    url = f"{QUADS_URL}/api/v3/schedules/current"
+    url = f"{quads_url}/api/v3/schedules/current"
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "dracs-webapp/1.0"})
         with urllib.request.urlopen(req, timeout=10) as resp:  # nosec
@@ -218,13 +216,13 @@ def _fetch_quads_hosts(username: str):
     )
 
 
-def _get_quads_hosts_for_user(username: str):
-    cached = _quads_cache_get(username)
+def _get_quads_hosts_for_user(username: str, site_id, quads_url: str):
+    cached = _quads_cache_get(username, site_id)
     if cached is not None:
         return cached
-    hosts = _fetch_quads_hosts(username)
+    hosts = _fetch_quads_hosts(username, quads_url)
     if hosts is not None:
-        _quads_cache_set(username, hosts)
+        _quads_cache_set(username, site_id, hosts)
     return hosts
 
 
@@ -597,11 +595,25 @@ def index():
 
     is_quads_user = False
     quads_empty = False
-    if QUADS_ENABLE and is_authenticated and not is_superadmin:
-        from dracs.users import get_user_site_roles
+    if is_authenticated and not is_superadmin:
+        from dracs.sites import get_site_ini_config
+        from dracs.users import get_user_role_for_site
 
-        if not get_user_site_roles(username):
-            allowed = _get_quads_hosts_for_user(username)
+        site_cfg = get_site_ini_config(site_name)
+        site_quads_enabled = site_cfg["defaults"].get(
+            "quads_enabled", "false"
+        ).lower() in (
+            "true",
+            "1",
+            "yes",
+        )
+        site_quads_url = site_cfg["defaults"].get("quads_url", "").rstrip("/")
+        if (
+            site_quads_enabled
+            and site_quads_url
+            and get_user_role_for_site(username, site_id) is None
+        ):
+            allowed = _get_quads_hosts_for_user(username, site_id, site_quads_url)
             if allowed is not None:
                 is_quads_user = True
                 if not allowed:
@@ -641,17 +653,31 @@ def index():
 @app.route("/api/systems")
 def api_systems():
     """JSON API endpoint to get all systems."""
-    site_id, _ = _get_requested_site()
+    site_id, site_name = _get_requested_site()
     systems = get_all_systems(site_id=site_id)
     systems_data = [system_to_dict(s) for s in systems]
     is_authenticated = session.get("authenticated", False)
     username = session.get("username")
     is_superadmin = session.get("is_superadmin", False)
-    if QUADS_ENABLE and is_authenticated and not is_superadmin:
-        from dracs.users import get_user_site_roles
+    if is_authenticated and not is_superadmin:
+        from dracs.sites import get_site_ini_config
+        from dracs.users import get_user_role_for_site
 
-        if not get_user_site_roles(username):
-            allowed = _get_quads_hosts_for_user(username)
+        site_cfg = get_site_ini_config(site_name)
+        site_quads_enabled = site_cfg["defaults"].get(
+            "quads_enabled", "false"
+        ).lower() in (
+            "true",
+            "1",
+            "yes",
+        )
+        site_quads_url = site_cfg["defaults"].get("quads_url", "").rstrip("/")
+        if (
+            site_quads_enabled
+            and site_quads_url
+            and get_user_role_for_site(username, site_id) is None
+        ):
+            allowed = _get_quads_hosts_for_user(username, site_id, site_quads_url)
             if allowed is not None:
                 systems_data = [s for s in systems_data if s["name"] in allowed]
     return jsonify(systems_data)
@@ -3060,6 +3086,28 @@ def api_sites_config_set(name):
         )
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route("/api/sites/<name>/quads-verify", methods=["POST"])
+def api_sites_quads_verify(name):
+    """Test QUADS API connectivity (superadmin only)."""
+    _, err = _require_auth(required_role="admin")
+    if err:
+        return err
+    if not session.get("is_superadmin", False):
+        return jsonify({"success": False, "message": "Superadmin required"}), 403
+    data = request.get_json(silent=True) or {}
+    quads_url = data.get("quads_url", "").rstrip("/")
+    if not quads_url:
+        return jsonify({"success": False, "message": "No QUADS URL provided"}), 400
+    url = f"{quads_url}/api/v3/schedules/current"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "dracs-webapp/1.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:  # nosec
+            resp.read()
+        return jsonify({"success": True, "message": "QUADS endpoint reachable"})
+    except Exception as e:
+        return jsonify({"success": False, "message": f"QUADS unreachable: {e}"})
 
 
 @app.route("/api/vnc-session", methods=["POST"])
