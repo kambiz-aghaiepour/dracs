@@ -2948,9 +2948,16 @@
             if (selectedSystems.length === 0) return;
 
             const refreshBtn = document.getElementById('refresh-btn');
-            const originalText = refreshBtn.textContent;
+            const originalHTML = refreshBtn.innerHTML;
             refreshBtn.disabled = true;
             refreshBtn.textContent = `Refreshing ${selectedSystems.length} system(s)...`;
+
+            function restoreRefreshBtn() {
+                refreshBtn.innerHTML = originalHTML;
+                const countEl = document.getElementById('selected-count');
+                if (countEl) countEl.textContent = selectedSystems.length;
+                refreshBtn.disabled = selectedSystems.length === 0;
+            }
 
             try {
                 const response = await fetch(apiUrl('/api/refresh-multiple'), {
@@ -2969,8 +2976,7 @@
                     const text = await response.text();
                     console.error('Non-JSON response:', text);
                     showNotification('Server error: Expected JSON response', 'error');
-                    refreshBtn.disabled = false;
-                    refreshBtn.textContent = originalText;
+                    restoreRefreshBtn();
                     return;
                 }
 
@@ -2983,19 +2989,16 @@
                         console.log('DRACS: Manual refresh triggered table reload');
                         refreshTableData();
                         // Re-enable button after table refresh
-                        refreshBtn.disabled = selectedSystems.length === 0;
-                        refreshBtn.textContent = originalText;
+                        restoreRefreshBtn();
                     }, 1000);
                 } else {
                     showNotification(data.message, 'error');
-                    refreshBtn.disabled = selectedSystems.length === 0;
-                    refreshBtn.textContent = originalText;
+                    restoreRefreshBtn();
                 }
             } catch (error) {
                 console.error('Refresh error:', error);
                 showNotification('Refresh failed: ' + error.message, 'error');
-                refreshBtn.disabled = false;
-                refreshBtn.textContent = originalText;
+                restoreRefreshBtn();
             }
         }
 
