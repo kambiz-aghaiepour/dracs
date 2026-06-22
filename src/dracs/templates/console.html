@@ -20,14 +20,20 @@
             left: 0;
             right: 0;
             height: 22px;
-            background: rgba(49, 49, 49, 0.85);
+            background: rgba(49, 49, 49, 0.10);
             color: #ccc;
             font-family: monospace;
             font-size: 12px;
             line-height: 22px;
             padding: 0 8px;
             z-index: 9999;
-            pointer-events: none;
+            text-align: center;
+            text-shadow: 0 0 4px rgba(0, 0, 0, 0.9);
+            transition: background 0.2s ease;
+            cursor: default;
+        }
+        #dracs-hostname-bar:hover {
+            background: rgba(49, 49, 49, 0.75);
         }
     </style>
 
