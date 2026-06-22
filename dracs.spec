@@ -1,5 +1,5 @@
 Name:           dracs
-Version:        2.5.1
+Version:        2.5.2
 Release:        %autorelease
 Summary:        Dell Rack & Asset Control System - CLI inventory tool for managing Dell bare-metal systems
 
