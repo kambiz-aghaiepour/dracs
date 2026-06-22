@@ -312,6 +312,15 @@ def _create_no_role_user(username="quadsuser", password="pass123"):
         pass
 
 
+def _create_global_admin_user(username="gadminuser", password="pass123"):
+    from dracs.users import create_user
+
+    try:
+        create_user(username, password, "admin")
+    except Exception:
+        pass
+
+
 def _create_role_user(quads_webapp_db, username="roleuser", password="pass123"):
     from dracs.db import get_default_site_id
     from dracs.users import create_user, set_user_site_role
@@ -645,7 +654,7 @@ class TestQuadsVerifyEndpoint:
         assert data["success"] is False
         assert "No QUADS URL" in data["message"]
 
-    def test_verify_requires_superadmin(self, quads_client, quads_webapp_db):
+    def test_verify_non_admin_user_rejected(self, quads_client, quads_webapp_db):
         _create_no_role_user()
         _login(quads_client, "quadsuser", "pass123")
         resp = quads_client.post(
@@ -654,3 +663,18 @@ class TestQuadsVerifyEndpoint:
             content_type="application/json",
         )
         assert resp.status_code == 403
+
+    def test_verify_admin_role_not_superadmin_rejected(
+        self, quads_client, quads_webapp_db
+    ):
+        _create_global_admin_user()
+        _login(quads_client, "gadminuser", "pass123")
+        resp = quads_client.post(
+            "/api/sites/Default/quads-verify",
+            data=json.dumps({"quads_url": "http://quads.test"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 403
+        data = resp.get_json()
+        assert data["success"] is False
+        assert "Superadmin required" in data["message"]
