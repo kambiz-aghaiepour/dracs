@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.5.2 (2026-06-22)
+
+### Bug Fixes
+
+- Autohide the hostname bar
+  ([`3ceb0c5`](https://github.com/kambiz-aghaiepour/dracs/commit/3ceb0c514cd35276dd7793958d4791842245bb25))
+
+### Chores
+
+- Sync spec file version to 2.5.1 [skip ci]
+  ([`49c51f1`](https://github.com/kambiz-aghaiepour/dracs/commit/49c51f16deadf62555fc9d05fb121ad27c34794f))
+
+
 ## v2.5.1 (2026-06-22)
 
 ### Bug Fixes
