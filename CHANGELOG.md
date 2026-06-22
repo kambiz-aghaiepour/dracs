@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.4.1 (2026-06-22)
+
+### Bug Fixes
+
+- Fresh button issue
+  ([`e8b8430`](https://github.com/kambiz-aghaiepour/dracs/commit/e8b8430f996b34a1712e53a33ba9a68e425a7156))
+
+### Chores
+
+- Sync spec file version to 2.4.0 [skip ci]
+  ([`708ef3e`](https://github.com/kambiz-aghaiepour/dracs/commit/708ef3ea1e702a8a0bc4fcfb2c70d57aa61fcb04))
+
+
 ## v2.4.0 (2026-06-18)
 
 ### Chores
