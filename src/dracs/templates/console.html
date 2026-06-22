@@ -13,6 +13,24 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='novnc/app/styles/base.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='novnc/app/styles/input.css') }}">
 
+    <style>
+        #dracs-hostname-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 22px;
+            background: rgba(49, 49, 49, 0.85);
+            color: #ccc;
+            font-family: monospace;
+            font-size: 12px;
+            line-height: 22px;
+            padding: 0 8px;
+            z-index: 9999;
+            pointer-events: none;
+        }
+    </style>
+
     <link rel="preload" as="image" href="{{ url_for('static', filename='novnc/app/images/info.svg') }}">
     <link rel="preload" as="image" href="{{ url_for('static', filename='novnc/app/images/error.svg') }}">
     <link rel="preload" as="image" href="{{ url_for('static', filename='novnc/app/images/warning.svg') }}">
@@ -77,6 +95,22 @@
 </head>
 
 <body>
+
+    <div id="dracs-hostname-bar">{{ hostname }}</div>
+
+    <script>
+        (function() {
+            var targetTitle = 'Console: {{ hostname }}';
+            var titleEl = document.querySelector('title');
+            if (titleEl) {
+                new MutationObserver(function() {
+                    if (document.title !== targetTitle) {
+                        document.title = targetTitle;
+                    }
+                }).observe(titleEl, { childList: true, characterData: true, subtree: true });
+            }
+        })();
+    </script>
 
     <div id="noVNC_fallback_error" class="noVNC_center">
         <div>
