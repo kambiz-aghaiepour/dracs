@@ -2254,6 +2254,36 @@
             </div>
         </div>
 
+        <div id="refresh-all-confirm-modal" class="modal-overlay">
+            <div class="modal-content" style="max-width: 450px;">
+                <div class="modal-header">
+                    <h2>Confirm Refresh All</h2>
+                </div>
+                <div class="modal-body">
+                    <p>This will refresh all systems in the database. This may take several minutes.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="hideRefreshAllModal()">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="submitRefreshAll()">Continue</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="console-count-confirm-modal" class="modal-overlay">
+            <div class="modal-content" style="max-width: 450px;">
+                <div class="modal-header">
+                    <h2>Confirm Open Consoles</h2>
+                </div>
+                <div class="modal-body">
+                    <p>This will open <strong><span id="console-count-value">0</span></strong> console windows. Continue?</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="hideConsoleCountModal()">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="submitConsoleOpen()">Continue</button>
+                </div>
+            </div>
+        </div>
+
         <div id="custom-filter-modal" class="modal-overlay">
             <div class="modal-content">
                 <div class="modal-header">
@@ -3003,10 +3033,16 @@
         }
 
         // Refresh all systems
-        async function handleRefreshAll() {
-            if (!confirm('This will refresh all systems in the database. This may take several minutes. Continue?')) {
-                return;
-            }
+        function handleRefreshAll() {
+            document.getElementById('refresh-all-confirm-modal').classList.add('active');
+        }
+
+        function hideRefreshAllModal() {
+            document.getElementById('refresh-all-confirm-modal').classList.remove('active');
+        }
+
+        async function submitRefreshAll() {
+            hideRefreshAllModal();
 
             const refreshAllBtn = document.getElementById('refresh-all-btn');
             const originalText = refreshAllBtn.textContent;
@@ -3402,33 +3438,55 @@
         function updateConsoleButtonState() {
             const consoleBtn = document.getElementById('console-btn');
             if (!consoleBtn || isRoleDisabled(consoleBtn)) return;
+            consoleBtn.disabled = selectedSystems.length < 1;
+        }
 
-            if (selectedSystems.length === 1) {
-                consoleBtn.disabled = false;
-            } else {
-                consoleBtn.disabled = true;
+        function showConsoleCountModal() {
+            document.getElementById('console-count-value').textContent = selectedSystems.length;
+            document.getElementById('console-count-confirm-modal').classList.add('active');
+        }
+
+        function hideConsoleCountModal() {
+            document.getElementById('console-count-confirm-modal').classList.remove('active');
+        }
+
+        async function openConsolesForSelected() {
+            const hosts = selectedSystems.map(s => s.hostname);
+            const results = await Promise.all(hosts.map(async function(hostname) {
+                try {
+                    const response = await fetch(apiUrl('/api/vnc-session'), {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ hostname: hostname })
+                    });
+                    const data = await response.json();
+                    if (data.success) return { token: data.token };
+                    showNotification(data.message, 'error');
+                    return null;
+                } catch (error) {
+                    showNotification('Failed to get console for ' + hostname + ': ' + error.message, 'error');
+                    return null;
+                }
+            }));
+            for (const result of results) {
+                if (result) {
+                    window.open('/console/' + result.token, '_blank',
+                        'width={{ vnc_console_width }},height={{ vnc_console_height }},menubar=no,toolbar=no,location=no,status=no,scrollbars=no');
+                }
             }
         }
 
-        async function handleConsoleClick() {
-            if (selectedSystems.length !== 1) return;
+        async function submitConsoleOpen() {
+            hideConsoleCountModal();
+            await openConsolesForSelected();
+        }
 
-            const hostname = selectedSystems[0].hostname;
-            try {
-                const response = await fetch(apiUrl('/api/vnc-session'), {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ hostname: hostname })
-                });
-                const data = await response.json();
-                if (data.success) {
-                    window.open('/console/' + data.token, '_blank',
-                        'width={{ vnc_console_width }},height={{ vnc_console_height }},menubar=no,toolbar=no,location=no,status=no,scrollbars=no');
-                } else {
-                    showNotification(data.message, 'error');
-                }
-            } catch (error) {
-                showNotification('Failed to open console: ' + error.message, 'error');
+        async function handleConsoleClick() {
+            if (selectedSystems.length < 1) return;
+            if (selectedSystems.length > 10) {
+                showConsoleCountModal();
+            } else {
+                await openConsolesForSelected();
             }
         }
 
@@ -5169,6 +5227,16 @@
         // Close delete confirmation modal on background click
         document.getElementById('delete-confirm-modal').addEventListener('click', function(event) {
             if (event.target === this) { hideDeleteModal(); }
+        });
+
+        // Close refresh-all confirmation modal on background click
+        document.getElementById('refresh-all-confirm-modal').addEventListener('click', function(event) {
+            if (event.target === this) { hideRefreshAllModal(); }
+        });
+
+        // Close console-count confirmation modal on background click
+        document.getElementById('console-count-confirm-modal').addEventListener('click', function(event) {
+            if (event.target === this) { hideConsoleCountModal(); }
         });
 
         // Close firmware confirmation modal on background click
