@@ -20,7 +20,7 @@
             left: 0;
             right: 0;
             height: 22px;
-            background: rgba(49, 49, 49, 0.10);
+            background: rgba(49, 49, 49, 0.75);
             color: #ccc;
             font-family: monospace;
             font-size: 12px;
@@ -29,11 +29,12 @@
             z-index: 9999;
             text-align: center;
             text-shadow: 0 0 4px rgba(0, 0, 0, 0.9);
-            transition: background 0.2s ease;
+            transform: translateY(-100%);
+            transition: transform 0.2s ease;
             cursor: default;
         }
-        #dracs-hostname-bar:hover {
-            background: rgba(49, 49, 49, 0.75);
+        #dracs-hostname-bar.visible {
+            transform: translateY(0);
         }
     </style>
 
@@ -115,6 +116,16 @@
                     }
                 }).observe(titleEl, { childList: true, characterData: true, subtree: true });
             }
+
+            var bar = document.getElementById('dracs-hostname-bar');
+            document.addEventListener('mousemove', function(e) {
+                if (e.clientY <= 5) {
+                    bar.classList.add('visible');
+                }
+            });
+            bar.addEventListener('mouseleave', function() {
+                bar.classList.remove('visible');
+            });
         })();
     </script>
 
