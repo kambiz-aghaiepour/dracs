@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.5.3 (2026-06-22)
+
+### Bug Fixes
+
+- The hostname bar behavior autohide doesn't work
+  ([`f7976f4`](https://github.com/kambiz-aghaiepour/dracs/commit/f7976f4390d87c3a1cba1ecb30610dd48bc9b6d9))
+
+### Chores
+
+- Sync spec file version to 2.5.2 [skip ci]
+  ([`bb411f6`](https://github.com/kambiz-aghaiepour/dracs/commit/bb411f6ad664e7b35782f46795823ee411adb87f))
+
+
 ## v2.5.2 (2026-06-22)
 
 ### Bug Fixes
