@@ -20,7 +20,7 @@
             left: 0;
             right: 0;
             height: 22px;
-            background: rgba(49, 49, 49, 0.75);
+            background: rgba(49, 49, 49, 0.10);
             color: #ccc;
             font-family: monospace;
             font-size: 12px;
@@ -30,11 +30,49 @@
             text-align: center;
             text-shadow: 0 0 4px rgba(0, 0, 0, 0.9);
             transform: translateY(-100%);
-            transition: transform 0.2s ease;
+            transition: transform 0.2s ease, background 0.2s ease;
             cursor: default;
         }
         #dracs-hostname-bar.visible {
             transform: translateY(0);
+        }
+        #dracs-hostname-bar.visible:hover {
+            background: rgba(49, 49, 49, 0.75);
+        }
+        #dracs-hostname-handle {
+            position: fixed;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 32px;
+            height: 14px;
+            background: rgba(49, 49, 49, 0.75);
+            border-radius: 0 0 6px 6px;
+            cursor: pointer;
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: top 0.2s ease, background 0.2s ease;
+        }
+        #dracs-hostname-handle:hover {
+            background: rgba(49, 49, 49, 0.95);
+        }
+        #dracs-hostname-bar.visible ~ #dracs-hostname-handle {
+            top: 22px;
+        }
+        #dracs-hostname-handle::after {
+            content: '';
+            display: block;
+            width: 0;
+            height: 0;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-top: 5px solid #ccc;
+        }
+        #dracs-hostname-bar.visible ~ #dracs-hostname-handle::after {
+            border-top: none;
+            border-bottom: 5px solid #ccc;
         }
     </style>
 
@@ -104,6 +142,7 @@
 <body>
 
     <div id="dracs-hostname-bar">{{ hostname }}</div>
+    <div id="dracs-hostname-handle" onclick="toggleHostnameBar()" title="Show/Hide hostname bar"></div>
 
     <script>
         (function() {
@@ -116,17 +155,11 @@
                     }
                 }).observe(titleEl, { childList: true, characterData: true, subtree: true });
             }
-
-            var bar = document.getElementById('dracs-hostname-bar');
-            document.addEventListener('mousemove', function(e) {
-                if (e.clientY <= 5) {
-                    bar.classList.add('visible');
-                }
-            });
-            bar.addEventListener('mouseleave', function() {
-                bar.classList.remove('visible');
-            });
         })();
+
+        function toggleHostnameBar() {
+            document.getElementById('dracs-hostname-bar').classList.toggle('visible');
+        }
     </script>
 
     <div id="noVNC_fallback_error" class="noVNC_center">
