@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.5.0 (2026-06-22)
+
+### Chores
+
+- Sync spec file version to 2.4.1 [skip ci]
+  ([`47e578d`](https://github.com/kambiz-aghaiepour/dracs/commit/47e578d21d4f91a1732f631c85f1bcdb1575c16e))
+
+### Features
+
+- Allow multiple consoles to open at once
+  ([`05a3ec5`](https://github.com/kambiz-aghaiepour/dracs/commit/05a3ec55d0ad4f0830b9fb1085bdc3f148d1c411))
+
+
 ## v2.4.1 (2026-06-22)
 
 ### Bug Fixes
