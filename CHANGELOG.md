@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v2.5.4 (2026-06-22)
+
+### Bug Fixes
+
+- Black
+  ([`af33ae0`](https://github.com/kambiz-aghaiepour/dracs/commit/af33ae0a38bc79c65c528da7aae8d3c244dc6fa4))
+
+- Ensure quads enablement is per site
+  ([`de9859b`](https://github.com/kambiz-aghaiepour/dracs/commit/de9859b1a121c7c59699b7b00174deab729693d7))
+
+- Fix codecov patch
+  ([`a5b55d9`](https://github.com/kambiz-aghaiepour/dracs/commit/a5b55d96dc2ee50767759678138681f29f9cb623))
+
+### Chores
+
+- Sync spec file version to 2.5.3 [skip ci]
+  ([`91a6795`](https://github.com/kambiz-aghaiepour/dracs/commit/91a679599f07bc905b29808d62eba646d00f64f0))
+
+
 ## v2.5.3 (2026-06-22)
 
 ### Bug Fixes
