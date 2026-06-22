@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.5.1 (2026-06-22)
+
+### Bug Fixes
+
+- Set transparency for hostname in hostname bar
+  ([`4d6d020`](https://github.com/kambiz-aghaiepour/dracs/commit/4d6d0200ec9a4f717b0e80c936e096f0955487b4))
+
+### Chores
+
+- Sync spec file version to 2.5.0 [skip ci]
+  ([`76a2809`](https://github.com/kambiz-aghaiepour/dracs/commit/76a2809f2057f60624dcafbed0a822984df25cd4))
+
+
 ## v2.5.0 (2026-06-22)
 
 ### Chores
