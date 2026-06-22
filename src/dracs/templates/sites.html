@@ -165,6 +165,25 @@
             <div style="margin-top: 8px;">
                 <button class="btn btn-secondary" onclick="addHostOverrideRow()">+ Add Host Override</button>
             </div>
+            <h4 style="margin: 16px 0 4px;">QUADS</h4>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="manage-quads-enabled" onchange="updateQuadsUrlState()">
+                        Enable QUADS host filtering for no-role users
+                    </label>
+                </div>
+            </div>
+            <div class="form-row" style="align-items: flex-end; gap: 8px;">
+                <div class="form-group" style="flex: 1;">
+                    <label>QUADS API URL</label>
+                    <input type="text" id="manage-quads-url" autocomplete="off"
+                           placeholder="http://quads.example.com" disabled>
+                </div>
+                <div class="form-group">
+                    <button class="btn btn-secondary" onclick="verifyQuads()" id="quads-verify-btn" disabled>Verify</button>
+                </div>
+            </div>
             <div style="margin-top: 16px; display: flex; gap: 8px;">
                 <button class="btn btn-primary" onclick="saveManage()">Save</button>
                 <button class="btn btn-secondary" onclick="hideManagePanel()">Cancel</button>
@@ -388,6 +407,9 @@
             document.getElementById('manage-password').value = cfg.defaults.password || '';
             document.getElementById('manage-vnc-port').value = cfg.defaults.vnc_port || '5901';
             document.getElementById('manage-vnc-password').value = cfg.defaults.vnc_password || '';
+            document.getElementById('manage-quads-enabled').checked = cfg.defaults.quads_enabled === 'true';
+            document.getElementById('manage-quads-url').value = cfg.defaults.quads_url || '';
+            updateQuadsUrlState();
 
             const list = document.getElementById('host-overrides-list');
             list.innerHTML = '';
@@ -415,6 +437,24 @@
             list.appendChild(row);
         }
 
+        function updateQuadsUrlState() {
+            const enabled = document.getElementById('manage-quads-enabled').checked;
+            document.getElementById('manage-quads-url').disabled = !enabled;
+            document.getElementById('quads-verify-btn').disabled = !enabled;
+        }
+
+        async function verifyQuads() {
+            const url = document.getElementById('manage-quads-url').value.trim();
+            if (!url) { showNotification('Enter a QUADS URL first', 'error'); return; }
+            const resp = await fetch('/api/sites/' + encodeURIComponent(selectedSite.name) + '/quads-verify', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({quads_url: url})
+            });
+            const data = await resp.json();
+            showNotification(data.message, data.success ? 'success' : 'error');
+        }
+
         async function saveManage() {
             if (!selectedSite) return;
             const defaults = {
@@ -422,6 +462,8 @@
                 password: document.getElementById('manage-password').value,
                 vnc_port: document.getElementById('manage-vnc-port').value,
                 vnc_password: document.getElementById('manage-vnc-password').value,
+                quads_enabled: document.getElementById('manage-quads-enabled').checked ? 'true' : 'false',
+                quads_url: document.getElementById('manage-quads-url').value,
             };
 
             const hosts = {};
