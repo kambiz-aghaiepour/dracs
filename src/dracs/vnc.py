@@ -46,6 +46,14 @@ class VncSessionManager:
         meta_file = self.token_dir / f"{token}.meta"
         meta_file.unlink(missing_ok=True)
 
+    def touch_session(self, token: str) -> bool:
+        """Reset the expiry timer for an active session. Returns True if session exists."""
+        token_file = self.token_dir / token
+        if not token_file.exists():
+            return False
+        token_file.touch()
+        return True
+
     def get_session_info(self, token: str) -> dict | None:
         token_file = self.token_dir / token
         if not token_file.exists():
