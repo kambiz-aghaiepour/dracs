@@ -189,7 +189,6 @@
                 <button class="mc-popout-btn"
                         id="popout-{{ loop.index0 }}"
                         onclick="popoutConsole({{ loop.index0 }})"
-                        disabled
                         title="Open in separate popup window">Popout</button>
             </div>
             <div class="mc-cell-body" id="body-{{ loop.index0 }}">
@@ -282,10 +281,11 @@
     }
 
     function popoutConsole(idx) {
-        var token = mcTokens[idx];
-        if (!token) return;
+        // Open via console-connect so each popout gets its own independent
+        // session.  Reusing the embedded iframe's token causes a 404 when
+        // the popout window closes (its beforeunload deletes the shared token).
         window.open(
-            '/console/' + token,
+            '/console-connect?host=' + encodeURIComponent(mcHosts[idx]),
             '_blank',
             'width=1024,height=768,menubar=no,toolbar=no,location=no,status=no,scrollbars=no'
         );
@@ -298,7 +298,6 @@
         var iframe = document.createElement('iframe');
         iframe.src = '/console/' + encodeURIComponent(token);
         body.appendChild(iframe);
-        document.getElementById('popout-' + idx).disabled = false;
     }
 
     function showError(idx, errMsg) {
