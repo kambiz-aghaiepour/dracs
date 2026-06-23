@@ -3196,7 +3196,8 @@ def api_vnc_session_delete(token):
 @app.route("/console-multi")
 def console_multi():
     """
-    Multi-console viewer: opens a tiled grid of embedded noVNC sessions for
+    Multi-console viewer.
+    opens a tiled grid of embedded noVNC sessions for
     two or more hosts simultaneously.  Session creation is deferred to
     JavaScript so the popup appears immediately.
     """
