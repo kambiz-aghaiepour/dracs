@@ -2,6 +2,27 @@
 
 <!-- version list -->
 
+## v2.7.0 (2026-06-23)
+
+### Bug Fixes
+
+- Black formatting
+  ([`4c112ea`](https://github.com/kambiz-aghaiepour/dracs/commit/4c112ea3825cec35985e37ca0554a1754945060a))
+
+- Codacy flagged the comment style
+  ([`fcbb738`](https://github.com/kambiz-aghaiepour/dracs/commit/fcbb738f052ca06ec537ba21253c03fff061e697))
+
+### Chores
+
+- Sync spec file version to 2.6.6 [skip ci]
+  ([`a9b8dcb`](https://github.com/kambiz-aghaiepour/dracs/commit/a9b8dcb0c3b5835d4184c494d7c43e4e0f5225ff))
+
+### Features
+
+- Multi-console feature
+  ([`0124b49`](https://github.com/kambiz-aghaiepour/dracs/commit/0124b4904b62582e0cd4d77a9a6e7800bd33ac51))
+
+
 ## v2.6.6 (2026-06-23)
 
 ### Bug Fixes
