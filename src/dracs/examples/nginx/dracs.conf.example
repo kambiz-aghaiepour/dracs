@@ -19,6 +19,11 @@ server {
         autoindex_localtime on;
     }
 
+    location /iso {
+        alias /var/lib/dracs/iso/;
+        autoindex off;
+    }
+
     location / {
         # Redirect all HTTP requests to HTTPS
         return 301 https://$host$request_uri;
