@@ -1597,8 +1597,8 @@
             <div class="action-panel">
                 <div class="panel-header selection">Selection</div>
                 <div class="panel-body">
-                    <button id="select-all-btn" class="panel-btn btn-green{% if role_level < 1 %} role-disabled{% endif %}" data-min-role="user" {% if role_level < 1 %}disabled{% endif %} onclick="toggleSelectAll()">Select All</button>
-                    <button id="select-shown-btn" class="panel-btn btn-teal{% if role_level < 1 %} role-disabled{% endif %}" data-min-role="user" {% if role_level < 1 %}disabled{% endif %} onclick="selectShown()">Select Shown</button>
+                    <button id="select-all-btn" class="panel-btn btn-green" data-min-role="none" onclick="toggleSelectAll()">Select All</button>
+                    <button id="select-shown-btn" class="panel-btn btn-teal" data-min-role="none" onclick="selectShown()">Select Shown</button>
                 </div>
             </div>
         </div>
