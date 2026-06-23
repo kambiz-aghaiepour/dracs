@@ -1549,6 +1549,7 @@ CATALOG_URL = "https://downloads.dell.com/catalog/Catalog.xml.gz"
 CATALOG_BASE_URL = "https://downloads.dell.com"
 FIRMWARE_IMAGE_DIR = Path("/var/lib/dracs/web/firmware")
 BIOS_IMAGE_DIR = Path("/var/lib/dracs/web/bios")
+ISO_IMAGE_DIR = Path("/var/lib/dracs/iso")
 
 _ARCHIVE_BASE = os.environ.get("DRACS_ARCHIVE_DIR", "./archive")
 FIRMWARE_ARCHIVE_DIR = Path(_ARCHIVE_BASE) / "firmware"
@@ -3223,6 +3224,127 @@ def console_view(token):
         hostname=hostname,
         vnc_password=vnc_password,
     )
+
+
+def _parse_remoteimage_status(output: str) -> dict:
+    """Parse output of racadm remoteimage -s into {enabled, url}."""
+    enabled = False
+    url = ""
+    for line in output.splitlines():
+        line = line.strip()
+        if line.startswith("Remote File Share is"):
+            enabled = "Enabled" in line
+        elif line.startswith("ShareName"):
+            parts = line.split(None, 1)
+            if len(parts) > 1:
+                url = parts[1].strip()
+    return {"enabled": enabled, "url": url}
+
+
+@app.route("/api/iso-images")
+def api_iso_images():
+    """List ISO images available for remote image mounting."""
+    _, err = _require_auth()
+    if err:
+        return err
+    try:
+        if not ISO_IMAGE_DIR.is_dir():
+            return jsonify({"success": True, "images": []})
+        fqdn = socket.getfqdn()
+        images = [
+            {"name": p.name, "url": f"http://{fqdn}/iso/{p.name}"}
+            for p in sorted(ISO_IMAGE_DIR.iterdir(), key=lambda p: p.name)
+            if p.is_file() and p.suffix.lower() == ".iso"
+        ]
+        return jsonify({"success": True, "images": images})
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+
+@app.route("/api/remoteimage/<hostname>")
+def api_remoteimage_status(hostname):
+    """Get current remote image status for a host via racadm."""
+    _, err = _require_auth()
+    if err:
+        return err
+    if not validate_hostname(hostname):
+        return jsonify({"success": False, "message": "Invalid hostname"}), 400
+    try:
+        cmd = _build_ssh_racadm_cmd(hostname, "remoteimage", "-s")
+        result = subprocess.run(  # nosec # nosemgrep
+            cmd, capture_output=True, text=True, timeout=30  # nosemgrep
+        )
+        if result.returncode != 0:
+            stderr = result.stderr.strip() or result.stdout.strip()
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": f"Failed to query remote image status: {stderr}",
+                    }
+                ),
+                500,
+            )
+        status = _parse_remoteimage_status(result.stdout)
+        return jsonify({"success": True, **status})
+    except subprocess.TimeoutExpired:
+        return jsonify({"success": False, "message": "Connection timeout"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+
+@app.route("/api/remoteimage/<hostname>", methods=["POST"])
+def api_remoteimage_apply(hostname):
+    """Enable or disable remote image on a host via racadm."""
+    user, err = _require_auth()
+    if err:
+        return err
+    if not validate_hostname(hostname):
+        return jsonify({"success": False, "message": "Invalid hostname"}), 400
+    try:
+        data = request.get_json(silent=True) or {}
+        action = data.get("action", "")
+        if action not in ("enable", "disable"):
+            return jsonify({"success": False, "message": "Invalid action"}), 400
+
+        if action == "disable":
+            cmd = _build_ssh_racadm_cmd(hostname, "remoteimage", "-d")
+        else:
+            url = data.get("url", "").strip()
+            if not url:
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "message": "URL required to enable remote image",
+                        }
+                    ),
+                    400,
+                )
+            cmd = _build_ssh_racadm_cmd(hostname, "remoteimage", "-c", "-l", url)
+
+        result = subprocess.run(  # nosec # nosemgrep
+            cmd, capture_output=True, text=True, timeout=30  # nosemgrep
+        )
+        if result.returncode != 0:
+            stderr = result.stderr.strip() or result.stdout.strip()
+            return (
+                jsonify({"success": False, "message": f"Command failed: {stderr}"}),
+                500,
+            )
+
+        audit_log(
+            "remoteimage_apply",
+            target=hostname,
+            user=user,
+            source=_client_ip(),
+            details=f"action={action}",
+        )
+        return jsonify({"success": True, "message": f"Remote image {action}d"})
+    except subprocess.TimeoutExpired:
+        return jsonify({"success": False, "message": "Connection timeout"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
 
 
 def _parse_debug_env() -> bool:

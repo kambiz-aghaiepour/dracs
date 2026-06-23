@@ -19,25 +19,70 @@
             top: 0;
             left: 0;
             right: 0;
-            height: 22px;
             background: rgba(49, 49, 49, 0.10);
             color: #ccc;
             font-family: monospace;
             font-size: 12px;
-            line-height: 22px;
             padding: 0 8px;
             z-index: 9999;
-            text-align: center;
             text-shadow: 0 0 4px rgba(0, 0, 0, 0.9);
             transform: translateY(-100%);
             transition: transform 0.2s ease, background 0.2s ease;
-            cursor: default;
         }
         #dracs-hostname-bar.visible {
             transform: translateY(0);
         }
         #dracs-hostname-bar.visible:hover {
             background: rgba(49, 49, 49, 0.75);
+        }
+        #dracs-hostname-line {
+            height: 22px;
+            line-height: 22px;
+            text-align: center;
+            cursor: default;
+        }
+        #dracs-remoteimage-row {
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-size: 11px;
+        }
+        #dracs-remoteimage-row input[type="checkbox"] {
+            cursor: pointer;
+        }
+        #dracs-remoteimage-row select,
+        #dracs-remoteimage-row input[type="text"] {
+            background: #1e1e1e;
+            color: #ddd;
+            border: 1px solid #555;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 11px;
+            padding: 1px 4px;
+            cursor: text;
+        }
+        #dracs-remoteimage-row select {
+            cursor: pointer;
+        }
+        #dracs-remoteimage-row button {
+            background: #333;
+            color: #bbb;
+            border: 1px solid #555;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 11px;
+            padding: 2px 8px;
+            cursor: pointer;
+        }
+        #dracs-remoteimage-row button:hover {
+            background: #444;
+            color: #ddd;
+        }
+        #dracs-remoteimage-row button:disabled {
+            opacity: 0.5;
+            cursor: default;
         }
         #dracs-hostname-handle {
             position: fixed;
@@ -59,7 +104,7 @@
             background: rgba(49, 49, 49, 0.95);
         }
         #dracs-hostname-bar.visible ~ #dracs-hostname-handle {
-            top: 22px;
+            top: 50px;
         }
         #dracs-hostname-handle::after {
             content: '';
@@ -73,6 +118,62 @@
         #dracs-hostname-bar.visible ~ #dracs-hostname-handle::after {
             border-top: none;
             border-bottom: 5px solid #ccc;
+        }
+        #dracs-ri-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 10000;
+            background: rgba(0, 0, 0, 0.6);
+            align-items: center;
+            justify-content: center;
+        }
+        #dracs-ri-modal.open {
+            display: flex;
+        }
+        #dracs-ri-modal-box {
+            background: #2a2a2a;
+            border: 1px solid #555;
+            border-radius: 6px;
+            padding: 18px 20px;
+            min-width: 380px;
+            font-family: monospace;
+        }
+        #dracs-ri-modal-box .ri-modal-label {
+            color: #aaa;
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+        #dracs-ri-modal-input {
+            width: 100%;
+            box-sizing: border-box;
+            background: #1e1e1e;
+            color: #eee;
+            border: 1px solid #666;
+            border-radius: 3px;
+            padding: 5px 8px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        #dracs-ri-modal-buttons {
+            margin-top: 10px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 6px;
+        }
+        #dracs-ri-modal-buttons button {
+            background: #333;
+            color: #bbb;
+            border: 1px solid #555;
+            border-radius: 3px;
+            padding: 3px 12px;
+            cursor: pointer;
+            font-size: 11px;
+            font-family: monospace;
+        }
+        #dracs-ri-modal-buttons button:hover {
+            background: #444;
+            color: #ddd;
         }
     </style>
 
@@ -141,8 +242,24 @@
 
 <body>
 
-    <div id="dracs-hostname-bar">{{ hostname }}</div>
+    <div id="dracs-hostname-bar">
+        <div id="dracs-hostname-line">{{ hostname }}</div>
+        <div id="dracs-remoteimage-row">
+            <span id="dracs-ri-content"></span>
+        </div>
+    </div>
     <div id="dracs-hostname-handle" onclick="toggleHostnameBar()" title="Show/Hide hostname bar"></div>
+
+    <div id="dracs-ri-modal">
+        <div id="dracs-ri-modal-box">
+            <div class="ri-modal-label">Custom ISO URL</div>
+            <input type="text" id="dracs-ri-modal-input" placeholder="http://server/path/image.iso">
+            <div id="dracs-ri-modal-buttons">
+                <button onclick="riCancelCustomUrl()">Cancel</button>
+                <button onclick="riConfirmCustomUrl()">OK</button>
+            </div>
+        </div>
+    </div>
 
     <script>
         (function() {
@@ -157,8 +274,194 @@
             }
         })();
 
+        var riHostname = {{ hostname | tojson }};
+        var riServerEnabled = false;
+        var riServerUrl = '';
+        var riUIEnabled = false;
+        var riUserChangedEnabled = false;
+        var riIsoImages = [];
+        var riCustomUrl = '';
+        var riLoaded = false;
+
+        function riEscape(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
         function toggleHostnameBar() {
-            document.getElementById('dracs-hostname-bar').classList.toggle('visible');
+            var bar = document.getElementById('dracs-hostname-bar');
+            bar.classList.toggle('visible');
+            if (bar.classList.contains('visible') && !riLoaded) {
+                riLoadStatus();
+                riLoadIsoImages();
+            }
+        }
+
+        function riLoadStatus() {
+            var content = document.getElementById('dracs-ri-content');
+            content.innerHTML = 'Loading...';
+            fetch('/api/remoteimage/' + encodeURIComponent(riHostname))
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        riServerEnabled = data.enabled;
+                        riServerUrl = data.url || '';
+                        riUIEnabled = data.enabled;
+                        riUserChangedEnabled = false;
+                        riLoaded = true;
+                        riRender();
+                    } else {
+                        content.innerHTML = '<span style="color:#f88">Error: ' + riEscape(data.message) + '</span>';
+                    }
+                })
+                .catch(function(e) {
+                    content.innerHTML = '<span style="color:#f88">Error: ' + riEscape(e.message) + '</span>';
+                });
+        }
+
+        function riLoadIsoImages() {
+            fetch('/api/iso-images')
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        riIsoImages = data.images;
+                    }
+                })
+                .catch(function() { riIsoImages = []; });
+        }
+
+        function riRender() {
+            var content = document.getElementById('dracs-ri-content');
+            var checkedAttr = riUIEnabled ? ' checked' : '';
+            var html = '<label style="cursor:pointer;">'
+                + '<input type="checkbox" id="dracs-ri-checkbox"' + checkedAttr
+                + ' onchange="riCheckboxChanged()"> Remote Image Enabled</label>';
+
+            if (riUIEnabled) {
+                if (!riUserChangedEnabled) {
+                    html += ' <span style="color:#aaa;">URL: '
+                        + riEscape(riServerUrl || '(none)') + '</span>';
+                } else if (riCustomUrl) {
+                    html += ' <input type="text" id="dracs-ri-url-text" value="'
+                        + riEscape(riCustomUrl)
+                        + '" style="width:260px;" readonly>'
+                        + ' <button onclick="riShowCustomUrlModal()">Change...</button>';
+                } else {
+                    html += ' ' + riRenderDropdown();
+                }
+            }
+
+            html += ' <button id="dracs-ri-apply-btn" onclick="riApplyChanges()">Apply Changes</button>';
+            content.innerHTML = html;
+        }
+
+        function riRenderDropdown() {
+            var html = '<select id="dracs-ri-iso-select" onchange="riDropdownChanged()">';
+            html += '<option value="__custom__">Custom ISO URL...</option>';
+            for (var i = 0; i < riIsoImages.length; i++) {
+                html += '<option value="' + riEscape(riIsoImages[i].url) + '">'
+                    + riEscape(riIsoImages[i].name) + '</option>';
+            }
+            html += '</select>';
+            return html;
+        }
+
+        function riCheckboxChanged() {
+            var cb = document.getElementById('dracs-ri-checkbox');
+            riUIEnabled = cb.checked;
+            riUserChangedEnabled = true;
+            if (!riUIEnabled) {
+                riCustomUrl = '';
+            }
+            riRender();
+        }
+
+        function riDropdownChanged() {
+            var sel = document.getElementById('dracs-ri-iso-select');
+            if (sel && sel.value === '__custom__') {
+                riShowCustomUrlModal();
+            }
+        }
+
+        function riShowCustomUrlModal() {
+            document.getElementById('dracs-ri-modal-input').value = riCustomUrl;
+            document.getElementById('dracs-ri-modal').classList.add('open');
+            document.getElementById('dracs-ri-modal-input').focus();
+        }
+
+        function riCancelCustomUrl() {
+            document.getElementById('dracs-ri-modal').classList.remove('open');
+            riRender();
+        }
+
+        function riConfirmCustomUrl() {
+            var val = document.getElementById('dracs-ri-modal-input').value.trim();
+            document.getElementById('dracs-ri-modal').classList.remove('open');
+            riCustomUrl = val;
+            riRender();
+        }
+
+        function riApplyChanges() {
+            var btn = document.getElementById('dracs-ri-apply-btn');
+            var data;
+
+            if (!riUIEnabled) {
+                data = {action: 'disable'};
+            } else {
+                var url = '';
+                if (!riUserChangedEnabled) {
+                    url = riServerUrl;
+                } else if (riCustomUrl) {
+                    url = riCustomUrl;
+                } else {
+                    var sel = document.getElementById('dracs-ri-iso-select');
+                    if (sel && sel.value !== '__custom__') {
+                        url = sel.value;
+                    }
+                }
+                if (!url) {
+                    return;
+                }
+                data = {action: 'enable', url: url};
+            }
+
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = 'Applying...';
+            }
+
+            fetch('/api/remoteimage/' + encodeURIComponent(riHostname), {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(resp) {
+                if (resp.success) {
+                    riLoaded = false;
+                    riLoadStatus();
+                } else {
+                    var content = document.getElementById('dracs-ri-content');
+                    content.innerHTML += ' <span style="color:#f88;">'
+                        + riEscape(resp.message) + '</span>';
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.textContent = 'Apply Changes';
+                    }
+                }
+            })
+            .catch(function(e) {
+                var content = document.getElementById('dracs-ri-content');
+                content.innerHTML += ' <span style="color:#f88;">Error: '
+                    + riEscape(e.message) + '</span>';
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = 'Apply Changes';
+                }
+            });
         }
     </script>
 
