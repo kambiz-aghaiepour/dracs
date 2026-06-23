@@ -3450,48 +3450,31 @@
             document.getElementById('console-count-confirm-modal').classList.remove('active');
         }
 
-        async function openConsolesForSelected() {
-            const hosts = selectedSystems.map(s => s.hostname);
-            const winOpts = 'width={{ vnc_console_width }},height={{ vnc_console_height }},menubar=no,toolbar=no,location=no,status=no,scrollbars=no';
-            // Open placeholder windows synchronously before any await so browsers
-            // treat them as user-gesture popups and don't block them.
-            const wins = hosts.map(() => window.open('about:blank', '_blank', winOpts));
-            const results = await Promise.all(hosts.map(async function(hostname) {
-                try {
-                    const response = await fetch(apiUrl('/api/vnc-session'), {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({ hostname: hostname })
-                    });
-                    const data = await response.json();
-                    if (data.success) return { token: data.token };
-                    showNotification(data.message, 'error');
-                    return null;
-                } catch (error) {
-                    showNotification('Failed to get console for ' + hostname + ': ' + error.message, 'error');
-                    return null;
-                }
-            }));
-            for (let i = 0; i < results.length; i++) {
-                if (results[i]) {
-                    wins[i].location.href = '/console/' + results[i].token;
-                } else {
-                    wins[i].close();
-                }
+        function openConsolesForSelected() {
+            // Open each console as a popup window with a real URL synchronously,
+            // within the user-gesture handler, so the browser allows all popups
+            // without popup-blocking interference.
+            var winOpts = 'width={{ vnc_console_width }},height={{ vnc_console_height }},menubar=no,toolbar=no,location=no,status=no,scrollbars=no';
+            for (var i = 0; i < selectedSystems.length; i++) {
+                window.open(
+                    '/console-connect?host=' + encodeURIComponent(selectedSystems[i].hostname),
+                    '_blank',
+                    winOpts
+                );
             }
         }
 
-        async function submitConsoleOpen() {
+        function submitConsoleOpen() {
             hideConsoleCountModal();
-            await openConsolesForSelected();
+            openConsolesForSelected();
         }
 
-        async function handleConsoleClick() {
+        function handleConsoleClick() {
             if (selectedSystems.length < 1) return;
             if (selectedSystems.length > 10) {
                 showConsoleCountModal();
             } else {
-                await openConsolesForSelected();
+                openConsolesForSelected();
             }
         }
 
