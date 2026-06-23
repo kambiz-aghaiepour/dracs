@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.7.2 (2026-06-23)
+
+### Bug Fixes
+
+- Allow non-role users to use selection actions
+  ([`1969ced`](https://github.com/kambiz-aghaiepour/dracs/commit/1969ced84f9801ea8eb7fe0c71a874c5627db7ba))
+
+### Chores
+
+- Sync spec file version to 2.7.1 [skip ci]
+  ([`d3ce9b0`](https://github.com/kambiz-aghaiepour/dracs/commit/d3ce9b09999de32fc60239d23227feea2366f03c))
+
+
 ## v2.7.1 (2026-06-23)
 
 ### Bug Fixes
