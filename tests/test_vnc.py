@@ -611,6 +611,46 @@ class TestVncSessionTouchEndpoint:
         assert resp.get_json()["success"] is True
 
 
+class TestConsoleMultiEndpoint:
+    def test_requires_auth(self, vnc_client):
+        resp = vnc_client.get("/console-multi?hosts=server01,server02")
+        assert resp.status_code == 401
+
+    def test_vnc_disabled(self, vnc_disabled_client):
+        _login(vnc_disabled_client)
+        resp = vnc_disabled_client.get("/console-multi?hosts=server01,server02")
+        assert resp.status_code == 404
+
+    def test_no_hosts(self, vnc_client):
+        _login(vnc_client)
+        resp = vnc_client.get("/console-multi")
+        assert resp.status_code == 400
+
+    def test_single_host_rejected(self, vnc_client):
+        _login(vnc_client)
+        resp = vnc_client.get("/console-multi?hosts=server01")
+        assert resp.status_code == 400
+
+    def test_invalid_hostname_rejected(self, vnc_client):
+        _login(vnc_client)
+        resp = vnc_client.get("/console-multi?hosts=server01,bad;host")
+        assert resp.status_code == 400
+
+    def test_success_returns_multi_console_page(self, vnc_client):
+        _login(vnc_client)
+        resp = vnc_client.get("/console-multi?hosts=server01,server02")
+        assert resp.status_code == 200
+        assert b"server01" in resp.data
+        assert b"server02" in resp.data
+        assert b"Multi-Console" in resp.data
+
+    def test_many_hosts_accepted(self, vnc_client):
+        _login(vnc_client)
+        hosts = ",".join(f"server{i:02d}" for i in range(10))
+        resp = vnc_client.get(f"/console-multi?hosts={hosts}")
+        assert resp.status_code == 200
+
+
 class TestConsoleConnectEndpoint:
     def test_requires_auth(self, vnc_client):
         resp = vnc_client.get("/console-connect?host=server01")

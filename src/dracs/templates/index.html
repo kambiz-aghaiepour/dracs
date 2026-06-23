@@ -1581,6 +1581,7 @@
                 <div class="panel-header diagnostics">Diagnostics</div>
                 <div class="panel-body">
                     <button id="console-btn" class="panel-btn btn-teal{% if (role_level < 1 and not is_quads_user) or not vnc_enabled %} role-disabled{% endif %}" data-min-role="user" disabled onclick="handleConsoleClick()">Console</button>
+                    <button id="multi-console-btn" class="panel-btn btn-teal{% if (role_level < 1 and not is_quads_user) or not vnc_enabled %} role-disabled{% endif %}" data-min-role="user" disabled onclick="handleMultiConsoleClick()">Multi-Console</button>
                     <button id="generate-tsr-btn" class="panel-btn btn-blue{% if role_level < 1 %} role-disabled{% endif %}" data-min-role="user" disabled onclick="handleGenerateTsrClick()">Generate TSR</button>
                     <button id="view-tsr-btn" class="panel-btn btn-blue" data-min-role="none" disabled onclick="handleViewTsrClick()">View TSRs</button>
                 </div>
@@ -2765,6 +2766,7 @@
             updateJobQueueButtonState();
             updateClearJobQueueButtonState();
             updateConsoleButtonState();
+            updateMultiConsoleButtonState();
             updatePowerButtonState();
             updateLatestFirmwareButtonState();
             updateLatestBiosButtonState();
@@ -2891,6 +2893,7 @@
             updateJobQueueButtonState();
             updateClearJobQueueButtonState();
             updateConsoleButtonState();
+            updateMultiConsoleButtonState();
             updatePowerButtonState();
             updateLatestFirmwareButtonState();
             updateLatestBiosButtonState();
@@ -2957,6 +2960,7 @@
             updateJobQueueButtonState();
             updateClearJobQueueButtonState();
             updateConsoleButtonState();
+            updateMultiConsoleButtonState();
             updatePowerButtonState();
             updateLatestFirmwareButtonState();
             updateLatestBiosButtonState();
@@ -3439,6 +3443,22 @@
             const consoleBtn = document.getElementById('console-btn');
             if (!consoleBtn || isRoleDisabled(consoleBtn)) return;
             consoleBtn.disabled = selectedSystems.length < 1;
+        }
+
+        function updateMultiConsoleButtonState() {
+            const btn = document.getElementById('multi-console-btn');
+            if (!btn || isRoleDisabled(btn)) return;
+            btn.disabled = selectedSystems.length < 2;
+        }
+
+        function handleMultiConsoleClick() {
+            if (selectedSystems.length < 2) return;
+            var hosts = selectedSystems.map(function(s) { return s.hostname; }).join(',');
+            window.open(
+                '/console-multi?hosts=' + encodeURIComponent(hosts),
+                '_blank',
+                'width=1400,height=900,menubar=no,toolbar=no,location=no,status=no,scrollbars=yes'
+            );
         }
 
         function showConsoleCountModal() {
@@ -6006,6 +6026,8 @@
             updateForceButtonState();
                 updateJobQueueButtonState();
                 updateClearJobQueueButtonState();
+                updateConsoleButtonState();
+                updateMultiConsoleButtonState();
                 updatePowerButtonState();
                 updateLatestFirmwareButtonState();
                 updateLatestBiosButtonState();

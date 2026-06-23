@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Multi-Console ({{ hostnames | length }} hosts)</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='images/dracs.svg') }}">
+    <meta name="theme-color" content="#313131">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html, body {
+            height: 100%;
+            background: #1a1a1a;
+            color: #ccc;
+            font-family: monospace;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        #mc-toolbar {
+            background: #2d2d2d;
+            border-bottom: 1px solid #444;
+            padding: 5px 8px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            flex-wrap: wrap;
+            flex-shrink: 0;
+            font-size: 12px;
+        }
+
+        .mc-label { color: #888; white-space: nowrap; }
+        .mc-sep { color: #555; padding: 0 3px; }
+
+        .mc-host-btn {
+            padding: 2px 7px;
+            background: #2d6a2d;
+            color: #ccc;
+            border: 1px solid #4a8a4a;
+            cursor: pointer;
+            font-family: monospace;
+            font-size: 11px;
+            white-space: nowrap;
+            max-width: 160px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .mc-host-btn:hover { background: #3a7a3a; }
+        .mc-host-btn.off { background: #333; border-color: #555; color: #666; }
+        .mc-host-btn.off:hover { background: #3a3a3a; }
+
+        .mc-col-btn {
+            padding: 2px 8px;
+            background: #333;
+            color: #aaa;
+            border: 1px solid #555;
+            cursor: pointer;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .mc-col-btn:hover { background: #444; color: #fff; }
+        .mc-col-btn.active { background: #555; color: #fff; border-color: #777; }
+
+        #mc-grid-wrap {
+            flex: 1;
+            overflow: auto;
+            padding: 4px;
+            min-height: 0;
+        }
+
+        #mc-grid {
+            display: grid;
+            gap: 4px;
+        }
+
+        .mc-cell {
+            display: flex;
+            flex-direction: column;
+            background: #111;
+            border: 1px solid #444;
+            overflow: hidden;
+            resize: both;
+            min-width: 220px;
+            min-height: 180px;
+        }
+
+        .mc-cell-hdr {
+            background: #313131;
+            border-bottom: 1px solid #444;
+            padding: 2px 6px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+            font-size: 11px;
+            color: #ccc;
+            gap: 4px;
+        }
+
+        .mc-cell-hdr-title {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            flex: 1;
+        }
+
+        .mc-popout-btn {
+            flex-shrink: 0;
+            background: none;
+            border: 1px solid #555;
+            color: #aaa;
+            cursor: pointer;
+            font-family: monospace;
+            font-size: 11px;
+            padding: 1px 5px;
+        }
+        .mc-popout-btn:hover:not(:disabled) { background: #444; color: #fff; }
+        .mc-popout-btn:disabled { color: #555; cursor: default; border-color: #444; }
+
+        .mc-cell-body {
+            flex: 1;
+            position: relative;
+            min-height: 0;
+        }
+
+        .mc-cell-body iframe {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .mc-cell-msg {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-size: 12px;
+            color: #888;
+            padding: 8px;
+            text-align: center;
+        }
+
+        .mc-spinner {
+            width: 24px;
+            height: 24px;
+            border: 2px solid #444;
+            border-top-color: #aaa;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            flex-shrink: 0;
+        }
+
+        .mc-error { color: #f66; }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<div id="mc-toolbar">
+    <span class="mc-label">Hosts:</span>
+    {% for hostname in hostnames %}
+    <button class="mc-host-btn"
+            id="hbtn-{{ loop.index0 }}"
+            title="{{ hostname }}"
+            onclick="toggleHost({{ loop.index0 }})">{{ hostname.split('.')[0] }}</button>
+    {% endfor %}
+
+    <span class="mc-sep">|</span>
+    <span class="mc-label">Cols:</span>
+    <button class="mc-col-btn{% if hostnames|length == 1 %} active{% endif %}" data-cols="1" onclick="setCols(1)">1</button>
+    <button class="mc-col-btn{% if hostnames|length == 2 %} active{% endif %}" data-cols="2" onclick="setCols(2)">2</button>
+    <button class="mc-col-btn{% if hostnames|length in [3,4] %} active{% endif %}" data-cols="3" onclick="setCols(3)">3</button>
+    <button class="mc-col-btn{% if hostnames|length in [5,6,7,8,9,10,11,12] %} active{% endif %}" data-cols="4" onclick="setCols(4)">4</button>
+    <button class="mc-col-btn{% if hostnames|length > 12 %} active{% endif %}" data-cols="5" onclick="setCols(5)">5</button>
+</div>
+
+<div id="mc-grid-wrap">
+    <div id="mc-grid">
+        {% for hostname in hostnames %}
+        <div class="mc-cell" id="cell-{{ loop.index0 }}" data-idx="{{ loop.index0 }}">
+            <div class="mc-cell-hdr">
+                <span class="mc-cell-hdr-title" title="{{ hostname }}">{{ hostname }}</span>
+                <button class="mc-popout-btn"
+                        id="popout-{{ loop.index0 }}"
+                        onclick="popoutConsole({{ loop.index0 }})"
+                        disabled
+                        title="Open in separate popup window">Popout</button>
+            </div>
+            <div class="mc-cell-body" id="body-{{ loop.index0 }}">
+                <div class="mc-cell-msg" id="msg-{{ loop.index0 }}">
+                    <div class="mc-spinner"></div>
+                    <div>Connecting...</div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+    var mcHosts = {{ hostnames | tojson }};
+    var mcTokens = new Array(mcHosts.length).fill(null);
+    var mcVisible = new Set(mcHosts.map(function(_, i) { return i; }));
+    var mcCols = 2;
+
+    (function initCols() {
+        var n = mcHosts.length;
+        if (n === 1) mcCols = 1;
+        else if (n === 2) mcCols = 2;
+        else if (n <= 4) mcCols = 3;
+        else if (n <= 12) mcCols = 4;
+        else mcCols = 5;
+    })();
+
+    function escapeHtml(str) {
+        var d = document.createElement('div');
+        d.appendChild(document.createTextNode(str));
+        return d.innerHTML;
+    }
+
+    function shortHost(fqdn) {
+        return fqdn.split('.')[0];
+    }
+
+    function computeCellHeight() {
+        var toolbar = document.getElementById('mc-toolbar');
+        var wrap = document.getElementById('mc-grid-wrap');
+        var wrapH = wrap.clientHeight;
+        var rows = Math.ceil(mcVisible.size / mcCols);
+        var gapTotal = (rows - 1) * 4 + 8;
+        return Math.max(180, Math.floor((wrapH - gapTotal) / rows));
+    }
+
+    function updateGrid() {
+        var grid = document.getElementById('mc-grid');
+        grid.style.gridTemplateColumns = 'repeat(' + mcCols + ', 1fr)';
+
+        mcHosts.forEach(function(_, idx) {
+            var cell = document.getElementById('cell-' + idx);
+            var hidden = !mcVisible.has(idx);
+            cell.style.display = hidden ? 'none' : 'flex';
+        });
+
+        var h = computeCellHeight();
+        document.querySelectorAll('.mc-cell').forEach(function(cell) {
+            if (cell.style.display !== 'none' && !cell.dataset.userResized) {
+                cell.style.height = h + 'px';
+            }
+        });
+    }
+
+    function setCols(n) {
+        mcCols = n;
+        document.querySelectorAll('.mc-col-btn').forEach(function(btn) {
+            btn.classList.toggle('active', parseInt(btn.dataset.cols) === n);
+        });
+        document.querySelectorAll('.mc-cell').forEach(function(cell) {
+            delete cell.dataset.userResized;
+            cell.style.width = '';
+            cell.style.height = '';
+        });
+        updateGrid();
+    }
+
+    function toggleHost(idx) {
+        var btn = document.getElementById('hbtn-' + idx);
+        var cell = document.getElementById('cell-' + idx);
+        if (mcVisible.has(idx)) {
+            mcVisible.delete(idx);
+            btn.classList.add('off');
+        } else {
+            mcVisible.add(idx);
+            btn.classList.remove('off');
+        }
+        updateGrid();
+    }
+
+    function popoutConsole(idx) {
+        var token = mcTokens[idx];
+        if (!token) return;
+        window.open(
+            '/console/' + token,
+            '_blank',
+            'width=1024,height=768,menubar=no,toolbar=no,location=no,status=no,scrollbars=no'
+        );
+    }
+
+    function showConsole(idx, token) {
+        var body = document.getElementById('body-' + idx);
+        var msg = document.getElementById('msg-' + idx);
+        msg.style.display = 'none';
+        var iframe = document.createElement('iframe');
+        iframe.src = '/console/' + encodeURIComponent(token);
+        body.appendChild(iframe);
+        document.getElementById('popout-' + idx).disabled = false;
+    }
+
+    function showError(idx, errMsg) {
+        var msg = document.getElementById('msg-' + idx);
+        msg.classList.add('mc-error');
+        msg.innerHTML = '<div>' + escapeHtml(errMsg) + '</div>';
+    }
+
+    function createSession(hostname, idx) {
+        return fetch('/api/vnc-session', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({hostname: hostname})
+        })
+        .then(function(resp) { return resp.json(); })
+        .then(function(data) {
+            if (data.success) {
+                mcTokens[idx] = data.token;
+                showConsole(idx, data.token);
+            } else {
+                showError(idx, data.message || 'Session creation failed');
+            }
+        })
+        .catch(function(e) {
+            showError(idx, e.message || 'Network error');
+        });
+    }
+
+    function createAllSessions() {
+        return Promise.all(mcHosts.map(function(hostname, idx) {
+            return createSession(hostname, idx);
+        }));
+    }
+
+    // Install ResizeObserver after the initial layout settles so that only
+    // user-initiated drags set the userResized flag, not programmatic sizing.
+    setTimeout(function() {
+        if (!window.ResizeObserver) return;
+        var obs = new ResizeObserver(function(entries) {
+            entries.forEach(function(entry) {
+                entry.target.dataset.userResized = '1';
+            });
+        });
+        document.querySelectorAll('.mc-cell').forEach(function(cell) {
+            obs.observe(cell);
+        });
+    }, 200);
+
+    setInterval(function() {
+        mcTokens.forEach(function(token) {
+            if (token) {
+                fetch('/api/vnc-session/' + encodeURIComponent(token), {method: 'PATCH'});
+            }
+        });
+    }, 5 * 60 * 1000);
+
+    window.addEventListener('beforeunload', function() {
+        mcTokens.forEach(function(token) {
+            if (token) {
+                fetch('/api/vnc-session/' + encodeURIComponent(token), {
+                    method: 'DELETE',
+                    keepalive: true
+                });
+            }
+        });
+    });
+
+    updateGrid();
+    createAllSessions();
+</script>
+</body>
+</html>
