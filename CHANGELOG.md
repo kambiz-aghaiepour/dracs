@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.6.3 (2026-06-23)
+
+### Bug Fixes
+
+- Add power button to console
+  ([`6609e55`](https://github.com/kambiz-aghaiepour/dracs/commit/6609e55d2ceed7b96d39cf4b1e997364da903ffc))
+
+### Chores
+
+- Sync spec file version to 2.6.2 [skip ci]
+  ([`439a298`](https://github.com/kambiz-aghaiepour/dracs/commit/439a29890b5d3ef234c85672ad647d52a154c9b1))
+
+
 ## v2.6.2 (2026-06-23)
 
 ### Bug Fixes
