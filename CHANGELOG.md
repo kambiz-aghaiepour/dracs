@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.6.5 (2026-06-23)
+
+### Bug Fixes
+
+- Multiple console request not working
+  ([`aa7b1fa`](https://github.com/kambiz-aghaiepour/dracs/commit/aa7b1fa5978ae2c7f7f2ac7a20a967490d4b2b1f))
+
+### Chores
+
+- Sync spec file version to 2.6.4 [skip ci]
+  ([`6950a47`](https://github.com/kambiz-aghaiepour/dracs/commit/6950a47c779634306aad785ee0d92f4dd6859c82))
+
+
 ## v2.6.4 (2026-06-23)
 
 ### Bug Fixes
