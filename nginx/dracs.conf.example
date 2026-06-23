@@ -20,7 +20,7 @@ server {
     }
 
     location /iso {
-        alias /var/lib/dracs/iso/;
+        alias /var/lib/dracs/web/iso/;
         autoindex off;
     }
 
