@@ -3333,12 +3333,13 @@ def api_remoteimage_apply(hostname):
                 500,
             )
 
+        racadm_out = (result.stdout.strip() or result.stderr.strip())[:300]
         audit_log(
             "remoteimage_apply",
             target=hostname,
             user=user,
             source=_client_ip(),
-            details=f"action={action}",
+            details=f"action={action},output={racadm_out!r}",
         )
         return jsonify({"success": True, "message": f"Remote image {action}d"})
     except subprocess.TimeoutExpired:
