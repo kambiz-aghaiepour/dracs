@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.6.4 (2026-06-23)
+
+### Bug Fixes
+
+- Console limit tracking
+  ([`03ed888`](https://github.com/kambiz-aghaiepour/dracs/commit/03ed8889fa91f70e8cdc8cad9490409b9e6fc3a5))
+
+### Chores
+
+- Sync spec file version to 2.6.3 [skip ci]
+  ([`c6f616b`](https://github.com/kambiz-aghaiepour/dracs/commit/c6f616bf4407dd2d9cfb4888f13e4bd3a913ffdb))
+
+
 ## v2.6.3 (2026-06-23)
 
 ### Bug Fixes
