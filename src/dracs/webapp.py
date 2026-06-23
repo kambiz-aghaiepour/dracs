@@ -3220,9 +3220,7 @@ def console_multi():
     for hostname in hostnames:
         if not validate_hostname(hostname):
             return (
-                jsonify(
-                    {"success": False, "message": f"Invalid hostname: {hostname}"}
-                ),
+                jsonify({"success": False, "message": f"Invalid hostname: {hostname}"}),
                 400,
             )
     return render_template("console_multi.html", hostnames=hostnames)
