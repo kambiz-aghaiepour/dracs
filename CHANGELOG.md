@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.7.1 (2026-06-23)
+
+### Bug Fixes
+
+- Popout for consoles use own tokens
+  ([`9417c56`](https://github.com/kambiz-aghaiepour/dracs/commit/9417c568fe1ff49da5e95adfcd7a0d51759835f6))
+
+### Chores
+
+- Sync spec file version to 2.7.0 [skip ci]
+  ([`b23753d`](https://github.com/kambiz-aghaiepour/dracs/commit/b23753dfebebf0b0a8e32750d56d1b59c31cf3e2))
+
+
 ## v2.7.0 (2026-06-23)
 
 ### Bug Fixes
