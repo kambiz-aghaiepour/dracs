@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Console: {{ hostname }}</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='images/dracs.svg') }}">
+    <meta name="theme-color" content="#313131">
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            background: #1a1a1a;
+            color: #ccc;
+            font-family: monospace;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 16px;
+        }
+        #hostname {
+            color: #fff;
+            font-size: 14px;
+        }
+        #status {
+            font-size: 12px;
+            color: #aaa;
+        }
+        #spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid #444;
+            border-top-color: #ccc;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #retry-btn {
+            display: none;
+            margin-top: 8px;
+            padding: 6px 16px;
+            background: #444;
+            color: #ccc;
+            border: 1px solid #666;
+            cursor: pointer;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        #retry-btn:hover { background: #555; }
+    </style>
+</head>
+<body>
+    <div id="spinner"></div>
+    <div id="hostname">{{ hostname }}</div>
+    <div id="status">Connecting...</div>
+    <button id="retry-btn" onclick="connect()">Retry</button>
+
+    <script>
+        var hostname = {{ hostname | tojson }};
+
+        function connect() {
+            document.getElementById('spinner').style.display = 'block';
+            document.getElementById('status').style.color = '#aaa';
+            document.getElementById('status').textContent = 'Connecting...';
+            document.getElementById('retry-btn').style.display = 'none';
+
+            fetch('/api/vnc-session', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({hostname: hostname})
+            })
+            .then(function(resp) { return resp.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    location.replace('/console/' + data.token);
+                } else {
+                    showError(data.message || 'Session creation failed');
+                }
+            })
+            .catch(function(e) {
+                showError(e.message || 'Network error');
+            });
+        }
+
+        function showError(msg) {
+            document.getElementById('spinner').style.display = 'none';
+            document.getElementById('status').style.color = '#f44';
+            document.getElementById('status').textContent = 'Error: ' + msg;
+            document.getElementById('retry-btn').style.display = 'inline-block';
+        }
+
+        connect();
+    </script>
+</body>
+</html>

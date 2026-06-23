@@ -611,6 +611,34 @@ class TestVncSessionTouchEndpoint:
         assert resp.get_json()["success"] is True
 
 
+class TestConsoleConnectEndpoint:
+    def test_requires_auth(self, vnc_client):
+        resp = vnc_client.get("/console-connect?host=server01")
+        assert resp.status_code == 401
+
+    def test_vnc_disabled(self, vnc_disabled_client):
+        _login(vnc_disabled_client)
+        resp = vnc_disabled_client.get("/console-connect?host=server01")
+        assert resp.status_code == 404
+
+    def test_invalid_hostname(self, vnc_client):
+        _login(vnc_client)
+        resp = vnc_client.get("/console-connect?host=bad;host")
+        assert resp.status_code == 400
+
+    def test_missing_host(self, vnc_client):
+        _login(vnc_client)
+        resp = vnc_client.get("/console-connect")
+        assert resp.status_code == 400
+
+    def test_success_returns_connect_page(self, vnc_client):
+        _login(vnc_client)
+        resp = vnc_client.get("/console-connect?host=server01")
+        assert resp.status_code == 200
+        assert b"server01" in resp.data
+        assert b"Connecting" in resp.data
+
+
 class TestConsoleViewEndpoint:
     def test_requires_auth(self, vnc_client):
         resp = vnc_client.get("/console/sometoken")

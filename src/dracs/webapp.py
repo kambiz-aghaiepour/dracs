@@ -3193,6 +3193,31 @@ def api_vnc_session_delete(token):
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
 
 
+@app.route("/console-connect")
+def console_connect():
+    """Interstitial page that creates a VNC session and redirects to the console.
+
+    Opened synchronously (no await) from the main UI so that all popup windows
+    are created within the user-gesture context, avoiding browser popup blocking
+    when multiple consoles are opened at once.
+    """
+    _, err = _require_auth()
+    if err:
+        return err
+
+    if not VNC_ENABLE or vnc_manager is None:
+        return (
+            jsonify({"success": False, "message": "VNC console is not enabled"}),
+            404,
+        )
+
+    hostname = request.args.get("host", "").strip()
+    if not hostname or not validate_hostname(hostname):
+        return jsonify({"success": False, "message": "Invalid hostname"}), 400
+
+    return render_template("console_connect.html", hostname=hostname)
+
+
 @app.route("/console/<token>")
 def console_view(token):
     """Serve the noVNC console viewer for a session."""
