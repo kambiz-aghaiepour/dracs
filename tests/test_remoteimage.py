@@ -197,6 +197,16 @@ class TestIsoImages:
         names = [img["name"] for img in data["images"]]
         assert names == ["aa.iso", "mm.iso", "zz.iso"]
 
+    def test_iterdir_exception_returns_500(self, ri_client):
+        _login(ri_client)
+        mock_path = MagicMock()
+        mock_path.is_dir.return_value = True
+        mock_path.iterdir.side_effect = PermissionError("access denied")
+        with patch("dracs.webapp.ISO_IMAGE_DIR", mock_path):
+            resp = ri_client.get("/api/iso-images")
+        assert resp.status_code == 500
+        assert resp.get_json()["success"] is False
+
 
 # ---------------------------------------------------------------------------
 # GET /api/remoteimage/<hostname> tests
@@ -275,6 +285,18 @@ class TestRemoteimageStatus:
         assert resp.status_code == 500
         data = resp.get_json()
         assert "timeout" in data["message"].lower()
+
+    def test_generic_exception_returns_500(self, ri_client):
+        _login(ri_client)
+        with patch(
+            "dracs.webapp.subprocess.run", side_effect=RuntimeError("unexpected")
+        ):
+            with patch(
+                "dracs.webapp._build_ssh_racadm_cmd", return_value=["ssh", "cmd"]
+            ):
+                resp = ri_client.get("/api/remoteimage/server01")
+        assert resp.status_code == 500
+        assert "unexpected" in resp.get_json()["message"]
 
 
 # ---------------------------------------------------------------------------
@@ -416,3 +438,16 @@ class TestRemoteimageApply:
         assert resp.status_code == 200
         args = mock_cmd.call_args[0]
         assert custom_url in args
+
+    def test_generic_exception_returns_500(self, ri_client):
+        _login(ri_client)
+        with patch(
+            "dracs.webapp.subprocess.run", side_effect=RuntimeError("unexpected")
+        ):
+            with patch("dracs.webapp._build_ssh_racadm_cmd", return_value=["cmd"]):
+                resp = ri_client.post(
+                    "/api/remoteimage/server01",
+                    json={"action": "disable"},
+                )
+        assert resp.status_code == 500
+        assert "unexpected" in resp.get_json()["message"]
