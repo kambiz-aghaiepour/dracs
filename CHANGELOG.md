@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v2.6.2 (2026-06-23)
+
+### Bug Fixes
+
+- Ensure the iso dir is created if needed
+  ([`f71a9bb`](https://github.com/kambiz-aghaiepour/dracs/commit/f71a9bb71359e2b24d6d1f94e2d5358d11b5ba0f))
+
+- ISO default selection should be blank
+  ([`2b2d12f`](https://github.com/kambiz-aghaiepour/dracs/commit/2b2d12fdd9a5fa758f574f593b19391e39263511))
+
+### Chores
+
+- Sync spec file version to 2.6.1 [skip ci]
+  ([`6ae4bda`](https://github.com/kambiz-aghaiepour/dracs/commit/6ae4bda43bb6791b97ecfcf7301201ae97de9825))
+
+
 ## v2.6.1 (2026-06-23)
 
 ### Bug Fixes
