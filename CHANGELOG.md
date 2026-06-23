@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v2.6.6 (2026-06-23)
+
+### Bug Fixes
+
+- Multiline docstring flagged
+  ([`f2fff96`](https://github.com/kambiz-aghaiepour/dracs/commit/f2fff967aa55e32c3cf76cae3d237607d5c8a592))
+
+- Multiple console pop-up issue
+  ([`02d3bbb`](https://github.com/kambiz-aghaiepour/dracs/commit/02d3bbb47b0af701bad2cdd3a77322263014e59b))
+
+### Chores
+
+- Sync spec file version to 2.6.5 [skip ci]
+  ([`1d3f2f5`](https://github.com/kambiz-aghaiepour/dracs/commit/1d3f2f50526f2f5d0f50d00611e32c430694a114))
+
+
 ## v2.6.5 (2026-06-23)
 
 ### Bug Fixes
