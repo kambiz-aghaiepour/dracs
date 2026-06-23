@@ -2,6 +2,24 @@
 
 <!-- version list -->
 
+## v2.6.0 (2026-06-23)
+
+### Bug Fixes
+
+- Ensure coverage not below threshold
+  ([`c28b852`](https://github.com/kambiz-aghaiepour/dracs/commit/c28b85209f4f506a1183c0dc6990cdaef270a9be))
+
+### Chores
+
+- Sync spec file version to 2.5.4 [skip ci]
+  ([`7e0f4f9`](https://github.com/kambiz-aghaiepour/dracs/commit/7e0f4f96e9c4dc94b31412c1def3a56f454492ee))
+
+### Features
+
+- Add remoteimage support
+  ([`c8c0acb`](https://github.com/kambiz-aghaiepour/dracs/commit/c8c0acb1451b96d01d47ae00e2381e3d8e4860aa))
+
+
 ## v2.5.4 (2026-06-22)
 
 ### Bug Fixes
