@@ -3452,6 +3452,10 @@
 
         async function openConsolesForSelected() {
             const hosts = selectedSystems.map(s => s.hostname);
+            const winOpts = 'width={{ vnc_console_width }},height={{ vnc_console_height }},menubar=no,toolbar=no,location=no,status=no,scrollbars=no';
+            // Open placeholder windows synchronously before any await so browsers
+            // treat them as user-gesture popups and don't block them.
+            const wins = hosts.map(() => window.open('about:blank', '_blank', winOpts));
             const results = await Promise.all(hosts.map(async function(hostname) {
                 try {
                     const response = await fetch(apiUrl('/api/vnc-session'), {
@@ -3468,10 +3472,11 @@
                     return null;
                 }
             }));
-            for (const result of results) {
-                if (result) {
-                    window.open('/console/' + result.token, '_blank',
-                        'width={{ vnc_console_width }},height={{ vnc_console_height }},menubar=no,toolbar=no,location=no,status=no,scrollbars=no');
+            for (let i = 0; i < results.length; i++) {
+                if (results[i]) {
+                    wins[i].location.href = '/console/' + results[i].token;
+                } else {
+                    wins[i].close();
                 }
             }
         }
