@@ -3193,6 +3193,41 @@ def api_vnc_session_delete(token):
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
 
 
+@app.route("/console-multi")
+def console_multi():
+    """
+    Multi-console viewer: opens a tiled grid of embedded noVNC sessions for
+    two or more hosts simultaneously.  Session creation is deferred to
+    JavaScript so the popup appears immediately.
+    """
+    _, err = _require_auth()
+    if err:
+        return err
+    if not VNC_ENABLE or vnc_manager is None:
+        return (
+            jsonify({"success": False, "message": "VNC console is not enabled"}),
+            404,
+        )
+    hosts_param = request.args.get("hosts", "").strip()
+    if not hosts_param:
+        return jsonify({"success": False, "message": "No hosts specified"}), 400
+    hostnames = [h.strip() for h in hosts_param.split(",") if h.strip()]
+    if len(hostnames) < 2:
+        return (
+            jsonify({"success": False, "message": "At least two hosts required"}),
+            400,
+        )
+    for hostname in hostnames:
+        if not validate_hostname(hostname):
+            return (
+                jsonify(
+                    {"success": False, "message": f"Invalid hostname: {hostname}"}
+                ),
+                400,
+            )
+    return render_template("console_multi.html", hostnames=hostnames)
+
+
 @app.route("/console-connect")
 def console_connect():
     """
