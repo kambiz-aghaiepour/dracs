@@ -116,6 +116,95 @@
             border-top: none;
             border-bottom: 5px solid #ccc;
         }
+        #dracs-power-btn {
+            position: absolute;
+            top: 4px;
+            right: 8px;
+            height: 16px;
+            line-height: 14px;
+            padding: 0 7px;
+            background: #3a3a3a;
+            color: #bbb;
+            border: 1px solid #666;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 10px;
+            cursor: pointer;
+            z-index: 10000;
+        }
+        #dracs-power-btn:hover {
+            background: #4a4a4a;
+            color: #eee;
+        }
+        #dracs-pwr-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 10000;
+            background: rgba(0, 0, 0, 0.6);
+            align-items: center;
+            justify-content: center;
+        }
+        #dracs-pwr-modal.open {
+            display: flex;
+        }
+        #dracs-pwr-modal-box {
+            background: #2a2a2a;
+            border: 1px solid #555;
+            border-radius: 6px;
+            padding: 20px 24px;
+            min-width: 420px;
+            font-family: monospace;
+        }
+        #dracs-pwr-modal-box .pwr-title {
+            color: #ccc;
+            font-size: 13px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        #dracs-pwr-status-line {
+            color: #888;
+            font-size: 11px;
+            margin-bottom: 14px;
+            min-height: 16px;
+        }
+        #dracs-pwr-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        #dracs-pwr-buttons button {
+            background: #333;
+            color: #bbb;
+            border: 1px solid #555;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 11px;
+            padding: 4px 10px;
+            cursor: pointer;
+        }
+        #dracs-pwr-buttons button:hover {
+            background: #444;
+            color: #eee;
+        }
+        #dracs-pwr-buttons .pwr-cancel {
+            background: #2e2e2e;
+            border-color: #666;
+        }
+        #dracs-pwr-buttons .pwr-danger {
+            border-color: #844;
+            color: #e88;
+        }
+        #dracs-pwr-buttons .pwr-danger:hover {
+            background: #4a2a2a;
+            color: #faa;
+        }
+        #dracs-pwr-result {
+            font-size: 11px;
+            min-height: 16px;
+            color: #aaa;
+        }
         #dracs-ri-modal {
             display: none;
             position: fixed;
@@ -240,12 +329,29 @@
 <body>
 
     <div id="dracs-hostname-bar">
+        <button id="dracs-power-btn" onclick="pwrShowModal()" title="Power Action">Power</button>
         <div id="dracs-hostname-line">{{ hostname }}</div>
         <div id="dracs-remoteimage-row">
             <span id="dracs-ri-content"></span>
         </div>
     </div>
     <div id="dracs-hostname-handle" onclick="toggleHostnameBar()" title="Show/Hide hostname bar"></div>
+
+    <div id="dracs-pwr-modal">
+        <div id="dracs-pwr-modal-box">
+            <div class="pwr-title">Power Action: <span id="dracs-pwr-hostname-label"></span></div>
+            <div id="dracs-pwr-status-line">Checking power status...</div>
+            <div id="dracs-pwr-buttons">
+                <button class="pwr-cancel" onclick="pwrCancelModal()">Cancel</button>
+                <button onclick="pwrApplyAction('powerup')">Power On</button>
+                <button onclick="pwrApplyAction('powercycle')">Graceful Reboot</button>
+                <button onclick="pwrApplyAction('hardreset')">Hard Reboot</button>
+                <button class="pwr-danger" onclick="pwrApplyAction('graceshutdown')">Graceful Shutdown</button>
+                <button class="pwr-danger" onclick="pwrApplyAction('powerdown')">Hard Power Off</button>
+            </div>
+            <div id="dracs-pwr-result"></div>
+        </div>
+    </div>
 
     <div id="dracs-ri-modal">
         <div id="dracs-ri-modal-box">
@@ -459,6 +565,57 @@
                     btn.disabled = false;
                     btn.textContent = 'Apply Changes';
                 }
+            });
+        }
+
+        function pwrShowModal() {
+            document.getElementById('dracs-pwr-hostname-label').textContent = riHostname;
+            document.getElementById('dracs-pwr-status-line').textContent = 'Checking power status...';
+            document.getElementById('dracs-pwr-result').textContent = '';
+            document.getElementById('dracs-pwr-modal').classList.add('open');
+            fetch('/api/power-status', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({hostname: riHostname})
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var line = document.getElementById('dracs-pwr-status-line');
+                if (data.success) {
+                    line.textContent = 'Current status: ' + (data.status === 'on' ? 'Powered On' : 'Powered Off');
+                } else {
+                    line.textContent = 'Status: ' + riEscape(data.message);
+                }
+            })
+            .catch(function() {
+                document.getElementById('dracs-pwr-status-line').textContent = 'Unable to retrieve power status.';
+            });
+        }
+
+        function pwrCancelModal() {
+            document.getElementById('dracs-pwr-modal').classList.remove('open');
+        }
+
+        function pwrApplyAction(action) {
+            var result = document.getElementById('dracs-pwr-result');
+            result.textContent = 'Sending command...';
+            result.style.color = '#aaa';
+            fetch('/api/power-action', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({hostname: riHostname, action: action})
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                result.textContent = data.success ? data.message : ('Error: ' + data.message);
+                result.style.color = data.success ? '#8d8' : '#f88';
+                if (data.success) {
+                    setTimeout(pwrCancelModal, 2500);
+                }
+            })
+            .catch(function(e) {
+                result.textContent = 'Error: ' + e.message;
+                result.style.color = '#f88';
             });
         }
     </script>
