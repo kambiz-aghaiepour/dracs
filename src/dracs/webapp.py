@@ -3226,6 +3226,21 @@ def console_view(token):
     )
 
 
+@app.route("/api/vnc-session/<token>", methods=["PATCH"])
+def api_vnc_session_touch(token):
+    """Heartbeat: reset expiry timer for an active VNC session."""
+    _, err = _require_auth()
+    if err:
+        return err
+
+    if not VNC_ENABLE or vnc_manager is None:
+        return jsonify({"success": False, "message": "VNC console is not enabled"}), 404
+
+    if vnc_manager.touch_session(token):
+        return jsonify({"success": True})
+    return jsonify({"success": False, "message": "Session not found"}), 404
+
+
 def _parse_remoteimage_status(output: str) -> dict:
     """Parse output of racadm remoteimage -s into {enabled, url}."""
     enabled = False

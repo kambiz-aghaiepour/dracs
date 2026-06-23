@@ -132,6 +132,30 @@ class TestVncSessionManager:
     def test_remove_nonexistent_session(self, manager):
         manager.remove_session("nonexistent-token")
 
+    def test_touch_session_resets_mtime(self, manager, token_dir):
+        token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        token_file = Path(token_dir) / token
+        original_mtime = token_file.stat().st_mtime
+        time.sleep(0.05)
+        result = manager.touch_session(token)
+        assert result is True
+        assert token_file.stat().st_mtime > original_mtime
+
+    def test_touch_session_nonexistent_returns_false(self, manager):
+        assert manager.touch_session("no-such-token") is False
+
+    def test_touch_session_prevents_expiry(self, manager, token_dir):
+        token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        token_file = Path(token_dir) / token
+        # Back-date creation so it would normally expire
+        old_time = time.time() - 200
+        os.utime(token_file, (old_time, old_time))
+        # Touch resets the timer
+        manager.touch_session(token)
+        removed = manager.cleanup_expired()
+        assert removed == 0
+        assert token_file.exists()
+
     def test_get_session_info(self, manager):
         token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
         info = manager.get_session_info(token)
@@ -554,6 +578,37 @@ class TestVncSessionDeleteEndpoint:
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["success"] is True
+
+
+class TestVncSessionTouchEndpoint:
+    def test_requires_auth(self, vnc_client):
+        resp = vnc_client.patch("/api/vnc-session/sometoken")
+        assert resp.status_code == 401
+
+    def test_vnc_disabled(self, vnc_disabled_client):
+        _login(vnc_disabled_client)
+        resp = vnc_disabled_client.patch("/api/vnc-session/sometoken")
+        assert resp.status_code == 404
+
+    def test_session_not_found(self, vnc_client):
+        _login(vnc_client)
+        resp = vnc_client.patch("/api/vnc-session/no-such-token")
+        assert resp.status_code == 404
+        assert resp.get_json()["success"] is False
+
+    @patch("dracs.webapp.check_vnc_connectivity", return_value=(True, ""))
+    @patch("dracs.webapp.get_vnc_credentials", return_value=(5901, "pass"))
+    def test_success(self, mock_creds, mock_conn, vnc_client):
+        _login(vnc_client)
+        create_resp = vnc_client.post(
+            "/api/vnc-session",
+            data=json.dumps({"hostname": "server01"}),
+            content_type="application/json",
+        )
+        token = create_resp.get_json()["token"]
+        resp = vnc_client.patch(f"/api/vnc-session/{token}")
+        assert resp.status_code == 200
+        assert resp.get_json()["success"] is True
 
 
 class TestConsoleViewEndpoint:

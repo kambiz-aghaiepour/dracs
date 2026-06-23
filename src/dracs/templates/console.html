@@ -378,6 +378,23 @@
         })();
 
         var riHostname = {{ hostname | tojson }};
+        var consoleToken = {{ token | tojson }};
+
+        // Release session immediately when the console window is closed.
+        window.addEventListener('beforeunload', function() {
+            fetch('/api/vnc-session/' + encodeURIComponent(consoleToken), {
+                method: 'DELETE',
+                keepalive: true
+            });
+        });
+
+        // Heartbeat: reset the server-side expiry timer every 5 minutes so
+        // VNC_TIMEOUT is measured from last active use, not from session creation.
+        setInterval(function() {
+            fetch('/api/vnc-session/' + encodeURIComponent(consoleToken), {
+                method: 'PATCH'
+            });
+        }, 5 * 60 * 1000);
         var riServerEnabled = false;
         var riServerUrl = '';
         var riUIEnabled = false;
