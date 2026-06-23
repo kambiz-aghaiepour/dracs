@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v2.6.1 (2026-06-23)
+
+### Bug Fixes
+
+- Keep the RPM version of nginx in sync
+  ([`55479db`](https://github.com/kambiz-aghaiepour/dracs/commit/55479db2f75a5f3e0b6abd5d5cb0ba9aea5aff81))
+
+- Point isos to consistent location
+  ([`5ccee59`](https://github.com/kambiz-aghaiepour/dracs/commit/5ccee59ba80c95d5919193c823e127050954f557))
+
+### Chores
+
+- Sync spec file version to 2.6.0 [skip ci]
+  ([`61d116c`](https://github.com/kambiz-aghaiepour/dracs/commit/61d116c308685ac09dcf9d98c70f596336bde091))
+
+
 ## v2.6.0 (2026-06-23)
 
 ### Bug Fixes
