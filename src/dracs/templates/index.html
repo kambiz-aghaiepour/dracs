@@ -2050,14 +2050,14 @@
 
         <!-- Power Off Confirmation Modal -->
         <div id="power-off-modal" class="modal-overlay">
-            <div class="modal-content">
+            <div class="modal-content" style="max-width: 680px;">
                 <div class="modal-header">
                     <h2>Power Action</h2>
                 </div>
                 <div class="modal-body">
                     <p>Select a power action for <strong id="power-off-hostname"></strong>:</p>
                 </div>
-                <div class="modal-footer">
+                <div class="modal-footer" style="flex-wrap: wrap;">
                     <button type="button" class="btn btn-secondary" onclick="cancelPowerAction()">Cancel</button>
                     <button type="button" class="btn btn-reboot-graceful" onclick="confirmPowerAction('powercycle')">Graceful Reboot</button>
                     <button type="button" class="btn btn-reboot-hard" onclick="confirmPowerAction('hardreset')">Hard Reboot</button>
