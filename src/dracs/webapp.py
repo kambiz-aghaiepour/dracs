@@ -3195,7 +3195,8 @@ def api_vnc_session_delete(token):
 
 @app.route("/console-connect")
 def console_connect():
-    """Interstitial page that creates a VNC session and redirects to the console.
+    """
+    Interstitial page that creates a VNC session and redirects to the console.
 
     Opened synchronously (no await) from the main UI so that all popup windows
     are created within the user-gesture context, avoiding browser popup blocking
