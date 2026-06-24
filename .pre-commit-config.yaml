@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: env-example-sync
+        name: .env.example files in sync
+        language: system
+        entry: bash -c 'diff .env.example src/dracs/examples/.env.example'
+        pass_filenames: false
+        files: '(^\.env\.example|^src/dracs/examples/\.env\.example)$'
