@@ -282,6 +282,8 @@
             path: "websockify?token={{ token }}",
             encrypt: window.location.protocol === "https:",
             autoconnect: true,
+            reconnect: true,
+            reconnect_delay: 3000,
             resize: "scale",
             password: "{{ vnc_password }}",
         };

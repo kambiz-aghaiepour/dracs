@@ -396,6 +396,7 @@ class TestVncSessionManager:
         assert "-reflect" in cmd
         assert "mgmt-host01.example.com:5901" in cmd
         assert "-shared" in cmd
+        assert "-ping" in cmd
         assert "-passwd" not in cmd
         env = mock_popen.call_args[1]["env"]
         assert env.get("X11VNC_REFLECT_PASSWORD") == "pass"
