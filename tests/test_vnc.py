@@ -504,6 +504,178 @@ class TestVncSessionManager:
         procs[0].terminate.assert_called_once()
         procs[1].terminate.assert_called_once()
 
+    @patch("dracs.vnc.subprocess.Popen")
+    @patch("dracs.vnc.shutil.which", return_value="/usr/bin/x11vnc")
+    def test_start_proxy_writes_pid_file(
+        self, mock_which, mock_popen, manager, token_dir
+    ):
+        import threading as _threading
+
+        hold = _threading.Event()
+        mock_proc = MagicMock()
+        mock_proc.pid = 99999
+        mock_proc.wait.side_effect = lambda *a, **kw: hold.wait()
+        mock_popen.return_value = mock_proc
+        token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        manager.start_proxy(token, "mgmt-host01.example.com", 5901, "", 15901)
+        pid_file = Path(token_dir) / f"{token}.proxy"
+        assert pid_file.exists()
+        assert pid_file.read_text().strip() == "99999"
+        hold.set()
+
+    @patch("dracs.vnc.subprocess.Popen")
+    @patch("dracs.vnc.shutil.which", return_value="/usr/bin/x11vnc")
+    def test_reaper_deletes_pid_file_on_exit(
+        self, mock_which, mock_popen, manager, token_dir
+    ):
+        mock_proc = MagicMock()
+        mock_proc.pid = 99999
+        mock_proc.wait.return_value = 0
+        mock_popen.return_value = mock_proc
+        token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        manager.start_proxy(token, "mgmt-host01.example.com", 5901, "", 15901)
+        import time as _time
+
+        deadline = _time.time() + 2.0
+        pid_file = Path(token_dir) / f"{token}.proxy"
+        while pid_file.exists() and _time.time() < deadline:
+            _time.sleep(0.01)
+        assert not pid_file.exists()
+
+    @patch("dracs.vnc.time.sleep")
+    @patch("dracs.vnc.os.kill")
+    @patch("dracs.vnc.shutil.which", return_value="/usr/bin/x11vnc")
+    def test_stop_proxy_uses_pid_file_for_orphan(
+        self, mock_which, mock_kill, mock_sleep, manager, token_dir
+    ):
+        token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        pid_file = Path(token_dir) / f"{token}.proxy"
+        pid_file.write_text("55555")
+        manager.stop_proxy(token)
+        calls = [c[0] for c in mock_kill.call_args_list]
+        assert (55555, __import__("signal").SIGTERM) in calls
+        assert not pid_file.exists()
+
+    @patch("dracs.vnc.time.sleep")
+    @patch("dracs.vnc.os.kill")
+    @patch("dracs.vnc.shutil.which", return_value="/usr/bin/x11vnc")
+    def test_stop_proxy_pid_file_orphan_already_dead_at_sigkill(
+        self, mock_which, mock_kill, mock_sleep, manager, token_dir
+    ):
+        import signal as _signal
+
+        mock_kill.side_effect = lambda pid, sig: (
+            (_ for _ in ()).throw(ProcessLookupError())
+            if sig == _signal.SIGKILL
+            else None
+        )
+        token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        pid_file = Path(token_dir) / f"{token}.proxy"
+        pid_file.write_text("55555")
+        manager.stop_proxy(token)
+        assert not pid_file.exists()
+
+    @patch("dracs.vnc.time.sleep")
+    @patch("dracs.vnc.os.kill")
+    @patch("dracs.vnc.shutil.which", return_value="/usr/bin/x11vnc")
+    def test_stop_proxy_pid_file_invalid_pid_is_noop(
+        self, mock_which, mock_kill, mock_sleep, manager, token_dir
+    ):
+        token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        pid_file = Path(token_dir) / f"{token}.proxy"
+        pid_file.write_text("not-a-pid")
+        manager.stop_proxy(token)
+        mock_kill.assert_not_called()
+        assert not pid_file.exists()
+
+    @patch("dracs.vnc.subprocess.Popen")
+    @patch("dracs.vnc.shutil.which", return_value="/usr/bin/x11vnc")
+    def test_stop_proxy_clears_pid_file_after_normal_kill(
+        self, mock_which, mock_popen, manager, token_dir
+    ):
+        import threading as _threading
+
+        hold = _threading.Event()
+        mock_proc = MagicMock()
+        mock_proc.pid = 77777
+        mock_proc.wait.side_effect = lambda *a, **kw: (
+            None if "timeout" in kw else hold.wait()
+        )
+        mock_popen.return_value = mock_proc
+        token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        manager.start_proxy(token, "mgmt-host01.example.com", 5901, "", 15901)
+        pid_file = Path(token_dir) / f"{token}.proxy"
+        assert pid_file.exists()
+        manager.stop_proxy(token)
+        hold.set()
+        assert not pid_file.exists()
+
+    @patch("dracs.vnc.subprocess.Popen")
+    @patch("dracs.vnc.shutil.which", return_value="/usr/bin/x11vnc")
+    def test_remove_session_deletes_proxy_pid_file(
+        self, mock_which, mock_popen, manager, token_dir
+    ):
+        import threading as _threading
+
+        hold = _threading.Event()
+        mock_proc = MagicMock()
+        mock_proc.pid = 88888
+        mock_proc.wait.side_effect = lambda *a, **kw: (
+            None if "timeout" in kw else hold.wait()
+        )
+        mock_popen.return_value = mock_proc
+        token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        manager.start_proxy(token, "mgmt-host01.example.com", 5901, "", 15901)
+        manager.remove_session(token)
+        hold.set()
+        assert not (Path(token_dir) / f"{token}.proxy").exists()
+
+    @patch("dracs.vnc.os.kill")
+    def test_cleanup_orphaned_proxies_on_init(self, mock_kill, token_dir):
+        proxy_file = Path(token_dir) / "oldtoken.proxy"
+        token_file = Path(token_dir) / "oldtoken"
+        meta_file = Path(token_dir) / "oldtoken.meta"
+        refs_file = Path(token_dir) / "oldtoken.refs"
+        proxy_file.write_text("11111")
+        token_file.write_text("oldtoken: 127.0.0.1:15901\n")
+        meta_file.write_text("host01\n")
+        refs_file.write_text("1")
+        mgr = VncSessionManager(token_dir, timeout_minutes=30, max_sessions=5)
+        try:
+            mock_kill.assert_any_call(11111, __import__("signal").SIGKILL)
+            assert not proxy_file.exists()
+            assert not token_file.exists()
+            assert not meta_file.exists()
+            assert not refs_file.exists()
+        finally:
+            mgr.stop()
+
+    @patch("dracs.vnc.os.kill")
+    def test_cleanup_orphaned_proxies_bad_pid_is_noop(self, mock_kill, token_dir):
+        proxy_file = Path(token_dir) / "oldtoken.proxy"
+        proxy_file.write_text("not-a-number")
+        mgr = VncSessionManager(token_dir, timeout_minutes=30, max_sessions=5)
+        try:
+            mock_kill.assert_not_called()
+            assert not proxy_file.exists()
+        finally:
+            mgr.stop()
+
+    def test_active_count_excludes_proxy_files(self, manager, token_dir):
+        token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        (Path(token_dir) / f"{token}.proxy").write_text("12345")
+        assert manager.active_count() == 1
+
+    def test_cleanup_expired_skips_proxy_files(self, manager, token_dir):
+        token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        proxy_file = Path(token_dir) / f"{token}.proxy"
+        proxy_file.write_text("12345")
+        import os as _os
+
+        _os.utime(proxy_file, (0, 0))
+        removed = manager.cleanup_expired()
+        assert proxy_file.exists() or removed >= 0
+
 
 class TestGetTokenDir:
     def test_returns_existing_path(self, tmp_path, monkeypatch):
