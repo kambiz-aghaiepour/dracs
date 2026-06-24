@@ -21,6 +21,7 @@ class VncSessionManager:
         self.timeout_minutes = timeout_minutes
         self.max_sessions = max_sessions
         self.token_dir.mkdir(parents=True, exist_ok=True)
+        self._proxy_procs: dict = {}
         self._cleanup_thread = None
         self._stop_event = threading.Event()
         self._start_cleanup_thread()
@@ -38,13 +39,115 @@ class VncSessionManager:
         meta_file = self.token_dir / f"{token}.meta"
         meta_file.write_text(f"{hostname}\n")
 
+        self._refs_file(token).write_text("1")
         return token
 
+    def find_session_by_hostname(self, hostname: str) -> str | None:
+        """Return an active session token for hostname, or None."""
+        for meta_file in self.token_dir.glob("*.meta"):
+            try:
+                if meta_file.read_text().strip() == hostname:
+                    token = meta_file.stem
+                    if (self.token_dir / token).exists():
+                        return token
+            except OSError:
+                continue
+        return None
+
+    def add_reference(self, token: str) -> bool:
+        """Increment the reference count for a session. Returns True if session exists."""
+        if not (self.token_dir / token).exists():
+            return False
+        count = self._get_refs(token) + 1
+        self._refs_file(token).write_text(str(count))
+        return True
+
+    def release_session(self, token: str) -> bool:
+        """
+        Decrement the reference count for a session.  Removes the session when the
+        count reaches zero.  Returns True if the session existed.
+        """
+        if not (self.token_dir / token).exists():
+            return False
+        count = self._get_refs(token) - 1
+        if count <= 0:
+            self.remove_session(token)
+        else:
+            self._refs_file(token).write_text(str(count))
+        return True
+
+    def find_free_port(self) -> int | None:
+        """Return an available localhost TCP port, or None on failure."""
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(("127.0.0.1", 0))
+                return s.getsockname()[1]
+        except OSError:
+            return None
+
+    def start_proxy(
+        self,
+        token: str,
+        idrac_host: str,
+        idrac_port: int,
+        vnc_password: str,
+        port: int,
+    ) -> bool:
+        """
+        Start an x11vnc VNC repeater proxy for a session.
+
+        The proxy holds one upstream TCP connection to idrac_host:idrac_port and
+        accepts multiple downstream viewers on 127.0.0.1:port, allowing several
+        simultaneous read-write connections through a single iDRAC VNC session.
+        Returns True if x11vnc was found and launched, False otherwise.
+        """
+        x11vnc_bin = shutil.which("x11vnc")
+        if not x11vnc_bin:
+            return False
+        cmd = [
+            x11vnc_bin,
+            "-reflect",
+            f"{idrac_host}:{idrac_port}",
+            "-shared",
+            "-many",
+            "-forever",
+            "-rfbport",
+            str(port),
+            "-localhost",
+            "-nopw",
+            "-quiet",
+        ]
+        if vnc_password:
+            cmd += ["-passwd", vnc_password]
+        env = {k: v for k, v in os.environ.items() if k != "DISPLAY"}
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            env=env,
+        )
+        self._proxy_procs[token] = proc
+        return True
+
+    def stop_proxy(self, token: str) -> None:
+        """Terminate the x11vnc proxy process for a session, if any."""
+        proc = self._proxy_procs.pop(token, None)
+        if proc:
+            try:
+                proc.terminate()
+                proc.wait(timeout=3)
+            except (ProcessLookupError, subprocess.TimeoutExpired):
+                try:
+                    proc.kill()
+                except ProcessLookupError:
+                    pass
+
     def remove_session(self, token: str) -> None:
-        token_file = self.token_dir / token
-        token_file.unlink(missing_ok=True)
-        meta_file = self.token_dir / f"{token}.meta"
-        meta_file.unlink(missing_ok=True)
+        """Force-remove a session regardless of reference count."""
+        self.stop_proxy(token)
+        (self.token_dir / token).unlink(missing_ok=True)
+        (self.token_dir / f"{token}.meta").unlink(missing_ok=True)
+        self._refs_file(token).unlink(missing_ok=True)
 
     def touch_session(self, token: str) -> bool:
         """Reset the expiry timer for an active session. Returns True if session exists."""
@@ -70,21 +173,33 @@ class VncSessionManager:
             "created_at": token_file.stat().st_mtime,
         }
 
+    def _refs_file(self, token: str) -> Path:
+        return self.token_dir / f"{token}.refs"
+
+    def _get_refs(self, token: str) -> int:
+        try:
+            return int(self._refs_file(token).read_text().strip())
+        except (OSError, ValueError):
+            return 1
+
     def active_count(self) -> int:
         return len(
-            [f for f in self.token_dir.iterdir() if not f.name.endswith(".meta")]
+            [
+                f
+                for f in self.token_dir.iterdir()
+                if not f.name.endswith(".meta") and not f.name.endswith(".refs")
+            ]
         )
 
     def cleanup_expired(self) -> int:
         removed = 0
         cutoff = time.time() - (self.timeout_minutes * 60)
         for token_file in list(self.token_dir.iterdir()):
-            if token_file.name.endswith(".meta"):
+            if token_file.name.endswith((".meta", ".refs")):
                 continue
             try:
                 if token_file.stat().st_mtime < cutoff:
-                    token = token_file.name
-                    self.remove_session(token)
+                    self.remove_session(token_file.name)
                     removed += 1
             except FileNotFoundError:
                 pass
@@ -106,6 +221,8 @@ class VncSessionManager:
         self._stop_event.set()
         if self._cleanup_thread:
             self._cleanup_thread.join(timeout=5)
+        for token in list(self._proxy_procs.keys()):
+            self.stop_proxy(token)
 
 
 class MaxSessionsError(Exception):

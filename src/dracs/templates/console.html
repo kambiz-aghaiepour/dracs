@@ -380,7 +380,19 @@
         var riHostname = {{ hostname | tojson }};
         var consoleToken = {{ token | tojson }};
 
-        // Release session immediately when the console window is closed.
+        // When this page is opened as a shared/popout window it carries ?shared=1.
+        // Register an additional reference so closing this window only decrements
+        // the count rather than force-removing the session that other windows still
+        // hold.
+        var isSharedSession = new URLSearchParams(window.location.search).get('shared') === '1';
+        if (isSharedSession) {
+            fetch('/api/vnc-session/' + encodeURIComponent(consoleToken) + '/ref', {
+                method: 'POST'
+            });
+        }
+
+        // Release one reference when this window closes.  With reference counting
+        // the session persists as long as at least one other window holds it.
         window.addEventListener('beforeunload', function() {
             fetch('/api/vnc-session/' + encodeURIComponent(consoleToken), {
                 method: 'DELETE',

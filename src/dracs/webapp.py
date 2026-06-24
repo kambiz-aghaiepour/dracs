@@ -120,6 +120,11 @@ VNC_ENABLE = os.environ.get("VNC_ENABLE", "false").lower() in (
 VNC_TIMEOUT = int(os.environ.get("VNC_TIMEOUT", "30"))
 VNC_MAX_SESSIONS = int(os.environ.get("VNC_MAX_SESSIONS", "20"))
 VNC_WEBSOCKIFY_PORT = int(os.environ.get("VNC_WEBSOCKIFY_PORT", "6080"))
+VNC_PROXY_ENABLE = os.environ.get("VNC_PROXY_ENABLE", "false").lower() in (
+    "true",
+    "1",
+    "yes",
+)
 
 _DEFAULT_CONSOLE_WIDTH = 800
 _DEFAULT_CONSOLE_HEIGHT = 600
@@ -3138,7 +3143,20 @@ def api_vnc_session_create():
 
         _, site_name = _get_requested_site()
         idrac_fqdn = build_idrac_hostname(hostname)
-        vnc_port, _ = get_vnc_credentials(hostname, site=site_name)
+        vnc_port, vnc_password = get_vnc_credentials(hostname, site=site_name)
+
+        existing = vnc_manager.find_session_by_hostname(hostname)
+        if existing:
+            vnc_manager.add_reference(existing)
+            vnc_manager.touch_session(existing)
+            audit_log(
+                "vnc_session_join",
+                target=hostname,
+                user=user,
+                source=_client_ip(),
+                details=f"token={existing}",
+            )
+            return jsonify({"success": True, "token": existing})
 
         reachable, error_msg = check_vnc_connectivity(idrac_fqdn, int(vnc_port))
         if not reachable:
@@ -3147,7 +3165,17 @@ def api_vnc_session_create():
                 503,
             )
 
-        token = vnc_manager.create_session(hostname, idrac_fqdn, int(vnc_port))
+        if VNC_PROXY_ENABLE:
+            proxy_port = vnc_manager.find_free_port()
+            if proxy_port:
+                token = vnc_manager.create_session(hostname, "127.0.0.1", proxy_port)
+                vnc_manager.start_proxy(
+                    token, idrac_fqdn, int(vnc_port), vnc_password, proxy_port
+                )
+            else:
+                token = vnc_manager.create_session(hostname, idrac_fqdn, int(vnc_port))
+        else:
+            token = vnc_manager.create_session(hostname, idrac_fqdn, int(vnc_port))
 
         audit_log(
             "vnc_session_create",
@@ -3178,17 +3206,41 @@ def api_vnc_session_delete(token):
                 404,
             )
 
-        vnc_manager.remove_session(token)
+        released = vnc_manager.release_session(token)
 
         audit_log(
             "vnc_session_delete",
             user=user,
             source=_client_ip(),
-            details=f"token={token}",
+            details=f"token={token},released={released}",
         )
 
         return jsonify({"success": True, "message": "Session closed"})
 
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+
+@app.route("/api/vnc-session/<token>/ref", methods=["POST"])
+def api_vnc_session_addref(token):
+    """
+    Increment the reference count for a shared VNC session.
+
+    Called by popout windows opened from the multi-console page so that
+    closing the popout decrements rather than force-removes the session.
+    """
+    try:
+        _, err = _require_auth()
+        if err:
+            return err
+        if not VNC_ENABLE or vnc_manager is None:
+            return (
+                jsonify({"success": False, "message": "VNC console is not enabled"}),
+                404,
+            )
+        if vnc_manager.add_reference(token):
+            return jsonify({"success": True})
+        return jsonify({"success": False, "message": "Session not found"}), 404
     except Exception as e:
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
 
