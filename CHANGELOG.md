@@ -2,6 +2,24 @@
 
 <!-- version list -->
 
+## v2.8.0 (2026-06-24)
+
+### Bug Fixes
+
+- Codecov/patch was lower than threshold
+  ([`9cdc6b6`](https://github.com/kambiz-aghaiepour/dracs/commit/9cdc6b648157069359f2848436e49dcd3e386d60))
+
+### Chores
+
+- Sync spec file version to 2.7.2 [skip ci]
+  ([`a33e7db`](https://github.com/kambiz-aghaiepour/dracs/commit/a33e7dbb3915f6996af33467c9ef744f3dd6fc31))
+
+### Features
+
+- Multi-console vnc proxy
+  ([`2aacbb3`](https://github.com/kambiz-aghaiepour/dracs/commit/2aacbb3789c5cc47804b6d237de2edfd70529769))
+
+
 ## v2.7.2 (2026-06-23)
 
 ### Bug Fixes
