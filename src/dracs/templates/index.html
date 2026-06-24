@@ -1551,8 +1551,7 @@
                 <div class="panel-body">
                     <button id="discover-btn" class="panel-btn btn-green{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" {% if role_level < 2 %}disabled{% endif %} onclick="showDiscoverModal()">Discover</button>
                     <button id="delete-btn" class="panel-btn btn-red{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" disabled onclick="showDeleteModal()">Delete</button>
-                    <button id="refresh-btn" class="panel-btn btn-green{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" disabled onclick="handleRefreshSelected()">Refresh Selected (<span id="selected-count">0</span>)</button>
-                    <button id="refresh-all-btn" class="panel-btn btn-green{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" {% if role_level < 2 %}disabled{% endif %} onclick="handleRefreshAll()">Refresh All</button>
+                    <button id="refresh-btn" class="panel-btn btn-green{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" {% if role_level < 2 %}disabled{% endif %} onclick="handleRefreshClick()">Refresh All</button>
                 </div>
             </div>
             <div class="action-panel">
@@ -1581,7 +1580,6 @@
                 <div class="panel-header diagnostics">Diagnostics</div>
                 <div class="panel-body">
                     <button id="console-btn" class="panel-btn btn-teal{% if (role_level < 1 and not is_quads_user) or not vnc_enabled %} role-disabled{% endif %}" data-min-role="user" disabled onclick="handleConsoleClick()">Console</button>
-                    <button id="multi-console-btn" class="panel-btn btn-teal{% if (role_level < 1 and not is_quads_user) or not vnc_enabled %} role-disabled{% endif %}" data-min-role="user" disabled onclick="handleMultiConsoleClick()">Multi-Console</button>
                     <button id="generate-tsr-btn" class="panel-btn btn-blue{% if role_level < 1 %} role-disabled{% endif %}" data-min-role="user" disabled onclick="handleGenerateTsrClick()">Generate TSR</button>
                     <button id="view-tsr-btn" class="panel-btn btn-blue" data-min-role="none" disabled onclick="handleViewTsrClick()">View TSRs</button>
                 </div>
@@ -2270,21 +2268,6 @@
             </div>
         </div>
 
-        <div id="console-count-confirm-modal" class="modal-overlay">
-            <div class="modal-content" style="max-width: 450px;">
-                <div class="modal-header">
-                    <h2>Confirm Open Consoles</h2>
-                </div>
-                <div class="modal-body">
-                    <p>This will open <strong><span id="console-count-value">0</span></strong> console windows. Continue?</p>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="hideConsoleCountModal()">Cancel</button>
-                    <button type="button" class="btn btn-primary" onclick="submitConsoleOpen()">Continue</button>
-                </div>
-            </div>
-        </div>
-
         <div id="custom-filter-modal" class="modal-overlay">
             <div class="modal-content">
                 <div class="modal-header">
@@ -2753,10 +2736,7 @@
             // Update button state and count
             const selectedCount = selectedSystems.length;
             console.log('DRACS: Updated selection - count:', selectedCount, 'systems:', selectedSystems);
-            const selectedCountEl = document.getElementById('selected-count');
-            if (selectedCountEl) selectedCountEl.textContent = selectedCount;
-            const refreshBtnEl = document.getElementById('refresh-btn');
-            if (refreshBtnEl && !isRoleDisabled(refreshBtnEl)) refreshBtnEl.disabled = selectedCount === 0;
+            updateRefreshButtonLabel();
             const deleteBtnEl = document.getElementById('delete-btn');
             if (deleteBtnEl && !isRoleDisabled(deleteBtnEl)) deleteBtnEl.disabled = selectedCount === 0;
 
@@ -2766,7 +2746,6 @@
             updateJobQueueButtonState();
             updateClearJobQueueButtonState();
             updateConsoleButtonState();
-            updateMultiConsoleButtonState();
             updatePowerButtonState();
             updateLatestFirmwareButtonState();
             updateLatestBiosButtonState();
@@ -2874,17 +2853,8 @@
                 }
             }
 
-            // Update selected count immediately
-            const selectedCountEl = document.getElementById('selected-count');
-            if (selectedCountEl) {
-                selectedCountEl.textContent = selectedSystems.length;
-            }
-
-            // Update refresh button state immediately
-            const refreshBtn = document.getElementById('refresh-btn');
-            if (refreshBtn && !isRoleDisabled(refreshBtn)) {
-                refreshBtn.disabled = selectedSystems.length === 0;
-            }
+            // Update refresh button label and other button states immediately
+            updateRefreshButtonLabel();
 
             // Update other button states (these may be slower)
             updateBiosButtonState();
@@ -2893,7 +2863,6 @@
             updateJobQueueButtonState();
             updateClearJobQueueButtonState();
             updateConsoleButtonState();
-            updateMultiConsoleButtonState();
             updatePowerButtonState();
             updateLatestFirmwareButtonState();
             updateLatestBiosButtonState();
@@ -2953,28 +2922,37 @@
             }
 
             // Update button states
-            updateRefreshButtonState();
+            updateRefreshButtonLabel();
             updateBiosButtonState();
             updateFirmwareButtonState();
             updateForceButtonState();
             updateJobQueueButtonState();
             updateClearJobQueueButtonState();
             updateConsoleButtonState();
-            updateMultiConsoleButtonState();
             updatePowerButtonState();
             updateLatestFirmwareButtonState();
             updateLatestBiosButtonState();
             updateGenerateTsrButtonState();
             updateViewTsrButtonState();
 
-            // Update selected count if it exists
-            const selectedCountEl = document.getElementById('selected-count');
-            if (selectedCountEl) {
-                selectedCountEl.textContent = selectedSystems.length;
-            }
-
             // Update Select Shown button text
             updateSelectShownButtonText();
+        }
+
+        function updateRefreshButtonLabel() {
+            const btn = document.getElementById('refresh-btn');
+            if (!btn) return;
+            const n = selectedSystems.length;
+            btn.textContent = n === 0 ? 'Refresh All' : 'Refresh Selected (' + n + ')';
+            if (!isRoleDisabled(btn)) btn.disabled = false;
+        }
+
+        function handleRefreshClick() {
+            if (selectedSystems.length === 0) {
+                handleRefreshAll();
+            } else {
+                handleRefreshSelected();
+            }
         }
 
         // Refresh selected systems
@@ -2982,15 +2960,11 @@
             if (selectedSystems.length === 0) return;
 
             const refreshBtn = document.getElementById('refresh-btn');
-            const originalHTML = refreshBtn.innerHTML;
             refreshBtn.disabled = true;
-            refreshBtn.textContent = `Refreshing ${selectedSystems.length} system(s)...`;
+            refreshBtn.textContent = 'Refreshing ' + selectedSystems.length + ' system(s)...';
 
             function restoreRefreshBtn() {
-                refreshBtn.innerHTML = originalHTML;
-                const countEl = document.getElementById('selected-count');
-                if (countEl) countEl.textContent = selectedSystems.length;
-                refreshBtn.disabled = selectedSystems.length === 0;
+                updateRefreshButtonLabel();
             }
 
             try {
@@ -3048,8 +3022,7 @@
         async function submitRefreshAll() {
             hideRefreshAllModal();
 
-            const refreshAllBtn = document.getElementById('refresh-all-btn');
-            const originalText = refreshAllBtn.textContent;
+            const refreshAllBtn = document.getElementById('refresh-btn');
             refreshAllBtn.disabled = true;
             refreshAllBtn.textContent = 'Refreshing all systems...';
 
@@ -3068,7 +3041,7 @@
                     console.error('Non-JSON response:', text);
                     showNotification('Server error: Expected JSON response', 'error');
                     refreshAllBtn.disabled = false;
-                    refreshAllBtn.textContent = originalText;
+                    updateRefreshButtonLabel();
                     return;
                 }
 
@@ -3081,19 +3054,16 @@
                         console.log('DRACS: Refresh all triggered table reload');
                         refreshTableData();
                         // Re-enable button after table refresh
-                        refreshAllBtn.disabled = false;
-                        refreshAllBtn.textContent = originalText;
+                        updateRefreshButtonLabel();
                     }, 1000);
                 } else {
                     showNotification(data.message, 'error');
-                    refreshAllBtn.disabled = false;
-                    refreshAllBtn.textContent = originalText;
+                    updateRefreshButtonLabel();
                 }
             } catch (error) {
                 console.error('Refresh all error:', error);
                 showNotification('Refresh all failed: ' + error.message, 'error');
-                refreshAllBtn.disabled = false;
-                refreshAllBtn.textContent = originalText;
+                updateRefreshButtonLabel();
             }
         }
 
@@ -3123,8 +3093,6 @@
                 const firmwareVersionEl = document.getElementById('firmware-version');
                 const firmwareOperatorEl = document.getElementById('firmware-operator');
                 const totalCountEl = document.getElementById('total-count');
-                const selectedCountEl = document.getElementById('selected-count');
-
                 if (!tableBodyEl) {
                     console.error('DRACS: table-body element not found!');
                     return;
@@ -3198,7 +3166,7 @@
 
                 // Update counts
                 if (totalCountEl) totalCountEl.textContent = data.length;
-                if (selectedCountEl) selectedCountEl.textContent = selectedSystems.length;
+                updateRefreshButtonLabel();
 
                 // Restore filter values (in case they got cleared somehow)
                 hostnameFilterEl.value = hostnameText;
@@ -3445,56 +3413,21 @@
             consoleBtn.disabled = selectedSystems.length < 1;
         }
 
-        function updateMultiConsoleButtonState() {
-            const btn = document.getElementById('multi-console-btn');
-            if (!btn || isRoleDisabled(btn)) return;
-            btn.disabled = selectedSystems.length < 2;
-        }
-
-        function handleMultiConsoleClick() {
-            if (selectedSystems.length < 2) return;
-            var hosts = selectedSystems.map(function(s) { return s.hostname; }).join(',');
-            window.open(
-                '/console-multi?hosts=' + encodeURIComponent(hosts),
-                '_blank',
-                'width=1400,height=900,menubar=no,toolbar=no,location=no,status=no,scrollbars=yes'
-            );
-        }
-
-        function showConsoleCountModal() {
-            document.getElementById('console-count-value').textContent = selectedSystems.length;
-            document.getElementById('console-count-confirm-modal').classList.add('active');
-        }
-
-        function hideConsoleCountModal() {
-            document.getElementById('console-count-confirm-modal').classList.remove('active');
-        }
-
-        function openConsolesForSelected() {
-            // Open each console as a popup window with a real URL synchronously,
-            // within the user-gesture handler, so the browser allows all popups
-            // without popup-blocking interference.
-            var winOpts = 'width={{ vnc_console_width }},height={{ vnc_console_height }},menubar=no,toolbar=no,location=no,status=no,scrollbars=no';
-            for (var i = 0; i < selectedSystems.length; i++) {
-                window.open(
-                    '/console-connect?host=' + encodeURIComponent(selectedSystems[i].hostname),
-                    '_blank',
-                    winOpts
-                );
-            }
-        }
-
-        function submitConsoleOpen() {
-            hideConsoleCountModal();
-            openConsolesForSelected();
-        }
-
         function handleConsoleClick() {
             if (selectedSystems.length < 1) return;
-            if (selectedSystems.length > 10) {
-                showConsoleCountModal();
+            if (selectedSystems.length === 1) {
+                window.open(
+                    '/console-connect?host=' + encodeURIComponent(selectedSystems[0].hostname),
+                    '_blank',
+                    'width={{ vnc_console_width }},height={{ vnc_console_height }},menubar=no,toolbar=no,location=no,status=no,scrollbars=no'
+                );
             } else {
-                openConsolesForSelected();
+                var hosts = selectedSystems.map(function(s) { return s.hostname; }).join(',');
+                window.open(
+                    '/console-multi?hosts=' + encodeURIComponent(hosts),
+                    '_blank',
+                    'width=1400,height=900,menubar=no,toolbar=no,location=no,status=no,scrollbars=yes'
+                );
             }
         }
 
@@ -5242,11 +5175,6 @@
             if (event.target === this) { hideRefreshAllModal(); }
         });
 
-        // Close console-count confirmation modal on background click
-        document.getElementById('console-count-confirm-modal').addEventListener('click', function(event) {
-            if (event.target === this) { hideConsoleCountModal(); }
-        });
-
         // Close firmware confirmation modal on background click
         document.getElementById('firmware-confirm-modal').addEventListener('click', function(event) {
             if (event.target === this) {
@@ -6008,26 +5936,14 @@
                 // Scroll the target row into view
                 allRows[targetIndex].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 
-                // Update selected count immediately
-                const selectedCountEl = document.getElementById('selected-count');
-                if (selectedCountEl) {
-                    selectedCountEl.textContent = selectedSystems.length;
-                }
-
-                // Update refresh button immediately
-                const refreshBtn = document.getElementById('refresh-btn');
-                if (refreshBtn && !isRoleDisabled(refreshBtn)) {
-                    refreshBtn.disabled = selectedSystems.length === 0;
-                }
-
-                // Update other button states
+                // Update button states
+                updateRefreshButtonLabel();
                 updateBiosButtonState();
                 updateFirmwareButtonState();
-            updateForceButtonState();
+                updateForceButtonState();
                 updateJobQueueButtonState();
                 updateClearJobQueueButtonState();
                 updateConsoleButtonState();
-                updateMultiConsoleButtonState();
                 updatePowerButtonState();
                 updateLatestFirmwareButtonState();
                 updateLatestBiosButtonState();
