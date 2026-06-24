@@ -282,8 +282,6 @@
             path: "websockify?token={{ token }}",
             encrypt: window.location.protocol === "https:",
             autoconnect: true,
-            reconnect: true,
-            reconnect_delay: 3000,
             resize: "scale",
             password: "{{ vnc_password }}",
         };
@@ -951,9 +949,17 @@
         // token.  Instead, call the session API first so the server can detect the dead
         // proxy and create a fresh x11vnc session, then navigate to the (possibly new)
         // console URL with autoconnect.
+        //
+        // When a new session is created the x11vnc proxy needs a few seconds to
+        // complete its upstream connection to the iDRAC before noVNC can connect.
+        // We delay the navigation for new sessions to avoid a "Failed to connect"
+        // error on the first autoconnect attempt.
         document.getElementById('noVNC_connect_button').addEventListener('click', function(e) {
+            var btn = this;
             e.stopImmediatePropagation();
             e.preventDefault();
+            btn.disabled = true;
+            btn.innerHTML = 'Connecting&hellip;';
             fetch('/api/vnc-session', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -962,15 +968,20 @@
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.success) {
+                    var newUrl = '/console/' + encodeURIComponent(data.token);
+                    if (isSharedSession) newUrl += '?shared=1';
                     if (data.token !== consoleToken) {
+                        // New session: release the stale token and give x11vnc
+                        // time to finish its upstream connection before navigating.
                         fetch('/api/vnc-session/' + encodeURIComponent(consoleToken), {
                             method: 'DELETE',
                             keepalive: true
                         });
+                        setTimeout(function() { window.location.replace(newUrl); }, 3500);
+                    } else {
+                        // Same session, proxy still alive: navigate immediately.
+                        window.location.replace(newUrl);
                     }
-                    var newUrl = '/console/' + encodeURIComponent(data.token);
-                    if (isSharedSession) newUrl += '?shared=1';
-                    window.location.replace(newUrl);
                 } else {
                     window.location.reload();
                 }
