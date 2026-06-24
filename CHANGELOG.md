@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.8.4 (2026-06-24)
+
+### Bug Fixes
+
+- Expand/unexpand and popout buttons
+  ([`937654f`](https://github.com/kambiz-aghaiepour/dracs/commit/937654fbdcb8966ec80f23e5649c8ae08e1a7192))
+
+### Chores
+
+- Sync spec file version to 2.8.3 [skip ci]
+  ([`92a0653`](https://github.com/kambiz-aghaiepour/dracs/commit/92a065380da5fbe67c059fb956262bd43bbb49ed))
+
+
 ## v2.8.3 (2026-06-24)
 
 ### Bug Fixes
