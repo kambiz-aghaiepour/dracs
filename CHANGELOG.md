@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.8.3 (2026-06-24)
+
+### Bug Fixes
+
+- Combine Refresh buttons, and console buttons
+  ([`7a17f4a`](https://github.com/kambiz-aghaiepour/dracs/commit/7a17f4ae5dd0cada7a81802a14df375df8a8fc1e))
+
+### Chores
+
+- Sync spec file version to 2.8.2 [skip ci]
+  ([`2b902fb`](https://github.com/kambiz-aghaiepour/dracs/commit/2b902fb84ae409537c010aeff90d1abce3768662))
+
+
 ## v2.8.2 (2026-06-24)
 
 ### Bug Fixes
