@@ -44,16 +44,46 @@ class VncSessionManager:
         return token
 
     def find_session_by_hostname(self, hostname: str) -> str | None:
-        """Return an active session token for hostname, or None."""
+        """Return an active session token for hostname, or None.
+
+        Removes stale proxy sessions whose x11vnc process is no longer
+        listening so the caller can create a fresh working session.
+        """
         for meta_file in self.token_dir.glob("*.meta"):
             try:
                 if meta_file.read_text().strip() == hostname:
                     token = meta_file.stem
                     if (self.token_dir / token).exists():
+                        if not self._is_proxy_alive(token):
+                            self.remove_session(token)
+                            continue
                         return token
             except OSError:
                 continue
         return None
+
+    def _is_proxy_alive(self, token: str) -> bool:
+        """Return True if the proxy backing this token is still accepting connections.
+
+        Tokens that route directly to an iDRAC (non-localhost) always return
+        True.  Tokens routed through 127.0.0.1 are probed with a short-timeout
+        TCP connect so stale x11vnc sessions are detected before use.
+        """
+        token_file = self.token_dir / token
+        try:
+            content = token_file.read_text()
+            _, addr = content.strip().split(": ", 1)
+            host, port_str = addr.rsplit(":", 1)
+            port = int(port_str)
+        except (OSError, ValueError):
+            return True
+        if host != "127.0.0.1":
+            return True
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=0.5):
+                return True
+        except OSError:
+            return False
 
     def add_reference(self, token: str) -> bool:
         """Increment the reference count for a session. Returns True if session exists."""

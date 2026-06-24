@@ -163,6 +163,35 @@ class TestVncSessionManager:
     def test_find_session_by_hostname_not_found(self, manager):
         assert manager.find_session_by_hostname("nonexistent") is None
 
+    def test_find_session_by_hostname_dead_proxy_removes_and_returns_none(
+        self, manager, token_dir
+    ):
+        token = manager.create_session("host01", "127.0.0.1", 19876)
+        with patch.object(manager, "_is_proxy_alive", return_value=False):
+            result = manager.find_session_by_hostname("host01")
+        assert result is None
+        assert not (Path(token_dir) / token).exists()
+
+    def test_is_proxy_alive_non_localhost_returns_true(self, manager):
+        token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        assert manager._is_proxy_alive(token) is True
+
+    def test_is_proxy_alive_missing_token_returns_true(self, manager):
+        assert manager._is_proxy_alive("no-such-token") is True
+
+    def test_is_proxy_alive_localhost_listening_returns_true(self, manager, token_dir):
+        token = manager.create_session("host01", "127.0.0.1", 19877)
+        with patch("dracs.vnc.socket.create_connection") as mock_conn:
+            mock_conn.return_value.__enter__ = MagicMock(return_value=MagicMock())
+            mock_conn.return_value.__exit__ = MagicMock(return_value=False)
+            assert manager._is_proxy_alive(token) is True
+        mock_conn.assert_called_once_with(("127.0.0.1", 19877), timeout=0.5)
+
+    def test_is_proxy_alive_localhost_dead_returns_false(self, manager, token_dir):
+        token = manager.create_session("host01", "127.0.0.1", 19878)
+        with patch("dracs.vnc.socket.create_connection", side_effect=OSError):
+            assert manager._is_proxy_alive(token) is False
+
     def test_find_session_by_hostname_skips_unreadable_meta(self, manager):
         manager.create_session("host01", "mgmt-host01.example.com", 5901)
         original_read_text = Path.read_text
