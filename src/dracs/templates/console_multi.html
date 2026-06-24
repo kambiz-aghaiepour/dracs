@@ -108,15 +108,15 @@
             flex-shrink: 0;
             background: none;
             border: 1px solid #555;
-            color: #aaa;
             cursor: pointer;
-            font-family: monospace;
-            font-size: 11px;
-            padding: 1px 5px;
+            padding: 1px 4px;
+            display: flex;
+            align-items: center;
         }
-        .mc-max-btn:hover { background: #444; color: #fff; }
-        .mc-popout-btn:hover:not(:disabled) { background: #444; color: #fff; }
-        .mc-popout-btn:disabled { color: #555; cursor: default; border-color: #444; }
+        .mc-max-btn img, .mc-popout-btn img { display: block; }
+        .mc-max-btn:hover { background: #444; }
+        .mc-popout-btn:hover:not(:disabled) { background: #444; }
+        .mc-popout-btn:disabled { opacity: 0.3; cursor: default; }
 
         .mc-cell-body {
             flex: 1;
@@ -189,13 +189,17 @@
                 <button class="mc-max-btn"
                         id="maxbtn-{{ loop.index0 }}"
                         onclick="toggleMaximize({{ loop.index0 }})"
-                        title="Maximize">[ ]</button>
+                        title="Maximize">
+                    <img src="{{ url_for('static', filename='images/expand.png') }}" alt="Expand" height="14">
+                </button>
                 <span class="mc-cell-hdr-title" title="{{ hostname }}">{{ hostname }}</span>
                 <button class="mc-popout-btn"
                         id="popout-{{ loop.index0 }}"
                         onclick="popoutConsole({{ loop.index0 }})"
                         disabled
-                        title="Open in separate popup window">Popout</button>
+                        title="Open in separate popup window">
+                    <img src="{{ url_for('static', filename='images/popout.png') }}" alt="Popout" height="14">
+                </button>
             </div>
             <div class="mc-cell-body" id="body-{{ loop.index0 }}">
                 <div class="mc-cell-msg" id="msg-{{ loop.index0 }}">
@@ -213,6 +217,8 @@
     var mcTokens = new Array(mcHosts.length).fill(null);
     var mcVisible = new Set(mcHosts.map(function(_, i) { return i; }));
     var mcCols = 2;
+    var mcExpandSrc = "{{ url_for('static', filename='images/expand.png') }}";
+    var mcUnexpandSrc = "{{ url_for('static', filename='images/unexpand.png') }}";
 
     (function initCols() {
         var n = mcHosts.length;
@@ -311,7 +317,7 @@
         cell.style.height = 'auto';
         cell.style.zIndex = '9999';
         cell.style.resize = 'none';
-        document.getElementById('maxbtn-' + idx).textContent = '[X]';
+        document.getElementById('maxbtn-' + idx).querySelector('img').src = mcUnexpandSrc;
         document.getElementById('maxbtn-' + idx).title = 'Restore';
         maximizedIdx = idx;
     }
@@ -328,7 +334,7 @@
         cell.style.zIndex = '';
         cell.style.resize = '';
         delete cell.dataset.userResized;
-        document.getElementById('maxbtn-' + idx).textContent = '[ ]';
+        document.getElementById('maxbtn-' + idx).querySelector('img').src = mcExpandSrc;
         document.getElementById('maxbtn-' + idx).title = 'Maximize';
         maximizedIdx = -1;
         updateGrid();

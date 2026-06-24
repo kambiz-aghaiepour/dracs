@@ -942,5 +942,41 @@
         <source src="{{ url_for('static', filename='novnc/app/sounds/bell.oga') }}" type="audio/ogg">
         <source src="{{ url_for('static', filename='novnc/app/sounds/bell.mp3') }}" type="audio/mpeg">
     </audio>
+
+    <script>
+        // When VNC disconnects unexpectedly (e.g. iDRAC idle timeout kills the x11vnc
+        // proxy), the noVNC "Connect" button would try to reuse the now-stale websockify
+        // token.  Instead, call the session API first so the server can detect the dead
+        // proxy and create a fresh x11vnc session, then navigate to the (possibly new)
+        // console URL with autoconnect.
+        document.getElementById('noVNC_connect_button').addEventListener('click', function(e) {
+            e.stopImmediatePropagation();
+            e.preventDefault();
+            fetch('/api/vnc-session', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({hostname: riHostname})
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    if (data.token !== consoleToken) {
+                        fetch('/api/vnc-session/' + encodeURIComponent(consoleToken), {
+                            method: 'DELETE',
+                            keepalive: true
+                        });
+                    }
+                    var newUrl = '/console/' + encodeURIComponent(data.token);
+                    if (isSharedSession) newUrl += '?shared=1';
+                    window.location.replace(newUrl);
+                } else {
+                    window.location.reload();
+                }
+            })
+            .catch(function() {
+                window.location.reload();
+            });
+        });
+    </script>
 </body>
 </html>
