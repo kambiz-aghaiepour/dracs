@@ -35,6 +35,7 @@ Requires:       python3-dracs-libs = %{version}-%{release}
 Requires:       nginx
 Requires:       openssl
 Requires:       python3-websockify
+Recommends:     x11vnc
 Requires:       tftp-server
 Requires:       tftp
 Provides:       user(dracs)

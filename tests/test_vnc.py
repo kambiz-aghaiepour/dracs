@@ -13,6 +13,7 @@ from dracs.db import db_initialize, upsert_system
 from dracs.vnc import (
     VncSessionManager,
     MaxSessionsError,
+    get_token_dir,
     get_vnc_credentials,
     check_vnc_connectivity,
     start_websockify,
@@ -144,6 +145,55 @@ class TestVncSessionManager:
     def test_touch_session_nonexistent_returns_false(self, manager):
         assert manager.touch_session("no-such-token") is False
 
+    def test_create_session_writes_refs_file(self, manager, token_dir):
+        token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        refs_file = Path(token_dir) / f"{token}.refs"
+        assert refs_file.exists()
+        assert refs_file.read_text().strip() == "1"
+
+    def test_remove_session_cleans_refs_file(self, manager, token_dir):
+        token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        manager.remove_session(token)
+        assert not (Path(token_dir) / f"{token}.refs").exists()
+
+    def test_find_session_by_hostname_found(self, manager):
+        token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        assert manager.find_session_by_hostname("host01") == token
+
+    def test_find_session_by_hostname_not_found(self, manager):
+        assert manager.find_session_by_hostname("nonexistent") is None
+
+    def test_add_reference_increments(self, manager, token_dir):
+        token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        assert manager.add_reference(token) is True
+        refs = int((Path(token_dir) / f"{token}.refs").read_text())
+        assert refs == 2
+
+    def test_add_reference_nonexistent_returns_false(self, manager):
+        assert manager.add_reference("no-such-token") is False
+
+    def test_release_session_decrements(self, manager, token_dir):
+        token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        manager.add_reference(token)  # refs=2
+        manager.release_session(token)  # refs=1
+        token_file = Path(token_dir) / token
+        assert token_file.exists()
+        refs = int((Path(token_dir) / f"{token}.refs").read_text())
+        assert refs == 1
+
+    def test_release_session_deletes_at_zero(self, manager, token_dir):
+        token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        manager.release_session(token)  # refs 1 -> 0 -> delete
+        assert not (Path(token_dir) / token).exists()
+
+    def test_release_session_nonexistent_returns_false(self, manager):
+        assert manager.release_session("no-such-token") is False
+
+    def test_active_count_excludes_refs_files(self, manager):
+        manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        manager.create_session("host02", "mgmt-host02.example.com", 5901)
+        assert manager.active_count() == 2
+
     def test_touch_session_prevents_expiry(self, manager, token_dir):
         token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
         token_file = Path(token_dir) / token
@@ -255,6 +305,144 @@ class TestVncSessionManager:
     def test_stop(self, manager):
         manager.stop()
         assert manager._stop_event.is_set()
+
+    def test_find_free_port_returns_valid_port(self, manager):
+        port = manager.find_free_port()
+        assert port is not None
+        assert 1024 < port < 65536
+
+    @patch("dracs.vnc.socket.socket")
+    def test_find_free_port_oserror_returns_none(self, mock_socket, manager):
+        mock_socket.return_value.__enter__.return_value.bind.side_effect = OSError(
+            "busy"
+        )
+        assert manager.find_free_port() is None
+
+    @patch("dracs.vnc.shutil.which", return_value=None)
+    def test_start_proxy_no_x11vnc_returns_false(self, mock_which, manager):
+        token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        assert (
+            manager.start_proxy(token, "mgmt-host01.example.com", 5901, "", 15901)
+            is False
+        )
+
+    @patch("dracs.vnc.subprocess.Popen")
+    @patch("dracs.vnc.shutil.which", return_value="/usr/bin/x11vnc")
+    def test_start_proxy_success(self, mock_which, mock_popen, manager):
+        mock_proc = MagicMock()
+        mock_popen.return_value = mock_proc
+        token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        result = manager.start_proxy(
+            token, "mgmt-host01.example.com", 5901, "pass", 15901
+        )
+        assert result is True
+        assert token in manager._proxy_procs
+        cmd = mock_popen.call_args[0][0]
+        assert "-reflect" in cmd
+        assert "mgmt-host01.example.com:5901" in cmd
+        assert "-shared" in cmd
+        assert "-passwd" in cmd
+
+    @patch("dracs.vnc.subprocess.Popen")
+    @patch("dracs.vnc.shutil.which", return_value="/usr/bin/x11vnc")
+    def test_start_proxy_no_password_omits_passwd_flag(
+        self, mock_which, mock_popen, manager
+    ):
+        mock_popen.return_value = MagicMock()
+        token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        manager.start_proxy(token, "mgmt-host01.example.com", 5901, "", 15901)
+        cmd = mock_popen.call_args[0][0]
+        assert "-passwd" not in cmd
+
+    @patch("dracs.vnc.subprocess.Popen")
+    @patch("dracs.vnc.shutil.which", return_value="/usr/bin/x11vnc")
+    def test_stop_proxy_terminates_process(self, mock_which, mock_popen, manager):
+        mock_proc = MagicMock()
+        mock_popen.return_value = mock_proc
+        token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        manager.start_proxy(token, "mgmt-host01.example.com", 5901, "", 15901)
+        manager.stop_proxy(token)
+        mock_proc.terminate.assert_called_once()
+        assert token not in manager._proxy_procs
+
+    def test_stop_proxy_nonexistent_is_noop(self, manager):
+        manager.stop_proxy("no-such-token")
+
+    @patch("dracs.vnc.subprocess.Popen")
+    @patch("dracs.vnc.shutil.which", return_value="/usr/bin/x11vnc")
+    def test_stop_proxy_process_already_gone(self, mock_which, mock_popen, manager):
+        mock_proc = MagicMock()
+        mock_proc.terminate.side_effect = ProcessLookupError()
+        mock_popen.return_value = mock_proc
+        token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        manager.start_proxy(token, "mgmt-host01.example.com", 5901, "", 15901)
+        manager.stop_proxy(token)
+        assert token not in manager._proxy_procs
+
+    @patch("dracs.vnc.subprocess.Popen")
+    @patch("dracs.vnc.shutil.which", return_value="/usr/bin/x11vnc")
+    def test_stop_proxy_timeout_then_kill(self, mock_which, mock_popen, manager):
+        import subprocess as _sub
+
+        mock_proc = MagicMock()
+        mock_proc.wait.side_effect = _sub.TimeoutExpired(cmd="x11vnc", timeout=3)
+        mock_popen.return_value = mock_proc
+        token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        manager.start_proxy(token, "mgmt-host01.example.com", 5901, "", 15901)
+        manager.stop_proxy(token)
+        mock_proc.kill.assert_called_once()
+
+    @patch("dracs.vnc.subprocess.Popen")
+    @patch("dracs.vnc.shutil.which", return_value="/usr/bin/x11vnc")
+    def test_stop_proxy_timeout_kill_race(self, mock_which, mock_popen, manager):
+        import subprocess as _sub
+
+        mock_proc = MagicMock()
+        mock_proc.wait.side_effect = _sub.TimeoutExpired(cmd="x11vnc", timeout=3)
+        mock_proc.kill.side_effect = ProcessLookupError()
+        mock_popen.return_value = mock_proc
+        token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        manager.start_proxy(token, "mgmt-host01.example.com", 5901, "", 15901)
+        manager.stop_proxy(token)
+        assert token not in manager._proxy_procs
+
+    @patch("dracs.vnc.subprocess.Popen")
+    @patch("dracs.vnc.shutil.which", return_value="/usr/bin/x11vnc")
+    def test_remove_session_stops_proxy(self, mock_which, mock_popen, manager):
+        mock_proc = MagicMock()
+        mock_popen.return_value = mock_proc
+        token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        manager.start_proxy(token, "mgmt-host01.example.com", 5901, "", 15901)
+        manager.remove_session(token)
+        mock_proc.terminate.assert_called_once()
+        assert token not in manager._proxy_procs
+
+    @patch("dracs.vnc.subprocess.Popen")
+    @patch("dracs.vnc.shutil.which", return_value="/usr/bin/x11vnc")
+    def test_stop_cleans_up_all_proxies(self, mock_which, mock_popen, manager):
+        procs = [MagicMock(), MagicMock()]
+        mock_popen.side_effect = procs
+        t1 = manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        t2 = manager.create_session("host02", "mgmt-host02.example.com", 5901)
+        manager.start_proxy(t1, "mgmt-host01.example.com", 5901, "", 15901)
+        manager.start_proxy(t2, "mgmt-host02.example.com", 5901, "", 15902)
+        manager.stop()
+        procs[0].terminate.assert_called_once()
+        procs[1].terminate.assert_called_once()
+
+
+class TestGetTokenDir:
+    def test_returns_existing_path(self, tmp_path, monkeypatch):
+        import dracs.vnc as vnc_mod
+
+        orig = vnc_mod._runtime_dir
+        vnc_mod._runtime_dir = tmp_path / "dracs"
+        try:
+            path = get_token_dir()
+            assert Path(path).is_dir()
+            assert path.endswith("vnc-tokens")
+        finally:
+            vnc_mod._runtime_dir = orig
 
 
 class TestGetVncCredentials:
@@ -553,6 +741,112 @@ class TestVncSessionCreateEndpoint:
         )
         assert resp.status_code == 429
 
+    @patch("dracs.webapp.check_vnc_connectivity", return_value=(True, ""))
+    @patch("dracs.webapp.get_vnc_credentials", return_value=(5901, "pass"))
+    def test_join_existing_session_returns_same_token(
+        self, mock_creds, mock_conn, vnc_client
+    ):
+        _login(vnc_client)
+        resp1 = vnc_client.post(
+            "/api/vnc-session",
+            data=json.dumps({"hostname": "server01"}),
+            content_type="application/json",
+        )
+        token1 = resp1.get_json()["token"]
+        resp2 = vnc_client.post(
+            "/api/vnc-session",
+            data=json.dumps({"hostname": "server01"}),
+            content_type="application/json",
+        )
+        assert resp2.status_code == 200
+        assert resp2.get_json()["token"] == token1
+
+    @patch("dracs.vnc.subprocess.Popen")
+    @patch("dracs.vnc.shutil.which", return_value="/usr/bin/x11vnc")
+    @patch("dracs.webapp.check_vnc_connectivity", return_value=(True, ""))
+    @patch("dracs.webapp.get_vnc_credentials", return_value=(5901, "pass"))
+    def test_success_with_proxy_enabled(
+        self, mock_creds, mock_conn, mock_which, mock_popen, vnc_client
+    ):
+        mock_popen.return_value = MagicMock()
+        import dracs.webapp as webapp_mod
+
+        orig = webapp_mod.VNC_PROXY_ENABLE
+        webapp_mod.VNC_PROXY_ENABLE = True
+        try:
+            _login(vnc_client)
+            resp = vnc_client.post(
+                "/api/vnc-session",
+                data=json.dumps({"hostname": "server01"}),
+                content_type="application/json",
+            )
+            assert resp.status_code == 200
+            data = resp.get_json()
+            assert data["success"] is True
+            token = data["token"]
+            assert token in webapp_mod.vnc_manager._proxy_procs
+            cmd = mock_popen.call_args[0][0]
+            assert "-reflect" in cmd
+        finally:
+            webapp_mod.VNC_PROXY_ENABLE = orig
+
+    @patch("dracs.webapp.check_vnc_connectivity", return_value=(True, ""))
+    @patch("dracs.webapp.get_vnc_credentials", return_value=(5901, "pass"))
+    def test_join_existing_increments_refs(self, mock_creds, mock_conn, vnc_client):
+        _login(vnc_client)
+        import dracs.webapp as webapp_mod
+
+        vnc_client.post(
+            "/api/vnc-session",
+            data=json.dumps({"hostname": "server01"}),
+            content_type="application/json",
+        )
+        token = webapp_mod.vnc_manager.find_session_by_hostname("server01")
+        assert token is not None
+        refs_before = webapp_mod.vnc_manager._get_refs(token)
+        vnc_client.post(
+            "/api/vnc-session",
+            data=json.dumps({"hostname": "server01"}),
+            content_type="application/json",
+        )
+        refs_after = webapp_mod.vnc_manager._get_refs(token)
+        assert refs_after == refs_before + 1
+
+
+class TestVncSessionAddrefEndpoint:
+    def test_requires_auth(self, vnc_client):
+        resp = vnc_client.post("/api/vnc-session/sometoken/ref")
+        assert resp.status_code == 401
+
+    def test_vnc_disabled(self, vnc_disabled_client):
+        _login(vnc_disabled_client)
+        resp = vnc_disabled_client.post("/api/vnc-session/sometoken/ref")
+        assert resp.status_code == 404
+
+    def test_session_not_found(self, vnc_client):
+        _login(vnc_client)
+        resp = vnc_client.post("/api/vnc-session/no-such-token/ref")
+        assert resp.status_code == 404
+        assert resp.get_json()["success"] is False
+
+    @patch("dracs.webapp.check_vnc_connectivity", return_value=(True, ""))
+    @patch("dracs.webapp.get_vnc_credentials", return_value=(5901, "pass"))
+    def test_success_increments_refs(self, mock_creds, mock_conn, vnc_client):
+        _login(vnc_client)
+        import dracs.webapp as webapp_mod
+
+        create_resp = vnc_client.post(
+            "/api/vnc-session",
+            data=json.dumps({"hostname": "server01"}),
+            content_type="application/json",
+        )
+        token = create_resp.get_json()["token"]
+        refs_before = webapp_mod.vnc_manager._get_refs(token)
+        resp = vnc_client.post(f"/api/vnc-session/{token}/ref")
+        assert resp.status_code == 200
+        assert resp.get_json()["success"] is True
+        assert webapp_mod.vnc_manager._get_refs(token) == refs_before + 1
+
 
 class TestVncSessionDeleteEndpoint:
     def test_requires_auth(self, vnc_client):
@@ -578,6 +872,44 @@ class TestVncSessionDeleteEndpoint:
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["success"] is True
+
+    @patch("dracs.webapp.check_vnc_connectivity", return_value=(True, ""))
+    @patch("dracs.webapp.get_vnc_credentials", return_value=(5901, "pass"))
+    def test_delete_decrements_ref_not_destroys(
+        self, mock_creds, mock_conn, vnc_client
+    ):
+        _login(vnc_client)
+        import dracs.webapp as webapp_mod
+
+        create_resp = vnc_client.post(
+            "/api/vnc-session",
+            data=json.dumps({"hostname": "server01"}),
+            content_type="application/json",
+        )
+        token = create_resp.get_json()["token"]
+        webapp_mod.vnc_manager.add_reference(token)  # refs=2
+        resp = vnc_client.delete(f"/api/vnc-session/{token}")
+        assert resp.status_code == 200
+        assert webapp_mod.vnc_manager.get_session_info(token) is not None
+        assert webapp_mod.vnc_manager._get_refs(token) == 1
+
+    @patch("dracs.webapp.check_vnc_connectivity", return_value=(True, ""))
+    @patch("dracs.webapp.get_vnc_credentials", return_value=(5901, "pass"))
+    def test_delete_at_zero_refs_removes_session(
+        self, mock_creds, mock_conn, vnc_client
+    ):
+        _login(vnc_client)
+        import dracs.webapp as webapp_mod
+
+        create_resp = vnc_client.post(
+            "/api/vnc-session",
+            data=json.dumps({"hostname": "server01"}),
+            content_type="application/json",
+        )
+        token = create_resp.get_json()["token"]
+        resp = vnc_client.delete(f"/api/vnc-session/{token}")
+        assert resp.status_code == 200
+        assert webapp_mod.vnc_manager.get_session_info(token) is None
 
 
 class TestVncSessionTouchEndpoint:

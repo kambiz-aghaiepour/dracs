@@ -104,7 +104,7 @@
             flex: 1;
         }
 
-        .mc-popout-btn {
+        .mc-max-btn, .mc-popout-btn {
             flex-shrink: 0;
             background: none;
             border: 1px solid #555;
@@ -114,6 +114,7 @@
             font-size: 11px;
             padding: 1px 5px;
         }
+        .mc-max-btn:hover { background: #444; color: #fff; }
         .mc-popout-btn:hover:not(:disabled) { background: #444; color: #fff; }
         .mc-popout-btn:disabled { color: #555; cursor: default; border-color: #444; }
 
@@ -185,10 +186,15 @@
         {% for hostname in hostnames %}
         <div class="mc-cell" id="cell-{{ loop.index0 }}" data-idx="{{ loop.index0 }}">
             <div class="mc-cell-hdr">
+                <button class="mc-max-btn"
+                        id="maxbtn-{{ loop.index0 }}"
+                        onclick="toggleMaximize({{ loop.index0 }})"
+                        title="Maximize">[ ]</button>
                 <span class="mc-cell-hdr-title" title="{{ hostname }}">{{ hostname }}</span>
                 <button class="mc-popout-btn"
                         id="popout-{{ loop.index0 }}"
                         onclick="popoutConsole({{ loop.index0 }})"
+                        disabled
                         title="Open in separate popup window">Popout</button>
             </div>
             <div class="mc-cell-body" id="body-{{ loop.index0 }}">
@@ -280,12 +286,62 @@
         updateGrid();
     }
 
+    var maximizedIdx = -1;
+
+    function toggleMaximize(idx) {
+        if (maximizedIdx === idx) {
+            restoreCell(idx);
+        } else {
+            if (maximizedIdx !== -1) {
+                restoreCell(maximizedIdx);
+            }
+            maximizeCell(idx);
+        }
+    }
+
+    function maximizeCell(idx) {
+        var toolbarH = document.getElementById('mc-toolbar').offsetHeight;
+        var cell = document.getElementById('cell-' + idx);
+        cell.style.position = 'fixed';
+        cell.style.top = toolbarH + 'px';
+        cell.style.left = '0';
+        cell.style.right = '0';
+        cell.style.bottom = '0';
+        cell.style.width = 'auto';
+        cell.style.height = 'auto';
+        cell.style.zIndex = '9999';
+        cell.style.resize = 'none';
+        document.getElementById('maxbtn-' + idx).textContent = '[X]';
+        document.getElementById('maxbtn-' + idx).title = 'Restore';
+        maximizedIdx = idx;
+    }
+
+    function restoreCell(idx) {
+        var cell = document.getElementById('cell-' + idx);
+        cell.style.position = '';
+        cell.style.top = '';
+        cell.style.left = '';
+        cell.style.right = '';
+        cell.style.bottom = '';
+        cell.style.width = '';
+        cell.style.height = '';
+        cell.style.zIndex = '';
+        cell.style.resize = '';
+        delete cell.dataset.userResized;
+        document.getElementById('maxbtn-' + idx).textContent = '[ ]';
+        document.getElementById('maxbtn-' + idx).title = 'Maximize';
+        maximizedIdx = -1;
+        updateGrid();
+    }
+
     function popoutConsole(idx) {
-        // Open via console-connect so each popout gets its own independent
-        // session.  Reusing the embedded iframe's token causes a 404 when
-        // the popout window closes (its beforeunload deletes the shared token).
+        var token = mcTokens[idx];
+        if (!token) return;
+        // Share the same token so both windows count as one iDRAC VNC session.
+        // The ?shared=1 flag tells console.html to register an addref on load
+        // and release it (decrement) on close, leaving this window's reference intact.
         window.open(
-            '/console-connect?host=' + encodeURIComponent(mcHosts[idx]),
+            '/console/' + encodeURIComponent(token) + '?shared=1',
             '_blank',
             'width=1024,height=768,menubar=no,toolbar=no,location=no,status=no,scrollbars=no'
         );
@@ -298,6 +354,7 @@
         var iframe = document.createElement('iframe');
         iframe.src = '/console/' + encodeURIComponent(token);
         body.appendChild(iframe);
+        document.getElementById('popout-' + idx).disabled = false;
     }
 
     function showError(idx, errMsg) {
