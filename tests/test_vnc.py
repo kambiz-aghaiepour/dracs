@@ -352,6 +352,7 @@ class TestVncSessionManager:
     @patch("dracs.vnc.shutil.which", return_value="/usr/bin/x11vnc")
     def test_start_proxy_success(self, mock_which, mock_popen, manager):
         import threading as _threading
+
         hold = _threading.Event()
         mock_proc = MagicMock()
         mock_proc.wait.side_effect = lambda *a, **kw: hold.wait()
@@ -391,6 +392,7 @@ class TestVncSessionManager:
         token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
         manager.start_proxy(token, "mgmt-host01.example.com", 5901, "", 15901)
         import time as _time
+
         deadline = _time.time() + 2.0
         while token in manager._proxy_procs and _time.time() < deadline:
             _time.sleep(0.01)
@@ -400,9 +402,12 @@ class TestVncSessionManager:
     @patch("dracs.vnc.shutil.which", return_value="/usr/bin/x11vnc")
     def test_stop_proxy_terminates_process(self, mock_which, mock_popen, manager):
         import threading as _threading
+
         hold = _threading.Event()
         mock_proc = MagicMock()
-        mock_proc.wait.side_effect = lambda *a, **kw: (None if "timeout" in kw else hold.wait())
+        mock_proc.wait.side_effect = lambda *a, **kw: (
+            None if "timeout" in kw else hold.wait()
+        )
         mock_popen.return_value = mock_proc
         token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
         manager.start_proxy(token, "mgmt-host01.example.com", 5901, "", 15901)
@@ -418,10 +423,13 @@ class TestVncSessionManager:
     @patch("dracs.vnc.shutil.which", return_value="/usr/bin/x11vnc")
     def test_stop_proxy_process_already_gone(self, mock_which, mock_popen, manager):
         import threading as _threading
+
         hold = _threading.Event()
         mock_proc = MagicMock()
         mock_proc.terminate.side_effect = ProcessLookupError()
-        mock_proc.wait.side_effect = lambda *a, **kw: (None if "timeout" in kw else hold.wait())
+        mock_proc.wait.side_effect = lambda *a, **kw: (
+            None if "timeout" in kw else hold.wait()
+        )
         mock_popen.return_value = mock_proc
         token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
         manager.start_proxy(token, "mgmt-host01.example.com", 5901, "", 15901)
@@ -460,9 +468,12 @@ class TestVncSessionManager:
     @patch("dracs.vnc.shutil.which", return_value="/usr/bin/x11vnc")
     def test_remove_session_stops_proxy(self, mock_which, mock_popen, manager):
         import threading as _threading
+
         hold = _threading.Event()
         mock_proc = MagicMock()
-        mock_proc.wait.side_effect = lambda *a, **kw: (None if "timeout" in kw else hold.wait())
+        mock_proc.wait.side_effect = lambda *a, **kw: (
+            None if "timeout" in kw else hold.wait()
+        )
         mock_popen.return_value = mock_proc
         token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
         manager.start_proxy(token, "mgmt-host01.example.com", 5901, "", 15901)
@@ -475,10 +486,13 @@ class TestVncSessionManager:
     @patch("dracs.vnc.shutil.which", return_value="/usr/bin/x11vnc")
     def test_stop_cleans_up_all_proxies(self, mock_which, mock_popen, manager):
         import threading as _threading
+
         holds = [_threading.Event(), _threading.Event()]
         procs = [MagicMock(), MagicMock()]
         for p, h in zip(procs, holds):
-            p.wait.side_effect = lambda *a, h=h, **kw: (None if "timeout" in kw else h.wait())
+            p.wait.side_effect = lambda *a, h=h, **kw: (
+                None if "timeout" in kw else h.wait()
+            )
         mock_popen.side_effect = procs
         t1 = manager.create_session("host01", "mgmt-host01.example.com", 5901)
         t2 = manager.create_session("host02", "mgmt-host02.example.com", 5901)
@@ -829,9 +843,12 @@ class TestVncSessionCreateEndpoint:
         self, mock_creds, mock_conn, mock_which, mock_popen, vnc_client
     ):
         import threading as _threading
+
         hold = _threading.Event()
         mock_proc = MagicMock()
-        mock_proc.wait.side_effect = lambda *a, **kw: (None if "timeout" in kw else hold.wait())
+        mock_proc.wait.side_effect = lambda *a, **kw: (
+            None if "timeout" in kw else hold.wait()
+        )
         mock_popen.return_value = mock_proc
         import dracs.webapp as webapp_mod
 
