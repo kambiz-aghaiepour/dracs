@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.8.7 (2026-06-24)
+
+### Bug Fixes
+
+- Vnc credentials for hosts in secondary site
+  ([`7783dcd`](https://github.com/kambiz-aghaiepour/dracs/commit/7783dcd9deb81a47d22eccac333dcb2026a5dcab))
+
+### Chores
+
+- Sync spec file version to 2.8.6 [skip ci]
+  ([`4fd61cd`](https://github.com/kambiz-aghaiepour/dracs/commit/4fd61cd72df9d6febc4b947b4d8f3092f8da3251))
+
+
 ## v2.8.6 (2026-06-24)
 
 ### Bug Fixes
