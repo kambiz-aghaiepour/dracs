@@ -175,7 +175,7 @@
             flex: 1;
         }
 
-        .mc-max-btn, .mc-popout-btn {
+        .mc-max-btn, .mc-popout-btn, .mc-close-btn {
             flex-shrink: 0;
             background: none;
             border: 1px solid #555;
@@ -184,10 +184,11 @@
             display: flex;
             align-items: center;
         }
-        .mc-max-btn img, .mc-popout-btn img { display: block; }
+        .mc-max-btn img, .mc-popout-btn img, .mc-close-btn img { display: block; }
         .mc-max-btn:hover { background: #444; }
         .mc-popout-btn:hover:not(:disabled) { background: #444; }
         .mc-popout-btn:disabled { opacity: 0.3; cursor: default; }
+        .mc-close-btn:hover { background: #5a2020; }
 
         .mc-cell-body {
             flex: 1;
@@ -266,6 +267,11 @@
                         disabled
                         title="Open in separate popup window">
                     <img src="{{ url_for('static', filename='images/popout.png') }}" alt="Popout" height="14">
+                </button>
+                <button class="mc-close-btn"
+                        onclick="closeConsole({{ loop.index0 }})"
+                        title="Hide this console">
+                    <img src="{{ url_for('static', filename='images/close.png') }}" alt="Close" height="14">
                 </button>
             </div>
             <div class="mc-cell-body" id="body-{{ loop.index0 }}">
@@ -404,6 +410,12 @@
 
     function cancelHostModal() {
         document.getElementById('mc-host-modal').style.display = 'none';
+    }
+
+    function closeConsole(idx) {
+        mcVisible.delete(idx);
+        updateShowBtn();
+        updateGrid();
     }
 
     var maximizedIdx = -1;
