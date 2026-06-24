@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.8.5 (2026-06-24)
+
+### Bug Fixes
+
+- Timeout issue for consoles
+  ([`851e29f`](https://github.com/kambiz-aghaiepour/dracs/commit/851e29fe473c5ba5c56cc599e14e3e7181d330ac))
+
+### Chores
+
+- Sync spec file version to 2.8.4 [skip ci]
+  ([`b657503`](https://github.com/kambiz-aghaiepour/dracs/commit/b65750389919140213d73f3349bf3528e5a5d362))
+
+
 ## v2.8.4 (2026-06-24)
 
 ### Bug Fixes
