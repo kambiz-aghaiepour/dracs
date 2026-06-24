@@ -3141,9 +3141,8 @@ def api_vnc_session_create():
                 400,
             )
 
-        _, site_name = _get_requested_site()
         idrac_fqdn = build_idrac_hostname(hostname)
-        vnc_port, vnc_password = get_vnc_credentials(hostname, site=site_name)
+        vnc_port, vnc_password = get_vnc_credentials(hostname)
 
         existing = vnc_manager.find_session_by_hostname(hostname)
         if existing:
