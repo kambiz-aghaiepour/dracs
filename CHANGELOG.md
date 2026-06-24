@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v2.8.6 (2026-06-24)
+
+### Bug Fixes
+
+- Add a close button, and fix the console
+  ([`f7592a6`](https://github.com/kambiz-aghaiepour/dracs/commit/f7592a622ec739b2f03e891ffe3a2f0b8d7ed873))
+
+- Reconnect issue
+  ([`6950f45`](https://github.com/kambiz-aghaiepour/dracs/commit/6950f450674727f5b878fc30b047e73940dd53d1))
+
+### Chores
+
+- Sync spec file version to 2.8.5 [skip ci]
+  ([`458c462`](https://github.com/kambiz-aghaiepour/dracs/commit/458c462224ab916218f89255b0cb33313f34bbc7))
+
+
 ## v2.8.5 (2026-06-24)
 
 ### Bug Fixes
