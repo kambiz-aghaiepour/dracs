@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.8.2 (2026-06-24)
+
+### Bug Fixes
+
+- X11vnc cleanup
+  ([`a106dab`](https://github.com/kambiz-aghaiepour/dracs/commit/a106dabf0f93bb20e287ab8ccba5badedcdf562a))
+
+### Chores
+
+- Sync spec file version to 2.8.1 [skip ci]
+  ([`eb8273f`](https://github.com/kambiz-aghaiepour/dracs/commit/eb8273fd9ee3eebcef47193424a6b0831dde68eb))
+
+
 ## v2.8.1 (2026-06-24)
 
 ### Bug Fixes
