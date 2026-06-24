@@ -22,6 +22,7 @@ class VncSessionManager:
         self.max_sessions = max_sessions
         self.token_dir.mkdir(parents=True, exist_ok=True)
         self._proxy_procs: dict = {}
+        self._cleanup_orphaned_proxies()
         self._cleanup_thread = None
         self._stop_event = threading.Event()
         self._start_cleanup_thread()
@@ -85,6 +86,9 @@ class VncSessionManager:
         except OSError:
             return None
 
+    def _proxy_pid_file(self, token: str) -> Path:
+        return self.token_dir / f"{token}.proxy"
+
     def start_proxy(
         self,
         token: str,
@@ -127,6 +131,7 @@ class VncSessionManager:
             env=env,
         )
         self._proxy_procs[token] = proc
+        self._proxy_pid_file(token).write_text(str(proc.pid))
         threading.Thread(
             target=self._reap_proxy, args=(token, proc), daemon=True
         ).start()
@@ -139,6 +144,24 @@ class VncSessionManager:
         except Exception:
             return
         self._proxy_procs.pop(token, None)
+        self._proxy_pid_file(token).unlink(missing_ok=True)
+
+    def _kill_by_pid_file(self, token: str) -> None:
+        """Kill an orphaned proxy process using its persisted PID file."""
+        pid_file = self._proxy_pid_file(token)
+        if not pid_file.exists():
+            return
+        try:
+            pid = int(pid_file.read_text().strip())
+            os.kill(pid, signal.SIGTERM)
+            time.sleep(0.5)
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        except (ProcessLookupError, ValueError, OSError):
+            pass
+        pid_file.unlink(missing_ok=True)
 
     def stop_proxy(self, token: str) -> None:
         """Terminate the x11vnc proxy process for a session, if any."""
@@ -152,6 +175,23 @@ class VncSessionManager:
                     proc.kill()
                 except ProcessLookupError:
                     pass
+            self._proxy_pid_file(token).unlink(missing_ok=True)
+        else:
+            self._kill_by_pid_file(token)
+
+    def _cleanup_orphaned_proxies(self) -> None:
+        """Kill and remove proxy sessions left over from a previous process."""
+        for pid_file in list(self.token_dir.glob("*.proxy")):
+            token = pid_file.stem
+            try:
+                pid = int(pid_file.read_text().strip())
+                os.kill(pid, signal.SIGKILL)
+            except (ProcessLookupError, ValueError, OSError):
+                pass
+            (self.token_dir / token).unlink(missing_ok=True)
+            (self.token_dir / f"{token}.meta").unlink(missing_ok=True)
+            self._refs_file(token).unlink(missing_ok=True)
+            pid_file.unlink(missing_ok=True)
 
     def remove_session(self, token: str) -> None:
         """Force-remove a session regardless of reference count."""
@@ -198,7 +238,7 @@ class VncSessionManager:
             [
                 f
                 for f in self.token_dir.iterdir()
-                if not f.name.endswith(".meta") and not f.name.endswith(".refs")
+                if not f.name.endswith((".meta", ".refs", ".proxy"))
             ]
         )
 
@@ -206,7 +246,7 @@ class VncSessionManager:
         removed = 0
         cutoff = time.time() - (self.timeout_minutes * 60)
         for token_file in list(self.token_dir.iterdir()):
-            if token_file.name.endswith((".meta", ".refs")):
+            if token_file.name.endswith((".meta", ".refs", ".proxy")):
                 continue
             try:
                 if token_file.stat().st_mtime < cutoff:
