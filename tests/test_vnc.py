@@ -163,6 +163,18 @@ class TestVncSessionManager:
     def test_find_session_by_hostname_not_found(self, manager):
         assert manager.find_session_by_hostname("nonexistent") is None
 
+    def test_find_session_by_hostname_skips_unreadable_meta(self, manager):
+        manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        original_read_text = Path.read_text
+
+        def read_text_raises(self_path, *args, **kwargs):
+            if self_path.name.endswith(".meta"):
+                raise OSError("permission denied")
+            return original_read_text(self_path, *args, **kwargs)
+
+        with patch.object(Path, "read_text", read_text_raises):
+            assert manager.find_session_by_hostname("host01") is None
+
     def test_add_reference_increments(self, manager, token_dir):
         token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
         assert manager.add_reference(token) is True
@@ -305,6 +317,16 @@ class TestVncSessionManager:
     def test_stop(self, manager):
         manager.stop()
         assert manager._stop_event.is_set()
+
+    def test_get_refs_returns_one_on_corrupt_file(self, manager, token_dir):
+        token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        (Path(token_dir) / f"{token}.refs").write_text("not_a_number")
+        assert manager._get_refs(token) == 1
+
+    def test_get_refs_returns_one_on_missing_file(self, manager, token_dir):
+        token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        (Path(token_dir) / f"{token}.refs").unlink()
+        assert manager._get_refs(token) == 1
 
     def test_find_free_port_returns_valid_port(self, manager):
         port = manager.find_free_port()
@@ -790,6 +812,30 @@ class TestVncSessionCreateEndpoint:
         finally:
             webapp_mod.VNC_PROXY_ENABLE = orig
 
+    @patch("dracs.vnc.VncSessionManager.find_free_port", return_value=None)
+    @patch("dracs.webapp.check_vnc_connectivity", return_value=(True, ""))
+    @patch("dracs.webapp.get_vnc_credentials", return_value=(5901, "pass"))
+    def test_proxy_enabled_no_port_falls_back_to_direct(
+        self, mock_creds, mock_conn, mock_port, vnc_client
+    ):
+        import dracs.webapp as webapp_mod
+
+        orig = webapp_mod.VNC_PROXY_ENABLE
+        webapp_mod.VNC_PROXY_ENABLE = True
+        try:
+            _login(vnc_client)
+            resp = vnc_client.post(
+                "/api/vnc-session",
+                data=json.dumps({"hostname": "server01"}),
+                content_type="application/json",
+            )
+            assert resp.status_code == 200
+            assert resp.get_json()["success"] is True
+            token = resp.get_json()["token"]
+            assert token not in webapp_mod.vnc_manager._proxy_procs
+        finally:
+            webapp_mod.VNC_PROXY_ENABLE = orig
+
     @patch("dracs.webapp.check_vnc_connectivity", return_value=(True, ""))
     @patch("dracs.webapp.get_vnc_credentials", return_value=(5901, "pass"))
     def test_join_existing_increments_refs(self, mock_creds, mock_conn, vnc_client):
@@ -827,6 +873,17 @@ class TestVncSessionAddrefEndpoint:
         _login(vnc_client)
         resp = vnc_client.post("/api/vnc-session/no-such-token/ref")
         assert resp.status_code == 404
+        assert resp.get_json()["success"] is False
+
+    def test_exception_returns_500(self, vnc_client):
+        _login(vnc_client)
+        import dracs.webapp as webapp_mod
+
+        with patch.object(
+            webapp_mod.vnc_manager, "add_reference", side_effect=RuntimeError("boom")
+        ):
+            resp = vnc_client.post("/api/vnc-session/sometoken/ref")
+        assert resp.status_code == 500
         assert resp.get_json()["success"] is False
 
     @patch("dracs.webapp.check_vnc_connectivity", return_value=(True, ""))
