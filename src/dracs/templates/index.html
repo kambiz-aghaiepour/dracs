@@ -1524,7 +1524,7 @@
             <div class="auth-section">
                 <select id="site-select" onchange="switchSite(this.value)" style="margin-right: 4px; padding: 4px 8px; border-radius: 4px; border: 1px solid #ccc;">
                     {% for site in all_sites %}
-                    <option value="{{ site }}" {% if site == current_site %}selected{% endif %}>{{ site }}</option>
+                    <option value="{{ site }}" {% if site == current_site %}selected{% endif %}>{{ site | replace('_', ' ') }}</option>
                     {% endfor %}
                 </select>
                 {% if is_superadmin %}

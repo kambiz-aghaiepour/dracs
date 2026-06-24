@@ -32,8 +32,8 @@
         .mc-label { color: #888; white-space: nowrap; }
         .mc-sep { color: #555; padding: 0 3px; }
 
-        .mc-host-btn {
-            padding: 2px 7px;
+        .mc-show-btn {
+            padding: 2px 8px;
             background: #2d6a2d;
             color: #ccc;
             border: 1px solid #4a8a4a;
@@ -41,13 +41,84 @@
             font-family: monospace;
             font-size: 11px;
             white-space: nowrap;
-            max-width: 160px;
+        }
+        .mc-show-btn:hover { background: #3a7a3a; }
+
+        #mc-host-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 10000;
+            background: rgba(0,0,0,0.6);
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        #mc-host-panel {
+            background: #2d2d2d;
+            border: 1px solid #555;
+            padding: 14px 16px;
+            min-width: 280px;
+            max-width: 520px;
+            width: 90%;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .mc-modal-title {
+            color: #bbb;
+            font-size: 12px;
+        }
+        #mc-host-list {
+            overflow-y: auto;
+            max-height: 320px;
+            border: 1px solid #444;
+            background: #1a1a1a;
+        }
+        .mc-modal-item {
+            padding: 5px 10px;
+            color: #aaa;
+            cursor: pointer;
+            font-size: 12px;
+            user-select: none;
+            -webkit-user-select: none;
+            white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
-        .mc-host-btn:hover { background: #3a7a3a; }
-        .mc-host-btn.off { background: #333; border-color: #555; color: #666; }
-        .mc-host-btn.off:hover { background: #3a3a3a; }
+        .mc-modal-item:hover { background: #252525; }
+        .mc-modal-item.mc-modal-sel { background: #2d6a2d; color: #ddd; }
+        .mc-modal-item.mc-modal-sel:hover { background: #3a7a3a; }
+        .mc-modal-hint {
+            color: #555;
+            font-size: 10px;
+        }
+        .mc-modal-btns {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+        .mc-modal-btn {
+            padding: 4px 14px;
+            border: 1px solid #555;
+            background: #333;
+            color: #aaa;
+            cursor: pointer;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .mc-modal-btn:hover { background: #444; color: #fff; }
+        .mc-modal-btn.mc-modal-apply {
+            background: #2d6a2d;
+            border-color: #4a8a4a;
+            color: #ddd;
+        }
+        .mc-modal-btn.mc-modal-apply:hover { background: #3a7a3a; }
+        .mc-modal-btn.mc-modal-apply:disabled {
+            background: #333;
+            border-color: #444;
+            color: #555;
+            cursor: default;
+        }
 
         .mc-col-btn {
             padding: 2px 8px;
@@ -164,13 +235,9 @@
 <body>
 
 <div id="mc-toolbar">
-    <span class="mc-label">Hosts:</span>
-    {% for hostname in hostnames %}
-    <button class="mc-host-btn"
-            id="hbtn-{{ loop.index0 }}"
-            title="{{ hostname }}"
-            onclick="toggleHost({{ loop.index0 }})">{{ hostname.split('.')[0] }}</button>
-    {% endfor %}
+    <span class="mc-label">Showing</span>
+    <button class="mc-show-btn" id="show-btn" onclick="openHostModal()">[ {{ hostnames|length }} / {{ hostnames|length }} ]</button>
+    <span class="mc-label">hosts</span>
 
     <span class="mc-sep">|</span>
     <span class="mc-label">Cols:</span>
@@ -279,17 +346,64 @@
         updateGrid();
     }
 
-    function toggleHost(idx) {
-        var btn = document.getElementById('hbtn-' + idx);
-        var cell = document.getElementById('cell-' + idx);
-        if (mcVisible.has(idx)) {
-            mcVisible.delete(idx);
-            btn.classList.add('off');
+    var mcModalSelected = new Set();
+    var mcModalAnchor = -1;
+
+    function updateShowBtn() {
+        var btn = document.getElementById('show-btn');
+        btn.textContent = '[ ' + mcVisible.size + ' / ' + mcHosts.length + ' ]';
+    }
+
+    function openHostModal() {
+        mcModalSelected = new Set(mcVisible);
+        mcModalAnchor = -1;
+        var list = document.getElementById('mc-host-list');
+        list.innerHTML = '';
+        mcHosts.forEach(function(hostname, idx) {
+            var item = document.createElement('div');
+            item.className = 'mc-modal-item' + (mcModalSelected.has(idx) ? ' mc-modal-sel' : '');
+            item.textContent = hostname;
+            item.dataset.idx = String(idx);
+            item.addEventListener('click', function(e) { modalItemClick(idx, e); });
+            list.appendChild(item);
+        });
+        refreshModalApply();
+        document.getElementById('mc-host-modal').style.display = 'flex';
+    }
+
+    function modalItemClick(idx, e) {
+        if (e.shiftKey && mcModalAnchor !== -1) {
+            var lo = Math.min(mcModalAnchor, idx);
+            var hi = Math.max(mcModalAnchor, idx);
+            for (var i = lo; i <= hi; i++) mcModalSelected.add(i);
+        } else if (e.ctrlKey || e.metaKey) {
+            if (mcModalSelected.has(idx)) mcModalSelected.delete(idx);
+            else mcModalSelected.add(idx);
+            mcModalAnchor = idx;
         } else {
-            mcVisible.add(idx);
-            btn.classList.remove('off');
+            mcModalSelected = new Set([idx]);
+            mcModalAnchor = idx;
         }
+        document.querySelectorAll('.mc-modal-item').forEach(function(el) {
+            el.classList.toggle('mc-modal-sel', mcModalSelected.has(parseInt(el.dataset.idx)));
+        });
+        refreshModalApply();
+    }
+
+    function refreshModalApply() {
+        document.getElementById('mc-modal-apply-btn').disabled = mcModalSelected.size === 0;
+    }
+
+    function applyHostModal() {
+        if (mcModalSelected.size === 0) return;
+        mcVisible = new Set(mcModalSelected);
+        updateShowBtn();
+        document.getElementById('mc-host-modal').style.display = 'none';
         updateGrid();
+    }
+
+    function cancelHostModal() {
+        document.getElementById('mc-host-modal').style.display = 'none';
     }
 
     var maximizedIdx = -1;
@@ -429,7 +543,26 @@
     });
 
     updateGrid();
+    updateShowBtn();
     createAllSessions();
+    document.getElementById('mc-host-modal').addEventListener('click', function(e) {
+        if (e.target === this) cancelHostModal();
+    });
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') cancelHostModal();
+    });
 </script>
+
+<div id="mc-host-modal">
+    <div id="mc-host-panel">
+        <div class="mc-modal-title">Select hosts to display:</div>
+        <div id="mc-host-list"></div>
+        <div class="mc-modal-hint">Click to select &nbsp; Ctrl+click to toggle &nbsp; Shift+click to extend</div>
+        <div class="mc-modal-btns">
+            <button class="mc-modal-btn" onclick="cancelHostModal()">Cancel</button>
+            <button class="mc-modal-btn mc-modal-apply" id="mc-modal-apply-btn" onclick="applyHostModal()">Apply</button>
+        </div>
+    </div>
+</div>
 </body>
 </html>

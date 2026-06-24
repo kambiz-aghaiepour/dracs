@@ -150,6 +150,8 @@ class VncSessionManager:
             "-localhost",
             "-nopw",
             "-quiet",
+            "-ping",
+            "60",
         ]
         env = {k: v for k, v in os.environ.items() if k != "DISPLAY"}
         if vnc_password:
