@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v2.8.1 (2026-06-24)
+
+### Bug Fixes
+
+- Black formatting
+  ([`c0d5529`](https://github.com/kambiz-aghaiepour/dracs/commit/c0d5529516e1eede27895644f8d54f68e8148e34))
+
+- Ensure .env.example is in sync
+  ([`1e82d8f`](https://github.com/kambiz-aghaiepour/dracs/commit/1e82d8f2d5ba556a3fd5322614c1af26970a18b5))
+
+- X11vnc not being handled correctly
+  ([`6ef0259`](https://github.com/kambiz-aghaiepour/dracs/commit/6ef0259807b498793069bd2f290f0722efff5805))
+
+### Chores
+
+- Sync spec file version to 2.8.0 [skip ci]
+  ([`7fdf8d2`](https://github.com/kambiz-aghaiepour/dracs/commit/7fdf8d2547c107cd4320ccdeb2c3f6e50c34c29c))
+
+
 ## v2.8.0 (2026-06-24)
 
 ### Bug Fixes
