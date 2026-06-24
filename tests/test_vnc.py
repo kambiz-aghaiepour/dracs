@@ -351,7 +351,10 @@ class TestVncSessionManager:
     @patch("dracs.vnc.subprocess.Popen")
     @patch("dracs.vnc.shutil.which", return_value="/usr/bin/x11vnc")
     def test_start_proxy_success(self, mock_which, mock_popen, manager):
+        import threading as _threading
+        hold = _threading.Event()
         mock_proc = MagicMock()
+        mock_proc.wait.side_effect = lambda *a, **kw: hold.wait()
         mock_popen.return_value = mock_proc
         token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
         result = manager.start_proxy(
@@ -363,27 +366,48 @@ class TestVncSessionManager:
         assert "-reflect" in cmd
         assert "mgmt-host01.example.com:5901" in cmd
         assert "-shared" in cmd
-        assert "-passwd" in cmd
+        assert "-passwd" not in cmd
+        env = mock_popen.call_args[1]["env"]
+        assert env.get("X11VNC_REFLECT_PASSWORD") == "pass"
+        hold.set()
 
     @patch("dracs.vnc.subprocess.Popen")
     @patch("dracs.vnc.shutil.which", return_value="/usr/bin/x11vnc")
-    def test_start_proxy_no_password_omits_passwd_flag(
+    def test_start_proxy_no_password_omits_reflect_password_env(
         self, mock_which, mock_popen, manager
     ):
         mock_popen.return_value = MagicMock()
         token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
         manager.start_proxy(token, "mgmt-host01.example.com", 5901, "", 15901)
-        cmd = mock_popen.call_args[0][0]
-        assert "-passwd" not in cmd
+        env = mock_popen.call_args[1]["env"]
+        assert "X11VNC_REFLECT_PASSWORD" not in env
+
+    @patch("dracs.vnc.subprocess.Popen")
+    @patch("dracs.vnc.shutil.which", return_value="/usr/bin/x11vnc")
+    def test_reaper_thread_removes_proc_on_exit(self, mock_which, mock_popen, manager):
+        mock_proc = MagicMock()
+        mock_proc.wait.return_value = 0
+        mock_popen.return_value = mock_proc
+        token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        manager.start_proxy(token, "mgmt-host01.example.com", 5901, "", 15901)
+        import time as _time
+        deadline = _time.time() + 2.0
+        while token in manager._proxy_procs and _time.time() < deadline:
+            _time.sleep(0.01)
+        assert token not in manager._proxy_procs
 
     @patch("dracs.vnc.subprocess.Popen")
     @patch("dracs.vnc.shutil.which", return_value="/usr/bin/x11vnc")
     def test_stop_proxy_terminates_process(self, mock_which, mock_popen, manager):
+        import threading as _threading
+        hold = _threading.Event()
         mock_proc = MagicMock()
+        mock_proc.wait.side_effect = lambda *a, **kw: (None if "timeout" in kw else hold.wait())
         mock_popen.return_value = mock_proc
         token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
         manager.start_proxy(token, "mgmt-host01.example.com", 5901, "", 15901)
         manager.stop_proxy(token)
+        hold.set()
         mock_proc.terminate.assert_called_once()
         assert token not in manager._proxy_procs
 
@@ -393,12 +417,16 @@ class TestVncSessionManager:
     @patch("dracs.vnc.subprocess.Popen")
     @patch("dracs.vnc.shutil.which", return_value="/usr/bin/x11vnc")
     def test_stop_proxy_process_already_gone(self, mock_which, mock_popen, manager):
+        import threading as _threading
+        hold = _threading.Event()
         mock_proc = MagicMock()
         mock_proc.terminate.side_effect = ProcessLookupError()
+        mock_proc.wait.side_effect = lambda *a, **kw: (None if "timeout" in kw else hold.wait())
         mock_popen.return_value = mock_proc
         token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
         manager.start_proxy(token, "mgmt-host01.example.com", 5901, "", 15901)
         manager.stop_proxy(token)
+        hold.set()
         assert token not in manager._proxy_procs
 
     @patch("dracs.vnc.subprocess.Popen")
@@ -431,24 +459,34 @@ class TestVncSessionManager:
     @patch("dracs.vnc.subprocess.Popen")
     @patch("dracs.vnc.shutil.which", return_value="/usr/bin/x11vnc")
     def test_remove_session_stops_proxy(self, mock_which, mock_popen, manager):
+        import threading as _threading
+        hold = _threading.Event()
         mock_proc = MagicMock()
+        mock_proc.wait.side_effect = lambda *a, **kw: (None if "timeout" in kw else hold.wait())
         mock_popen.return_value = mock_proc
         token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
         manager.start_proxy(token, "mgmt-host01.example.com", 5901, "", 15901)
         manager.remove_session(token)
+        hold.set()
         mock_proc.terminate.assert_called_once()
         assert token not in manager._proxy_procs
 
     @patch("dracs.vnc.subprocess.Popen")
     @patch("dracs.vnc.shutil.which", return_value="/usr/bin/x11vnc")
     def test_stop_cleans_up_all_proxies(self, mock_which, mock_popen, manager):
+        import threading as _threading
+        holds = [_threading.Event(), _threading.Event()]
         procs = [MagicMock(), MagicMock()]
+        for p, h in zip(procs, holds):
+            p.wait.side_effect = lambda *a, h=h, **kw: (None if "timeout" in kw else h.wait())
         mock_popen.side_effect = procs
         t1 = manager.create_session("host01", "mgmt-host01.example.com", 5901)
         t2 = manager.create_session("host02", "mgmt-host02.example.com", 5901)
         manager.start_proxy(t1, "mgmt-host01.example.com", 5901, "", 15901)
         manager.start_proxy(t2, "mgmt-host02.example.com", 5901, "", 15902)
         manager.stop()
+        for h in holds:
+            h.set()
         procs[0].terminate.assert_called_once()
         procs[1].terminate.assert_called_once()
 
@@ -790,7 +828,11 @@ class TestVncSessionCreateEndpoint:
     def test_success_with_proxy_enabled(
         self, mock_creds, mock_conn, mock_which, mock_popen, vnc_client
     ):
-        mock_popen.return_value = MagicMock()
+        import threading as _threading
+        hold = _threading.Event()
+        mock_proc = MagicMock()
+        mock_proc.wait.side_effect = lambda *a, **kw: (None if "timeout" in kw else hold.wait())
+        mock_popen.return_value = mock_proc
         import dracs.webapp as webapp_mod
 
         orig = webapp_mod.VNC_PROXY_ENABLE
@@ -810,6 +852,7 @@ class TestVncSessionCreateEndpoint:
             cmd = mock_popen.call_args[0][0]
             assert "-reflect" in cmd
         finally:
+            hold.set()
             webapp_mod.VNC_PROXY_ENABLE = orig
 
     @patch("dracs.vnc.VncSessionManager.find_free_port", return_value=None)

@@ -117,9 +117,9 @@ class VncSessionManager:
             "-nopw",
             "-quiet",
         ]
-        if vnc_password:
-            cmd += ["-passwd", vnc_password]
         env = {k: v for k, v in os.environ.items() if k != "DISPLAY"}
+        if vnc_password:
+            env["X11VNC_REFLECT_PASSWORD"] = vnc_password
         proc = subprocess.Popen(
             cmd,
             stdout=subprocess.DEVNULL,
@@ -127,7 +127,18 @@ class VncSessionManager:
             env=env,
         )
         self._proxy_procs[token] = proc
+        threading.Thread(
+            target=self._reap_proxy, args=(token, proc), daemon=True
+        ).start()
         return True
+
+    def _reap_proxy(self, token: str, proc: subprocess.Popen) -> None:
+        """Wait for a proxy process to exit and remove it from the tracking dict."""
+        try:
+            proc.wait()
+        except Exception:
+            return
+        self._proxy_procs.pop(token, None)
 
     def stop_proxy(self, token: str) -> None:
         """Terminate the x11vnc proxy process for a session, if any."""
