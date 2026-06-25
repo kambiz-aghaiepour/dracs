@@ -336,7 +336,7 @@ class TestAuthGoogleCallbackRoute:
         import dracs.webapp as webapp_mod
         from dracs.users import create_user
 
-        create_user("existing@example.com", "pw", "user", created_by="test")
+        create_user("existing", "pw", "user", created_by="test")
         with patch.object(webapp_mod, "GOOGLE_AUTH_ENABLED", True):
             with google_client.session_transaction() as sess:
                 sess["google_oauth_state"] = "abc"
@@ -349,7 +349,7 @@ class TestAuthGoogleCallbackRoute:
         assert resp.status_code == 302
         with google_client.session_transaction() as sess:
             assert sess.get("authenticated") is True
-            assert sess.get("username") == "existing@example.com"
+            assert sess.get("username") == "existing"
 
     def test_new_user_autocreated(self, google_client, google_webapp_db):
         import dracs.webapp as webapp_mod
@@ -365,7 +365,7 @@ class TestAuthGoogleCallbackRoute:
                 ):
                     resp = google_client.get("/auth/google/callback?state=abc&code=y")
         assert resp.status_code == 302
-        assert any(u["username"] == "new@example.com" for u in list_users())
+        assert any(u["username"] == "new" for u in list_users())
 
     def test_new_user_gets_quads_role_on_quads_site(
         self, google_client, google_webapp_db
@@ -394,7 +394,7 @@ class TestAuthGoogleCallbackRoute:
                         )
         assert resp.status_code == 302
         site_id = get_default_site_id()
-        assert get_user_role_for_site("quads@example.com", site_id) == "quads"
+        assert get_user_role_for_site("quads", site_id) == "quads"
 
     def test_create_user_failure_redirects(self, google_client, google_webapp_db):
         import dracs.webapp as webapp_mod

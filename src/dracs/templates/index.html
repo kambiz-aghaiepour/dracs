@@ -1775,7 +1775,10 @@
         <div id="login-modal" class="modal-overlay">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h2>Admin Login</h2>
+                    <h2 style="display:flex;align-items:center;gap:10px;">
+                        <img src="{{ url_for('static', filename='images/dracs.svg') }}" alt="DRACS" style="height:32px;width:auto;">
+                        DRACS Login
+                    </h2>
                 </div>
                 <div class="modal-body">
                     <form id="login-form" onsubmit="handleLogin(event)">

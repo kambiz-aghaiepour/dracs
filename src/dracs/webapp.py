@@ -895,7 +895,7 @@ def auth_google():
     session["google_oauth_state"] = state
     redirect_uri = url_for("auth_google_callback", _external=True)
     flow = make_flow(redirect_uri, state=state)
-    auth_url, _ = flow.authorization_url(prompt="consent")
+    auth_url, _ = flow.authorization_url()
     return redirect(auth_url)
 
 
@@ -924,10 +924,12 @@ def auth_google_callback():
     if not email:
         return redirect(url_for("index"))
 
+    username = email.split("@")[0]
+
     existing = {u["username"] for u in list_users()}
-    if email not in existing:
+    if username not in existing:
         try:
-            create_user(email, secrets.token_hex(32), None, created_by="google-sso")
+            create_user(username, secrets.token_hex(32), None, created_by="google-sso")
         except Exception:
             return redirect(url_for("index"))
         for site in list_sites():
@@ -938,10 +940,10 @@ def auth_google_callback():
                 "yes",
             )
             if quads_on:
-                set_user_site_role(email, site["id"], "quads")
+                set_user_site_role(username, site["id"], "quads")
 
     session["authenticated"] = True
-    session["username"] = email
+    session["username"] = username
     session["role"] = None
     session["is_superadmin"] = False
     audit_log("login", user=email, source=_client_ip())
