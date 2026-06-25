@@ -926,7 +926,8 @@ def auth_google_callback():
 
     username = email.split("@")[0]
 
-    existing = {u["username"] for u in list_users()}
+    all_users = list_users()
+    existing = {u["username"] for u in all_users}
     if username not in existing:
         try:
             create_user(username, secrets.token_hex(32), None, created_by="google-sso")
@@ -941,10 +942,14 @@ def auth_google_callback():
             )
             if quads_on:
                 set_user_site_role(username, site["id"], "quads")
+        stored_role = None
+    else:
+        user_record = next((u for u in all_users if u["username"] == username), None)
+        stored_role = user_record["role"] if user_record else None
 
     session["authenticated"] = True
     session["username"] = username
-    session["role"] = None
+    session["role"] = stored_role
     session["is_superadmin"] = False
     audit_log("login", user=email, source=_client_ip())
     return redirect(url_for("index"))
