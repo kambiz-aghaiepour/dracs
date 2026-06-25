@@ -12,6 +12,7 @@ from dracs.db import Site, User, UserSiteRole, get_session
 from dracs.exceptions import ValidationError
 
 _USERNAME_RE = re.compile(r"^[a-zA-Z0-9_-]{3,32}$")
+_EMAIL_RE = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
 _VALID_ROLES = {None, "admin", "user"}
 _VALID_SITE_ROLES = {"admin", "user", "quads"}
 
@@ -21,7 +22,7 @@ def _superadmin_username() -> str:
 
 
 def validate_username(username: str) -> bool:
-    return bool(_USERNAME_RE.match(username))
+    return bool(_USERNAME_RE.match(username) or _EMAIL_RE.match(username))
 
 
 def create_user(

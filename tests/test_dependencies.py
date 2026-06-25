@@ -81,5 +81,9 @@ def test_twine(deps):
     _assert_dependency(deps, "twine")
 
 
+def test_google_auth_oauthlib(deps):
+    _assert_dependency(deps, "google-auth-oauthlib>=1.2.0")
+
+
 def test_dependency_count(deps):
-    assert len(deps) == 13
+    assert len(deps) == 14

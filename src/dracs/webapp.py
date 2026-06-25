@@ -9,6 +9,7 @@ import hashlib
 import json
 import os
 import re
+import secrets
 import shutil
 import socket
 import sys
@@ -46,6 +47,7 @@ from dracs.users import (
     create_user,
     delete_user,
     list_users,
+    set_user_site_role,
     update_user_password,
     update_user_role,
 )
@@ -144,6 +146,16 @@ def _parse_console_size(value: str) -> tuple:
 VNC_CONSOLE_WIDTH, VNC_CONSOLE_HEIGHT = _parse_console_size(
     os.environ.get("VNC_CONSOLE_SIZE", "800x600")
 )
+
+
+# Google OAuth2 — enabled at startup so the template can reflect it
+def _google_auth_enabled() -> bool:
+    from dracs.google_auth import is_enabled as _ga_is_enabled
+
+    return _ga_is_enabled()
+
+
+GOOGLE_AUTH_ENABLED = _google_auth_enabled()
 
 # QUADS integration — configured per-site via Manage Site UI
 _QUADS_CACHE_TTL = 86400
@@ -703,6 +715,7 @@ def index():
         vnc_console_height=VNC_CONSOLE_HEIGHT,
         is_quads_user=is_quads_user,
         quads_empty=quads_empty,
+        google_auth_enabled=GOOGLE_AUTH_ENABLED,
     )
 
 
@@ -869,6 +882,70 @@ def logout():
     audit_log("logout", user=username, source=_client_ip())
     session.clear()
     return jsonify({"success": True, "message": "Logged out successfully"})
+
+
+@app.route("/auth/google")
+def auth_google():
+    """Initiate Google OAuth2 login flow."""
+    if not GOOGLE_AUTH_ENABLED:
+        return redirect(url_for("index"))
+    from dracs.google_auth import make_flow
+
+    state = secrets.token_hex(16)
+    session["google_oauth_state"] = state
+    redirect_uri = url_for("auth_google_callback", _external=True)
+    flow = make_flow(redirect_uri, state=state)
+    auth_url, _ = flow.authorization_url(prompt="consent")
+    return redirect(auth_url)
+
+
+@app.route("/auth/google/callback")
+def auth_google_callback():
+    """Handle Google OAuth2 callback and establish a session."""
+    if not GOOGLE_AUTH_ENABLED:
+        return redirect(url_for("index"))
+
+    expected_state = session.pop("google_oauth_state", None)
+    if not expected_state or expected_state != request.args.get("state"):
+        return redirect(url_for("index"))
+
+    from dracs.google_auth import make_flow, get_verified_email
+    from dracs.db import list_sites
+    from dracs.sites import get_site_ini_config
+
+    redirect_uri = url_for("auth_google_callback", _external=True)
+    flow = make_flow(redirect_uri, state=expected_state)
+    try:
+        flow.fetch_token(authorization_response=request.url)
+    except Exception:
+        return redirect(url_for("index"))
+
+    email = get_verified_email(flow.credentials)
+    if not email:
+        return redirect(url_for("index"))
+
+    existing = {u["username"] for u in list_users()}
+    if email not in existing:
+        try:
+            create_user(email, secrets.token_hex(32), None, created_by="google-sso")
+        except Exception:
+            return redirect(url_for("index"))
+        for site in list_sites():
+            cfg = get_site_ini_config(site["name"])
+            quads_on = cfg["defaults"].get("quads_enabled", "false").lower() in (
+                "true",
+                "1",
+                "yes",
+            )
+            if quads_on:
+                set_user_site_role(email, site["id"], "quads")
+
+    session["authenticated"] = True
+    session["username"] = email
+    session["role"] = None
+    session["is_superadmin"] = False
+    audit_log("login", user=email, source=_client_ip())
+    return redirect(url_for("index"))
 
 
 @app.route("/api/auth-status")
