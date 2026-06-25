@@ -397,6 +397,10 @@ async def main() -> None:
         choices=["admin", "user", "none"],
         help="User role (use 'none' for no global role)",
     )
+    parser_user.add_argument(
+        "--password",
+        help="Password (skips interactive prompt)",
+    )
 
     parser_sites = subparsers.add_parser("sites", help="Manage configured sites")
     sites_action = parser_sites.add_mutually_exclusive_group()
@@ -885,11 +889,14 @@ async def main() -> None:
                 print("Error: --role is required with --add.", file=sys.stderr)
                 sys.exit(1)
             role = None if args.role == "none" else args.role
-            password = getpass.getpass(f"Password for {args.username}: ")
-            confirm = getpass.getpass("Confirm password: ")
-            if password != confirm:
-                print("Error: passwords do not match.", file=sys.stderr)
-                sys.exit(1)
+            if args.password:
+                password = args.password
+            else:
+                password = getpass.getpass(f"Password for {args.username}: ")
+                confirm = getpass.getpass("Confirm password: ")
+                if password != confirm:
+                    print("Error: passwords do not match.", file=sys.stderr)
+                    sys.exit(1)
             _create_user(args.username, password, role, created_by=getpass.getuser())
             if role is not None:
                 from dracs.db import get_default_site_id
@@ -956,11 +963,14 @@ async def main() -> None:
                 sys.exit(1)
             changes = []
             if not args.role:
-                password = getpass.getpass(f"New password for {args.username}: ")
-                confirm = getpass.getpass("Confirm password: ")
-                if password != confirm:
-                    print("Error: passwords do not match.", file=sys.stderr)
-                    sys.exit(1)
+                if args.password:
+                    password = args.password
+                else:
+                    password = getpass.getpass(f"New password for {args.username}: ")
+                    confirm = getpass.getpass("Confirm password: ")
+                    if password != confirm:
+                        print("Error: passwords do not match.", file=sys.stderr)
+                        sys.exit(1)
                 _update_password(args.username, password)
                 changes.append("password")
             if args.role:

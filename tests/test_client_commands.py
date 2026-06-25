@@ -373,11 +373,12 @@ class TestCmdUser:
             update=False,
             username="newuser",
             role="user",
+            password=None,
         )
         with patch(
             "dracs_client.commands.getpass.getpass", side_effect=["pass", "pass"]
         ):
-            with patch("dracs_client.commands._api_request", return_value=_mock_resp()):
+            with patch("dracs_client.commands._post_json", return_value=_mock_resp()):
                 cmd_user(args, "https://s", True, "s")
 
     def test_user_add_no_username_exits(self):
@@ -412,6 +413,7 @@ class TestCmdUser:
             update=False,
             username="newuser",
             role="user",
+            password=None,
         )
         with patch(
             "dracs_client.commands.getpass.getpass", side_effect=["pass1", "pass2"]
@@ -432,6 +434,21 @@ class TestCmdUser:
         )
         with pytest.raises(SystemExit):
             cmd_user(args, "https://s", True, "s")
+
+    def test_user_add_with_password_flag(self, capsys):
+        args = MagicMock(
+            add=True,
+            remove=False,
+            list=False,
+            update=False,
+            username="flaguser",
+            role="user",
+            password="mypass",
+        )
+        with patch("dracs_client.commands._post_json", return_value=_mock_resp()) as mock_post:
+            cmd_user(args, "https://s", True, "s")
+        payload = mock_post.call_args[0][3]
+        assert payload["password"] == "mypass"
 
     def test_user_update_role(self, capsys):
         args = MagicMock(
@@ -463,6 +480,22 @@ class TestCmdUser:
         assert payload.get("role") == "admin"
         assert "site_role" not in payload
 
+    def test_user_update_password_with_flag(self, capsys):
+        args = MagicMock(
+            add=False,
+            remove=False,
+            list=False,
+            update=True,
+            username="jsmith",
+            role=None,
+            site=None,
+            password="newpass123",
+        )
+        with patch("dracs_client.commands._api_request", return_value=_mock_resp()) as mock_req:
+            cmd_user(args, "https://s", True, "s")
+        payload = mock_req.call_args.kwargs["json"]
+        assert payload.get("password") == "newpass123"
+
     def test_user_update_password(self, capsys):
         args = MagicMock(
             add=False,
@@ -471,6 +504,8 @@ class TestCmdUser:
             update=True,
             username="jsmith",
             role=None,
+            site=None,
+            password=None,
         )
         with patch(
             "dracs_client.commands.getpass.getpass", side_effect=["newpass", "newpass"]
@@ -498,6 +533,8 @@ class TestCmdUser:
             update=True,
             username="jsmith",
             role=None,
+            site=None,
+            password=None,
         )
         with patch("dracs_client.commands.getpass.getpass", side_effect=["p1", "p2"]):
             with pytest.raises(SystemExit):

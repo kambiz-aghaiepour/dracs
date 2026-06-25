@@ -56,6 +56,13 @@ class TestUserAdd:
         assert users[0]["username"] == "jsmith"
         assert users[0]["role"] == "user"
 
+    def test_add_user_with_password_flag(self, run_cli, user_cli_db, capsys):
+        run_cli("user", "--add", "--username", "flaguser", "--role", "user", "--password", "mypass")
+        captured = capsys.readouterr()
+        assert "created" in captured.out.lower()
+        from dracs.users import authenticate
+        assert authenticate("flaguser", "mypass") is not None
+
     def test_add_admin_user(self, run_cli, user_cli_db, capsys):
         _add_user(run_cli, "boss", "admin")
         users = list_users()
@@ -134,6 +141,14 @@ class TestUserUpdate:
             run_cli("user", "--update", "--username", "passchange")
         captured = capsys.readouterr()
         assert "updated" in captured.out.lower()
+
+    def test_update_password_with_flag(self, run_cli, user_cli_db, capsys):
+        _add_user(run_cli, "flagpass", "user")
+        run_cli("user", "--update", "--username", "flagpass", "--password", "newpass123")
+        captured = capsys.readouterr()
+        assert "updated" in captured.out.lower()
+        from dracs.users import authenticate
+        assert authenticate("flagpass", "newpass123") is not None
 
     def test_update_password_mismatch(self, run_cli, user_cli_db):
         _add_user(run_cli, "mismatch", "user")
