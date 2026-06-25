@@ -445,6 +445,22 @@ class TestCmdUser:
         with patch("dracs_client.commands._api_request", return_value=_mock_resp()):
             cmd_user(args, "https://s", True, "s")
 
+    def test_user_update_role_no_site(self, capsys):
+        args = MagicMock(
+            add=False,
+            remove=False,
+            list=False,
+            update=True,
+            username="jsmith",
+            role="admin",
+            site=None,
+        )
+        with patch("dracs_client.commands._api_request", return_value=_mock_resp()) as mock_req:
+            cmd_user(args, "https://s", True, "s")
+        payload = mock_req.call_args.kwargs["json"]
+        assert payload.get("role") == "admin"
+        assert "site_role" not in payload
+
     def test_user_update_password(self, capsys):
         args = MagicMock(
             add=False,

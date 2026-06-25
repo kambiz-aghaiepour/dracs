@@ -657,6 +657,160 @@ class TestSitesCLI:
         with pytest.raises(SystemExit):
             self._run(["sites", "--set-config", "--name", "Default"], temp_db)
 
+    def test_sites_add_sets_default_ini_config(self, temp_db, tmp_path, capsys):
+        import os
+
+        db_initialize(temp_db)
+        orig_dir = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            self._run(["sites", "--add", "--name", "FreshSite"], temp_db)
+            ini = tmp_path / "drac-passwords.ini"
+            assert ini.exists()
+            content = ini.read_text()
+            assert "FreshSite-DEFAULTS" in content
+            assert "root" in content
+        finally:
+            os.chdir(orig_dir)
+
+    def test_sites_delete_no_name(self, temp_db, capsys):
+        db_initialize(temp_db)
+        with pytest.raises(SystemExit):
+            self._run(["sites", "--delete"], temp_db)
+
+    def test_sites_rename_invalid_new_name(self, temp_db, capsys):
+        db_initialize(temp_db)
+        create_site("ValidSite")
+        with pytest.raises(SystemExit):
+            self._run(
+                ["sites", "--rename", "--name", "ValidSite", "--new-name", "bad name!"],
+                temp_db,
+            )
+
+    def test_sites_rename_not_found(self, temp_db, capsys):
+        db_initialize(temp_db)
+        with pytest.raises(SystemExit):
+            self._run(
+                ["sites", "--rename", "--name", "NoSuchSite", "--new-name", "NewName"],
+                temp_db,
+            )
+
+    def test_sites_config_no_name(self, temp_db, capsys):
+        db_initialize(temp_db)
+        with pytest.raises(SystemExit):
+            self._run(["sites", "--config"], temp_db)
+
+    def test_sites_config_no_defaults(self, temp_db, tmp_path, capsys):
+        import os
+
+        db_initialize(temp_db)
+        orig_dir = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            self._run(["sites", "--config", "--name", "Default"], temp_db)
+            out = capsys.readouterr().out
+            assert "No defaults" in out
+        finally:
+            os.chdir(orig_dir)
+
+    def test_sites_config_with_hosts(self, temp_db, tmp_path, capsys):
+        import os
+        import configparser
+
+        db_initialize(temp_db)
+        ini = tmp_path / "drac-passwords.ini"
+        config = configparser.RawConfigParser()
+        config["Default-DEFAULTS"] = {"username": "root", "password": "calvin"}
+        config["Default-host01"] = {"username": "admin"}
+        with open(ini, "w") as f:
+            config.write(f)
+        orig_dir = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            self._run(["sites", "--config", "--name", "Default"], temp_db)
+            out = capsys.readouterr().out
+            assert "host01" in out
+        finally:
+            os.chdir(orig_dir)
+
+    def test_sites_set_config_no_name(self, temp_db, capsys):
+        db_initialize(temp_db)
+        with pytest.raises(SystemExit):
+            self._run(["sites", "--set-config"], temp_db)
+
+    def test_sites_set_config_password(self, temp_db, tmp_path, capsys):
+        import os
+
+        db_initialize(temp_db)
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text("")
+        orig_dir = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            self._run(
+                ["sites", "--set-config", "--name", "Default", "--password", "secret123"],
+                temp_db,
+            )
+            content = ini.read_text()
+            assert "secret123" in content
+        finally:
+            os.chdir(orig_dir)
+
+    def test_sites_set_config_vnc_port(self, temp_db, tmp_path, capsys):
+        import os
+
+        db_initialize(temp_db)
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text("")
+        orig_dir = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            self._run(
+                ["sites", "--set-config", "--name", "Default", "--vnc-port", "5902"],
+                temp_db,
+            )
+            content = ini.read_text()
+            assert "5902" in content
+        finally:
+            os.chdir(orig_dir)
+
+    def test_sites_set_config_vnc_password(self, temp_db, tmp_path, capsys):
+        import os
+
+        db_initialize(temp_db)
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text("")
+        orig_dir = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            self._run(
+                ["sites", "--set-config", "--name", "Default", "--vnc-password", "vncpass"],
+                temp_db,
+            )
+            content = ini.read_text()
+            assert "vncpass" in content
+        finally:
+            os.chdir(orig_dir)
+
+    def test_sites_set_config_quads_enabled(self, temp_db, tmp_path, capsys):
+        import os
+
+        db_initialize(temp_db)
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text("")
+        orig_dir = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            self._run(
+                ["sites", "--set-config", "--name", "Default", "--quads-enabled", "true"],
+                temp_db,
+            )
+            content = ini.read_text()
+            assert "quads_enabled" in content
+            assert "true" in content
+        finally:
+            os.chdir(orig_dir)
+
 
 class TestUserCLISiteContext:
     def _run(self, args, db_path):
