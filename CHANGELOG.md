@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v2.10.1 (2026-06-25)
+
+### Bug Fixes
+
+- Only prompt consent once on google auth
+  ([`eb5bca8`](https://github.com/kambiz-aghaiepour/dracs/commit/eb5bca8e7b0c42f03e22e0a65b7d82f58d2fef2d))
+
+- Strip domain for external users
+  ([`89543bd`](https://github.com/kambiz-aghaiepour/dracs/commit/89543bdacb76fc2839ca95d0494ce82f14fb5a7b))
+
+### Chores
+
+- Sync spec file version to 2.10.0 [skip ci]
+  ([`5e37253`](https://github.com/kambiz-aghaiepour/dracs/commit/5e37253fef85b835f928bb416f6dec3c5db2a2ba))
+
+
 ## v2.10.0 (2026-06-25)
 
 ### Bug Fixes
