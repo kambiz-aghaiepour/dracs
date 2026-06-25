@@ -2,6 +2,27 @@
 
 <!-- version list -->
 
+## v2.9.0 (2026-06-25)
+
+### Bug Fixes
+
+- Black formatting
+  ([`39f789f`](https://github.com/kambiz-aghaiepour/dracs/commit/39f789fc702d61807c1b36d15c30bd5731bbceca))
+
+- Codecov/patch fell short
+  ([`c1b34a9`](https://github.com/kambiz-aghaiepour/dracs/commit/c1b34a94bd2316e57dbc7e047bc487eda5b54fec))
+
+### Chores
+
+- Sync spec file version to 2.8.7 [skip ci]
+  ([`6524583`](https://github.com/kambiz-aghaiepour/dracs/commit/6524583fe96b1188355c273dec536cf2996c2db3))
+
+### Features
+
+- Add site management CLI
+  ([`59856eb`](https://github.com/kambiz-aghaiepour/dracs/commit/59856ebce65a8ee1add5a56d58802d6a81747b18))
+
+
 ## v2.8.7 (2026-06-24)
 
 ### Bug Fixes
