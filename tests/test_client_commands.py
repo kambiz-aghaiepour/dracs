@@ -445,7 +445,9 @@ class TestCmdUser:
             role="user",
             password="mypass",
         )
-        with patch("dracs_client.commands._post_json", return_value=_mock_resp()) as mock_post:
+        with patch(
+            "dracs_client.commands._post_json", return_value=_mock_resp()
+        ) as mock_post:
             cmd_user(args, "https://s", True, "s")
         payload = mock_post.call_args[0][3]
         assert payload["password"] == "mypass"
@@ -491,7 +493,9 @@ class TestCmdUser:
             site=None,
             password="newpass123",
         )
-        with patch("dracs_client.commands._api_request", return_value=_mock_resp()) as mock_req:
+        with patch(
+            "dracs_client.commands._api_request", return_value=_mock_resp()
+        ) as mock_req:
             cmd_user(args, "https://s", True, "s")
         payload = mock_req.call_args.kwargs["json"]
         assert payload.get("password") == "newpass123"

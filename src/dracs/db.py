@@ -151,7 +151,9 @@ def _migrate_schema(engine) -> None:
         user_cols = {c["name"]: c for c in inspector.get_columns("users")}
         if not user_cols.get("role", {}).get("nullable", True):
             with engine.begin() as conn:
-                conn.execute(text("""
+                conn.execute(
+                    text(
+                        """
                     CREATE TABLE users_new (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         username VARCHAR NOT NULL UNIQUE,
@@ -160,7 +162,9 @@ def _migrate_schema(engine) -> None:
                         created_at VARCHAR NOT NULL,
                         created_by VARCHAR
                     )
-                    """))
+                    """
+                    )
+                )
                 conn.execute(text("INSERT INTO users_new SELECT * FROM users"))
                 conn.execute(text("DROP TABLE users"))
                 conn.execute(text("ALTER TABLE users_new RENAME TO users"))
