@@ -3,12 +3,13 @@
 import json
 import os
 
-_DEFAULT_SECRET_PATH = "/etc/dracs/google_client_secret.json"  # nosec B105
-
 
 def _load_client_config():
     """Load and validate the Google OAuth2 client secret JSON file."""
-    path = os.environ.get("GOOGLE_CLIENT_SECRET_PATH", _DEFAULT_SECRET_PATH)
+    path = os.environ.get(
+        "GOOGLE_CLIENT_SECRET_PATH",
+        os.path.join("/etc/dracs", "google_client_secret.json"),
+    )
     try:
         with open(path) as f:
             config = json.load(f)
