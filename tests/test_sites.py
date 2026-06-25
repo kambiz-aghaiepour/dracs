@@ -748,7 +748,14 @@ class TestSitesCLI:
         os.chdir(tmp_path)
         try:
             self._run(
-                ["sites", "--set-config", "--name", "Default", "--password", "secret123"],
+                [
+                    "sites",
+                    "--set-config",
+                    "--name",
+                    "Default",
+                    "--password",
+                    "secret123",
+                ],
                 temp_db,
             )
             content = ini.read_text()
@@ -784,7 +791,14 @@ class TestSitesCLI:
         os.chdir(tmp_path)
         try:
             self._run(
-                ["sites", "--set-config", "--name", "Default", "--vnc-password", "vncpass"],
+                [
+                    "sites",
+                    "--set-config",
+                    "--name",
+                    "Default",
+                    "--vnc-password",
+                    "vncpass",
+                ],
                 temp_db,
             )
             content = ini.read_text()
@@ -802,7 +816,14 @@ class TestSitesCLI:
         os.chdir(tmp_path)
         try:
             self._run(
-                ["sites", "--set-config", "--name", "Default", "--quads-enabled", "true"],
+                [
+                    "sites",
+                    "--set-config",
+                    "--name",
+                    "Default",
+                    "--quads-enabled",
+                    "true",
+                ],
                 temp_db,
             )
             content = ini.read_text()
