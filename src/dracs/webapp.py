@@ -895,7 +895,7 @@ def auth_google():
     session["google_oauth_state"] = state
     redirect_uri = url_for("auth_google_callback", _external=True)
     flow = make_flow(redirect_uri, state=state)
-    auth_url, _ = flow.authorization_url(prompt="consent")
+    auth_url, _ = flow.authorization_url()
     return redirect(auth_url)
 
 
