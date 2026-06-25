@@ -350,6 +350,29 @@ class TestAuthGoogleCallbackRoute:
         with google_client.session_transaction() as sess:
             assert sess.get("authenticated") is True
             assert sess.get("username") == "existing"
+            assert sess.get("role") == "user"
+
+    def test_existing_admin_user_gets_admin_role_in_session(
+        self, google_client, google_webapp_db
+    ):
+        import dracs.webapp as webapp_mod
+        from dracs.users import create_user
+
+        create_user("adminuser", "pw", "admin", created_by="test")
+        with patch.object(webapp_mod, "GOOGLE_AUTH_ENABLED", True):
+            with google_client.session_transaction() as sess:
+                sess["google_oauth_state"] = "abc"
+            with patch("dracs.google_auth.make_flow", return_value=self._mock_flow()):
+                with patch(
+                    "dracs.google_auth.get_verified_email",
+                    return_value="adminuser@example.com",
+                ):
+                    resp = google_client.get("/auth/google/callback?state=abc&code=y")
+        assert resp.status_code == 302
+        with google_client.session_transaction() as sess:
+            assert sess.get("authenticated") is True
+            assert sess.get("username") == "adminuser"
+            assert sess.get("role") == "admin"
 
     def test_new_user_autocreated(self, google_client, google_webapp_db):
         import dracs.webapp as webapp_mod
