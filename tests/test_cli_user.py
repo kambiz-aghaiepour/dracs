@@ -196,6 +196,18 @@ class TestUserQuadsRole:
         assert match["role"] is None
         assert get_user_role_for_site("quser", get_default_site_id()) == "quads"
 
+    def test_add_none_role_creates_user_with_no_role(
+        self, run_cli, user_cli_db, capsys
+    ):
+        """--add --role none creates user with no global role and no site role."""
+        with patch("dracs.cli.getpass.getpass", side_effect=["pass", "pass"]):
+            run_cli("user", "--add", "--username", "noroleuser", "--role", "none")
+        captured = capsys.readouterr()
+        assert "created" in captured.out.lower()
+        users = list_users()
+        match = next(u for u in users if u["username"] == "noroleuser")
+        assert match["role"] is None
+
     def test_update_quads_role_without_site_exits(self, run_cli, user_cli_db):
         """--update --role quads without --site should exit with an error."""
         _add_user(run_cli, "quser2", "user")
