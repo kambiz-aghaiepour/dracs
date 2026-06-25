@@ -178,3 +178,26 @@ class TestUserUpdate:
             run_cli("u", "--add", "--username", "aliasuser", "--role", "user")
         captured = capsys.readouterr()
         assert "created" in captured.out.lower()
+
+
+class TestUserQuadsRole:
+    def test_add_quads_role_uses_default_site(self, run_cli, user_cli_db, capsys):
+        """--add --role quads creates user with no global role and sets quads site role."""
+        from dracs.users import get_user_role_for_site
+        from dracs.db import get_default_site_id
+
+        with patch("dracs.cli.getpass.getpass", side_effect=["pass", "pass"]):
+            run_cli("user", "--add", "--username", "quser", "--role", "quads")
+        captured = capsys.readouterr()
+        assert "created" in captured.out.lower()
+
+        users = list_users()
+        match = next(u for u in users if u["username"] == "quser")
+        assert match["role"] is None
+        assert get_user_role_for_site("quser", get_default_site_id()) == "quads"
+
+    def test_update_quads_role_without_site_exits(self, run_cli, user_cli_db):
+        """--update --role quads without --site should exit with an error."""
+        _add_user(run_cli, "quser2", "user")
+        with pytest.raises(SystemExit):
+            run_cli("user", "--update", "--username", "quser2", "--role", "quads")

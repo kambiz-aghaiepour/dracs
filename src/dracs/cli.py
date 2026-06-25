@@ -888,7 +888,15 @@ async def main() -> None:
             if not args.role:
                 print("Error: --role is required with --add.", file=sys.stderr)
                 sys.exit(1)
-            role = None if args.role == "none" else args.role
+            if args.role == "quads":
+                global_role = None
+                site_role_to_set = "quads"
+            elif args.role == "none":
+                global_role = None
+                site_role_to_set = None
+            else:
+                global_role = args.role
+                site_role_to_set = args.role
             if args.password:
                 password = args.password
             else:
@@ -897,13 +905,14 @@ async def main() -> None:
                 if password != confirm:
                     print("Error: passwords do not match.", file=sys.stderr)
                     sys.exit(1)
-            _create_user(args.username, password, role, created_by=getpass.getuser())
-            if role is not None:
-                from dracs.db import get_default_site_id
+            _create_user(
+                args.username, password, global_role, created_by=getpass.getuser()
+            )
+            if site_role_to_set is not None:
                 from dracs.users import set_user_site_role as _set_site_role
 
                 try:
-                    _set_site_role(args.username, get_default_site_id(), role)
+                    _set_site_role(args.username, _resolve_site_id(), site_role_to_set)
                 except RuntimeError:
                     pass
             print(f"User '{args.username}' created with role '{args.role}'.")
@@ -912,7 +921,7 @@ async def main() -> None:
                 target=args.username,
                 user=getpass.getuser(),
                 source="cli",
-                details=f"role={role}",
+                details=f"role={args.role}",
             )
         elif args.remove:
             if not args.username:
@@ -985,6 +994,12 @@ async def main() -> None:
                         _set_site_role(args.username, site_id, args.role)
                     changes.append(f"site_role({args.site})={args.role}")
                 else:
+                    if args.role == "quads":
+                        print(
+                            "Error: 'quads' is a site-only role; specify --site.",
+                            file=sys.stderr,
+                        )
+                        sys.exit(1)
                     role = None if args.role == "none" else args.role
                     _update_role(args.username, role)
                     changes.append(f"role={args.role}")
