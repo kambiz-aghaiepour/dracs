@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v2.9.3 (2026-06-25)
+
+### Bug Fixes
+
+- Black formatting
+  ([`38ed38c`](https://github.com/kambiz-aghaiepour/dracs/commit/38ed38cf802ff826195a24a6c023ad829f04d4f2))
+
+- Cli management of users consistent with web
+  ([`2111492`](https://github.com/kambiz-aghaiepour/dracs/commit/2111492a030a8f521d3fc04a660aea7ffa188449))
+
+- Codecov/patch dropped.
+  ([`953b800`](https://github.com/kambiz-aghaiepour/dracs/commit/953b8007264d2a006ecec30c0a7a92cba3b1990e))
+
+### Chores
+
+- Sync spec file version to 2.9.2 [skip ci]
+  ([`6c871cf`](https://github.com/kambiz-aghaiepour/dracs/commit/6c871cfc0bbac7884b67e29fe43b4a604c087a39))
+
+
 ## v2.9.2 (2026-06-25)
 
 ### Bug Fixes
