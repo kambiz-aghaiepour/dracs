@@ -13,6 +13,7 @@ from dracs.exceptions import ValidationError
 
 _USERNAME_RE = re.compile(r"^[a-zA-Z0-9_-]{3,32}$")
 _VALID_ROLES = {None, "admin", "user"}
+_VALID_SITE_ROLES = {"admin", "user", "quads"}
 
 
 def _superadmin_username() -> str:
@@ -175,8 +176,10 @@ def update_user_role(username: str, new_role: str | None) -> bool:
 
 
 def set_user_site_role(username: str, site_id: int, role: str) -> None:
-    if role not in _VALID_ROLES:
-        raise ValidationError(f"Invalid role: '{role}'. Must be 'admin' or 'user'.")
+    if role not in _VALID_SITE_ROLES:
+        raise ValidationError(
+            f"Invalid role: '{role}'. Must be 'admin', 'user', or 'quads'."
+        )
 
     with get_session() as session:
         user = session.query(User).filter(User.username == username).first()

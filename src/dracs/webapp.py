@@ -217,7 +217,6 @@ def _fetch_quads_hosts(username: str, quads_url: str):
         and (
             s["assignment"].get("owner") == username
             or username in (s["assignment"].get("ccuser") or [])
-            or s["assignment"].get("cloud", {}).get("name") == username
         )
     )
 
@@ -230,6 +229,63 @@ def _get_quads_hosts_for_user(username: str, site_id, quads_url: str):
     if hosts is not None:
         _quads_cache_set(username, site_id, hosts)
     return hosts
+
+
+def _site_id_for_host(hostname: str):
+    """Return the site_id for a given hostname, or None."""
+    with get_session() as db_sess:
+        system = db_sess.query(System).filter(System.name == hostname).first()
+        return system.site_id if system else None
+
+
+def _get_effective_role():
+    """Return (is_superadmin, effective_role) for the current request.
+    Call only after _require_auth() has succeeded."""
+    if session.get("is_superadmin", False):
+        return True, "admin"
+    if session.get("authenticated", False):
+        return False, session.get("role")
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        from dracs.tokens import validate_token
+
+        result = validate_token(auth[7:])
+        if result:
+            from dracs.users import _superadmin_username
+
+            is_super = result[0] == _superadmin_username()
+            return is_super, result[1]
+    return False, None
+
+
+def _quads_host_access(username: str, hostname: str, site_id: int) -> bool:
+    """Return True if the user has quads-role access to the given hostname."""
+    from dracs.users import get_user_role_for_site
+    from dracs.sites import get_site_ini_config
+    from dracs.db import Site
+
+    site_role = get_user_role_for_site(username, site_id)
+    if site_role != "quads":
+        return False
+
+    with get_session() as db_sess:
+        site_obj = db_sess.get(Site, site_id)
+        site_name = site_obj.name if site_obj else None
+    if not site_name:
+        return False
+
+    site_cfg = get_site_ini_config(site_name)
+    quads_enabled = site_cfg["defaults"].get("quads_enabled", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    quads_url = site_cfg["defaults"].get("quads_url", "").rstrip("/")
+    if not (quads_enabled and quads_url):
+        return False
+
+    allowed = _get_quads_hosts_for_user(username, site_id, quads_url)
+    return allowed is not None and hostname in allowed
 
 
 def _require_auth(required_role=None, site_id=None):
@@ -592,20 +648,17 @@ def index():
     user_role = session.get("role", None)
     is_superadmin = session.get("is_superadmin", False)
 
+    is_quads_user = False
+    quads_empty = False
     if is_authenticated and not is_superadmin and site_id is not None:
+        from dracs.sites import get_site_ini_config
         from dracs.users import get_user_role_for_site
 
         site_role = get_user_role_for_site(username, site_id)
-        if site_role is None:
-            user_role = None
-        else:
+        if site_role is not None:
             user_role = site_role
-
-    is_quads_user = False
-    quads_empty = False
-    if is_authenticated and not is_superadmin:
-        from dracs.sites import get_site_ini_config
-        from dracs.users import get_user_role_for_site
+        else:
+            user_role = None  # no site role → unauthenticated view
 
         site_cfg = get_site_ini_config(site_name)
         site_quads_enabled = site_cfg["defaults"].get(
@@ -616,11 +669,7 @@ def index():
             "yes",
         )
         site_quads_url = site_cfg["defaults"].get("quads_url", "").rstrip("/")
-        if (
-            site_quads_enabled
-            and site_quads_url
-            and get_user_role_for_site(username, site_id) is None
-        ):
+        if site_quads_enabled and site_quads_url and site_role == "quads":
             allowed = _get_quads_hosts_for_user(username, site_id, site_quads_url)
             if allowed is not None:
                 is_quads_user = True
@@ -667,10 +716,11 @@ def api_systems():
     is_authenticated = session.get("authenticated", False)
     username = session.get("username")
     is_superadmin = session.get("is_superadmin", False)
-    if is_authenticated and not is_superadmin:
+    if is_authenticated and not is_superadmin and site_id is not None:
         from dracs.sites import get_site_ini_config
         from dracs.users import get_user_role_for_site
 
+        site_role = get_user_role_for_site(username, site_id)
         site_cfg = get_site_ini_config(site_name)
         site_quads_enabled = site_cfg["defaults"].get(
             "quads_enabled", "false"
@@ -680,11 +730,7 @@ def api_systems():
             "yes",
         )
         site_quads_url = site_cfg["defaults"].get("quads_url", "").rstrip("/")
-        if (
-            site_quads_enabled
-            and site_quads_url
-            and get_user_role_for_site(username, site_id) is None
-        ):
+        if site_quads_enabled and site_quads_url and site_role == "quads":
             allowed = _get_quads_hosts_for_user(username, site_id, site_quads_url)
             if allowed is not None:
                 systems_data = [s for s in systems_data if s["name"] in allowed]
@@ -1402,7 +1448,7 @@ def api_refresh_all():
 def api_power_status():
     """Check system power status via racadm."""
     try:
-        _, err = _require_auth(required_role="admin")
+        user, err = _require_auth()
         if err:
             return err
 
@@ -1419,6 +1465,17 @@ def api_power_status():
                 jsonify({"success": False, "message": f"Invalid hostname: {hostname}"}),
                 400,
             )
+
+        is_superadmin, eff_role = _get_effective_role()
+        if not is_superadmin and eff_role != "admin":
+            host_site_id = _site_id_for_host(hostname)
+            if host_site_id is None or not _quads_host_access(
+                user, hostname, host_site_id
+            ):
+                return (
+                    jsonify({"success": False, "message": "Insufficient permissions"}),
+                    403,
+                )
 
         cmd = _build_ssh_racadm_cmd(hostname, "serveraction", "powerstatus")
 
@@ -1470,7 +1527,7 @@ def api_power_action():
     VALID_ACTIONS = {"powerup", "powerdown", "graceshutdown", "hardreset", "powercycle"}
 
     try:
-        user, err = _require_auth(required_role="admin")
+        user, err = _require_auth()
         if err:
             return err
 
@@ -1487,6 +1544,17 @@ def api_power_action():
                 jsonify({"success": False, "message": f"Invalid hostname: {hostname}"}),
                 400,
             )
+
+        is_superadmin, eff_role = _get_effective_role()
+        if not is_superadmin and eff_role != "admin":
+            host_site_id = _site_id_for_host(hostname)
+            if host_site_id is None or not _quads_host_access(
+                user, hostname, host_site_id
+            ):
+                return (
+                    jsonify({"success": False, "message": "Insufficient permissions"}),
+                    403,
+                )
 
         action = data.get("action", "").strip()
         if action not in VALID_ACTIONS:

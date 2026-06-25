@@ -248,50 +248,6 @@ class TestFetchQuadsHosts:
             result = _fetch_quads_hosts("alice", "http://quads.test")
         assert result == frozenset(["host1"])
 
-    def test_cloud_name_match(self):
-        from dracs.webapp import _fetch_quads_hosts
-
-        schedules = [
-            {
-                "host": {"name": "host1"},
-                "assignment": {
-                    "owner": "other",
-                    "ccuser": [],
-                    "cloud": {"name": "cloud32", "id": 2},
-                },
-            },
-            {
-                "host": {"name": "host2"},
-                "assignment": {
-                    "owner": "other",
-                    "ccuser": [],
-                    "cloud": {"name": "cloud99", "id": 5},
-                },
-            },
-        ]
-        mock_resp = self._make_mock_resp(schedules)
-        with patch("urllib.request.urlopen", return_value=mock_resp):
-            result = _fetch_quads_hosts("cloud32", "http://quads.test")
-        assert result == frozenset(["host1"])
-
-    def test_cloud_name_no_match(self):
-        from dracs.webapp import _fetch_quads_hosts
-
-        schedules = [
-            {
-                "host": {"name": "host1"},
-                "assignment": {
-                    "owner": "other",
-                    "ccuser": [],
-                    "cloud": {"name": "cloud32", "id": 2},
-                },
-            },
-        ]
-        mock_resp = self._make_mock_resp(schedules)
-        with patch("urllib.request.urlopen", return_value=mock_resp):
-            result = _fetch_quads_hosts("cloud99", "http://quads.test")
-        assert result == frozenset()
-
 
 # ---------------------------------------------------------------------------
 # Integration tests — index and api_systems
@@ -376,6 +332,17 @@ def _create_role_user(quads_webapp_db, username="roleuser", password="pass123"):
         pass
 
 
+def _create_quads_role_user(quads_webapp_db, username="quadsuser", password="pass123"):
+    from dracs.db import get_default_site_id
+    from dracs.users import create_user, set_user_site_role
+
+    try:
+        create_user(username, password, None)
+        set_user_site_role(username, get_default_site_id(), "quads")
+    except Exception:
+        pass
+
+
 def _login(client, username, password):
     client.post(
         "/login",
@@ -394,7 +361,7 @@ def _make_quads_resp(schedules):
 
 class TestIndexQuads:
     def test_quads_user_sees_only_assigned_hosts(self, quads_client, quads_webapp_db):
-        _create_no_role_user()
+        _create_quads_role_user(quads_webapp_db)
         _login(quads_client, "quadsuser", "pass123")
 
         schedules = [
@@ -414,7 +381,7 @@ class TestIndexQuads:
         assert "host2" not in text
 
     def test_quads_user_unreachable_fail_open(self, quads_client, quads_webapp_db):
-        _create_no_role_user()
+        _create_quads_role_user(quads_webapp_db)
         _login(quads_client, "quadsuser", "pass123")
 
         import dracs.webapp as webapp_mod
@@ -428,7 +395,7 @@ class TestIndexQuads:
         assert "host2" in text
 
     def test_quads_user_empty_list_shows_message(self, quads_client, quads_webapp_db):
-        _create_no_role_user()
+        _create_quads_role_user(quads_webapp_db)
         _login(quads_client, "quadsuser", "pass123")
 
         import dracs.webapp as webapp_mod
@@ -442,7 +409,8 @@ class TestIndexQuads:
         assert "host2" not in text
         assert "quads-empty-message" in text
 
-    def test_quads_disabled_no_filtering(self, quads_webapp_db):
+    def test_quads_disabled_shows_all_hosts(self, quads_webapp_db):
+        """Quads-role user with QUADS disabled sees all hosts (unauthenticated view)."""
         with patch.dict(
             os.environ,
             {
@@ -458,7 +426,7 @@ class TestIndexQuads:
             webapp_mod.db_initialize(quads_webapp_db)
             webapp_mod.app.config["TESTING"] = True
             webapp_mod._quads_host_cache.clear()
-            _create_no_role_user()
+            _create_quads_role_user(quads_webapp_db)
             with patch(
                 "dracs.sites.get_site_ini_config",
                 return_value=_QUADS_DISABLED_INI_CONFIG,
@@ -471,38 +439,38 @@ class TestIndexQuads:
             assert "host1" in text
             assert "host2" in text
 
+    def test_no_site_role_sees_all_hosts(self, quads_client, quads_webapp_db):
+        """User with no site role sees all hosts (unauthenticated view), QUADS not triggered."""
+        _create_no_role_user()
+        _login(quads_client, "quadsuser", "pass123")
+
+        import dracs.webapp as webapp_mod
+
+        webapp_mod._quads_host_cache.clear()
+        resp = quads_client.get("/")
+        assert resp.status_code == 200
+        text = resp.get_data(as_text=True)
+        assert "host1" in text
+        assert "host2" in text
+
     def test_user_with_site_role_unaffected(self, quads_client, quads_webapp_db):
         _create_role_user(quads_webapp_db)
         _login(quads_client, "roleuser", "pass123")
 
-        schedules = [
-            {
-                "host": {"name": "host1"},
-                "assignment": {"owner": "roleuser", "ccuser": []},
-            },
-        ]
         import dracs.webapp as webapp_mod
 
         webapp_mod._quads_host_cache.clear()
-        with patch("urllib.request.urlopen", return_value=_make_quads_resp(schedules)):
-            resp = quads_client.get("/")
+        resp = quads_client.get("/")
         assert resp.status_code == 200
         text = resp.get_data(as_text=True)
         assert "host1" in text
         assert "host2" in text
 
     def test_anonymous_user_unaffected(self, quads_client, quads_webapp_db):
-        schedules = [
-            {
-                "host": {"name": "host1"},
-                "assignment": {"owner": "quadsuser", "ccuser": []},
-            },
-        ]
         import dracs.webapp as webapp_mod
 
         webapp_mod._quads_host_cache.clear()
-        with patch("urllib.request.urlopen", return_value=_make_quads_resp(schedules)):
-            resp = quads_client.get("/")
+        resp = quads_client.get("/")
         assert resp.status_code == 200
         text = resp.get_data(as_text=True)
         assert "host1" in text
@@ -511,7 +479,7 @@ class TestIndexQuads:
     def test_quads_user_cache_used_on_second_request(
         self, quads_client, quads_webapp_db
     ):
-        _create_no_role_user()
+        _create_quads_role_user(quads_webapp_db)
         _login(quads_client, "quadsuser", "pass123")
 
         schedules = [
@@ -533,7 +501,7 @@ class TestIndexQuads:
 
 class TestApiSystemsQuads:
     def test_api_systems_filtered_for_quads_user(self, quads_client, quads_webapp_db):
-        _create_no_role_user()
+        _create_quads_role_user(quads_webapp_db)
         _login(quads_client, "quadsuser", "pass123")
 
         schedules = [
@@ -553,7 +521,7 @@ class TestApiSystemsQuads:
         assert names == {"host1"}
 
     def test_api_systems_fail_open_on_unreachable(self, quads_client, quads_webapp_db):
-        _create_no_role_user()
+        _create_quads_role_user(quads_webapp_db)
         _login(quads_client, "quadsuser", "pass123")
 
         import dracs.webapp as webapp_mod
@@ -567,7 +535,7 @@ class TestApiSystemsQuads:
         assert names == {"host1", "host2"}
 
     def test_api_systems_empty_list_for_quads_user(self, quads_client, quads_webapp_db):
-        _create_no_role_user()
+        _create_quads_role_user(quads_webapp_db)
         _login(quads_client, "quadsuser", "pass123")
 
         import dracs.webapp as webapp_mod
@@ -583,17 +551,24 @@ class TestApiSystemsQuads:
         _create_role_user(quads_webapp_db)
         _login(quads_client, "roleuser", "pass123")
 
-        schedules = [
-            {
-                "host": {"name": "host1"},
-                "assignment": {"owner": "roleuser", "ccuser": []},
-            },
-        ]
         import dracs.webapp as webapp_mod
 
         webapp_mod._quads_host_cache.clear()
-        with patch("urllib.request.urlopen", return_value=_make_quads_resp(schedules)):
-            resp = quads_client.get("/api/systems")
+        resp = quads_client.get("/api/systems")
+        assert resp.status_code == 200
+        systems = resp.get_json()
+        names = {s["name"] for s in systems}
+        assert names == {"host1", "host2"}
+
+    def test_api_systems_no_site_role_sees_all(self, quads_client, quads_webapp_db):
+        """User with no site role sees all hosts, QUADS not triggered."""
+        _create_no_role_user()
+        _login(quads_client, "quadsuser", "pass123")
+
+        import dracs.webapp as webapp_mod
+
+        webapp_mod._quads_host_cache.clear()
+        resp = quads_client.get("/api/systems")
         assert resp.status_code == 200
         systems = resp.get_json()
         names = {s["name"] for s in systems}
@@ -624,6 +599,199 @@ class TestLogoutCacheInvalidation:
         webapp_mod._quads_host_cache.clear()
         resp = quads_client.post("/logout")
         assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# QUADS role RBAC tests
+# ---------------------------------------------------------------------------
+
+
+class TestQuadsRBAC:
+    def test_site_role_quads_valid(self, quads_webapp_db):
+        """set_user_site_role accepts 'quads' as a valid site role."""
+        from dracs.db import get_default_site_id
+        from dracs.users import create_user, set_user_site_role
+
+        create_user("quadstestuser", "pass123", None)
+        site_id = get_default_site_id()
+        set_user_site_role("quadstestuser", site_id, "quads")
+
+        from dracs.users import get_user_role_for_site
+
+        assert get_user_role_for_site("quadstestuser", site_id) == "quads"
+
+    def test_site_role_invalid_raises(self, quads_webapp_db):
+        """set_user_site_role rejects unknown site roles."""
+        from dracs.exceptions import ValidationError
+        from dracs.db import get_default_site_id
+        from dracs.users import create_user, set_user_site_role
+
+        create_user("badroleuser", "pass123", None)
+        with pytest.raises(ValidationError, match="Invalid role"):
+            set_user_site_role("badroleuser", get_default_site_id(), "superadmin")
+
+    def test_power_status_quads_user_allowed(self, quads_client, quads_webapp_db):
+        """Quads-role user with QUADS access to a host can check its power status."""
+        _create_quads_role_user(quads_webapp_db)
+        _login(quads_client, "quadsuser", "pass123")
+
+        schedules = [
+            {
+                "host": {"name": "host1"},
+                "assignment": {"owner": "quadsuser", "ccuser": []},
+            },
+        ]
+        import dracs.webapp as webapp_mod
+
+        webapp_mod._quads_host_cache.clear()
+        mock_result = MagicMock(returncode=0, stdout="Server Power Status: ON")
+        with patch("urllib.request.urlopen", return_value=_make_quads_resp(schedules)):
+            with patch("dracs.webapp.subprocess.run", return_value=mock_result):
+                resp = quads_client.post(
+                    "/api/power-status",
+                    data=json.dumps({"hostname": "host1"}),
+                    content_type="application/json",
+                )
+        data = resp.get_json()
+        assert resp.status_code == 200
+        assert data["success"] is True
+        assert data["status"] == "on"
+
+    def test_power_status_no_site_role_blocked(self, quads_client, quads_webapp_db):
+        """User with no site role cannot check power status."""
+        _create_no_role_user()
+        _login(quads_client, "quadsuser", "pass123")
+
+        resp = quads_client.post(
+            "/api/power-status",
+            data=json.dumps({"hostname": "host1"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 403
+
+    def test_power_status_quads_user_wrong_host_blocked(
+        self, quads_client, quads_webapp_db
+    ):
+        """Quads-role user cannot check power status for a host outside their QUADS list."""
+        _create_quads_role_user(quads_webapp_db)
+        _login(quads_client, "quadsuser", "pass123")
+
+        schedules = [
+            {
+                "host": {"name": "host1"},
+                "assignment": {"owner": "quadsuser", "ccuser": []},
+            },
+        ]
+        import dracs.webapp as webapp_mod
+
+        webapp_mod._quads_host_cache.clear()
+        with patch("urllib.request.urlopen", return_value=_make_quads_resp(schedules)):
+            resp = quads_client.post(
+                "/api/power-status",
+                data=json.dumps({"hostname": "host2"}),
+                content_type="application/json",
+            )
+        assert resp.status_code == 403
+
+    def test_power_action_quads_user_allowed(self, quads_client, quads_webapp_db):
+        """Quads-role user with QUADS access to a host can execute a power action."""
+        _create_quads_role_user(quads_webapp_db)
+        _login(quads_client, "quadsuser", "pass123")
+
+        schedules = [
+            {
+                "host": {"name": "host1"},
+                "assignment": {"owner": "quadsuser", "ccuser": []},
+            },
+        ]
+        import dracs.webapp as webapp_mod
+
+        webapp_mod._quads_host_cache.clear()
+        mock_result = MagicMock(
+            returncode=0, stdout="Server power operation successful"
+        )
+        with patch("urllib.request.urlopen", return_value=_make_quads_resp(schedules)):
+            with patch("dracs.webapp.subprocess.run", return_value=mock_result):
+                resp = quads_client.post(
+                    "/api/power-action",
+                    data=json.dumps({"hostname": "host1", "action": "powerup"}),
+                    content_type="application/json",
+                )
+        assert resp.status_code == 200
+
+    def test_power_action_no_site_role_blocked(self, quads_client, quads_webapp_db):
+        """User with no site role cannot execute power actions."""
+        _create_no_role_user()
+        _login(quads_client, "quadsuser", "pass123")
+
+        resp = quads_client.post(
+            "/api/power-action",
+            data=json.dumps({"hostname": "host1", "action": "powerup"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 403
+
+    def test_power_status_bearer_token_admin_allowed(
+        self, quads_client, quads_webapp_db
+    ):
+        """Bearer token with admin role can check power status via _get_effective_role bearer path."""
+        from dracs.users import create_user
+
+        create_user("tokenadmin", "pass123", "admin")
+        login_resp = quads_client.post(
+            "/api/token-login",
+            data=json.dumps({"username": "tokenadmin", "password": "pass123"}),
+            content_type="application/json",
+        )
+        token = login_resp.get_json()["token"]
+
+        mock_result = MagicMock(returncode=0, stdout="Server Power Status: ON")
+        with patch("dracs.webapp.subprocess.run", return_value=mock_result):
+            resp = quads_client.post(
+                "/api/power-status",
+                data=json.dumps({"hostname": "host1"}),
+                content_type="application/json",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+        data = resp.get_json()
+        assert resp.status_code == 200
+        assert data["success"] is True
+
+    def test_power_status_quads_user_quads_disabled_blocked(
+        self, quads_client, quads_webapp_db
+    ):
+        """Quads-role user is blocked when QUADS is disabled for the site."""
+        _create_quads_role_user(quads_webapp_db)
+        _login(quads_client, "quadsuser", "pass123")
+
+        with patch(
+            "dracs.sites.get_site_ini_config",
+            return_value=_QUADS_DISABLED_INI_CONFIG,
+        ):
+            resp = quads_client.post(
+                "/api/power-status",
+                data=json.dumps({"hostname": "host1"}),
+                content_type="application/json",
+            )
+        assert resp.status_code == 403
+
+
+class TestQuadsHostAccessUnit:
+    """Unit tests for _quads_host_access edge cases."""
+
+    def test_unknown_site_id_returns_false(self, quads_webapp_db):
+        """Returns False when the site_id has no matching site in the DB."""
+        import dracs.webapp as webapp_mod
+        from dracs.db import get_default_site_id
+        from dracs.users import create_user, set_user_site_role
+
+        create_user("quadshosttest", "pass", None)
+        site_id = get_default_site_id()
+        set_user_site_role("quadshosttest", site_id, "quads")
+
+        with patch("dracs.users.get_user_role_for_site", return_value="quads"):
+            result = webapp_mod._quads_host_access("quadshosttest", "host1", 99999)
+        assert result is False
 
 
 # ---------------------------------------------------------------------------

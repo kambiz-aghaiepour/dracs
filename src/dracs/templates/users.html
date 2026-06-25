@@ -83,6 +83,7 @@
         .site-roles-cell { font-size: 0.85em; }
         .site-role-tag { display: inline-block; padding: 2px 8px; margin: 1px 4px 1px 0; border-radius: 4px; background: #e8f4fd; color: #1565c0; font-size: 0.85em; }
         .site-role-tag.admin { background: #fce4ec; color: #c62828; }
+        .site-role-tag.quads { background: #e8f5e9; color: #2e7d32; }
         .btn { padding: 6px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9em; font-weight: 500; }
         .btn-primary { background: #1976d2; color: white; }
         .btn-primary:hover { background: #1565c0; }
@@ -136,6 +137,7 @@
         body.dark-theme .btn-danger { background: #c62828; }
         body.dark-theme .site-role-tag { background: #1e3a5f; color: #80b3e0; }
         body.dark-theme .site-role-tag.admin { background: #5c1e1e; color: #ff8a80; }
+        body.dark-theme .site-role-tag.quads { background: #1b3a20; color: #80c883; }
         body.dark-theme .notification.success { background: #1e4d2b; }
         body.dark-theme .notification.error { background: #5c1e1e; }
         body.dark-theme .modal-overlay { background-color: rgba(0,0,0,0.8); }
@@ -338,6 +340,7 @@
                         <option value="" ${!currentRole ? 'selected' : ''}>(none)</option>
                         <option value="user" ${currentRole === 'user' ? 'selected' : ''}>user</option>
                         <option value="admin" ${currentRole === 'admin' ? 'selected' : ''}>admin</option>
+                        <option value="quads" ${currentRole === 'quads' ? 'selected' : ''}>quads</option>
                     </select>
                 `;
                 container.appendChild(row);
@@ -369,7 +372,7 @@
                 tr.onclick = () => selectUser(u.username);
 
                 const rolesHtml = (u.site_roles || []).map(r => {
-                    const cls = r.role === 'admin' ? 'site-role-tag admin' : 'site-role-tag';
+                    const cls = r.role === 'admin' ? 'site-role-tag admin' : r.role === 'quads' ? 'site-role-tag quads' : 'site-role-tag';
                     return `<span class="${cls}">${r.site_name}: ${r.role}</span>`;
                 }).join('');
 

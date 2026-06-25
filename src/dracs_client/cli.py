@@ -412,8 +412,8 @@ def _add_admin_subparsers(subparsers):
     p_user.add_argument("--username", help="Username")
     p_user.add_argument(
         "--role",
-        choices=["admin", "user", "none"],
-        help="User role (use 'none' for no global role)",
+        choices=["admin", "user", "none", "quads"],
+        help="User role (use 'none' for no global role; 'quads' is site-only, requires --site)",
     )
     p_user.add_argument("--password", help="Password (skips interactive prompt)")
 

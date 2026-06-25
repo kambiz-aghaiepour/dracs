@@ -1580,16 +1580,16 @@
                 <div class="panel-header diagnostics">Diagnostics</div>
                 <div class="panel-body">
                     <button id="console-btn" class="panel-btn btn-teal{% if (role_level < 1 and not is_quads_user) or not vnc_enabled %} role-disabled{% endif %}" data-min-role="user" disabled onclick="handleConsoleClick()">Console</button>
-                    <button id="generate-tsr-btn" class="panel-btn btn-blue{% if role_level < 1 %} role-disabled{% endif %}" data-min-role="user" disabled onclick="handleGenerateTsrClick()">Generate TSR</button>
+                    <button id="generate-tsr-btn" class="panel-btn btn-blue{% if role_level < 1 and not is_quads_user %} role-disabled{% endif %}" data-min-role="user" disabled onclick="handleGenerateTsrClick()">Generate TSR</button>
                     <button id="view-tsr-btn" class="panel-btn btn-blue" data-min-role="none" disabled onclick="handleViewTsrClick()">View TSRs</button>
                 </div>
             </div>
             <div class="action-panel">
                 <div class="panel-header jobs">Jobs &amp; Power</div>
                 <div class="panel-body">
-                    <button id="job-queue-btn" class="panel-btn btn-blue{% if role_level < 1 %} role-disabled{% endif %}" data-min-role="user" disabled onclick="handleJobQueueClick()">Job Queue</button>
+                    <button id="job-queue-btn" class="panel-btn btn-blue{% if role_level < 1 and not is_quads_user %} role-disabled{% endif %}" data-min-role="user" disabled onclick="handleJobQueueClick()">Job Queue</button>
                     <button id="clear-job-queue-btn" class="panel-btn btn-orange{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" disabled onclick="handleClearJobQueueClick()">Clear Job Queue</button>
-                    <button id="power-btn" class="panel-btn btn-indigo{% if role_level < 2 %} role-disabled{% endif %}" data-min-role="admin" disabled onclick="handlePowerClick()">Power</button>
+                    <button id="power-btn" class="panel-btn btn-indigo{% if role_level < 2 and not is_quads_user %} role-disabled{% endif %}" data-min-role="admin" disabled onclick="handlePowerClick()">Power</button>
                 </div>
             </div>
             <div class="action-panel">
