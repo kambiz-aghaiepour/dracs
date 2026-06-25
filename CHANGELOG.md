@@ -2,6 +2,28 @@
 
 <!-- version list -->
 
+## v2.9.2 (2026-06-25)
+
+### Bug Fixes
+
+- Black formatting
+  ([`8d3609b`](https://github.com/kambiz-aghaiepour/dracs/commit/8d3609bae388ef884c773d3027962f903084127c))
+
+- CI still failing.
+  ([`5849bc7`](https://github.com/kambiz-aghaiepour/dracs/commit/5849bc75882d7e7a138f43b27ec44ceb7069a206))
+
+- Cleanup non role users
+  ([`abbc164`](https://github.com/kambiz-aghaiepour/dracs/commit/abbc1646bd09e5cb03b46c44ea497cca556c78fd))
+
+- Trigger CI
+  ([`ee4cf3d`](https://github.com/kambiz-aghaiepour/dracs/commit/ee4cf3d7127e7633413f35b141732c1c3caae049))
+
+### Chores
+
+- Sync spec file version to 2.9.1 [skip ci]
+  ([`4264676`](https://github.com/kambiz-aghaiepour/dracs/commit/4264676a5207f9f5841278b9a74c54d88a80a597))
+
+
 ## v2.9.1 (2026-06-25)
 
 ### Bug Fixes
