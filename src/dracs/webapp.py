@@ -47,6 +47,7 @@ from dracs.users import (
     create_user,
     delete_user,
     list_users,
+    set_user_site_role,
     update_user_password,
     update_user_role,
 )
@@ -910,9 +911,7 @@ def auth_google_callback():
 
     from dracs.google_auth import make_flow, get_verified_email
     from dracs.db import list_sites
-    from dracs.users import create_user as _create_user, list_users as _list_users
     from dracs.sites import get_site_ini_config
-    from dracs.users import set_user_site_role
 
     redirect_uri = url_for("auth_google_callback", _external=True)
     flow = make_flow(redirect_uri, state=expected_state)
@@ -925,10 +924,10 @@ def auth_google_callback():
     if not email:
         return redirect(url_for("index"))
 
-    existing = {u["username"] for u in _list_users()}
+    existing = {u["username"] for u in list_users()}
     if email not in existing:
         try:
-            _create_user(email, secrets.token_hex(32), None, created_by="google-sso")
+            create_user(email, secrets.token_hex(32), None, created_by="google-sso")
         except Exception:
             return redirect(url_for("index"))
         for site in list_sites():

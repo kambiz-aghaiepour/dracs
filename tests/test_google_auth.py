@@ -408,7 +408,7 @@ class TestAuthGoogleCallbackRoute:
                     return_value="fail@example.com",
                 ):
                     with patch(
-                        "dracs.users.create_user",
+                        "dracs.webapp.create_user",
                         side_effect=Exception("db error"),
                     ):
                         resp = google_client.get(

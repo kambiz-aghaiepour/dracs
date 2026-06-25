@@ -3,7 +3,7 @@
 import json
 import os
 
-_DEFAULT_SECRET_PATH = "/etc/dracs/google_client_secret.json"
+_DEFAULT_SECRET_PATH = "/etc/dracs/google_client_secret.json"  # nosec B105
 
 
 def _load_client_config():
