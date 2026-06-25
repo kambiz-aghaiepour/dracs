@@ -88,6 +88,15 @@ class TestCreateUser:
             with pytest.raises(ValidationError, match="reserved for superadmin"):
                 create_user("boss", "password", "admin")
 
+    def test_create_user_none_role(self, user_db):
+        user = create_user("quadsuser", "password123", None)
+        assert user.username == "quadsuser"
+        assert user.role is None
+
+    def test_create_user_invalid_role_string(self, user_db):
+        with pytest.raises(ValidationError, match="Invalid role"):
+            create_user("jsmith", "password", "superuser")
+
 
 class TestAuthenticate:
     def test_authenticate_db_user(self, user_db):
@@ -172,6 +181,12 @@ class TestListUsers:
             assert "role" in u
             assert "created_at" in u
 
+    def test_list_users_none_role(self, user_db):
+        create_user("quadsonly", "pass", None)
+        result = list_users()
+        assert len(result) == 1
+        assert result[0]["role"] is None
+
 
 class TestUpdateUserPassword:
     def test_update_password_success(self, user_db):
@@ -213,6 +228,25 @@ class TestUpdateUserRole:
         with patch.dict(os.environ, {"WEBADMIN_USER": "admin"}):
             with pytest.raises(ValidationError, match="Cannot modify superadmin"):
                 update_user_role("admin", "user")
+
+    def test_update_role_to_none(self, user_db):
+        from dracs.db import get_session, UserSiteRole, User
+        from dracs.users import set_user_site_role
+        from dracs.db import get_default_site_id
+
+        create_user("jsmith", "pass", "user")
+        default_id = get_default_site_id()
+        set_user_site_role("jsmith", default_id, "user")
+        assert update_user_role("jsmith", None) is True
+        with get_session() as session:
+            u = session.query(User).filter_by(username="jsmith").first()
+            assert u.role is None
+            mapping = (
+                session.query(UserSiteRole)
+                .filter_by(user_id=u.id, site_id=default_id)
+                .first()
+            )
+            assert mapping is None
 
 
 class TestUpdateSuperadminPassword:

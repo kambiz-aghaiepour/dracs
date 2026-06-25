@@ -392,9 +392,44 @@ async def main() -> None:
     user_action.add_argument("--list", action="store_true", help="List users")
     user_action.add_argument("--update", action="store_true", help="Update a user")
     parser_user.add_argument("--username", help="Username")
-    parser_user.add_argument("--role", choices=["admin", "user"], help="User role")
+    parser_user.add_argument(
+        "--role",
+        choices=["admin", "user", "none"],
+        help="User role (use 'none' for no global role)",
+    )
 
-    subparsers.add_parser("sites", help="List configured sites")
+    parser_sites = subparsers.add_parser("sites", help="Manage configured sites")
+    sites_action = parser_sites.add_mutually_exclusive_group()
+    sites_action.add_argument(
+        "--list", action="store_true", help="List sites (default)"
+    )
+    sites_action.add_argument("--add", action="store_true", help="Add a new site")
+    sites_action.add_argument("--delete", action="store_true", help="Delete a site")
+    sites_action.add_argument("--rename", action="store_true", help="Rename a site")
+    sites_action.add_argument("--config", action="store_true", help="Show site config")
+    sites_action.add_argument(
+        "--set-config",
+        action="store_true",
+        dest="set_config",
+        help="Update site config",
+    )
+    parser_sites.add_argument("--name", help="Site name")
+    parser_sites.add_argument(
+        "--new-name", dest="new_name", help="New site name (for --rename)"
+    )
+    parser_sites.add_argument("--username", dest="site_username", help="iDRAC username")
+    parser_sites.add_argument("--password", dest="site_password", help="iDRAC password")
+    parser_sites.add_argument("--vnc-port", dest="vnc_port", help="VNC port")
+    parser_sites.add_argument(
+        "--vnc-password", dest="vnc_password", help="VNC password"
+    )
+    parser_sites.add_argument("--quads-url", dest="quads_url", help="QUADS API URL")
+    parser_sites.add_argument(
+        "--quads-enabled",
+        dest="quads_enabled",
+        choices=["true", "false"],
+        help="Enable QUADS integration",
+    )
 
     args = parser.parse_args()
 
@@ -456,12 +491,164 @@ async def main() -> None:
         return get_default_site_id()
 
     if args.command == "sites":
-        from dracs.db import list_sites
+        from dracs.db import (
+            create_site,
+            delete_site,
+            get_site_by_name,
+            list_sites,
+            rename_site,
+        )
+        from dracs.sites import (
+            get_site_ini_config,
+            remove_site_ini_sections,
+            rename_site_ini_sections,
+            set_site_ini_config,
+        )
+        from dracs.validation import validate_site_name
         from tabulate import tabulate
 
-        sites = list_sites()
-        table = [[s["name"], s["host_count"]] for s in sites]
-        print(tabulate(table, headers=["Site", "Hosts"], tablefmt="simple"))
+        do_add = getattr(args, "add", False)
+        do_delete = getattr(args, "delete", False)
+        do_rename = getattr(args, "rename", False)
+        do_config = getattr(args, "config", False)
+        do_set_config = getattr(args, "set_config", False)
+
+        if do_add:
+            if not args.name:
+                print("Error: --name is required with --add.", file=sys.stderr)
+                sys.exit(1)
+            if not validate_site_name(args.name):
+                print(
+                    "Error: invalid site name. Use alphanumeric characters or underscores, max 32.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            site = create_site(args.name)
+            existing = get_site_ini_config(args.name)
+            if not existing["defaults"]:
+                set_site_ini_config(
+                    args.name,
+                    {
+                        "defaults": {
+                            "username": "root",
+                            "password": "calvin",
+                            "vnc_port": "5901",
+                            "vnc_password": "",
+                        }
+                    },
+                )
+            print(f"Site '{args.name}' created.")
+            audit_log(
+                "site_create", target=args.name, user=getpass.getuser(), source="cli"
+            )
+
+        elif do_delete:
+            if not args.name:
+                print("Error: --name is required with --delete.", file=sys.stderr)
+                sys.exit(1)
+            site = get_site_by_name(args.name)
+            if site is None:
+                print(f"Error: site '{args.name}' not found.", file=sys.stderr)
+                sys.exit(1)
+            try:
+                delete_site(site["id"])
+            except (ValueError, RuntimeError) as e:
+                print(f"Error: {e}", file=sys.stderr)
+                sys.exit(1)
+            remove_site_ini_sections(args.name)
+            print(f"Site '{args.name}' deleted.")
+            audit_log(
+                "site_delete", target=args.name, user=getpass.getuser(), source="cli"
+            )
+
+        elif do_rename:
+            if not args.name or not args.new_name:
+                print(
+                    "Error: --name and --new-name are required with --rename.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            if not validate_site_name(args.new_name):
+                print(
+                    "Error: invalid site name. Use alphanumeric characters or underscores, max 32.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            site = get_site_by_name(args.name)
+            if site is None:
+                print(f"Error: site '{args.name}' not found.", file=sys.stderr)
+                sys.exit(1)
+            rename_site(site["id"], args.new_name)
+            rename_site_ini_sections(args.name, args.new_name)
+            print(f"Site '{args.name}' renamed to '{args.new_name}'.")
+            audit_log(
+                "site_rename",
+                target=f"{args.name} -> {args.new_name}",
+                user=getpass.getuser(),
+                source="cli",
+            )
+
+        elif do_config:
+            if not args.name:
+                print("Error: --name is required with --config.", file=sys.stderr)
+                sys.exit(1)
+            cfg = get_site_ini_config(args.name)
+            defaults = cfg.get("defaults", {})
+            hosts = cfg.get("hosts", {})
+            if defaults:
+                print(f"Defaults for site '{args.name}':")
+                table = [[k, v] for k, v in sorted(defaults.items())]
+                print(tabulate(table, headers=["Key", "Value"], tablefmt="simple"))
+            else:
+                print(f"No defaults configured for site '{args.name}'.")
+            if hosts:
+                print("\nPer-host overrides:")
+                for hostname, hcfg in sorted(hosts.items()):
+                    print(f"  [{hostname}]")
+                    for k, v in sorted(hcfg.items()):
+                        print(f"    {k} = {v}")
+
+        elif do_set_config:
+            if not args.name:
+                print("Error: --name is required with --set-config.", file=sys.stderr)
+                sys.exit(1)
+            cfg = get_site_ini_config(args.name)
+            defaults = dict(cfg.get("defaults", {}))
+            updates = {}
+            if args.site_username is not None:
+                updates["username"] = args.site_username
+            if args.site_password is not None:
+                updates["password"] = args.site_password
+            if args.vnc_port is not None:
+                updates["vnc_port"] = args.vnc_port
+            if args.vnc_password is not None:
+                updates["vnc_password"] = args.vnc_password
+            if args.quads_url is not None:
+                updates["quads_url"] = args.quads_url
+            if args.quads_enabled is not None:
+                updates["quads_enabled"] = args.quads_enabled.lower()
+            if not updates:
+                print(
+                    "Error: no config values provided. Use --username, --password, --vnc-port, --vnc-password, --quads-url, or --quads-enabled.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            defaults.update(updates)
+            set_site_ini_config(
+                args.name, {"defaults": defaults, "hosts": cfg.get("hosts", {})}
+            )
+            print(f"Config for site '{args.name}' updated.")
+            audit_log(
+                "site_config_update",
+                target=args.name,
+                user=getpass.getuser(),
+                source="cli",
+            )
+
+        else:
+            sites = list_sites()
+            table = [[s["name"], s["host_count"]] for s in sites]
+            print(tabulate(table, headers=["Site", "Hosts"], tablefmt="simple"))
         return
 
     if args.command in ["discover", "d"]:
@@ -697,28 +884,28 @@ async def main() -> None:
             if not args.role:
                 print("Error: --role is required with --add.", file=sys.stderr)
                 sys.exit(1)
+            role = None if args.role == "none" else args.role
             password = getpass.getpass(f"Password for {args.username}: ")
             confirm = getpass.getpass("Confirm password: ")
             if password != confirm:
                 print("Error: passwords do not match.", file=sys.stderr)
                 sys.exit(1)
-            _create_user(
-                args.username, password, args.role, created_by=getpass.getuser()
-            )
-            from dracs.db import get_default_site_id
-            from dracs.users import set_user_site_role as _set_site_role
+            _create_user(args.username, password, role, created_by=getpass.getuser())
+            if role is not None:
+                from dracs.db import get_default_site_id
+                from dracs.users import set_user_site_role as _set_site_role
 
-            try:
-                _set_site_role(args.username, get_default_site_id(), args.role)
-            except RuntimeError:
-                pass
+                try:
+                    _set_site_role(args.username, get_default_site_id(), role)
+                except RuntimeError:
+                    pass
             print(f"User '{args.username}' created with role '{args.role}'.")
             audit_log(
                 "user_create",
                 target=args.username,
                 user=getpass.getuser(),
                 source="cli",
-                details=f"role={args.role}",
+                details=f"role={role}",
             )
         elif args.remove:
             if not args.username:
@@ -736,13 +923,31 @@ async def main() -> None:
                 print(f"User '{args.username}' not found.", file=sys.stderr)
                 sys.exit(1)
         elif args.list:
+            from dracs.db import get_primary_site_name
+
+            site_name = args.site if args.site else get_primary_site_name()
+            print(f"Using Site: {site_name}")
             users = _list_users()
             if users:
                 table = [
-                    [u["username"], u["role"], u["created_at"], u["created_by"] or "-"]
+                    [
+                        u["username"],
+                        next(
+                            (
+                                r["role"]
+                                for r in u.get("site_roles", [])
+                                if r["site_name"] == site_name
+                            ),
+                            "",
+                        ),
+                        u["created_at"],
+                        u["created_by"] or "-",
+                    ]
                     for u in users
                 ]
-                print(tabulate(table, headers=["Username", "Role", "Created", "By"]))
+                print(
+                    tabulate(table, headers=["Username", "Site Role", "Created", "By"])
+                )
             else:
                 print("No users found. Only the superadmin (config) account exists.")
         elif args.update:
@@ -759,8 +964,20 @@ async def main() -> None:
                 _update_password(args.username, password)
                 changes.append("password")
             if args.role:
-                _update_role(args.username, args.role)
-                changes.append(f"role={args.role}")
+                if args.site:
+                    from dracs.users import remove_user_site_role as _remove_site_role
+                    from dracs.users import set_user_site_role as _set_site_role
+
+                    site_id = _resolve_site_id()
+                    if args.role == "none":
+                        _remove_site_role(args.username, site_id)
+                    else:
+                        _set_site_role(args.username, site_id, args.role)
+                    changes.append(f"site_role({args.site})={args.role}")
+                else:
+                    role = None if args.role == "none" else args.role
+                    _update_role(args.username, role)
+                    changes.append(f"role={args.role}")
             print(f"User '{args.username}' updated: {', '.join(changes)}.")
             audit_log(
                 "user_update",

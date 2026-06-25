@@ -12,7 +12,7 @@ from dracs.db import Site, User, UserSiteRole, get_session
 from dracs.exceptions import ValidationError
 
 _USERNAME_RE = re.compile(r"^[a-zA-Z0-9_-]{3,32}$")
-_VALID_ROLES = {"admin", "user"}
+_VALID_ROLES = {None, "admin", "user"}
 
 
 def _superadmin_username() -> str:
@@ -26,7 +26,7 @@ def validate_username(username: str) -> bool:
 def create_user(
     username: str,
     password: str,
-    role: str,
+    role: str | None,
     created_by: str | None = None,
 ) -> User:
     if not validate_username(username):
@@ -35,7 +35,9 @@ def create_user(
             "Must be 3-32 characters, alphanumeric, hyphens, or underscores."
         )
     if role not in _VALID_ROLES:
-        raise ValidationError(f"Invalid role: '{role}'. Must be 'admin' or 'user'.")
+        raise ValidationError(
+            f"Invalid role: '{role}'. Must be 'admin', 'user', or None."
+        )
     if not password:
         raise ValidationError("Password cannot be empty.")
     if username == _superadmin_username():
@@ -137,13 +139,15 @@ def update_user_password(username: str, new_password: str) -> bool:
         return True
 
 
-def update_user_role(username: str, new_role: str) -> bool:
+def update_user_role(username: str, new_role: str | None) -> bool:
     if username == _superadmin_username():
         raise ValidationError(
             "Cannot modify superadmin via API. Edit the config file directly."
         )
     if new_role not in _VALID_ROLES:
-        raise ValidationError(f"Invalid role: '{new_role}'. Must be 'admin' or 'user'.")
+        raise ValidationError(
+            f"Invalid role: '{new_role}'. Must be 'admin', 'user', or None."
+        )
 
     with get_session() as session:
         user = session.query(User).filter(User.username == username).first()
@@ -161,7 +165,10 @@ def update_user_role(username: str, new_role: str) -> bool:
                 .first()
             )
             if mapping:
-                mapping.role = new_role
+                if new_role is None:
+                    session.delete(mapping)
+                else:
+                    mapping.role = new_role
 
         session.commit()
         return True

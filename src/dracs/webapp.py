@@ -217,6 +217,7 @@ def _fetch_quads_hosts(username: str, quads_url: str):
         and (
             s["assignment"].get("owner") == username
             or username in (s["assignment"].get("ccuser") or [])
+            or s["assignment"].get("cloud", {}).get("name") == username
         )
     )
 
@@ -234,6 +235,7 @@ def _get_quads_hosts_for_user(username: str, site_id, quads_url: str):
 def _require_auth(required_role=None, site_id=None):
     username = None
     is_superadmin = False
+    token_role = None
 
     if session.get("authenticated", False):
         username = session.get("username", "")
@@ -248,6 +250,7 @@ def _require_auth(required_role=None, site_id=None):
                 from dracs.users import _superadmin_username
 
                 username = result[0]
+                token_role = result[1]
                 is_superadmin = username == _superadmin_username()
 
     if username is None:
@@ -275,7 +278,7 @@ def _require_auth(required_role=None, site_id=None):
             )
         return username, None
 
-    role = session.get("role", "user")
+    role = token_role if token_role is not None else session.get("role", "user")
     if required_role and role != required_role:
         return None, (
             jsonify({"success": False, "message": "Insufficient permissions"}),
@@ -2491,7 +2494,12 @@ def api_users_create():
 
         username = data.get("username", "").strip()
         password = data.get("password", "")
-        role = data.get("role", "user").strip()
+        raw_role = data.get("role")
+        role = (
+            None
+            if (raw_role is None or str(raw_role).strip().lower() == "none")
+            else str(raw_role).strip()
+        )
 
         from dracs.exceptions import ValidationError
 
@@ -2501,7 +2509,7 @@ def api_users_create():
             return jsonify({"success": False, "message": str(ve)}), 400
 
         site_roles = data.get("site_roles")
-        if site_roles is None:
+        if site_roles is None and role is not None:
             from dracs.db import get_default_site_id
             from dracs.users import set_user_site_role
 
@@ -2602,7 +2610,17 @@ def api_users_update(username):
         from dracs.exceptions import ValidationError
 
         new_password = data.get("password")
-        new_role = data.get("role")
+        _ROLE_SENTINEL = object()
+        raw_new_role = data.get("role", _ROLE_SENTINEL)
+        role_provided = raw_new_role is not _ROLE_SENTINEL
+        if role_provided:
+            new_role = (
+                None
+                if (raw_new_role is None or str(raw_new_role).strip().lower() == "none")
+                else str(raw_new_role).strip()
+            )
+        else:
+            new_role = _ROLE_SENTINEL
         changes = []
 
         try:
@@ -2611,10 +2629,31 @@ def api_users_update(username):
                     return jsonify({"success": False, "message": "User not found"}), 404
                 changes.append("password")
 
-            if new_role:
+            if role_provided:
                 if not update_user_role(username, new_role):
                     return jsonify({"success": False, "message": "User not found"}), 404
                 changes.append(f"role={new_role}")
+
+            site_role = data.get("site_role")
+            if site_role is not None:
+                from dracs.db import get_site_by_name
+                from dracs.users import remove_user_site_role, set_user_site_role
+
+                sr_name = site_role.get("site_name")
+                sr_role = site_role.get("role")
+                sr_site = get_site_by_name(sr_name) if sr_name else None
+                if not sr_site:
+                    return (
+                        jsonify(
+                            {"success": False, "message": f"Site '{sr_name}' not found"}
+                        ),
+                        404,
+                    )
+                if sr_role is None or str(sr_role).strip().lower() == "none":
+                    remove_user_site_role(username, sr_site["id"])
+                else:
+                    set_user_site_role(username, sr_site["id"], str(sr_role).strip())
+                changes.append(f"site_role({sr_name})={sr_role}")
 
             site_roles = data.get("site_roles")
             if site_roles is not None:

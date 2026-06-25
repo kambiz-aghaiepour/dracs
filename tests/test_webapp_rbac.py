@@ -217,6 +217,21 @@ class TestUserManagementAPI:
         assert users[0]["username"] == "newuser"
         assert users[0]["role"] == "user"
 
+    def test_create_user_none_role(self, client, webapp_db):
+        _login_admin(client)
+        resp = client.post(
+            "/api/users",
+            data=json.dumps(
+                {"username": "quadsuser", "password": "pass123", "role": None}
+            ),
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        users = client.get("/api/users").get_json()["users"]
+        match = next(u for u in users if u["username"] == "quadsuser")
+        assert match["role"] is None
+        assert match["site_roles"] == []
+
     def test_create_user_duplicate(self, client, webapp_db):
         _login_admin(client)
         create_user("existing", "pass", "user")
@@ -404,16 +419,18 @@ class TestUserManagementAPI:
             resp = client.delete("/api/users/victim")
             assert resp.status_code == 500
 
-    def test_update_user_no_changes_empty_dict(self, client, webapp_db):
+    def test_update_user_role_to_none_clears_role(self, client, webapp_db):
         create_user("emptyupd", "pass", "user")
         _login_admin(client)
         resp = client.patch(
             "/api/users/emptyupd",
-            data=json.dumps({"password": None, "role": None}),
+            data=json.dumps({"role": None}),
             content_type="application/json",
         )
-        assert resp.status_code == 400
-        assert "no changes" in resp.get_json()["message"].lower()
+        assert resp.status_code == 200
+        users = client.get("/api/users").get_json()["users"]
+        match = next(u for u in users if u["username"] == "emptyupd")
+        assert match["role"] is None
 
 
 class TestClientIP:
@@ -503,3 +520,69 @@ class TestUserCreationSiteRoles:
             )
         assert resp.get_json()["success"] is True
         assert get_user_site_roles("nosituser") == []
+
+
+class TestSiteRolePatch:
+    def test_patch_site_role_sets_specific_site(self, client, webapp_db):
+        from dracs.db import create_site
+
+        create_user("siteroleuser", "pass", "user")
+        sec = create_site("SecSite")
+        _login_admin(client)
+        resp = client.patch(
+            "/api/users/siteroleuser",
+            data=json.dumps({"site_role": {"site_name": "SecSite", "role": "admin"}}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        roles = get_user_site_roles("siteroleuser")
+        site_entry = next((r for r in roles if r["site_name"] == "SecSite"), None)
+        assert site_entry is not None
+        assert site_entry["role"] == "admin"
+
+    def test_patch_site_role_none_removes_site_role(self, client, webapp_db):
+        from dracs.db import create_site
+
+        create_user("siteroleuser2", "pass", "user")
+        sec = create_site("SecSite2")
+        set_user_site_role("siteroleuser2", sec["id"], "user")
+        _login_admin(client)
+        resp = client.patch(
+            "/api/users/siteroleuser2",
+            data=json.dumps({"site_role": {"site_name": "SecSite2", "role": None}}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        roles = get_user_site_roles("siteroleuser2")
+        assert not any(r["site_name"] == "SecSite2" for r in roles)
+
+    def test_patch_site_role_unknown_site_returns_404(self, client, webapp_db):
+        create_user("siteroleuser3", "pass", "user")
+        _login_admin(client)
+        resp = client.patch(
+            "/api/users/siteroleuser3",
+            data=json.dumps({"site_role": {"site_name": "NoSuchSite", "role": "user"}}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 404
+
+    def test_patch_site_role_does_not_touch_other_sites(self, client, webapp_db):
+        from dracs.db import create_site
+
+        create_user("siteroleuser4", "pass", "user")
+        sec1 = create_site("SiteA")
+        sec2 = create_site("SiteB")
+        set_user_site_role("siteroleuser4", sec1["id"], "user")
+        set_user_site_role("siteroleuser4", sec2["id"], "admin")
+        _login_admin(client)
+        resp = client.patch(
+            "/api/users/siteroleuser4",
+            data=json.dumps({"site_role": {"site_name": "SiteA", "role": "admin"}}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        roles = get_user_site_roles("siteroleuser4")
+        site_a = next(r for r in roles if r["site_name"] == "SiteA")
+        site_b = next(r for r in roles if r["site_name"] == "SiteB")
+        assert site_a["role"] == "admin"
+        assert site_b["role"] == "admin"

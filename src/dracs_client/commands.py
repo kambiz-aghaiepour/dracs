@@ -384,11 +384,12 @@ def cmd_user(args, base_url, verify_ssl, server):
         if password != confirm:
             print("Error: passwords do not match.", file=sys.stderr)
             sys.exit(1)
+        role = None if args.role == "none" else args.role
         resp = _post_json(
             f"{base_url}/api/users",
             server,
             verify_ssl,
-            {"username": args.username, "password": password, "role": args.role},
+            {"username": args.username, "password": password, "role": role},
         )
         _print_result(resp)
     elif args.remove:
@@ -407,19 +408,40 @@ def cmd_user(args, base_url, verify_ssl, server):
         data = resp.json()
         if data.get("success"):
             users = data.get("users", [])
+            site_name = getattr(args, "site", None)
+            if not site_name:
+                sites_resp = _api_request(
+                    "get", f"{base_url}/api/sites", server, verify_ssl
+                )
+                sites_data = sites_resp.json()
+                primary = next(
+                    (s for s in sites_data.get("sites", []) if s.get("is_primary")),
+                    None,
+                )
+                site_name = primary["name"] if primary else "Default"
+            print(f"Using Site: {site_name}")
             if users:
                 from tabulate import tabulate
 
                 table = [
                     [
                         u["username"],
-                        u["role"],
+                        next(
+                            (
+                                r["role"]
+                                for r in u.get("site_roles", [])
+                                if r["site_name"] == site_name
+                            ),
+                            "",
+                        ),
                         u.get("created_at", "")[:19],
                         u.get("created_by") or "-",
                     ]
                     for u in users
                 ]
-                print(tabulate(table, headers=["Username", "Role", "Created", "By"]))
+                print(
+                    tabulate(table, headers=["Username", "Site Role", "Created", "By"])
+                )
             else:
                 print("No users found. Only the superadmin (config) account exists.")
     elif args.update:
@@ -428,7 +450,12 @@ def cmd_user(args, base_url, verify_ssl, server):
             sys.exit(1)
         payload = {}
         if args.role:
-            payload["role"] = args.role
+            site_name = getattr(args, "site", None)
+            if site_name:
+                role = None if args.role == "none" else args.role
+                payload["site_role"] = {"site_name": site_name, "role": role}
+            else:
+                payload["role"] = None if args.role == "none" else args.role
         else:
             password = getpass.getpass(f"New password for {args.username}: ")
             confirm = getpass.getpass("Confirm password: ")

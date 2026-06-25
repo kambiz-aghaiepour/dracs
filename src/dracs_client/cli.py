@@ -410,7 +410,11 @@ def _add_admin_subparsers(subparsers):
     user_action.add_argument("--list", action="store_true", help="List users")
     user_action.add_argument("--update", action="store_true", help="Update a user")
     p_user.add_argument("--username", help="Username")
-    p_user.add_argument("--role", choices=["admin", "user"], help="User role")
+    p_user.add_argument(
+        "--role",
+        choices=["admin", "user", "none"],
+        help="User role (use 'none' for no global role)",
+    )
 
 
 def build_parser(role: Optional[str] = None) -> argparse.ArgumentParser:

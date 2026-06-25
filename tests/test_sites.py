@@ -513,3 +513,422 @@ class TestUpsertSystemSiteId:
 
             system = session.query(System).filter_by(svc_tag="TAG001").first()
             assert system.site_id == site2["id"]
+
+
+class TestMigrateUsersRoleNullable:
+    def test_migration_makes_role_nullable(self, temp_db):
+        engine = create_engine(f"sqlite:///{temp_db}")
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "CREATE TABLE users ("
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                    "username VARCHAR NOT NULL UNIQUE, "
+                    "password_hash VARCHAR NOT NULL, "
+                    "role VARCHAR NOT NULL, "
+                    "created_at VARCHAR NOT NULL, "
+                    "created_by VARCHAR"
+                    ")"
+                )
+            )
+            conn.execute(
+                text(
+                    "INSERT INTO users (username, password_hash, role, created_at) "
+                    "VALUES ('alice', 'hash', 'admin', '2024-01-01')"
+                )
+            )
+        engine.dispose()
+
+        db_initialize(temp_db)
+
+        engine2 = create_engine(f"sqlite:///{temp_db}")
+        inspector = inspect(engine2)
+        user_cols = {c["name"]: c for c in inspector.get_columns("users")}
+        assert user_cols["role"]["nullable"] is True
+
+        with engine2.begin() as conn:
+            row = conn.execute(
+                text("SELECT username, role FROM users WHERE username = 'alice'")
+            ).fetchone()
+            assert row[0] == "alice"
+            assert row[1] == "admin"
+        engine2.dispose()
+
+
+class TestSitesCLI:
+    def _run(self, args, db_path):
+        import asyncio
+        import sys
+        from unittest.mock import patch
+        from dracs.cli import main
+
+        with patch.object(sys, "argv", ["dracs", "--warranty", db_path] + args):
+            asyncio.run(main())
+
+    def test_sites_list_default(self, temp_db, capsys):
+        db_initialize(temp_db)
+        self._run(["sites"], temp_db)
+        out = capsys.readouterr().out
+        assert "Default" in out
+
+    def test_sites_add(self, temp_db, capsys):
+        db_initialize(temp_db)
+        self._run(["sites", "--add", "--name", "Lab1"], temp_db)
+        out = capsys.readouterr().out
+        assert "Lab1" in out
+        assert get_site_by_name("Lab1") is not None
+
+    def test_sites_add_invalid_name(self, temp_db, capsys):
+        db_initialize(temp_db)
+        with pytest.raises(SystemExit):
+            self._run(["sites", "--add", "--name", "bad name!"], temp_db)
+
+    def test_sites_add_missing_name(self, temp_db, capsys):
+        db_initialize(temp_db)
+        with pytest.raises(SystemExit):
+            self._run(["sites", "--add"], temp_db)
+
+    def test_sites_delete(self, temp_db, capsys):
+        db_initialize(temp_db)
+        create_site("ToDelete")
+        self._run(["sites", "--delete", "--name", "ToDelete"], temp_db)
+        out = capsys.readouterr().out
+        assert "deleted" in out
+        assert get_site_by_name("ToDelete") is None
+
+    def test_sites_delete_primary_fails(self, temp_db, capsys):
+        db_initialize(temp_db)
+        with pytest.raises(SystemExit):
+            self._run(["sites", "--delete", "--name", "Default"], temp_db)
+
+    def test_sites_delete_not_found(self, temp_db, capsys):
+        db_initialize(temp_db)
+        with pytest.raises(SystemExit):
+            self._run(["sites", "--delete", "--name", "NoSuchSite"], temp_db)
+
+    def test_sites_rename(self, temp_db, capsys):
+        db_initialize(temp_db)
+        create_site("OldName")
+        self._run(
+            ["sites", "--rename", "--name", "OldName", "--new-name", "NewName"], temp_db
+        )
+        out = capsys.readouterr().out
+        assert "NewName" in out
+        assert get_site_by_name("NewName") is not None
+        assert get_site_by_name("OldName") is None
+
+    def test_sites_rename_missing_args(self, temp_db, capsys):
+        db_initialize(temp_db)
+        with pytest.raises(SystemExit):
+            self._run(["sites", "--rename", "--name", "OldName"], temp_db)
+
+    def test_sites_set_config_and_show(self, temp_db, tmp_path, capsys):
+        import os
+
+        db_initialize(temp_db)
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text("")
+        orig_dir = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            self._run(
+                [
+                    "sites",
+                    "--set-config",
+                    "--name",
+                    "Default",
+                    "--username",
+                    "testroot",
+                    "--quads-url",
+                    "http://quads.test",
+                ],
+                temp_db,
+            )
+            capsys.readouterr()
+            self._run(["sites", "--config", "--name", "Default"], temp_db)
+            out = capsys.readouterr().out
+            assert "testroot" in out
+            assert "quads.test" in out
+        finally:
+            os.chdir(orig_dir)
+
+    def test_sites_set_config_no_values(self, temp_db, capsys):
+        db_initialize(temp_db)
+        with pytest.raises(SystemExit):
+            self._run(["sites", "--set-config", "--name", "Default"], temp_db)
+
+    def test_sites_add_sets_default_ini_config(self, temp_db, tmp_path, capsys):
+        import os
+
+        db_initialize(temp_db)
+        orig_dir = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            self._run(["sites", "--add", "--name", "FreshSite"], temp_db)
+            ini = tmp_path / "drac-passwords.ini"
+            assert ini.exists()
+            content = ini.read_text()
+            assert "FreshSite-DEFAULTS" in content
+            assert "root" in content
+        finally:
+            os.chdir(orig_dir)
+
+    def test_sites_delete_no_name(self, temp_db, capsys):
+        db_initialize(temp_db)
+        with pytest.raises(SystemExit):
+            self._run(["sites", "--delete"], temp_db)
+
+    def test_sites_rename_invalid_new_name(self, temp_db, capsys):
+        db_initialize(temp_db)
+        create_site("ValidSite")
+        with pytest.raises(SystemExit):
+            self._run(
+                ["sites", "--rename", "--name", "ValidSite", "--new-name", "bad name!"],
+                temp_db,
+            )
+
+    def test_sites_rename_not_found(self, temp_db, capsys):
+        db_initialize(temp_db)
+        with pytest.raises(SystemExit):
+            self._run(
+                ["sites", "--rename", "--name", "NoSuchSite", "--new-name", "NewName"],
+                temp_db,
+            )
+
+    def test_sites_config_no_name(self, temp_db, capsys):
+        db_initialize(temp_db)
+        with pytest.raises(SystemExit):
+            self._run(["sites", "--config"], temp_db)
+
+    def test_sites_config_no_defaults(self, temp_db, tmp_path, capsys):
+        import os
+
+        db_initialize(temp_db)
+        orig_dir = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            self._run(["sites", "--config", "--name", "Default"], temp_db)
+            out = capsys.readouterr().out
+            assert "No defaults" in out
+        finally:
+            os.chdir(orig_dir)
+
+    def test_sites_config_with_hosts(self, temp_db, tmp_path, capsys):
+        import os
+        import configparser
+
+        db_initialize(temp_db)
+        ini = tmp_path / "drac-passwords.ini"
+        config = configparser.RawConfigParser()
+        config["Default-DEFAULTS"] = {"username": "root", "password": "calvin"}
+        config["Default-host01"] = {"username": "admin"}
+        with open(ini, "w") as f:
+            config.write(f)
+        orig_dir = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            self._run(["sites", "--config", "--name", "Default"], temp_db)
+            out = capsys.readouterr().out
+            assert "host01" in out
+        finally:
+            os.chdir(orig_dir)
+
+    def test_sites_set_config_no_name(self, temp_db, capsys):
+        db_initialize(temp_db)
+        with pytest.raises(SystemExit):
+            self._run(["sites", "--set-config"], temp_db)
+
+    def test_sites_set_config_password(self, temp_db, tmp_path, capsys):
+        import os
+
+        db_initialize(temp_db)
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text("")
+        orig_dir = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            self._run(
+                [
+                    "sites",
+                    "--set-config",
+                    "--name",
+                    "Default",
+                    "--password",
+                    "secret123",
+                ],
+                temp_db,
+            )
+            content = ini.read_text()
+            assert "secret123" in content
+        finally:
+            os.chdir(orig_dir)
+
+    def test_sites_set_config_vnc_port(self, temp_db, tmp_path, capsys):
+        import os
+
+        db_initialize(temp_db)
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text("")
+        orig_dir = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            self._run(
+                ["sites", "--set-config", "--name", "Default", "--vnc-port", "5902"],
+                temp_db,
+            )
+            content = ini.read_text()
+            assert "5902" in content
+        finally:
+            os.chdir(orig_dir)
+
+    def test_sites_set_config_vnc_password(self, temp_db, tmp_path, capsys):
+        import os
+
+        db_initialize(temp_db)
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text("")
+        orig_dir = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            self._run(
+                [
+                    "sites",
+                    "--set-config",
+                    "--name",
+                    "Default",
+                    "--vnc-password",
+                    "vncpass",
+                ],
+                temp_db,
+            )
+            content = ini.read_text()
+            assert "vncpass" in content
+        finally:
+            os.chdir(orig_dir)
+
+    def test_sites_set_config_quads_enabled(self, temp_db, tmp_path, capsys):
+        import os
+
+        db_initialize(temp_db)
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text("")
+        orig_dir = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            self._run(
+                [
+                    "sites",
+                    "--set-config",
+                    "--name",
+                    "Default",
+                    "--quads-enabled",
+                    "true",
+                ],
+                temp_db,
+            )
+            content = ini.read_text()
+            assert "quads_enabled" in content
+            assert "true" in content
+        finally:
+            os.chdir(orig_dir)
+
+
+class TestUserCLISiteContext:
+    def _run(self, args, db_path):
+        import asyncio
+        import sys
+        from unittest.mock import patch
+        from dracs.cli import main
+
+        with patch.object(sys, "argv", ["dracs", "--warranty", db_path] + args):
+            asyncio.run(main())
+
+    def test_user_list_shows_primary_site(self, temp_db, capsys):
+        from dracs.users import create_user
+
+        db_initialize(temp_db)
+        create_user("alice", "pass", "admin")
+        self._run(["user", "--list"], temp_db)
+        out = capsys.readouterr().out
+        assert "Using Site: Default" in out
+
+    def test_user_list_shows_specified_site(self, temp_db, capsys):
+        from dracs.users import create_user
+
+        db_initialize(temp_db)
+        create_site("LabSite")
+        create_user("bob", "pass", "user")
+        self._run(["--site", "LabSite", "user", "--list"], temp_db)
+        out = capsys.readouterr().out
+        assert "Using Site: LabSite" in out
+
+    def test_user_list_shows_site_role_for_site(self, temp_db, capsys):
+        from dracs.users import create_user, set_user_site_role
+
+        db_initialize(temp_db)
+        sec = create_site("Secondary")
+        create_user("carol", "pass", None)
+        set_user_site_role("carol", sec["id"], "admin")
+        self._run(["--site", "Secondary", "user", "--list"], temp_db)
+        out = capsys.readouterr().out
+        assert "carol" in out
+        assert "admin" in out
+
+    def test_user_list_blank_role_when_no_site_role(self, temp_db, capsys):
+        from dracs.users import create_user
+
+        db_initialize(temp_db)
+        create_site("Secondary2")
+        create_user("dave", "pass", None)
+        self._run(["--site", "Secondary2", "user", "--list"], temp_db)
+        out = capsys.readouterr().out
+        assert "dave" in out
+        lines = [l for l in out.splitlines() if "dave" in l]
+        assert lines
+
+    def test_user_update_site_sets_site_role(self, temp_db, capsys):
+        from dracs.users import create_user, get_user_site_roles
+
+        db_initialize(temp_db)
+        sec = create_site("UpdateSite")
+        create_user("eve", "pass", None)
+        self._run(
+            [
+                "--site",
+                "UpdateSite",
+                "user",
+                "--update",
+                "--username",
+                "eve",
+                "--role",
+                "user",
+            ],
+            temp_db,
+        )
+        roles = get_user_site_roles("eve")
+        site_entry = next((r for r in roles if r["site_name"] == "UpdateSite"), None)
+        assert site_entry is not None
+        assert site_entry["role"] == "user"
+
+    def test_user_update_site_none_removes_site_role(self, temp_db, capsys):
+        from dracs.users import create_user, set_user_site_role, get_user_site_roles
+
+        db_initialize(temp_db)
+        sec = create_site("RemoveSite")
+        create_user("frank", "pass", None)
+        set_user_site_role("frank", sec["id"], "user")
+        self._run(
+            [
+                "--site",
+                "RemoveSite",
+                "user",
+                "--update",
+                "--username",
+                "frank",
+                "--role",
+                "none",
+            ],
+            temp_db,
+        )
+        roles = get_user_site_roles("frank")
+        assert not any(r["site_name"] == "RemoveSite" for r in roles)
