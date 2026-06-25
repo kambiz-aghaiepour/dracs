@@ -2,6 +2,27 @@
 
 <!-- version list -->
 
+## v2.10.0 (2026-06-25)
+
+### Bug Fixes
+
+- Codacy flagged issues
+  ([`f48569d`](https://github.com/kambiz-aghaiepour/dracs/commit/f48569db70e548fbd535f38edf5c57fe2e5ef616))
+
+- Ensure CI passes
+  ([`ebe7328`](https://github.com/kambiz-aghaiepour/dracs/commit/ebe7328e9d90646cc288f481a8a59358c1cc03c2))
+
+### Chores
+
+- Sync spec file version to 2.9.3 [skip ci]
+  ([`69f9438`](https://github.com/kambiz-aghaiepour/dracs/commit/69f9438a05423d4c59402218a00daad16fade613))
+
+### Features
+
+- Add Google OAuth2 SSO authentication support
+  ([`394df14`](https://github.com/kambiz-aghaiepour/dracs/commit/394df14a2aaa277f88015affdd7aabba81f6d0f3))
+
+
 ## v2.9.3 (2026-06-25)
 
 ### Bug Fixes
