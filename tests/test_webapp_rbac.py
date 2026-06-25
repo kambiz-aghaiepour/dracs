@@ -254,6 +254,28 @@ class TestUserManagementAPI:
         assert resp.status_code == 400
         assert "superadmin" in resp.get_json()["message"]
 
+    def test_create_user_with_site_role(self, client, webapp_db):
+        """POST /api/users with site_role sets quads site role on creation."""
+        _login_admin(client)
+        resp = client.post(
+            "/api/users",
+            data=json.dumps(
+                {
+                    "username": "quadsuser",
+                    "password": "pass123",
+                    "role": None,
+                    "site_role": {"site_name": "Default", "role": "quads"},
+                }
+            ),
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        users = client.get("/api/users").get_json()["users"]
+        match = next(u for u in users if u["username"] == "quadsuser")
+        assert match["role"] is None
+        site_roles = {r["role"] for r in match["site_roles"]}
+        assert "quads" in site_roles
+
     def test_delete_user(self, client, webapp_db):
         _login_admin(client)
         create_user("todelete", "pass", "user")

@@ -387,13 +387,24 @@ def cmd_user(args, base_url, verify_ssl, server):
             if password != confirm:
                 print("Error: passwords do not match.", file=sys.stderr)
                 sys.exit(1)
-        role = None if args.role == "none" else args.role
-        resp = _post_json(
-            f"{base_url}/api/users",
-            server,
-            verify_ssl,
-            {"username": args.username, "password": password, "role": role},
-        )
+        if args.role == "quads":
+            site_name = getattr(args, "site", None)
+            if not site_name:
+                print(
+                    "Error: 'quads' is a site-only role; specify --site.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            payload = {
+                "username": args.username,
+                "password": password,
+                "role": None,
+                "site_role": {"site_name": site_name, "role": "quads"},
+            }
+        else:
+            role = None if args.role == "none" else args.role
+            payload = {"username": args.username, "password": password, "role": role}
+        resp = _post_json(f"{base_url}/api/users", server, verify_ssl, payload)
         _print_result(resp)
     elif args.remove:
         if not args.username:
@@ -457,6 +468,12 @@ def cmd_user(args, base_url, verify_ssl, server):
             if site_name:
                 role = None if args.role == "none" else args.role
                 payload["site_role"] = {"site_name": site_name, "role": role}
+            elif args.role == "quads":
+                print(
+                    "Error: 'quads' is a site-only role; specify --site.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
             else:
                 payload["role"] = None if args.role == "none" else args.role
         else:

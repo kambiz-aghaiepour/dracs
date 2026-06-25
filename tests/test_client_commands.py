@@ -544,6 +544,55 @@ class TestCmdUser:
             with pytest.raises(SystemExit):
                 cmd_user(args, "https://s", True, "s")
 
+    def test_user_add_quads_with_site(self, capsys):
+        """--add --role quads --site sends role=None + site_role payload."""
+        args = MagicMock(
+            add=True,
+            remove=False,
+            list=False,
+            update=False,
+            username="quser",
+            role="quads",
+            site="Default",
+            password="pass123",
+        )
+        with patch(
+            "dracs_client.commands._post_json", return_value=_mock_resp()
+        ) as mock_post:
+            cmd_user(args, "https://s", True, "s")
+        payload = mock_post.call_args.args[3]
+        assert payload["role"] is None
+        assert payload["site_role"] == {"site_name": "Default", "role": "quads"}
+
+    def test_user_add_quads_without_site_exits(self):
+        """--add --role quads without --site should exit with an error."""
+        args = MagicMock(
+            add=True,
+            remove=False,
+            list=False,
+            update=False,
+            username="quser",
+            role="quads",
+            site=None,
+            password="pass123",
+        )
+        with pytest.raises(SystemExit):
+            cmd_user(args, "https://s", True, "s")
+
+    def test_user_update_quads_without_site_exits(self):
+        """--update --role quads without --site should exit with an error."""
+        args = MagicMock(
+            add=False,
+            remove=False,
+            list=False,
+            update=True,
+            username="quser",
+            role="quads",
+            site=None,
+        )
+        with pytest.raises(SystemExit):
+            cmd_user(args, "https://s", True, "s")
+
 
 class TestCmdTsrGenerate:
     def test_generate(self, capsys):
