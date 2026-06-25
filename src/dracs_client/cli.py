@@ -415,6 +415,7 @@ def _add_admin_subparsers(subparsers):
         choices=["admin", "user", "none"],
         help="User role (use 'none' for no global role)",
     )
+    p_user.add_argument("--password", help="Password (skips interactive prompt)")
 
 
 def build_parser(role: Optional[str] = None) -> argparse.ArgumentParser:

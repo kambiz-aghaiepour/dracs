@@ -379,11 +379,14 @@ def cmd_user(args, base_url, verify_ssl, server):
         if not args.role:
             print("Error: --role is required with --add.", file=sys.stderr)
             sys.exit(1)
-        password = getpass.getpass(f"Password for {args.username}: ")
-        confirm = getpass.getpass("Confirm password: ")
-        if password != confirm:
-            print("Error: passwords do not match.", file=sys.stderr)
-            sys.exit(1)
+        if getattr(args, "password", None):
+            password = args.password
+        else:
+            password = getpass.getpass(f"Password for {args.username}: ")
+            confirm = getpass.getpass("Confirm password: ")
+            if password != confirm:
+                print("Error: passwords do not match.", file=sys.stderr)
+                sys.exit(1)
         role = None if args.role == "none" else args.role
         resp = _post_json(
             f"{base_url}/api/users",
@@ -457,11 +460,14 @@ def cmd_user(args, base_url, verify_ssl, server):
             else:
                 payload["role"] = None if args.role == "none" else args.role
         else:
-            password = getpass.getpass(f"New password for {args.username}: ")
-            confirm = getpass.getpass("Confirm password: ")
-            if password != confirm:
-                print("Error: passwords do not match.", file=sys.stderr)
-                sys.exit(1)
+            if getattr(args, "password", None):
+                password = args.password
+            else:
+                password = getpass.getpass(f"New password for {args.username}: ")
+                confirm = getpass.getpass("Confirm password: ")
+                if password != confirm:
+                    print("Error: passwords do not match.", file=sys.stderr)
+                    sys.exit(1)
             payload["password"] = password
         resp = _api_request(
             "patch",
