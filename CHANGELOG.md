@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.10.2 (2026-06-25)
+
+### Bug Fixes
+
+- Check roles when logging in via google
+  ([`c821f99`](https://github.com/kambiz-aghaiepour/dracs/commit/c821f9943620c092b70fd5a1de8751f26ff9115a))
+
+### Chores
+
+- Sync spec file version to 2.10.1 [skip ci]
+  ([`d2b8673`](https://github.com/kambiz-aghaiepour/dracs/commit/d2b8673e9837e63d2c1cc0d9dafc043a7d014f16))
+
+
 ## v2.10.1 (2026-06-25)
 
 ### Bug Fixes
