@@ -1780,6 +1780,32 @@
                         DRACS Login
                     </h2>
                 </div>
+                {% if google_auth_enabled %}
+                <!-- Choice view: shown first when SSO is enabled -->
+                <div id="login-choice-footer" class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="hideLoginModal()">Cancel</button>
+                    <button type="button" class="btn btn-secondary" onclick="showLocalLoginForm()">Local Login</button>
+                    <a href="/auth/google" class="btn btn-primary">SSO Login</a>
+                </div>
+                <!-- Local credentials view: hidden until "Local Login" is pressed -->
+                <div id="login-local-body" class="modal-body" style="display:none;">
+                    <form id="login-form" onsubmit="handleLogin(event)">
+                        <div class="form-group">
+                            <label for="username">Username</label>
+                            <input type="text" id="username" name="username" required autocomplete="username">
+                        </div>
+                        <div class="form-group">
+                            <label for="password">Password</label>
+                            <input type="password" id="password" name="password" required autocomplete="current-password">
+                        </div>
+                    </form>
+                </div>
+                <div id="login-local-footer" class="modal-footer" style="display:none;">
+                    <button type="button" class="btn btn-secondary" onclick="hideLocalLoginForm()">Cancel</button>
+                    <button type="submit" form="login-form" class="btn btn-primary">Login</button>
+                </div>
+                {% else %}
+                <!-- Standard login (no SSO) -->
                 <div class="modal-body">
                     <form id="login-form" onsubmit="handleLogin(event)">
                         <div class="form-group">
@@ -1794,11 +1820,9 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="hideLoginModal()">Cancel</button>
-                    {% if google_auth_enabled %}
-                    <a href="/auth/google" class="btn btn-secondary">SSO Login</a>
-                    {% endif %}
                     <button type="submit" form="login-form" class="btn btn-primary">Login</button>
                 </div>
+                {% endif %}
             </div>
         </div>
 
@@ -2383,13 +2407,42 @@
         function showLoginModal(event) {
             event.preventDefault();
             document.getElementById('login-modal').classList.add('active');
+            {% if google_auth_enabled %}
+            // Always start at the choice view when re-opening
+            document.getElementById('login-choice-footer').style.display = '';
+            document.getElementById('login-local-body').style.display = 'none';
+            document.getElementById('login-local-footer').style.display = 'none';
+            {% else %}
             document.getElementById('username').focus();
+            {% endif %}
         }
 
         function hideLoginModal() {
             document.getElementById('login-modal').classList.remove('active');
             document.getElementById('login-form').reset();
+            {% if google_auth_enabled %}
+            // Reset back to choice view for the next open
+            document.getElementById('login-choice-footer').style.display = '';
+            document.getElementById('login-local-body').style.display = 'none';
+            document.getElementById('login-local-footer').style.display = 'none';
+            {% endif %}
         }
+
+        {% if google_auth_enabled %}
+        function showLocalLoginForm() {
+            document.getElementById('login-choice-footer').style.display = 'none';
+            document.getElementById('login-local-body').style.display = '';
+            document.getElementById('login-local-footer').style.display = '';
+            document.getElementById('username').focus();
+        }
+
+        function hideLocalLoginForm() {
+            document.getElementById('login-form').reset();
+            document.getElementById('login-local-body').style.display = 'none';
+            document.getElementById('login-local-footer').style.display = 'none';
+            document.getElementById('login-choice-footer').style.display = '';
+        }
+        {% endif %}
 
         function showUserManagementModal(event) {
             event.preventDefault();
