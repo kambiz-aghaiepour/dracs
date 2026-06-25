@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v2.9.1 (2026-06-25)
+
+### Bug Fixes
+
+- Allow password for users to be set on cli
+  ([`88d38c6`](https://github.com/kambiz-aghaiepour/dracs/commit/88d38c62217d2e7f12eeacc8d7608ec27f2acbac))
+
+- Black formatting
+  ([`38a52b4`](https://github.com/kambiz-aghaiepour/dracs/commit/38a52b4ebf09a791cfc7a2a5d31e1c91f7897926))
+
+- Black formatting
+  ([`bb85b46`](https://github.com/kambiz-aghaiepour/dracs/commit/bb85b46adcb35ffc2c1fa44b9cad4752c1174071))
+
+### Chores
+
+- Sync spec file version to 2.9.0 [skip ci]
+  ([`5cfdb69`](https://github.com/kambiz-aghaiepour/dracs/commit/5cfdb69fa735f0a70937cecc9a8b7ad75b2d7161))
+
+
 ## v2.9.0 (2026-06-25)
 
 ### Bug Fixes
