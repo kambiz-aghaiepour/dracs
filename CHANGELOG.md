@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.10.3 (2026-06-25)
+
+### Bug Fixes
+
+- Cleanup login
+  ([`4e91743`](https://github.com/kambiz-aghaiepour/dracs/commit/4e9174308de79577b6434c76b752b5a8b34f33dd))
+
+### Chores
+
+- Sync spec file version to 2.10.2 [skip ci]
+  ([`77a393c`](https://github.com/kambiz-aghaiepour/dracs/commit/77a393c08fbbd06ffc21d5ddf5b9888ca5cf58ef))
+
+
 ## v2.10.2 (2026-06-25)
 
 ### Bug Fixes
