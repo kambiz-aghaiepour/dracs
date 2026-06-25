@@ -248,6 +248,50 @@ class TestFetchQuadsHosts:
             result = _fetch_quads_hosts("alice", "http://quads.test")
         assert result == frozenset(["host1"])
 
+    def test_cloud_name_match(self):
+        from dracs.webapp import _fetch_quads_hosts
+
+        schedules = [
+            {
+                "host": {"name": "host1"},
+                "assignment": {
+                    "owner": "other",
+                    "ccuser": [],
+                    "cloud": {"name": "cloud32", "id": 2},
+                },
+            },
+            {
+                "host": {"name": "host2"},
+                "assignment": {
+                    "owner": "other",
+                    "ccuser": [],
+                    "cloud": {"name": "cloud99", "id": 5},
+                },
+            },
+        ]
+        mock_resp = self._make_mock_resp(schedules)
+        with patch("urllib.request.urlopen", return_value=mock_resp):
+            result = _fetch_quads_hosts("cloud32", "http://quads.test")
+        assert result == frozenset(["host1"])
+
+    def test_cloud_name_no_match(self):
+        from dracs.webapp import _fetch_quads_hosts
+
+        schedules = [
+            {
+                "host": {"name": "host1"},
+                "assignment": {
+                    "owner": "other",
+                    "ccuser": [],
+                    "cloud": {"name": "cloud32", "id": 2},
+                },
+            },
+        ]
+        mock_resp = self._make_mock_resp(schedules)
+        with patch("urllib.request.urlopen", return_value=mock_resp):
+            result = _fetch_quads_hosts("cloud99", "http://quads.test")
+        assert result == frozenset()
+
 
 # ---------------------------------------------------------------------------
 # Integration tests — index and api_systems

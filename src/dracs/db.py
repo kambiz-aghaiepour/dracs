@@ -67,7 +67,7 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     username: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String, nullable=False)
-    role: Mapped[str] = mapped_column(String, nullable=False, default="user")
+    role: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
     created_at: Mapped[str] = mapped_column(String, nullable=False)
     created_by: Mapped[str | None] = mapped_column(String, nullable=True)
 
@@ -146,6 +146,24 @@ def _migrate_schema(engine) -> None:
         if "site_id" not in columns:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE systems ADD COLUMN site_id INTEGER"))
+
+    if "users" in tables:
+        user_cols = {c["name"]: c for c in inspector.get_columns("users")}
+        if not user_cols.get("role", {}).get("nullable", True):
+            with engine.begin() as conn:
+                conn.execute(text("""
+                    CREATE TABLE users_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        username VARCHAR NOT NULL UNIQUE,
+                        password_hash VARCHAR NOT NULL,
+                        role VARCHAR,
+                        created_at VARCHAR NOT NULL,
+                        created_by VARCHAR
+                    )
+                    """))
+                conn.execute(text("INSERT INTO users_new SELECT * FROM users"))
+                conn.execute(text("DROP TABLE users"))
+                conn.execute(text("ALTER TABLE users_new RENAME TO users"))
 
 
 def _grandfather_sites(engine) -> None:

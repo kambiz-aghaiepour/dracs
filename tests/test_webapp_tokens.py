@@ -153,6 +153,23 @@ class TestBearerAuth:
             headers={"Authorization": f"Bearer {token}"},
         )
         assert resp.status_code != 401
+        assert resp.status_code != 403
+
+    def test_bearer_token_admin_role_can_list_users(self, client, webapp_db):
+        create_user("jsmith", "secret", "admin")
+        login_resp = client.post(
+            "/api/token-login",
+            data=json.dumps({"username": "jsmith", "password": "secret"}),
+            content_type="application/json",
+        )
+        token = login_resp.get_json()["token"]
+
+        resp = client.get(
+            "/api/users",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert resp.status_code == 200
+        assert resp.get_json()["success"] is True
 
     def test_bearer_token_user_role_gets_403_on_admin_endpoint(self, client, webapp_db):
         create_user("jsmith", "secret", "user")
