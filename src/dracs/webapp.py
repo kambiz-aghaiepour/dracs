@@ -239,8 +239,7 @@ def _site_id_for_host(hostname: str):
 
 
 def _get_effective_role():
-    """Return (is_superadmin, effective_role) for the current request.
-    Call only after _require_auth() has succeeded."""
+    """Return (is_superadmin, effective_role) for the current request."""
     if session.get("is_superadmin", False):
         return True, "admin"
     if session.get("authenticated", False):

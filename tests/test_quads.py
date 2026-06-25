@@ -793,6 +793,17 @@ class TestQuadsHostAccessUnit:
             result = webapp_mod._quads_host_access("quadshosttest", "host1", 99999)
         assert result is False
 
+    def test_get_effective_role_invalid_bearer_returns_false(self, quads_webapp_db):
+        """Returns (False, None) when the bearer token fails validation."""
+        import dracs.webapp as webapp_mod
+
+        with webapp_mod.app.test_request_context(
+            headers={"Authorization": "Bearer invalidtoken"}
+        ):
+            with patch("dracs.tokens.validate_token", return_value=None):
+                result = webapp_mod._get_effective_role()
+        assert result == (False, None)
+
 
 # ---------------------------------------------------------------------------
 # Verify endpoint tests
