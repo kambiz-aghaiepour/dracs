@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.10.8 (2026-06-26)
+
+### Bug Fixes
+
+- Bump version
+  ([`5184e5c`](https://github.com/kambiz-aghaiepour/dracs/commit/5184e5c201665eee85bfd0963b9953dfca73eeb5))
+
+### Chores
+
+- Sync spec file version to 2.10.7 [skip ci]
+  ([`f7e283d`](https://github.com/kambiz-aghaiepour/dracs/commit/f7e283d77d823b4ec2f260851f5f80dd46e7a3ba))
+
+
 ## v2.10.7 (2026-06-26)
 
 ### Bug Fixes
