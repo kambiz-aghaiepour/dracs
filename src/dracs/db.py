@@ -33,7 +33,9 @@ class Site(Base):
     name: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     is_primary: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[str] = mapped_column(String, nullable=False)
-    sort_order: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=None)
+    sort_order: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True, default=None
+    )
 
 
 class System(Base):

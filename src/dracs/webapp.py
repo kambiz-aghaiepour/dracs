@@ -3358,7 +3358,10 @@ def api_sites_set_primary(name):
         if site is None:
             return jsonify({"success": False, "message": "Site not found"}), 404
         if site["is_primary"]:
-            return jsonify({"success": False, "message": "Site is already primary"}), 400
+            return (
+                jsonify({"success": False, "message": "Site is already primary"}),
+                400,
+            )
 
         set_primary_site(site["id"])
         audit_log("site_set_primary", target=name, user=user, source=_client_ip())
