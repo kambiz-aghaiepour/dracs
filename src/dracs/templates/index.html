@@ -1782,10 +1782,10 @@
                 </div>
                 {% if google_auth_enabled %}
                 <!-- Choice view: shown first when SSO is enabled -->
-                <div id="login-choice-footer" class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="hideLoginModal()">Cancel</button>
+                <div id="login-choice-footer" class="modal-footer" style="justify-content:space-between;">
+                    <a id="sso-login-btn" href="/auth/google" class="btn btn-primary">SSO Login</a>
                     <button type="button" class="btn btn-secondary" onclick="showLocalLoginForm()">Local Login</button>
-                    <a href="/auth/google" class="btn btn-primary">SSO Login</a>
+                    <button type="button" class="btn btn-secondary" onclick="hideLoginModal()">Cancel</button>
                 </div>
                 <!-- Local credentials view: hidden until "Local Login" is pressed -->
                 <div id="login-local-body" class="modal-body" style="display:none;">
@@ -1801,8 +1801,8 @@
                     </form>
                 </div>
                 <div id="login-local-footer" class="modal-footer" style="display:none;">
-                    <button type="button" class="btn btn-secondary" onclick="hideLocalLoginForm()">Cancel</button>
                     <button type="submit" form="login-form" class="btn btn-primary">Login</button>
+                    <button type="button" class="btn btn-secondary" onclick="hideLocalLoginForm()">Cancel</button>
                 </div>
                 {% else %}
                 <!-- Standard login (no SSO) -->
@@ -1819,8 +1819,8 @@
                     </form>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="hideLoginModal()">Cancel</button>
                     <button type="submit" form="login-form" class="btn btn-primary">Login</button>
+                    <button type="button" class="btn btn-secondary" onclick="hideLoginModal()">Cancel</button>
                 </div>
                 {% endif %}
             </div>
@@ -1910,14 +1910,16 @@
         <div id="self-password-modal" class="modal-overlay">
             <div class="modal-content" style="max-width: 400px;">
                 <div class="modal-header">
-                    <h2>Change Your Password</h2>
+                    <h2>Change Local Password</h2>
                 </div>
                 <div class="modal-body">
                     <form id="self-password-form" onsubmit="submitSelfPasswordChange(event)">
+                        {% if not is_sso_login %}
                         <div class="form-group">
                             <label for="sp-current-password">Current Password</label>
                             <input type="password" id="sp-current-password" required autocomplete="current-password">
                         </div>
+                        {% endif %}
                         <div class="form-group">
                             <label for="sp-new-password">New Password</label>
                             <input type="password" id="sp-new-password" required autocomplete="new-password">
@@ -2412,6 +2414,7 @@
             document.getElementById('login-choice-footer').style.display = '';
             document.getElementById('login-local-body').style.display = 'none';
             document.getElementById('login-local-footer').style.display = 'none';
+            document.getElementById('sso-login-btn').focus();
             {% else %}
             document.getElementById('username').focus();
             {% endif %}
@@ -2585,7 +2588,11 @@
         function showSelfPasswordModal(event) {
             event.preventDefault();
             document.getElementById('self-password-modal').classList.add('active');
+            {% if is_sso_login %}
+            document.getElementById('sp-new-password').focus();
+            {% else %}
             document.getElementById('sp-current-password').focus();
+            {% endif %}
         }
 
         function hideSelfPasswordModal() {
@@ -2595,18 +2602,23 @@
 
         async function submitSelfPasswordChange(event) {
             event.preventDefault();
-            const currentPassword = document.getElementById('sp-current-password').value;
             const newPassword = document.getElementById('sp-new-password').value;
             const confirm = document.getElementById('sp-confirm-password').value;
             if (newPassword !== confirm) {
                 showNotification('New passwords do not match', 'error');
                 return;
             }
+            {% if is_sso_login %}
+            const payload = {new_password: newPassword};
+            {% else %}
+            const currentPassword = document.getElementById('sp-current-password').value;
+            const payload = {current_password: currentPassword, new_password: newPassword};
+            {% endif %}
             try {
                 const response = await fetch(apiUrl('/api/change-password'), {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({current_password: currentPassword, new_password: newPassword})
+                    body: JSON.stringify(payload)
                 });
                 const data = await response.json();
                 showNotification(data.message, data.success ? 'success' : 'error');

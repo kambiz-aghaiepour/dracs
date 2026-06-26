@@ -75,6 +75,10 @@
         .host-override-row { display: flex; gap: 8px; align-items: center; padding: 4px 0; flex-wrap: wrap; }
         .host-override-row input { width: 140px; padding: 4px 8px; font-size: 0.85em; border: 1px solid #ccc; border-radius: 4px; }
         .host-override-row .btn { padding: 4px 10px; font-size: 0.8em; }
+        .btn-eye { background: none; border: 1px solid #ccc; border-radius: 4px; padding: 3px 5px; cursor: pointer; color: #666; line-height: 1; display: flex; align-items: center; flex-shrink: 0; }
+        .btn-eye:hover { background: #f0f0f0; color: #222; }
+        .pw-field-wrap { display: flex; gap: 4px; align-items: center; }
+        .pw-field-wrap input { flex: 1; }
 
         /* Dark Theme */
         body.dark-theme { background-color: #1a1a1a; }
@@ -93,6 +97,8 @@
         body.dark-theme .host-override-row input { background-color: #4a4a4a; color: #e0e0e0; border-color: #555; }
         body.dark-theme .btn-secondary { background: #555; color: #e0e0e0; }
         body.dark-theme .btn-secondary:hover { background: #666; }
+        body.dark-theme .btn-eye { border-color: #555; color: #b0b0b0; }
+        body.dark-theme .btn-eye:hover { background: #4a4a4a; color: #e0e0e0; }
         body.dark-theme .btn-primary { background: #1e5a8e; }
         body.dark-theme .btn-primary:hover { background: #2a6ba8; }
         body.dark-theme .btn-danger { background: #c62828; }
@@ -149,7 +155,14 @@
                 </div>
                 <div class="form-group">
                     <label>Password</label>
-                    <input type="text" id="manage-password" autocomplete="off">
+                    <div class="pw-field-wrap">
+                        <input type="password" id="manage-password" autocomplete="off">
+                        <button type="button" class="btn-eye" id="manage-password-eye"
+                                title="Show/hide password"
+                                onclick="togglePasswordVisibility('manage-password', this)">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>VNC Port</label>
@@ -157,7 +170,14 @@
                 </div>
                 <div class="form-group">
                     <label>VNC Password</label>
-                    <input type="text" id="manage-vnc-password" autocomplete="off">
+                    <div class="pw-field-wrap">
+                        <input type="password" id="manage-vnc-password" autocomplete="off">
+                        <button type="button" class="btn-eye" id="manage-vnc-password-eye"
+                                title="Show/hide VNC password"
+                                onclick="togglePasswordVisibility('manage-vnc-password', this)">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                    </div>
                 </div>
             </div>
             <h4 style="margin: 16px 0 4px;">Host-Specific Overrides</h4>
@@ -392,6 +412,16 @@
         }
 
         // Manage
+        const EYE_OPEN = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+        const EYE_SLASH = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+
+        function togglePasswordVisibility(inputId, btn) {
+            const input = document.getElementById(inputId);
+            const isHidden = input.type === 'password';
+            input.type = isHidden ? 'text' : 'password';
+            btn.innerHTML = isHidden ? EYE_SLASH : EYE_OPEN;
+        }
+
         function hideManagePanel() { document.getElementById('manage-panel').style.display = 'none'; }
 
         async function showManagePanel() {
@@ -404,9 +434,15 @@
 
             const cfg = data.config;
             document.getElementById('manage-username').value = cfg.defaults.username || '';
-            document.getElementById('manage-password').value = cfg.defaults.password || '';
+            const pwInput = document.getElementById('manage-password');
+            pwInput.value = cfg.defaults.password || '';
+            pwInput.type = 'password';
+            document.getElementById('manage-password-eye').innerHTML = EYE_OPEN;
             document.getElementById('manage-vnc-port').value = cfg.defaults.vnc_port || '5901';
-            document.getElementById('manage-vnc-password').value = cfg.defaults.vnc_password || '';
+            const vncPwInput = document.getElementById('manage-vnc-password');
+            vncPwInput.value = cfg.defaults.vnc_password || '';
+            vncPwInput.type = 'password';
+            document.getElementById('manage-vnc-password-eye').innerHTML = EYE_OPEN;
             document.getElementById('manage-quads-enabled').checked = cfg.defaults.quads_enabled === 'true';
             document.getElementById('manage-quads-url').value = cfg.defaults.quads_url || '';
             updateQuadsUrlState();

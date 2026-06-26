@@ -659,6 +659,7 @@ def index():
     username = session.get("username", None)
     user_role = session.get("role", None)
     is_superadmin = session.get("is_superadmin", False)
+    is_sso_login = session.get("sso_login", False)
 
     is_quads_user = False
     quads_empty = False
@@ -717,6 +718,7 @@ def index():
         is_quads_user=is_quads_user,
         quads_empty=quads_empty,
         google_auth_enabled=GOOGLE_AUTH_ENABLED,
+        is_sso_login=is_sso_login,
     )
 
 
@@ -965,6 +967,7 @@ def auth_google_callback():
     session["username"] = username
     session["role"] = stored_role
     session["is_superadmin"] = False
+    session["sso_login"] = True
     audit_log("login", user=email, source=_client_ip())
     return redirect(url_for("index"))
 
@@ -1074,26 +1077,35 @@ def api_change_password():
         if not data:
             return jsonify({"success": False, "message": "Invalid request"}), 400
 
-        current_password = data.get("current_password", "")
         new_password = data.get("new_password", "")
+        is_sso = session.get("sso_login", False)
 
-        if not current_password or not new_password:
-            return (
-                jsonify(
-                    {
-                        "success": False,
-                        "message": "Current and new password are required",
-                    }
-                ),
-                400,
-            )
-
-        result = authenticate_user(user, current_password)
-        if not result:
-            return (
-                jsonify({"success": False, "message": "Current password is incorrect"}),
-                401,
-            )
+        if is_sso:
+            if not new_password:
+                return (
+                    jsonify({"success": False, "message": "New password is required"}),
+                    400,
+                )
+        else:
+            current_password = data.get("current_password", "")
+            if not current_password or not new_password:
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "message": "Current and new password are required",
+                        }
+                    ),
+                    400,
+                )
+            result = authenticate_user(user, current_password)
+            if not result:
+                return (
+                    jsonify(
+                        {"success": False, "message": "Current password is incorrect"}
+                    ),
+                    401,
+                )
 
         from dracs.exceptions import ValidationError
         from dracs.users import _superadmin_username, update_superadmin_password
