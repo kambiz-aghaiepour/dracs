@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.11.1 (2026-06-26)
+
+### Bug Fixes
+
+- Cosmetic changes to new quads console page
+  ([`567f62b`](https://github.com/kambiz-aghaiepour/dracs/commit/567f62bbea9e03734bebcf365c25d3e551f2e295))
+
+### Chores
+
+- Sync spec file version to 2.11.0 [skip ci]
+  ([`41e53e9`](https://github.com/kambiz-aghaiepour/dracs/commit/41e53e9a627a0df09843532f4bc6560559fb73b0))
+
+
 ## v2.11.0 (2026-06-26)
 
 ### Bug Fixes
