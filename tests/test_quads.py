@@ -1116,6 +1116,11 @@ class TestQuadsSchedulesEndpoint:
             {"host": None, "assignment": None},
             {"host": {"name": "host1"}},
             {},
+            # Valid host+assignment but cloud dict has no "name" key → cloud_name=None
+            {
+                "host": {"name": "host1"},
+                "assignment": {"cloud": {}, "owner": "alice", "ccuser": []},
+            },
         ]
         with patch(
             "urllib.request.urlopen", return_value=self._make_quads_resp(schedules)
