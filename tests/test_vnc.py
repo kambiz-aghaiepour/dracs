@@ -1121,6 +1121,28 @@ class TestVncSessionCreateEndpoint:
         assert refs_after == refs_before + 1
 
 
+    @patch("dracs.webapp.check_vnc_connectivity", return_value=(True, ""))
+    @patch("dracs.webapp.get_vnc_credentials", return_value=(5901, "pass"))
+    def test_unexpected_exception_returns_500(self, mock_creds, mock_conn, vnc_client):
+        _login(vnc_client)
+        import dracs.webapp as webapp_mod
+
+        orig_manager = webapp_mod.vnc_manager
+        try:
+            mock_mgr = MagicMock()
+            mock_mgr.find_session_by_hostname.return_value = None
+            mock_mgr.create_session.side_effect = RuntimeError("boom")
+            webapp_mod.vnc_manager = mock_mgr
+            resp = vnc_client.post(
+                "/api/vnc-session",
+                data=json.dumps({"hostname": "server01"}),
+                content_type="application/json",
+            )
+        finally:
+            webapp_mod.vnc_manager = orig_manager
+        assert resp.status_code == 500
+
+
 class TestVncSessionAddrefEndpoint:
     def test_requires_auth(self, vnc_client):
         resp = vnc_client.post("/api/vnc-session/sometoken/ref")
@@ -1229,6 +1251,21 @@ class TestVncSessionDeleteEndpoint:
         resp = vnc_client.delete(f"/api/vnc-session/{token}")
         assert resp.status_code == 200
         assert webapp_mod.vnc_manager.get_session_info(token) is None
+
+
+    def test_unexpected_exception_returns_500(self, vnc_client):
+        _login(vnc_client)
+        import dracs.webapp as webapp_mod
+
+        orig_manager = webapp_mod.vnc_manager
+        try:
+            mock_mgr = MagicMock()
+            mock_mgr.release_session.side_effect = RuntimeError("boom")
+            webapp_mod.vnc_manager = mock_mgr
+            resp = vnc_client.delete("/api/vnc-session/some-token")
+        finally:
+            webapp_mod.vnc_manager = orig_manager
+        assert resp.status_code == 500
 
 
 class TestVncSessionTouchEndpoint:

@@ -595,6 +595,89 @@ class TestSitesPageRoute:
         assert b"SomePlace" in resp.data
 
 
+class TestSetPrimarySite:
+    def test_non_superadmin_denied(self, site_client, site_db):
+        create_user("sadminuser", "pass123", role="admin")
+        default_id = get_default_site_id()
+        set_user_site_role("sadminuser", default_id, "admin")
+        _login(site_client, "sadminuser", "pass123")
+        resp = site_client.put("/api/sites/Default/set-primary")
+        assert resp.status_code == 403
+
+    def test_site_not_found(self, site_client):
+        _login(site_client)
+        resp = site_client.put("/api/sites/DoesNotExist/set-primary")
+        assert resp.status_code == 404
+
+    def test_already_primary(self, site_client):
+        _login(site_client)
+        resp = site_client.put("/api/sites/Default/set-primary")
+        assert resp.status_code == 400
+        assert "already primary" in resp.get_json()["message"]
+
+    def test_success(self, site_client):
+        create_site("Secondary")
+        _login(site_client)
+        resp = site_client.put("/api/sites/Secondary/set-primary")
+        assert resp.status_code == 200
+        assert resp.get_json()["success"] is True
+
+    def test_exception(self, site_client):
+        create_site("Secondary")
+        _login(site_client)
+        with patch("dracs.db.set_primary_site", side_effect=RuntimeError("db error")):
+            resp = site_client.put("/api/sites/Secondary/set-primary")
+        assert resp.status_code == 500
+
+
+class TestReorderSites:
+    def test_non_superadmin_denied(self, site_client, site_db):
+        create_user("reorderuser", "pass123", role="admin")
+        default_id = get_default_site_id()
+        set_user_site_role("reorderuser", default_id, "admin")
+        _login(site_client, "reorderuser", "pass123")
+        resp = site_client.post(
+            "/api/sites/reorder",
+            data=json.dumps({"site_ids": [1]}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 403
+
+    def test_missing_site_ids(self, site_client):
+        _login(site_client)
+        resp = site_client.post(
+            "/api/sites/reorder",
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+    def test_success(self, site_client):
+        from dracs.db import get_site_by_name
+
+        default_id = get_default_site_id()
+        create_site("SiteB")
+        b_site = get_site_by_name("SiteB")
+        _login(site_client)
+        resp = site_client.post(
+            "/api/sites/reorder",
+            data=json.dumps({"site_ids": [b_site["id"], default_id]}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        assert resp.get_json()["success"] is True
+
+    def test_exception(self, site_client):
+        _login(site_client)
+        with patch("dracs.db.reorder_sites", side_effect=RuntimeError("db error")):
+            resp = site_client.post(
+                "/api/sites/reorder",
+                data=json.dumps({"site_ids": [1]}),
+                content_type="application/json",
+            )
+        assert resp.status_code == 500
+
+
 class TestDeleteSiteIniCleanup:
     def test_delete_removes_ini_sections(self, site_client, tmp_path, monkeypatch):
         _login(site_client)

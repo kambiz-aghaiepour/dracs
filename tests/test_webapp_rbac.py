@@ -339,6 +339,24 @@ class TestUserManagementAPI:
         )
         assert resp.status_code == 400
 
+    def test_update_no_recognized_keys_returns_no_changes(self, client, webapp_db):
+        _login_admin(client)
+        create_user("nochangeuser", "pass", "user")
+        resp = client.patch(
+            "/api/users/nochangeuser",
+            data=json.dumps({"unknown_field": "ignored"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "No changes" in resp.get_json()["message"]
+
+    def test_user_site_roles_exception(self, client, webapp_db):
+        _login_admin(client)
+        create_user("exuser", "pass", "user")
+        with patch("dracs.users.get_user_site_roles", side_effect=RuntimeError("db gone")):
+            resp = client.get("/api/users/exuser/site-roles")
+        assert resp.status_code == 500
+
     def test_user_endpoints_require_admin(self, client, webapp_db):
         _login_user(client, webapp_db)
         assert client.get("/api/users").status_code == 403
