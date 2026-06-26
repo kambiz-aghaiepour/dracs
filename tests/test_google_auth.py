@@ -465,6 +465,30 @@ class TestAuthGoogleCallbackRoute:
             assert sess.get("username") == "siteadmin"
             assert sess.get("role") == "admin"
 
+    def test_user_with_null_global_role_gets_user_from_site_role(
+        self, google_client, google_webapp_db
+    ):
+        import dracs.webapp as webapp_mod
+        from dracs.users import create_user, set_user_site_role
+        from dracs.db import get_default_site_id
+
+        create_user("siteuser2", "pw", None, created_by="test")
+        set_user_site_role("siteuser2", get_default_site_id(), "user")
+        with patch.object(webapp_mod, "GOOGLE_AUTH_ENABLED", True):
+            with google_client.session_transaction() as sess:
+                sess["google_oauth_state"] = "abc"
+            with patch("dracs.google_auth.make_flow", return_value=self._mock_flow()):
+                with patch(
+                    "dracs.google_auth.get_verified_email",
+                    return_value="siteuser2@example.com",
+                ):
+                    resp = google_client.get("/auth/google/callback?state=abc&code=y")
+        assert resp.status_code == 302
+        with google_client.session_transaction() as sess:
+            assert sess.get("authenticated") is True
+            assert sess.get("username") == "siteuser2"
+            assert sess.get("role") == "user"
+
 
 class TestLocalLoginSiteRoleFallback:
     def test_local_login_null_global_role_gets_admin_from_site_role(

@@ -953,16 +953,13 @@ def auth_google_callback():
         stored_role = None
     else:
         user_record = next((u for u in all_users if u["username"] == username), None)
-        if user_record:
-            stored_role = user_record["role"]
-            if stored_role is None:
-                sr_values = [sr["role"] for sr in user_record.get("site_roles", [])]
-                if "admin" in sr_values:
-                    stored_role = "admin"
-                elif "user" in sr_values:
-                    stored_role = "user"
-        else:
-            stored_role = None
+        stored_role = user_record["role"] if user_record else None
+        if user_record and stored_role is None:
+            sr_values = [sr["role"] for sr in user_record.get("site_roles", [])]
+            if "admin" in sr_values:
+                stored_role = "admin"
+            elif "user" in sr_values:
+                stored_role = "user"
 
     session["authenticated"] = True
     session["username"] = username
