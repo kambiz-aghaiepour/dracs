@@ -40,7 +40,7 @@ class TestSiteSchema:
         engine = create_engine(f"sqlite:///{temp_db}")
         inspector = inspect(engine)
         columns = {c["name"] for c in inspector.get_columns("sites")}
-        assert columns == {"id", "name", "is_primary", "created_at"}
+        assert columns == {"id", "name", "is_primary", "created_at", "sort_order"}
         engine.dispose()
 
     def test_user_site_roles_table_columns(self, temp_db):
