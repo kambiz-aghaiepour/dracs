@@ -1000,9 +1000,7 @@ class TestQuadsSchedulesEndpoint:
         """QUADS API unreachable returns 502."""
         _create_role_user(quads_webapp_db)
         _login(quads_client, "roleuser", "pass123")
-        with patch(
-            "urllib.request.urlopen", side_effect=OSError("connection refused")
-        ):
+        with patch("urllib.request.urlopen", side_effect=OSError("connection refused")):
             resp = quads_client.get("/api/sites/Default/quads-schedules")
         assert resp.status_code == 502
         data = resp.get_json()

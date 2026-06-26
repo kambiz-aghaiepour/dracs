@@ -284,7 +284,10 @@ class TestAuthGoogleRoute:
         import dracs.webapp as webapp_mod
 
         mock_flow = MagicMock()
-        mock_flow.authorization_url.return_value = ("https://accounts.google.com/auth", "s")
+        mock_flow.authorization_url.return_value = (
+            "https://accounts.google.com/auth",
+            "s",
+        )
         with patch.object(webapp_mod, "GOOGLE_AUTH_ENABLED", True):
             with patch("dracs.google_auth.make_flow", return_value=mock_flow):
                 google_client.get(
@@ -298,7 +301,10 @@ class TestAuthGoogleRoute:
         import dracs.webapp as webapp_mod
 
         mock_flow = MagicMock()
-        mock_flow.authorization_url.return_value = ("https://accounts.google.com/auth", "s")
+        mock_flow.authorization_url.return_value = (
+            "https://accounts.google.com/auth",
+            "s",
+        )
         with patch.object(webapp_mod, "GOOGLE_AUTH_ENABLED", True):
             with patch("dracs.google_auth.make_flow", return_value=mock_flow):
                 google_client.get("/auth/google?return_url=https://evil.example.com/")
