@@ -2,6 +2,36 @@
 
 <!-- version list -->
 
+## v2.11.0 (2026-06-26)
+
+### Bug Fixes
+
+- Black formatting
+  ([`1febf7f`](https://github.com/kambiz-aghaiepour/dracs/commit/1febf7fcf12bd550dd5e038f596b5acca99f9596))
+
+- Black formatting
+  ([`e6a9377`](https://github.com/kambiz-aghaiepour/dracs/commit/e6a9377a9b7f46a4d8893e15edf0e1bd3dde48e1))
+
+- Codecov
+  ([`a9c49bc`](https://github.com/kambiz-aghaiepour/dracs/commit/a9c49bc7242f1b4df7f417197663242c6352681f))
+
+- Codecov for new code
+  ([`2c0537b`](https://github.com/kambiz-aghaiepour/dracs/commit/2c0537bf148258e1314922692a7ff0077c9c83ba))
+
+- Codecov/project
+  ([`98948ba`](https://github.com/kambiz-aghaiepour/dracs/commit/98948bafa05381cda3a95c889a7a1b06fc891797))
+
+### Chores
+
+- Sync spec file version to 2.10.8 [skip ci]
+  ([`84f3a14`](https://github.com/kambiz-aghaiepour/dracs/commit/84f3a14a24964b377da8bcdbeb2f70921d1bbd5f))
+
+### Features
+
+- Add quads multiconsole
+  ([`e50cca1`](https://github.com/kambiz-aghaiepour/dracs/commit/e50cca15625cd54a9c035164bfadfdbc3737cc37))
+
+
 ## v2.10.8 (2026-06-26)
 
 ### Bug Fixes
