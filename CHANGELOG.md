@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v2.10.5 (2026-06-26)
+
+### Bug Fixes
+
+- Codecov/patch dropped
+  ([`0d93e53`](https://github.com/kambiz-aghaiepour/dracs/commit/0d93e53ebfafcb72751654ad46c169a689040ed6))
+
+- Several UI fixes related to password mgmt
+  ([`099d5d7`](https://github.com/kambiz-aghaiepour/dracs/commit/099d5d75e6fdb8ccb4721d1ccc98418eff9e343f))
+
+### Chores
+
+- Sync spec file version to 2.10.4 [skip ci]
+  ([`ac9d662`](https://github.com/kambiz-aghaiepour/dracs/commit/ac9d662e55a896ed2c32d7682fe744c007c6e0de))
+
+
 ## v2.10.4 (2026-06-26)
 
 ### Bug Fixes
