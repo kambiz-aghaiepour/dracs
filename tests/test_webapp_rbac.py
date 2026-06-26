@@ -353,7 +353,9 @@ class TestUserManagementAPI:
     def test_user_site_roles_exception(self, client, webapp_db):
         _login_admin(client)
         create_user("exuser", "pass", "user")
-        with patch("dracs.users.get_user_site_roles", side_effect=RuntimeError("db gone")):
+        with patch(
+            "dracs.users.get_user_site_roles", side_effect=RuntimeError("db gone")
+        ):
             resp = client.get("/api/users/exuser/site-roles")
         assert resp.status_code == 500
 

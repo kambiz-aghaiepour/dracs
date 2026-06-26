@@ -1120,7 +1120,6 @@ class TestVncSessionCreateEndpoint:
         refs_after = webapp_mod.vnc_manager._get_refs(token)
         assert refs_after == refs_before + 1
 
-
     @patch("dracs.webapp.check_vnc_connectivity", return_value=(True, ""))
     @patch("dracs.webapp.get_vnc_credentials", return_value=(5901, "pass"))
     def test_unexpected_exception_returns_500(self, mock_creds, mock_conn, vnc_client):
@@ -1251,7 +1250,6 @@ class TestVncSessionDeleteEndpoint:
         resp = vnc_client.delete(f"/api/vnc-session/{token}")
         assert resp.status_code == 200
         assert webapp_mod.vnc_manager.get_session_info(token) is None
-
 
     def test_unexpected_exception_returns_500(self, vnc_client):
         _login(vnc_client)
