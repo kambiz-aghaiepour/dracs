@@ -279,6 +279,55 @@ class TestAuthGoogleRoute:
         assert resp.status_code == 302
         assert "accounts.google.com" in resp.headers["Location"]
 
+    def test_relative_return_url_stored_in_session(self, google_client):
+        """A relative return_url is stored for post-login redirect."""
+        import dracs.webapp as webapp_mod
+
+        mock_flow = MagicMock()
+        mock_flow.authorization_url.return_value = ("https://accounts.google.com/auth", "s")
+        with patch.object(webapp_mod, "GOOGLE_AUTH_ENABLED", True):
+            with patch("dracs.google_auth.make_flow", return_value=mock_flow):
+                google_client.get(
+                    "/auth/google?return_url=/console-quads%3Fsite%3DDefault"
+                )
+        with google_client.session_transaction() as sess:
+            assert sess.get("oauth_return_url") == "/console-quads?site=Default"
+
+    def test_absolute_return_url_not_stored(self, google_client):
+        """An absolute URL is rejected to prevent open-redirect."""
+        import dracs.webapp as webapp_mod
+
+        mock_flow = MagicMock()
+        mock_flow.authorization_url.return_value = ("https://accounts.google.com/auth", "s")
+        with patch.object(webapp_mod, "GOOGLE_AUTH_ENABLED", True):
+            with patch("dracs.google_auth.make_flow", return_value=mock_flow):
+                google_client.get("/auth/google?return_url=https://evil.example.com/")
+        with google_client.session_transaction() as sess:
+            assert "oauth_return_url" not in sess
+
+    def test_callback_uses_stored_return_url(self, google_client, google_webapp_db):
+        """After SSO login, browser is sent to the stored return_url."""
+        import dracs.webapp as webapp_mod
+        from dracs.users import create_user
+
+        create_user("retuser", "pw", "user", created_by="test")
+
+        mock_flow = MagicMock()
+        mock_flow.fetch_token.return_value = None
+
+        with patch.object(webapp_mod, "GOOGLE_AUTH_ENABLED", True):
+            with google_client.session_transaction() as sess:
+                sess["google_oauth_state"] = "abc"
+                sess["oauth_return_url"] = "/console-quads?site=Default"
+            with patch("dracs.google_auth.make_flow", return_value=mock_flow):
+                with patch(
+                    "dracs.google_auth.get_verified_email",
+                    return_value="retuser@example.com",
+                ):
+                    resp = google_client.get("/auth/google/callback?state=abc&code=y")
+        assert resp.status_code == 302
+        assert "/console-quads" in resp.headers["Location"]
+
 
 class TestAuthGoogleCallbackRoute:
     def _mock_flow(self):
