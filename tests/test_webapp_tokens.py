@@ -406,10 +406,33 @@ class TestChangePassword:
             sess["sso_login"] = True
         resp = client.post(
             "/api/change-password",
-            data=json.dumps({}),
+            data=json.dumps({"new_password": ""}),
             content_type="application/json",
         )
         assert resp.status_code == 400
+        assert resp.get_json()["message"] == "New password is required"
+
+    def test_change_password_validation_error(self, client, webapp_db):
+        create_user("ssouser3", "randompw", "user")
+        with client.session_transaction() as sess:
+            sess["authenticated"] = True
+            sess["username"] = "ssouser3"
+            sess["role"] = "user"
+            sess["is_superadmin"] = False
+            sess["sso_login"] = True
+        from dracs.exceptions import ValidationError
+
+        with patch(
+            "dracs.webapp.update_user_password",
+            side_effect=ValidationError("password too short"),
+        ):
+            resp = client.post(
+                "/api/change-password",
+                data=json.dumps({"new_password": "x"}),
+                content_type="application/json",
+            )
+        assert resp.status_code == 400
+        assert "password too short" in resp.get_json()["message"]
 
 
 class TestTokenLoginEdgeCases:
