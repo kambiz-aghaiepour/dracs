@@ -692,6 +692,19 @@ def index():
                 else:
                     systems_data = [s for s in systems_data if s["name"] in allowed]
 
+    site_quads_enabled = False
+    if is_authenticated and site_id is not None:
+        from dracs.sites import get_site_ini_config
+
+        _qcfg = get_site_ini_config(site_name)
+        _qon = _qcfg["defaults"].get("quads_enabled", "false").lower() in (
+            "true",
+            "1",
+            "yes",
+        )
+        _qurl = _qcfg["defaults"].get("quads_url", "").strip()
+        site_quads_enabled = _qon and bool(_qurl)
+
     all_sites = [s["name"] for s in list_sites()]
 
     return render_template(
@@ -719,6 +732,7 @@ def index():
         quads_empty=quads_empty,
         google_auth_enabled=GOOGLE_AUTH_ENABLED,
         is_sso_login=is_sso_login,
+        site_quads_enabled=site_quads_enabled,
     )
 
 
@@ -901,6 +915,10 @@ def auth_google():
         return redirect(url_for("index"))
     from dracs.google_auth import make_flow
 
+    return_url = request.args.get("return_url", "")
+    if return_url and return_url.startswith("/"):
+        session["oauth_return_url"] = return_url
+
     state = secrets.token_hex(16)
     session["google_oauth_state"] = state
     redirect_uri = url_for("auth_google_callback", _external=True)
@@ -969,7 +987,8 @@ def auth_google_callback():
     session["is_superadmin"] = False
     session["sso_login"] = True
     audit_log("login", user=email, source=_client_ip())
-    return redirect(url_for("index"))
+    return_url = session.pop("oauth_return_url", "") or url_for("index")
+    return redirect(return_url)
 
 
 @app.route("/api/auth-status")
@@ -3342,6 +3361,111 @@ def api_sites_quads_verify(name):
         return jsonify({"success": False, "message": f"QUADS unreachable: {e}"})
 
 
+@app.route("/api/sites/<name>/quads-schedules")
+def api_sites_quads_schedules(name):
+    """Fetch current QUADS allocations filtered by role and DRACS host membership."""
+    user, err = _require_auth()
+    if err:
+        return err
+
+    from dracs.db import get_site_by_name
+    from dracs.sites import get_site_ini_config
+    from dracs.users import get_user_role_for_site
+
+    site = get_site_by_name(name)
+    if site is None:
+        return jsonify({"success": False, "message": "Site not found"}), 404
+    site_id = site["id"]
+
+    cfg = get_site_ini_config(name)
+    quads_enabled = cfg["defaults"].get("quads_enabled", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    quads_url = cfg["defaults"].get("quads_url", "").rstrip("/")
+    if not quads_enabled or not quads_url:
+        return (
+            jsonify({"success": False, "message": "QUADS not enabled for this site"}),
+            400,
+        )
+
+    is_super = session.get("is_superadmin", False)
+    if is_super:
+        site_role = "admin"
+    else:
+        site_role = get_user_role_for_site(user, site_id)
+        if site_role not in ("admin", "user", "quads"):
+            return jsonify({"success": False, "message": "Access denied"}), 403
+
+    quads_api_url = f"{quads_url}/api/v3/schedules/current"
+    try:
+        req = urllib.request.Request(
+            quads_api_url, headers={"User-Agent": "dracs-webapp/1.0"}
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:  # nosec
+            schedules = json.loads(resp.read().decode())
+    except Exception as e:
+        return (
+            jsonify({"success": False, "message": f"Failed to fetch QUADS data: {e}"}),
+            502,
+        )
+
+    with get_session() as db_sess:
+        dracs_hosts = frozenset(
+            s.name
+            for s in db_sess.query(System)
+            .filter(
+                System.site_id == site_id,
+                System.name.isnot(None),
+            )
+            .all()
+        )
+
+    is_quads_only = site_role == "quads"
+    clouds = {}
+    for sched in schedules:
+        assignment = sched.get("assignment")
+        host_obj = sched.get("host")
+        if not assignment or not host_obj:
+            continue
+        cloud_obj = assignment.get("cloud") or {}
+        cloud_name = cloud_obj.get("name")
+        hostname = host_obj.get("name")
+        if not cloud_name or not hostname:
+            continue
+        if is_quads_only:
+            owner = assignment.get("owner", "")
+            ccuser = assignment.get("ccuser") or []
+            if owner != user and user not in ccuser:
+                continue
+        if hostname not in dracs_hosts:
+            continue
+        if cloud_name not in clouds:
+            clouds[cloud_name] = {
+                "cloud": cloud_name,
+                "description": assignment.get("description", ""),
+                "hosts": [],
+            }
+        clouds[cloud_name]["hosts"].append(hostname)
+
+    allocations = sorted(
+        [
+            {
+                "cloud": info["cloud"],
+                "description": info["description"],
+                "host_count": len(info["hosts"]),
+                "hosts": sorted(info["hosts"]),
+            }
+            for info in clouds.values()
+            if info["hosts"]
+        ],
+        key=lambda x: x["cloud"],
+    )
+
+    return jsonify({"success": True, "allocations": allocations})
+
+
 @app.route("/api/sites/<name>/set-primary", methods=["PUT"])
 def api_sites_set_primary(name):
     """Promote a site to primary (superadmin only)."""
@@ -3555,6 +3679,29 @@ def console_multi():
                 400,
             )
     return render_template("console_multi.html", hostnames=hostnames)
+
+
+@app.route("/console-quads")
+def console_quads():
+    """QUADS multi-console viewer — allocations-based tiled VNC grid."""
+    if not VNC_ENABLE or vnc_manager is None:
+        return (
+            jsonify({"success": False, "message": "VNC console is not enabled"}),
+            404,
+        )
+    site_name_param = request.args.get("site", "").strip()
+    cloud_param = request.args.get("cloud", "").strip()
+    is_authenticated = session.get("authenticated", False) or session.get(
+        "is_superadmin", False
+    )
+    return render_template(
+        "console_quads.html",
+        site_name=site_name_param,
+        cloud=cloud_param,
+        authenticated=is_authenticated,
+        google_auth_enabled=GOOGLE_AUTH_ENABLED,
+        is_sso_login=session.get("sso_login", False),
+    )
 
 
 @app.route("/console-connect")

@@ -901,3 +901,267 @@ class TestQuadsVerifyEndpoint:
         data = resp.get_json()
         assert data["success"] is False
         assert "Superadmin required" in data["message"]
+
+
+# ---------------------------------------------------------------------------
+# Tests for GET /api/sites/<name>/quads-schedules
+# ---------------------------------------------------------------------------
+
+
+class TestQuadsSchedulesEndpoint:
+    """Tests for GET /api/sites/<name>/quads-schedules."""
+
+    def _make_quads_resp(self, schedules):
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(schedules).encode()
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        return mock_resp
+
+    def _sample_schedules(self):
+        return [
+            {
+                "host": {"name": "host1"},
+                "assignment": {
+                    "cloud": {"name": "cloud01"},
+                    "description": "Test cloud",
+                    "owner": "alice",
+                    "ccuser": [],
+                },
+            },
+            {
+                "host": {"name": "host2"},
+                "assignment": {
+                    "cloud": {"name": "cloud01"},
+                    "description": "Test cloud",
+                    "owner": "alice",
+                    "ccuser": [],
+                },
+            },
+        ]
+
+    def test_schedules_unauthenticated(self, quads_client):
+        resp = quads_client.get("/api/sites/Default/quads-schedules")
+        assert resp.status_code == 401
+
+    def test_schedules_site_not_found(self, quads_client, quads_webapp_db):
+        _create_role_user(quads_webapp_db)
+        _login(quads_client, "roleuser", "pass123")
+        resp = quads_client.get("/api/sites/NoSuchSite/quads-schedules")
+        assert resp.status_code == 404
+        assert resp.get_json()["success"] is False
+
+    def test_schedules_quads_not_enabled(self, quads_client, quads_webapp_db):
+        """Returns 400 when site has QUADS disabled."""
+        _create_role_user(quads_webapp_db)
+        _login(quads_client, "roleuser", "pass123")
+        with patch(
+            "dracs.sites.get_site_ini_config",
+            return_value=_QUADS_DISABLED_INI_CONFIG,
+        ):
+            resp = quads_client.get("/api/sites/Default/quads-schedules")
+        assert resp.status_code == 400
+        data = resp.get_json()
+        assert data["success"] is False
+        assert "QUADS not enabled" in data["message"]
+
+    def test_schedules_access_denied_no_site_role(self, quads_client, quads_webapp_db):
+        """User without a site role gets 403."""
+        from dracs.users import create_user
+
+        try:
+            create_user("noroleuser", "pass123", "user")
+        except Exception:
+            pass
+        _login(quads_client, "noroleuser", "pass123")
+        resp = quads_client.get("/api/sites/Default/quads-schedules")
+        assert resp.status_code == 403
+        assert resp.get_json()["success"] is False
+
+    def test_schedules_user_role_success(self, quads_client, quads_webapp_db):
+        """Site-role 'user' sees all allocations for DRACS-known hosts."""
+        _create_role_user(quads_webapp_db)
+        _login(quads_client, "roleuser", "pass123")
+        with patch(
+            "urllib.request.urlopen",
+            return_value=self._make_quads_resp(self._sample_schedules()),
+        ):
+            resp = quads_client.get("/api/sites/Default/quads-schedules")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["success"] is True
+        assert len(data["allocations"]) == 1
+        alloc = data["allocations"][0]
+        assert alloc["cloud"] == "cloud01"
+        assert alloc["host_count"] == 2
+        assert sorted(alloc["hosts"]) == ["host1", "host2"]
+
+    def test_schedules_quads_api_failure(self, quads_client, quads_webapp_db):
+        """QUADS API unreachable returns 502."""
+        _create_role_user(quads_webapp_db)
+        _login(quads_client, "roleuser", "pass123")
+        with patch("urllib.request.urlopen", side_effect=OSError("connection refused")):
+            resp = quads_client.get("/api/sites/Default/quads-schedules")
+        assert resp.status_code == 502
+        data = resp.get_json()
+        assert data["success"] is False
+        assert "Failed to fetch" in data["message"]
+
+    def test_schedules_quads_role_sees_only_own_clouds(
+        self, quads_client, quads_webapp_db
+    ):
+        """User with site role 'quads' sees only allocations they own or are cc'd on."""
+        _create_quads_role_user(quads_webapp_db, username="qowner", password="pass123")
+        _login(quads_client, "qowner", "pass123")
+        schedules = [
+            {
+                "host": {"name": "host1"},
+                "assignment": {
+                    "cloud": {"name": "cloud01"},
+                    "description": "My cloud",
+                    "owner": "qowner",
+                    "ccuser": [],
+                },
+            },
+            {
+                "host": {"name": "host2"},
+                "assignment": {
+                    "cloud": {"name": "cloud02"},
+                    "description": "Other cloud",
+                    "owner": "someoneelse",
+                    "ccuser": [],
+                },
+            },
+        ]
+        with patch(
+            "urllib.request.urlopen", return_value=self._make_quads_resp(schedules)
+        ):
+            resp = quads_client.get("/api/sites/Default/quads-schedules")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["success"] is True
+        clouds = [a["cloud"] for a in data["allocations"]]
+        assert "cloud01" in clouds
+        assert "cloud02" not in clouds
+
+    def test_schedules_quads_role_ccuser_included(self, quads_client, quads_webapp_db):
+        """User listed in ccuser can see that cloud even when not the owner."""
+        _create_quads_role_user(quads_webapp_db, username="ccuserq", password="pass123")
+        _login(quads_client, "ccuserq", "pass123")
+        schedules = [
+            {
+                "host": {"name": "host1"},
+                "assignment": {
+                    "cloud": {"name": "cloud03"},
+                    "description": "CC cloud",
+                    "owner": "someoneelse",
+                    "ccuser": ["ccuserq"],
+                },
+            },
+        ]
+        with patch(
+            "urllib.request.urlopen", return_value=self._make_quads_resp(schedules)
+        ):
+            resp = quads_client.get("/api/sites/Default/quads-schedules")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        clouds = [a["cloud"] for a in data["allocations"]]
+        assert "cloud03" in clouds
+
+    def test_schedules_superadmin_sees_all(self, quads_client, quads_webapp_db):
+        """Superadmin sees all allocations regardless of ownership."""
+        with patch.dict(
+            os.environ, {"WEBADMIN_USER": "admin", "WEBADMIN_PASSWORD": "admin"}
+        ):
+            _superadmin_login(quads_client)
+        with patch(
+            "urllib.request.urlopen",
+            return_value=self._make_quads_resp(self._sample_schedules()),
+        ):
+            resp = quads_client.get("/api/sites/Default/quads-schedules")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["success"] is True
+        assert len(data["allocations"]) == 1
+
+    def test_schedules_skips_non_dracs_hosts(self, quads_client, quads_webapp_db):
+        """Hosts not in DRACS are excluded; empty allocations are omitted."""
+        _create_role_user(quads_webapp_db)
+        _login(quads_client, "roleuser", "pass123")
+        schedules = [
+            {
+                "host": {"name": "unknown-host"},
+                "assignment": {
+                    "cloud": {"name": "cloud01"},
+                    "description": "Cloud",
+                    "owner": "alice",
+                    "ccuser": [],
+                },
+            },
+        ]
+        with patch(
+            "urllib.request.urlopen", return_value=self._make_quads_resp(schedules)
+        ):
+            resp = quads_client.get("/api/sites/Default/quads-schedules")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["success"] is True
+        assert len(data["allocations"]) == 0
+
+    def test_schedules_skips_malformed_entries(self, quads_client, quads_webapp_db):
+        """Schedule entries with missing host/assignment fields are ignored."""
+        _create_role_user(quads_webapp_db)
+        _login(quads_client, "roleuser", "pass123")
+        schedules = [
+            {"host": None, "assignment": None},
+            {"host": {"name": "host1"}},
+            {},
+            # Valid host+assignment but cloud dict has no "name" key → cloud_name=None
+            {
+                "host": {"name": "host1"},
+                "assignment": {"cloud": {}, "owner": "alice", "ccuser": []},
+            },
+        ]
+        with patch(
+            "urllib.request.urlopen", return_value=self._make_quads_resp(schedules)
+        ):
+            resp = quads_client.get("/api/sites/Default/quads-schedules")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["success"] is True
+        assert len(data["allocations"]) == 0
+
+
+# ---------------------------------------------------------------------------
+# Tests for GET /console-quads
+# ---------------------------------------------------------------------------
+
+
+class TestConsoleQuadsRoute:
+    def test_console_quads_vnc_disabled_returns_404(self, quads_client):
+        import dracs.webapp as webapp_mod
+
+        orig_enable, orig_manager = webapp_mod.VNC_ENABLE, webapp_mod.vnc_manager
+        webapp_mod.VNC_ENABLE = False
+        webapp_mod.vnc_manager = None
+        try:
+            resp = quads_client.get("/console-quads?site=Default")
+        finally:
+            webapp_mod.VNC_ENABLE = orig_enable
+            webapp_mod.vnc_manager = orig_manager
+        assert resp.status_code == 404
+        assert resp.get_json()["success"] is False
+
+    def test_console_quads_renders_page_when_vnc_enabled(self, quads_client):
+        import dracs.webapp as webapp_mod
+
+        orig_enable, orig_manager = webapp_mod.VNC_ENABLE, webapp_mod.vnc_manager
+        webapp_mod.VNC_ENABLE = True
+        webapp_mod.vnc_manager = MagicMock()
+        try:
+            resp = quads_client.get("/console-quads?site=Default&cloud=cloud01")
+        finally:
+            webapp_mod.VNC_ENABLE = orig_enable
+            webapp_mod.vnc_manager = orig_manager
+        assert resp.status_code == 200
+        assert b"QUADS Consoles" in resp.data
