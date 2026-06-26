@@ -378,6 +378,39 @@ class TestChangePassword:
         )
         assert resp.status_code == 400
 
+    def test_change_password_sso_user_no_current_password_required(
+        self, client, webapp_db
+    ):
+        create_user("ssouser", "randompw", "user")
+        with client.session_transaction() as sess:
+            sess["authenticated"] = True
+            sess["username"] = "ssouser"
+            sess["role"] = "user"
+            sess["is_superadmin"] = False
+            sess["sso_login"] = True
+        resp = client.post(
+            "/api/change-password",
+            data=json.dumps({"new_password": "newsecurepass"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        assert resp.get_json()["success"] is True
+
+    def test_change_password_sso_user_missing_new_password(self, client, webapp_db):
+        create_user("ssouser2", "randompw", "user")
+        with client.session_transaction() as sess:
+            sess["authenticated"] = True
+            sess["username"] = "ssouser2"
+            sess["role"] = "user"
+            sess["is_superadmin"] = False
+            sess["sso_login"] = True
+        resp = client.post(
+            "/api/change-password",
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
 
 class TestTokenLoginEdgeCases:
     def test_token_login_null_body(self, client):
