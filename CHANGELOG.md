@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.10.6 (2026-06-26)
+
+### Bug Fixes
+
+- Minor change on SSO Login button
+  ([`dd19ef9`](https://github.com/kambiz-aghaiepour/dracs/commit/dd19ef9346912e47533d9896136226225b8bc6ee))
+
+### Chores
+
+- Sync spec file version to 2.10.5 [skip ci]
+  ([`566e08e`](https://github.com/kambiz-aghaiepour/dracs/commit/566e08e549086d5b1806b11ad978d925f5aade27))
+
+
 ## v2.10.5 (2026-06-26)
 
 ### Bug Fixes
