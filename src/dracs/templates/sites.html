@@ -79,6 +79,10 @@
         .btn-eye:hover { background: #f0f0f0; color: #222; }
         .pw-field-wrap { display: flex; gap: 4px; align-items: center; }
         .pw-field-wrap input { flex: 1; }
+        .drag-handle { width: 28px; text-align: center; cursor: grab; color: #aaa; font-size: 1.1em; user-select: none; }
+        .drag-handle:active { cursor: grabbing; }
+        tr.dragging { opacity: 0.4; }
+        tr.drag-over td { border-top: 2px solid #1976d2; }
 
         /* Dark Theme */
         body.dark-theme { background-color: #1a1a1a; }
@@ -99,6 +103,8 @@
         body.dark-theme .btn-secondary:hover { background: #666; }
         body.dark-theme .btn-eye { border-color: #555; color: #b0b0b0; }
         body.dark-theme .btn-eye:hover { background: #4a4a4a; color: #e0e0e0; }
+        body.dark-theme .drag-handle { color: #666; }
+        body.dark-theme tr.drag-over td { border-top-color: #2a6ba8; }
         body.dark-theme .btn-primary { background: #1e5a8e; }
         body.dark-theme .btn-primary:hover { background: #2a6ba8; }
         body.dark-theme .btn-danger { background: #c62828; }
@@ -134,6 +140,7 @@
                     <th>Site Name</th>
                     <th>Hosts</th>
                     <th>Primary</th>
+                    <th style="width:28px;"></th>
                 </tr>
             </thead>
             <tbody id="site-table-body"></tbody>
@@ -142,6 +149,7 @@
             <button class="btn btn-primary" onclick="showAddModal()">Add</button>
             <button class="btn btn-secondary" id="btn-rename" disabled onclick="showRenameModal()">Rename</button>
             <button class="btn btn-secondary" id="btn-manage" disabled onclick="showManagePanel()">Manage</button>
+            <button class="btn btn-secondary" id="btn-set-primary" disabled onclick="setAsPrimary()">Set as Primary</button>
             <button class="btn btn-danger" id="btn-remove" disabled onclick="showRemoveModal()">Remove</button>
         </div>
 
@@ -307,11 +315,67 @@
                 r.classList.toggle('selected', r.dataset.name === name);
             });
             const hasSel = !!selectedSite;
-            const canRemove = hasSel && !selectedSite.is_primary;
+            const canRemove = hasSel && !selectedSite.is_primary && selectedSite.host_count === 0;
+            const canSetPrimary = hasSel && !selectedSite.is_primary;
             document.getElementById('btn-rename').disabled = !hasSel;
             document.getElementById('btn-manage').disabled = !hasSel;
             document.getElementById('btn-remove').disabled = !canRemove;
+            const spBtn = document.getElementById('btn-set-primary');
+            spBtn.disabled = !canSetPrimary;
+            spBtn.className = 'btn ' + (canSetPrimary ? 'btn-primary' : 'btn-secondary');
             hideManagePanel();
+        }
+
+        let draggedRow = null;
+
+        function onDragStart(e) {
+            draggedRow = this;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', this.dataset.name);
+            setTimeout(() => this.classList.add('dragging'), 0);
+        }
+        function onDragOver(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            if (this !== draggedRow) this.classList.add('drag-over');
+        }
+        function onDragLeave() { this.classList.remove('drag-over'); }
+        function onDrop(e) {
+            e.preventDefault();
+            this.classList.remove('drag-over');
+            if (this === draggedRow) return;
+            const tbody = document.getElementById('site-table-body');
+            const rows = [...tbody.querySelectorAll('tr')];
+            const draggedIdx = rows.indexOf(draggedRow);
+            const targetIdx = rows.indexOf(this);
+            tbody.insertBefore(draggedRow, draggedIdx < targetIdx ? this.nextSibling : this);
+            saveOrder();
+        }
+        function onDragEnd() {
+            this.classList.remove('dragging');
+            document.querySelectorAll('#site-table-body tr').forEach(r => r.classList.remove('drag-over'));
+            draggedRow = null;
+        }
+
+        async function saveOrder() {
+            const tbody = document.getElementById('site-table-body');
+            const orderedIds = [...tbody.querySelectorAll('tr')]
+                .map(r => { const s = sites.find(x => x.name === r.dataset.name); return s ? s.id : null; })
+                .filter(id => id !== null);
+            const resp = await fetch('/api/sites/reorder', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({site_ids: orderedIds})
+            });
+            const data = await resp.json();
+            if (!data.success) {
+                showNotification('Failed to save order', 'error');
+                loadSites();
+            } else {
+                // keep in-memory array in sync with new display order
+                const nameOrder = [...document.getElementById('site-table-body').querySelectorAll('tr')].map(r => r.dataset.name);
+                sites = nameOrder.map(n => sites.find(s => s.name === n)).filter(Boolean);
+            }
         }
 
         async function loadSites() {
@@ -325,18 +389,27 @@
                 const tr = document.createElement('tr');
                 tr.className = 'selectable';
                 tr.dataset.name = s.name;
+                tr.draggable = true;
+                tr.addEventListener('dragstart', onDragStart);
+                tr.addEventListener('dragover', onDragOver);
+                tr.addEventListener('dragleave', onDragLeave);
+                tr.addEventListener('drop', onDrop);
+                tr.addEventListener('dragend', onDragEnd);
                 tr.onclick = () => selectSite(s.name);
                 const primaryBadge = s.is_primary ? '<span class="primary-tag">Primary</span>' : '';
                 tr.innerHTML = `
                     <td>${s.name} ${primaryBadge}</td>
                     <td>${s.host_count}</td>
                     <td>${s.is_primary ? 'Yes' : 'No'}</td>
+                    <td class="drag-handle" title="Drag to reorder">⠿</td>
                 `;
                 tbody.appendChild(tr);
             });
             selectedSite = null;
             document.getElementById('btn-rename').disabled = true;
             document.getElementById('btn-manage').disabled = true;
+            document.getElementById('btn-set-primary').disabled = true;
+            document.getElementById('btn-set-primary').className = 'btn btn-secondary';
             document.getElementById('btn-remove').disabled = true;
         }
 
@@ -406,6 +479,21 @@
                 closeModal('remove-modal');
                 loadSites();
                 showNotification('Site removed', 'success');
+            } else {
+                showNotification(data.message, 'error');
+            }
+        }
+
+        // Set as Primary
+        async function setAsPrimary() {
+            if (!selectedSite || selectedSite.is_primary) return;
+            const resp = await fetch('/api/sites/' + encodeURIComponent(selectedSite.name) + '/set-primary', {
+                method: 'PUT'
+            });
+            const data = await resp.json();
+            if (data.success) {
+                loadSites();
+                showNotification(data.message, 'success');
             } else {
                 showNotification(data.message, 'error');
             }

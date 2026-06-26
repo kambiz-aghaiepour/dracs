@@ -33,6 +33,9 @@ class Site(Base):
     name: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     is_primary: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[str] = mapped_column(String, nullable=False)
+    sort_order: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True, default=None
+    )
 
 
 class System(Base):
@@ -164,6 +167,13 @@ def _migrate_schema(engine) -> None:
                 conn.execute(text("INSERT INTO users_new SELECT * FROM users"))
                 conn.execute(text("DROP TABLE users"))
                 conn.execute(text("ALTER TABLE users_new RENAME TO users"))
+
+    if "sites" in tables:
+        site_cols = {c["name"] for c in inspector.get_columns("sites")}
+        if "sort_order" not in site_cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE sites ADD COLUMN sort_order INTEGER"))
+                conn.execute(text("UPDATE sites SET sort_order = id"))
 
 
 def _grandfather_sites(engine) -> None:
@@ -326,7 +336,7 @@ def list_sites() -> list:
             )
             .outerjoin(System, System.site_id == Site.id)
             .group_by(Site.id)
-            .order_by(Site.id)
+            .order_by(func.coalesce(Site.sort_order, Site.id))
             .all()
         )
         return [
@@ -342,11 +352,15 @@ def list_sites() -> list:
 
 
 def create_site(name: str) -> dict:
+    from sqlalchemy import func as _func
+
     with get_session() as session:
+        max_order = session.query(_func.max(Site.sort_order)).scalar() or 0
         site = Site(
             name=name,
             is_primary=False,
             created_at=datetime.now().isoformat(),
+            sort_order=max_order + 1,
         )
         session.add(site)
         session.commit()
@@ -385,3 +399,25 @@ def rename_site(site_id: int, new_name: str) -> bool:
         site.name = new_name
         session.commit()
         return True
+
+
+def set_primary_site(site_id: int) -> bool:
+    with get_session() as session:
+        site = session.get(Site, site_id)
+        if site is None:
+            return False
+        session.query(Site).filter(Site.is_primary == True).update(  # noqa: E712
+            {"is_primary": False}
+        )
+        site.is_primary = True
+        session.commit()
+        return True
+
+
+def reorder_sites(ordered_ids: list) -> None:
+    with get_session() as session:
+        for position, site_id in enumerate(ordered_ids):
+            session.query(Site).filter(Site.id == site_id).update(
+                {"sort_order": position}
+            )
+        session.commit()

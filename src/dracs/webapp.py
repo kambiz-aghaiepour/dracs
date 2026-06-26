@@ -3342,6 +3342,59 @@ def api_sites_quads_verify(name):
         return jsonify({"success": False, "message": f"QUADS unreachable: {e}"})
 
 
+@app.route("/api/sites/<name>/set-primary", methods=["PUT"])
+def api_sites_set_primary(name):
+    """Promote a site to primary (superadmin only)."""
+    try:
+        user, err = _require_auth(required_role="admin")
+        if err:
+            return err
+        if not session.get("is_superadmin", False):
+            return jsonify({"success": False, "message": "Superadmin required"}), 403
+
+        from dracs.db import get_site_by_name, set_primary_site
+
+        site = get_site_by_name(name)
+        if site is None:
+            return jsonify({"success": False, "message": "Site not found"}), 404
+        if site["is_primary"]:
+            return (
+                jsonify({"success": False, "message": "Site is already primary"}),
+                400,
+            )
+
+        set_primary_site(site["id"])
+        audit_log("site_set_primary", target=name, user=user, source=_client_ip())
+        return jsonify(
+            {"success": True, "message": f"'{name}' is now the primary site"}
+        )
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route("/api/sites/reorder", methods=["POST"])
+def api_sites_reorder():
+    """Persist a new display order for all sites (superadmin only)."""
+    try:
+        user, err = _require_auth(required_role="admin")
+        if err:
+            return err
+        if not session.get("is_superadmin", False):
+            return jsonify({"success": False, "message": "Superadmin required"}), 403
+
+        data = request.get_json()
+        if not data or not isinstance(data.get("site_ids"), list):
+            return jsonify({"success": False, "message": "site_ids list required"}), 400
+
+        from dracs.db import reorder_sites
+
+        reorder_sites(data["site_ids"])
+        audit_log("site_reorder", user=user, source=_client_ip())
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
 @app.route("/api/vnc-session", methods=["POST"])
 def api_vnc_session_create():
     """Create a VNC console session for a host."""
