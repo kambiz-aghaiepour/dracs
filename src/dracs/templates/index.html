@@ -1523,6 +1523,9 @@
                 </div>
             </div>
             <div class="auth-section">
+                {% if is_authenticated and site_quads_enabled and vnc_enabled %}
+                <button onclick="openQuadsConsoles()" style="margin-right: 6px; padding: 4px 10px; border-radius: 4px; border: 1px solid #4a8a4a; background: #2d4a2d; color: #90c090; cursor: pointer; font-size: 12px;">QUADS Consoles</button>
+                {% endif %}
                 <select id="site-select" onchange="switchSite(this.value)" style="margin-right: 4px; padding: 4px 8px; border-radius: 4px; border: 1px solid #ccc;">
                     {% for site in all_sites %}
                     <option value="{{ site }}" {% if site == current_site %}selected{% endif %}>{{ site | replace('_', ' ') }}</option>
@@ -2331,6 +2334,12 @@
             const url = new URL(window.location);
             url.searchParams.set('site', siteName);
             window.location.href = url.toString();
+        }
+        function openQuadsConsoles() {
+            window.open(
+                '/console-quads?site=' + encodeURIComponent({{ current_site | tojson }}),
+                '_blank'
+            );
         }
         // Authentication and admin functionality
         let isAuthenticated = {{ 'true' if is_authenticated else 'false' }};

@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>QUADS Consoles{% if site_name %} – {{ site_name }}{% endif %}</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='images/dracs.svg') }}">
+    <meta name="theme-color" content="#313131">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html, body {
+            height: 100%;
+            background: #1a1a1a;
+            color: #ccc;
+            font-family: monospace;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        #mc-toolbar {
+            background: #2d2d2d;
+            border-bottom: 1px solid #444;
+            padding: 5px 8px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            flex-shrink: 0;
+            font-size: 12px;
+        }
+
+        .mc-label { color: #888; white-space: nowrap; }
+        .mc-sep { color: #555; padding: 0 3px; }
+
+        .mc-show-btn {
+            background: #2d4a2d;
+            border: 1px solid #4a7a4a;
+            color: #90c090;
+            padding: 2px 8px;
+            cursor: pointer;
+            font-family: monospace;
+            font-size: 12px;
+            border-radius: 3px;
+        }
+        .mc-show-btn:hover { background: #3a5a3a; }
+        .mc-show-btn:disabled { opacity: 0.5; cursor: default; }
+
+        .mc-col-btn {
+            background: #333;
+            border: 1px solid #555;
+            color: #999;
+            padding: 2px 6px;
+            cursor: pointer;
+            font-family: monospace;
+            font-size: 12px;
+            border-radius: 3px;
+        }
+        .mc-col-btn:hover { background: #444; color: #fff; }
+        .mc-col-btn.active { background: #555; color: #fff; border-color: #777; }
+
+        #quads-alloc-select {
+            background: #333;
+            border: 1px solid #555;
+            color: #ccc;
+            padding: 2px 6px;
+            font-family: monospace;
+            font-size: 12px;
+            border-radius: 3px;
+            max-width: 360px;
+        }
+
+        #mc-main {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        #mc-grid-wrap {
+            flex: 1;
+            overflow: auto;
+            padding: 4px;
+            min-height: 0;
+        }
+
+        #mc-grid {
+            display: grid;
+            gap: 4px;
+        }
+
+        .mc-cell {
+            display: flex;
+            flex-direction: column;
+            background: #111;
+            border: 1px solid #444;
+            overflow: hidden;
+            resize: both;
+            min-width: 200px;
+            min-height: 150px;
+        }
+
+        .mc-cell-hdr {
+            background: #2d2d2d;
+            border-bottom: 1px solid #444;
+            padding: 3px 4px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            flex-shrink: 0;
+            font-size: 11px;
+        }
+
+        .mc-cell-hdr-title {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: #aaa;
+            font-size: 11px;
+        }
+
+        .mc-max-btn, .mc-popout-btn, .mc-close-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 1px 3px;
+            opacity: 0.6;
+            line-height: 1;
+        }
+        .mc-max-btn:hover, .mc-popout-btn:hover, .mc-close-btn:hover { opacity: 1; }
+        .mc-max-btn:disabled, .mc-popout-btn:disabled, .mc-close-btn:disabled { opacity: 0.3; cursor: default; }
+
+        .mc-cell-body {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .mc-cell-body iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+        }
+
+        .mc-cell-msg {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            color: #666;
+            font-size: 12px;
+        }
+
+        .mc-cell-msg.mc-error { color: #c66; }
+
+        .mc-spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid #333;
+            border-top-color: #666;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Host panel (right sidebar) */
+        #qc-host-panel {
+            width: 220px;
+            min-width: 220px;
+            background: #252525;
+            border-left: 1px solid #444;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        #qc-panel-header {
+            padding: 5px 8px;
+            background: #2d2d2d;
+            border-bottom: 1px solid #444;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 11px;
+            color: #aaa;
+            flex-shrink: 0;
+        }
+
+        #qc-panel-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        #qc-panel-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .qc-host-item {
+            padding: 4px 10px;
+            font-size: 11px;
+            color: #888;
+            cursor: pointer;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .qc-host-item:hover { background: #333; color: #bbb; }
+        .qc-host-item.selected { background: #2d5a2d; color: #ddd; }
+        .qc-host-item.selected:hover { background: #3a6a3a; }
+        .qc-host-item.at-max { color: #555; cursor: not-allowed; }
+        .qc-host-item.at-max:hover { background: transparent; color: #555; }
+
+        #qc-panel-empty {
+            padding: 16px 10px;
+            color: #555;
+            font-size: 11px;
+            text-align: center;
+        }
+
+        #qc-panel-max-notice {
+            padding: 4px 10px;
+            background: #3a2a0a;
+            color: #c8a060;
+            font-size: 10px;
+            border-bottom: 1px solid #5a4a20;
+            display: none;
+        }
+
+        /* Host selection modal */
+        #mc-host-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #mc-host-panel-modal {
+            background: #2d2d2d;
+            border: 1px solid #555;
+            padding: 16px;
+            min-width: 320px;
+            max-width: 480px;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            border-radius: 3px;
+        }
+
+        .mc-modal-title { color: #ccc; font-size: 13px; }
+
+        #mc-host-list {
+            overflow-y: auto;
+            max-height: 50vh;
+            border: 1px solid #444;
+        }
+
+        .mc-modal-item {
+            padding: 5px 10px;
+            cursor: pointer;
+            font-size: 12px;
+            color: #999;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .mc-modal-item:hover { background: #252525; }
+        .mc-modal-item.mc-modal-sel { background: #2d6a2d; color: #ddd; }
+        .mc-modal-item.mc-modal-sel:hover { background: #3a7a3a; }
+
+        .mc-modal-hint { color: #555; font-size: 10px; }
+
+        .mc-modal-btns { display: flex; gap: 8px; justify-content: flex-end; }
+
+        .mc-modal-btn {
+            background: #444;
+            border: 1px solid #666;
+            color: #ccc;
+            padding: 4px 14px;
+            cursor: pointer;
+            font-family: monospace;
+            font-size: 12px;
+            border-radius: 3px;
+        }
+        .mc-modal-btn:hover { background: #555; }
+        .mc-modal-btn.mc-modal-apply { background: #2d5a2d; border-color: #4a7a4a; color: #90c090; }
+        .mc-modal-btn.mc-modal-apply:hover { background: #3a6a3a; }
+        .mc-modal-btn:disabled { opacity: 0.4; cursor: default; }
+
+        /* Login overlay */
+        #login-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 9000;
+            background: #1a1a1a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #login-box {
+            background: #2d2d2d;
+            border: 1px solid #555;
+            padding: 24px;
+            min-width: 300px;
+            border-radius: 3px;
+        }
+
+        .login-box-title {
+            color: #ccc;
+            font-size: 14px;
+            margin-bottom: 16px;
+        }
+
+        .login-input {
+            width: 100%;
+            background: #1a1a1a;
+            border: 1px solid #555;
+            color: #ccc;
+            padding: 6px 8px;
+            font-family: monospace;
+            font-size: 12px;
+            margin-bottom: 8px;
+            border-radius: 3px;
+        }
+        .login-input:focus { outline: none; border-color: #888; }
+
+        .login-error { color: #f66; font-size: 11px; min-height: 16px; margin-bottom: 4px; }
+
+        .login-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
+
+        .login-btn {
+            background: #444;
+            border: 1px solid #666;
+            color: #ccc;
+            padding: 5px 14px;
+            cursor: pointer;
+            font-family: monospace;
+            font-size: 12px;
+            border-radius: 3px;
+        }
+        .login-btn:hover { background: #555; }
+        .login-btn-primary { background: #2d5a2d; border-color: #4a7a4a; color: #90c090; }
+        .login-btn-primary:hover { background: #3a6a3a; }
+
+        .login-desc { color: #888; font-size: 11px; margin-bottom: 14px; }
+
+        .login-choice-btns { display: flex; gap: 8px; justify-content: center; }
+    </style>
+</head>
+<body>
+
+{% if not authenticated %}
+<div id="login-overlay">
+    <div id="login-box">
+        <div class="login-box-title">DRACS QUADS Consoles – Login Required</div>
+        {% if google_auth_enabled %}
+        <div id="login-choice">
+            <div class="login-desc">Authentication required to access QUADS consoles.</div>
+            <div class="login-choice-btns">
+                <button class="login-btn login-btn-primary" onclick="doSSOLogin()">SSO Login</button>
+                <button class="login-btn" onclick="showLocalLogin()">Local Login</button>
+            </div>
+        </div>
+        <div id="login-local" style="display:none;">
+            <input class="login-input" type="text" id="login-user" placeholder="Username" autocomplete="username">
+            <input class="login-input" type="password" id="login-pass" placeholder="Password" autocomplete="current-password"
+                   onkeydown="if(event.key==='Enter')doLocalLogin()">
+            <div class="login-error" id="login-error"></div>
+            <div class="login-btns">
+                <button class="login-btn" onclick="showChoice()">Back</button>
+                <button class="login-btn login-btn-primary" onclick="doLocalLogin()">Login</button>
+            </div>
+        </div>
+        {% else %}
+        <input class="login-input" type="text" id="login-user" placeholder="Username" autocomplete="username">
+        <input class="login-input" type="password" id="login-pass" placeholder="Password" autocomplete="current-password"
+               onkeydown="if(event.key==='Enter')doLocalLogin()">
+        <div class="login-error" id="login-error"></div>
+        <div class="login-btns">
+            <button class="login-btn login-btn-primary" onclick="doLocalLogin()">Login</button>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<div id="mc-toolbar">
+    <span class="mc-label">Showing</span>
+    <button class="mc-show-btn" id="show-btn" onclick="openConsoleModal()" disabled>[ 0 / 0 ]</button>
+    <span class="mc-label">hosts</span>
+
+    <span class="mc-sep">|</span>
+    <span class="mc-label">Cols</span>
+    <button class="mc-col-btn" data-cols="1" onclick="setCols(1)">[ 1 ]</button>
+    <button class="mc-col-btn active" data-cols="2" onclick="setCols(2)">[ 2 ]</button>
+    <button class="mc-col-btn" data-cols="3" onclick="setCols(3)">[ 3 ]</button>
+    <button class="mc-col-btn" data-cols="4" onclick="setCols(4)">[ 4 ]</button>
+    <button class="mc-col-btn" data-cols="5" onclick="setCols(5)">[ 5 ]</button>
+
+    <span class="mc-sep">|</span>
+    <select id="quads-alloc-select" onchange="onAllocChange(this.value)">
+        <option value="">Loading allocations...</option>
+    </select>
+
+    <span style="flex:1;"></span>
+    <button class="mc-show-btn" id="toggle-panel-btn" onclick="toggleHostPanel()">&#9664; Hosts</button>
+</div>
+
+<div id="mc-main">
+    <div id="mc-grid-wrap">
+        <div id="mc-grid"></div>
+    </div>
+
+    <div id="qc-host-panel">
+        <div id="qc-panel-header">
+            <span id="qc-panel-title">Select a QUADS allocation</span>
+            <button class="mc-show-btn" style="padding:1px 6px;font-size:11px;" onclick="toggleHostPanel()">Hide &#9654;</button>
+        </div>
+        <div id="qc-panel-max-notice">Max 20 hosts selected – deselect to add more</div>
+        <div id="qc-panel-list">
+            <div id="qc-panel-empty">Select an allocation above to see hosts</div>
+        </div>
+    </div>
+</div>
+
+<div id="mc-host-modal">
+    <div id="mc-host-panel-modal">
+        <div class="mc-modal-title">Select hosts to display:</div>
+        <div id="mc-host-list"></div>
+        <div class="mc-modal-hint">Click to select &nbsp; Ctrl+click to toggle &nbsp; Shift+click to extend</div>
+        <div class="mc-modal-btns">
+            <button class="mc-modal-btn" onclick="cancelConsoleModal()">Cancel</button>
+            <button class="mc-modal-btn mc-modal-apply" id="mc-modal-apply-btn" onclick="applyConsoleModal()">Show Consoles</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    var SITE_NAME = {{ site_name | tojson }};
+    var INITIAL_CLOUD = {{ cloud | tojson }};
+    var EXPAND_SRC = "{{ url_for('static', filename='images/expand.png') }}";
+    var UNEXPAND_SRC = "{{ url_for('static', filename='images/unexpand.png') }}";
+
+    // Page state
+    var allocations = [];
+    var cloudHosts = [];
+    var selectedHosts = new Set();
+    var panelAnchor = null;
+    var displayedHosts = [];
+    var mcTokens = {};
+    var tileCount = 0;
+    var mcCols = 2;
+    var maximizedIdx = -1;
+    var hostPanelVisible = true;
+
+    // Modal state
+    var mcModalSelected = new Set();
+    var mcModalList = [];
+    var mcModalAnchor = null;
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    function escapeHtml(str) {
+        var d = document.createElement('div');
+        d.appendChild(document.createTextNode(str));
+        return d.innerHTML;
+    }
+
+    function shortHost(fqdn) {
+        return fqdn.split('.')[0];
+    }
+
+    // ── Login overlay ─────────────────────────────────────────────────────────
+
+    function doSSOLogin() {
+        window.location.href = '/auth/google?return_url=' + encodeURIComponent(window.location.href);
+    }
+
+    function showLocalLogin() {
+        document.getElementById('login-choice').style.display = 'none';
+        document.getElementById('login-local').style.display = '';
+        document.getElementById('login-user').focus();
+    }
+
+    function showChoice() {
+        document.getElementById('login-local').style.display = 'none';
+        document.getElementById('login-choice').style.display = '';
+    }
+
+    async function doLocalLogin() {
+        var user = (document.getElementById('login-user').value || '').trim();
+        var pass = document.getElementById('login-pass').value || '';
+        var errEl = document.getElementById('login-error');
+        errEl.textContent = '';
+        if (!user || !pass) { errEl.textContent = 'Username and password required'; return; }
+        try {
+            var resp = await fetch('/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username: user, password: pass})
+            });
+            var data = await resp.json();
+            if (data.success) {
+                document.getElementById('login-overlay').style.display = 'none';
+                initPage();
+            } else {
+                errEl.textContent = data.message || 'Login failed';
+            }
+        } catch (e) {
+            errEl.textContent = 'Network error';
+        }
+    }
+
+    // ── Host panel (right sidebar) ────────────────────────────────────────────
+
+    function toggleHostPanel() {
+        hostPanelVisible = !hostPanelVisible;
+        var panel = document.getElementById('qc-host-panel');
+        var btn = document.getElementById('toggle-panel-btn');
+        panel.style.display = hostPanelVisible ? '' : 'none';
+        btn.textContent = hostPanelVisible ? '◄ Hosts' : '► Hosts';
+        updateGrid();
+    }
+
+    function renderHostPanel() {
+        var listEl = document.getElementById('qc-panel-list');
+        listEl.innerHTML = '';
+
+        var title = document.getElementById('qc-panel-title');
+        var maxNotice = document.getElementById('qc-panel-max-notice');
+        var atMax = selectedHosts.size >= 20;
+
+        if (cloudHosts.length === 0) {
+            title.textContent = 'No hosts available';
+            maxNotice.style.display = 'none';
+            var empty = document.createElement('div');
+            empty.id = 'qc-panel-empty';
+            empty.textContent = 'No DRACS hosts in this allocation';
+            listEl.appendChild(empty);
+            return;
+        }
+
+        title.textContent = 'Hosts (' + selectedHosts.size + ' / ' + Math.min(cloudHosts.length, 20) + ' selected)';
+        maxNotice.style.display = atMax ? '' : 'none';
+
+        cloudHosts.forEach(function(hostname, i) {
+            var item = document.createElement('div');
+            var isSel = selectedHosts.has(hostname);
+            var isDisabled = atMax && !isSel;
+            item.className = 'qc-host-item' + (isSel ? ' selected' : '') + (isDisabled ? ' at-max' : '');
+            item.title = hostname;
+            item.textContent = hostname;
+            item.dataset.idx = String(i);
+            if (!isDisabled) {
+                item.addEventListener('click', function(e) { hostItemClick(hostname, i, e); });
+            }
+            listEl.appendChild(item);
+        });
+    }
+
+    function hostItemClick(hostname, idx, e) {
+        if (e.shiftKey && panelAnchor !== null) {
+            var anchorIdx = cloudHosts.indexOf(panelAnchor);
+            var lo = Math.min(anchorIdx, idx);
+            var hi = Math.max(anchorIdx, idx);
+            for (var i = lo; i <= hi; i++) {
+                if (selectedHosts.size < 20) {
+                    selectedHosts.add(cloudHosts[i]);
+                }
+            }
+        } else if (e.ctrlKey || e.metaKey) {
+            if (selectedHosts.has(hostname)) {
+                selectedHosts.delete(hostname);
+            } else if (selectedHosts.size < 20) {
+                selectedHosts.add(hostname);
+            }
+            panelAnchor = hostname;
+        } else {
+            if (selectedHosts.has(hostname) && selectedHosts.size === 1) {
+                selectedHosts.clear();
+                panelAnchor = null;
+            } else {
+                selectedHosts = new Set([hostname]);
+                panelAnchor = hostname;
+            }
+        }
+        renderHostPanel();
+        updateShowBtn();
+    }
+
+    // ── Toolbar ───────────────────────────────────────────────────────────────
+
+    function updateShowBtn() {
+        var btn = document.getElementById('show-btn');
+        btn.textContent = '[ ' + displayedHosts.length + ' / ' + selectedHosts.size + ' ]';
+        btn.disabled = selectedHosts.size === 0;
+    }
+
+    function setCols(n) {
+        mcCols = n;
+        document.querySelectorAll('.mc-col-btn').forEach(function(btn) {
+            btn.classList.toggle('active', parseInt(btn.dataset.cols) === n);
+        });
+        document.querySelectorAll('.mc-cell').forEach(function(cell) {
+            delete cell.dataset.userResized;
+            cell.style.width = '';
+            cell.style.height = '';
+        });
+        updateGrid();
+    }
+
+    function updateGrid() {
+        var grid = document.getElementById('mc-grid');
+        var cells = grid.querySelectorAll('.mc-cell');
+        grid.style.gridTemplateColumns = 'repeat(' + mcCols + ', 1fr)';
+        if (cells.length > 0) {
+            var wrapH = document.getElementById('mc-grid-wrap').clientHeight;
+            var rows = Math.ceil(cells.length / mcCols);
+            var gapTotal = (rows - 1) * 4 + 8;
+            var h = Math.max(180, Math.floor((wrapH - gapTotal) / rows));
+            cells.forEach(function(cell) {
+                if (!cell.dataset.userResized) {
+                    cell.style.height = h + 'px';
+                }
+            });
+        }
+    }
+
+    // ── QUADS allocation dropdown ──────────────────────────────────────────────
+
+    function renderAllocDropdown() {
+        var sel = document.getElementById('quads-alloc-select');
+        sel.innerHTML = '<option value="">QUADS Allocation...</option>';
+        allocations.forEach(function(a) {
+            var opt = document.createElement('option');
+            opt.value = a.cloud;
+            var label = a.cloud + '  (' + a.host_count + ')';
+            if (a.description) { label += '  ' + a.description; }
+            opt.textContent = label;
+            sel.appendChild(opt);
+        });
+    }
+
+    function onAllocChange(cloudName) {
+        var url = new URL(window.location.href);
+        if (cloudName) {
+            url.searchParams.set('cloud', cloudName);
+        } else {
+            url.searchParams.delete('cloud');
+        }
+        history.pushState({}, '', url.toString());
+
+        var alloc = allocations.find(function(a) { return a.cloud === cloudName; });
+        cloudHosts = alloc ? alloc.hosts : [];
+        selectedHosts = new Set();
+        panelAnchor = null;
+        renderHostPanel();
+        updateShowBtn();
+        if (!hostPanelVisible) { toggleHostPanel(); }
+    }
+
+    // ── Console tile creation ──────────────────────────────────────────────────
+
+    var resizeObs = null;
+
+    function addConsoleTile(hostname) {
+        var idx = tileCount++;
+        var grid = document.getElementById('mc-grid');
+
+        var cell = document.createElement('div');
+        cell.className = 'mc-cell';
+        cell.id = 'cell-' + idx;
+        cell.dataset.hostname = hostname;
+
+        // Header
+        var maxBtn = document.createElement('button');
+        maxBtn.className = 'mc-max-btn';
+        maxBtn.id = 'maxbtn-' + idx;
+        maxBtn.title = 'Maximize';
+        maxBtn.innerHTML = '<img src="' + EXPAND_SRC + '" alt="Expand" height="14">';
+        maxBtn.addEventListener('click', function() { toggleMaximize(idx); });
+
+        var titleSpan = document.createElement('span');
+        titleSpan.className = 'mc-cell-hdr-title';
+        titleSpan.title = hostname;
+        titleSpan.textContent = shortHost(hostname);
+
+        var popoutBtn = document.createElement('button');
+        popoutBtn.className = 'mc-popout-btn';
+        popoutBtn.id = 'popout-' + idx;
+        popoutBtn.disabled = true;
+        popoutBtn.title = 'Open in separate popup window';
+        popoutBtn.innerHTML = '<img src="{{ url_for("static", filename="images/popout.png") }}" alt="Popout" height="14">';
+        popoutBtn.addEventListener('click', function() { popoutConsole(hostname); });
+
+        var closeBtn = document.createElement('button');
+        closeBtn.className = 'mc-close-btn';
+        closeBtn.title = 'Close this console';
+        closeBtn.innerHTML = '<img src="{{ url_for("static", filename="images/close.png") }}" alt="Close" height="14">';
+        closeBtn.addEventListener('click', function() { closeTile(idx, hostname); });
+
+        var hdr = document.createElement('div');
+        hdr.className = 'mc-cell-hdr';
+        hdr.appendChild(maxBtn);
+        hdr.appendChild(titleSpan);
+        hdr.appendChild(popoutBtn);
+        hdr.appendChild(closeBtn);
+
+        // Body
+        var msg = document.createElement('div');
+        msg.className = 'mc-cell-msg';
+        msg.id = 'msg-' + idx;
+        msg.innerHTML = '<div class="mc-spinner"></div><div>Connecting...</div>';
+
+        var body = document.createElement('div');
+        body.className = 'mc-cell-body';
+        body.id = 'body-' + idx;
+        body.appendChild(msg);
+
+        cell.appendChild(hdr);
+        cell.appendChild(body);
+        grid.appendChild(cell);
+
+        if (resizeObs) { resizeObs.observe(cell); }
+        return idx;
+    }
+
+    function showConsole(idx, token) {
+        var body = document.getElementById('body-' + idx);
+        var msg = document.getElementById('msg-' + idx);
+        if (!body) return;
+        msg.style.display = 'none';
+        var iframe = document.createElement('iframe');
+        iframe.src = '/console/' + encodeURIComponent(token);
+        body.appendChild(iframe);
+        var popout = document.getElementById('popout-' + idx);
+        if (popout) { popout.disabled = false; }
+    }
+
+    function showError(idx, errMsg) {
+        var msg = document.getElementById('msg-' + idx);
+        if (!msg) return;
+        msg.classList.add('mc-error');
+        msg.innerHTML = '<div>' + escapeHtml(errMsg) + '</div>';
+    }
+
+    function createSession(hostname, idx) {
+        return fetch('/api/vnc-session', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({hostname: hostname})
+        })
+        .then(function(resp) { return resp.json(); })
+        .then(function(data) {
+            if (data.success) {
+                mcTokens[hostname] = data.token;
+                showConsole(idx, data.token);
+            } else {
+                showError(idx, data.message || 'Session creation failed');
+            }
+        })
+        .catch(function(e) {
+            showError(idx, e.message || 'Network error');
+        });
+    }
+
+    function findCellByHostname(hostname) {
+        return Array.from(document.querySelectorAll('.mc-cell')).find(function(c) {
+            return c.dataset.hostname === hostname;
+        });
+    }
+
+    function removeTile(hostname) {
+        var cell = findCellByHostname(hostname);
+        if (cell) {
+            var idx = parseInt(cell.id.replace('cell-', ''));
+            if (maximizedIdx === idx) { restoreCell(idx); }
+            if (resizeObs) { resizeObs.unobserve(cell); }
+            cell.remove();
+        }
+        var token = mcTokens[hostname];
+        if (token) {
+            fetch('/api/vnc-session/' + encodeURIComponent(token), {method: 'DELETE'});
+            delete mcTokens[hostname];
+        }
+        displayedHosts = displayedHosts.filter(function(h) { return h !== hostname; });
+    }
+
+    function closeTile(idx, hostname) {
+        removeTile(hostname);
+        updateShowBtn();
+        updateGrid();
+    }
+
+    // ── Console selection modal ────────────────────────────────────────────────
+
+    function openConsoleModal() {
+        if (selectedHosts.size === 0) return;
+        mcModalList = Array.from(selectedHosts).sort();
+        mcModalSelected = new Set(displayedHosts.filter(function(h) {
+            return selectedHosts.has(h);
+        }));
+        if (mcModalSelected.size === 0) {
+            mcModalSelected = new Set(mcModalList);
+        }
+        mcModalAnchor = null;
+
+        var list = document.getElementById('mc-host-list');
+        list.innerHTML = '';
+        mcModalList.forEach(function(hostname, i) {
+            var item = document.createElement('div');
+            item.className = 'mc-modal-item' + (mcModalSelected.has(hostname) ? ' mc-modal-sel' : '');
+            item.textContent = hostname;
+            item.dataset.hostname = hostname;
+            item.dataset.idx = String(i);
+            item.addEventListener('click', function(e) { modalItemClick(hostname, i, e); });
+            list.appendChild(item);
+        });
+
+        refreshModalApply();
+        document.getElementById('mc-host-modal').style.display = 'flex';
+    }
+
+    function modalItemClick(hostname, idx, e) {
+        if (e.shiftKey && mcModalAnchor !== null) {
+            var anchorIdx = mcModalList.indexOf(mcModalAnchor);
+            var lo = Math.min(anchorIdx, idx);
+            var hi = Math.max(anchorIdx, idx);
+            for (var i = lo; i <= hi; i++) {
+                mcModalSelected.add(mcModalList[i]);
+            }
+        } else if (e.ctrlKey || e.metaKey) {
+            if (mcModalSelected.has(hostname)) { mcModalSelected.delete(hostname); }
+            else { mcModalSelected.add(hostname); }
+            mcModalAnchor = hostname;
+        } else {
+            mcModalSelected = new Set([hostname]);
+            mcModalAnchor = hostname;
+        }
+        document.querySelectorAll('.mc-modal-item').forEach(function(el) {
+            el.classList.toggle('mc-modal-sel', mcModalSelected.has(el.dataset.hostname));
+        });
+        refreshModalApply();
+    }
+
+    function refreshModalApply() {
+        document.getElementById('mc-modal-apply-btn').disabled = mcModalSelected.size === 0;
+    }
+
+    function applyConsoleModal() {
+        if (mcModalSelected.size === 0) return;
+        document.getElementById('mc-host-modal').style.display = 'none';
+
+        var newSet = mcModalSelected;
+
+        // Remove tiles no longer selected
+        Array.from(displayedHosts).forEach(function(h) {
+            if (!newSet.has(h)) { removeTile(h); }
+        });
+
+        // Add tiles newly selected
+        mcModalList.forEach(function(h) {
+            if (newSet.has(h) && !displayedHosts.includes(h)) {
+                displayedHosts.push(h);
+                var idx = addConsoleTile(h);
+                createSession(h, idx);
+            }
+        });
+
+        updateShowBtn();
+        updateGrid();
+    }
+
+    function cancelConsoleModal() {
+        document.getElementById('mc-host-modal').style.display = 'none';
+    }
+
+    // ── Maximize / restore ────────────────────────────────────────────────────
+
+    function toggleMaximize(idx) {
+        if (maximizedIdx === idx) { restoreCell(idx); }
+        else {
+            if (maximizedIdx !== -1) { restoreCell(maximizedIdx); }
+            maximizeCell(idx);
+        }
+    }
+
+    function maximizeCell(idx) {
+        var toolbarH = document.getElementById('mc-toolbar').offsetHeight;
+        var cell = document.getElementById('cell-' + idx);
+        if (!cell) return;
+        cell.style.position = 'fixed';
+        cell.style.top = toolbarH + 'px';
+        cell.style.left = '0';
+        cell.style.right = '0';
+        cell.style.bottom = '0';
+        cell.style.width = 'auto';
+        cell.style.height = 'auto';
+        cell.style.zIndex = '9999';
+        cell.style.resize = 'none';
+        var img = document.querySelector('#maxbtn-' + idx + ' img');
+        if (img) { img.src = UNEXPAND_SRC; }
+        document.getElementById('maxbtn-' + idx).title = 'Restore';
+        maximizedIdx = idx;
+    }
+
+    function restoreCell(idx) {
+        var cell = document.getElementById('cell-' + idx);
+        if (!cell) return;
+        cell.style.position = '';
+        cell.style.top = '';
+        cell.style.left = '';
+        cell.style.right = '';
+        cell.style.bottom = '';
+        cell.style.width = '';
+        cell.style.height = '';
+        cell.style.zIndex = '';
+        cell.style.resize = '';
+        delete cell.dataset.userResized;
+        var img = document.querySelector('#maxbtn-' + idx + ' img');
+        if (img) { img.src = EXPAND_SRC; }
+        document.getElementById('maxbtn-' + idx).title = 'Maximize';
+        maximizedIdx = -1;
+        updateGrid();
+    }
+
+    function popoutConsole(hostname) {
+        var token = mcTokens[hostname];
+        if (!token) return;
+        window.open(
+            '/console/' + encodeURIComponent(token) + '?shared=1',
+            '_blank',
+            'width=1024,height=768,menubar=no,toolbar=no,location=no,status=no,scrollbars=no'
+        );
+    }
+
+    // ── Initialisation ────────────────────────────────────────────────────────
+
+    async function initPage() {
+        if (!SITE_NAME) {
+            document.getElementById('quads-alloc-select').innerHTML =
+                '<option value="">No site specified</option>';
+            return;
+        }
+        var sel = document.getElementById('quads-alloc-select');
+        sel.innerHTML = '<option value="">Loading...</option>';
+        sel.disabled = true;
+        try {
+            var resp = await fetch('/api/sites/' + encodeURIComponent(SITE_NAME) + '/quads-schedules');
+            var data = await resp.json();
+            sel.disabled = false;
+            if (!data.success) {
+                sel.innerHTML = '<option value="">' + escapeHtml(data.message || 'Error loading allocations') + '</option>';
+                return;
+            }
+            allocations = data.allocations;
+            renderAllocDropdown();
+
+            if (INITIAL_CLOUD) {
+                sel.value = INITIAL_CLOUD;
+                if (sel.value === INITIAL_CLOUD) {
+                    onAllocChange(INITIAL_CLOUD);
+                }
+            }
+        } catch (e) {
+            sel.disabled = false;
+            sel.innerHTML = '<option value="">Failed to load allocations</option>';
+        }
+    }
+
+    // ── Lifecycle (heartbeat + cleanup) ───────────────────────────────────────
+
+    setInterval(function() {
+        Object.values(mcTokens).forEach(function(token) {
+            if (token) {
+                fetch('/api/vnc-session/' + encodeURIComponent(token), {method: 'PATCH'});
+            }
+        });
+    }, 5 * 60 * 1000);
+
+    window.addEventListener('beforeunload', function() {
+        Object.values(mcTokens).forEach(function(token) {
+            if (token) {
+                fetch('/api/vnc-session/' + encodeURIComponent(token), {
+                    method: 'DELETE',
+                    keepalive: true
+                });
+            }
+        });
+    });
+
+    // ── Boot ──────────────────────────────────────────────────────────────────
+
+    setTimeout(function() {
+        if (!window.ResizeObserver) return;
+        resizeObs = new ResizeObserver(function(entries) {
+            entries.forEach(function(entry) {
+                entry.target.dataset.userResized = '1';
+            });
+        });
+    }, 200);
+
+    document.getElementById('mc-host-modal').addEventListener('click', function(e) {
+        if (e.target === this) { cancelConsoleModal(); }
+    });
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') { cancelConsoleModal(); }
+    });
+
+    updateShowBtn();
+    {% if authenticated %}
+    initPage();
+    {% endif %}
+</script>
+</body>
+</html>
