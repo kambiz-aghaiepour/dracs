@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v2.10.7 (2026-06-26)
+
+### Bug Fixes
+
+- Allow sort order and primary changes
+  ([`2d32e9c`](https://github.com/kambiz-aghaiepour/dracs/commit/2d32e9cd4e30d9361021ce60c05f69fccc0fab93))
+
+- Black formatting
+  ([`ae2297b`](https://github.com/kambiz-aghaiepour/dracs/commit/ae2297b12ffd6cee800fe2d2f6cef3ac764290d9))
+
+### Chores
+
+- Sync spec file version to 2.10.6 [skip ci]
+  ([`59d5c78`](https://github.com/kambiz-aghaiepour/dracs/commit/59d5c78d3f450329b5f43ff72ce147a0575400c3))
+
+
 ## v2.10.6 (2026-06-26)
 
 ### Bug Fixes
