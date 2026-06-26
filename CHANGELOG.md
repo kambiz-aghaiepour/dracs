@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v2.10.4 (2026-06-26)
+
+### Bug Fixes
+
+- Codecov/patch coverage
+  ([`b3d61d1`](https://github.com/kambiz-aghaiepour/dracs/commit/b3d61d10d88418b0d9c88c52cc6a9f28af15d04e))
+
+- Sso admin users roles not calculated correctly
+  ([`cbb07dd`](https://github.com/kambiz-aghaiepour/dracs/commit/cbb07dd764ef984ad3447bd6396696a7805bc62d))
+
+### Chores
+
+- Sync spec file version to 2.10.3 [skip ci]
+  ([`e1595a8`](https://github.com/kambiz-aghaiepour/dracs/commit/e1595a8e790d79e1da0a80dc6dc7b381aba6c53b))
+
+
 ## v2.10.3 (2026-06-25)
 
 ### Bug Fixes
