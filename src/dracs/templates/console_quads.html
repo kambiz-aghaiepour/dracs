@@ -182,12 +182,40 @@
             padding: 5px 8px;
             background: #2d2d2d;
             border-bottom: 1px solid #444;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 6px;
             font-size: 11px;
             color: #aaa;
             flex-shrink: 0;
         }
 
         #qc-panel-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        #qc-max-wrap { white-space: nowrap; flex-shrink: 0; }
+        #qc-max-select {
+            background: #333;
+            border: 1px solid #555;
+            color: #ccc;
+            padding: 1px 3px;
+            font-family: monospace;
+            font-size: 11px;
+            border-radius: 3px;
+        }
+
+        #qc-filter {
+            background: #333;
+            border: 1px solid #555;
+            color: #ccc;
+            padding: 2px 6px;
+            font-family: monospace;
+            font-size: 12px;
+            border-radius: 3px;
+            width: 150px;
+        }
+        #qc-filter:focus { outline: none; border-color: #888; }
+        #qc-filter::placeholder { color: #666; }
 
         #qc-panel-list {
             flex: 1;
@@ -407,6 +435,9 @@
     <select id="quads-alloc-select" onchange="onAllocChange(this.value)">
         <option value="">Loading allocations...</option>
     </select>
+    <button class="mc-col-btn" id="close-all-btn" onclick="closeAllTiles()" disabled>Close All</button>
+    <span class="mc-label">Filter:</span>
+    <input type="text" id="qc-filter" placeholder="" oninput="onFilterChange(this.value)">
 
     <span style="flex:1;"></span>
     <button class="mc-show-btn" id="toggle-panel-btn" onclick="toggleHostPanel()">&#9664; Hosts</button>
@@ -420,8 +451,15 @@
     <div id="qc-host-panel">
         <div id="qc-panel-header">
             <span id="qc-panel-title">Select a QUADS allocation</span>
+            <span id="qc-max-wrap" style="display:none;">Max:&nbsp;<select id="qc-max-select" onchange="onMaxChange(this.value)">
+                <option value="20">20</option>
+                <option value="40">40</option>
+                <option value="60">60</option>
+                <option value="80">80</option>
+                <option value="100">100</option>
+            </select></span>
         </div>
-        <div id="qc-panel-max-notice">Max 20 hosts selected – deselect to add more</div>
+        <div id="qc-panel-max-notice" style="display:none;"></div>
         <div id="qc-panel-list">
             <div id="qc-panel-empty">Select an allocation above to see hosts</div>
         </div>
@@ -457,6 +495,8 @@
     var mcCols = 2;
     var maximizedIdx = -1;
     var hostPanelVisible = true;
+    var maxHosts = 20;
+    var filterText = '';
 
     // Modal state
     var mcModalSelected = new Set();
@@ -534,11 +574,13 @@
 
         var title = document.getElementById('qc-panel-title');
         var maxNotice = document.getElementById('qc-panel-max-notice');
-        var atMax = selectedHosts.size >= 20;
+        var maxWrap = document.getElementById('qc-max-wrap');
+        var atMax = selectedHosts.size >= maxHosts;
 
         if (cloudHosts.length === 0) {
             title.textContent = 'No hosts available';
             maxNotice.style.display = 'none';
+            maxWrap.style.display = 'none';
             var empty = document.createElement('div');
             empty.id = 'qc-panel-empty';
             empty.textContent = 'No DRACS hosts in this allocation';
@@ -546,10 +588,27 @@
             return;
         }
 
-        title.textContent = 'Hosts (' + selectedHosts.size + ' / ' + Math.min(cloudHosts.length, 20) + ' selected)';
+        maxWrap.style.display = cloudHosts.length > 20 ? '' : 'none';
+        title.textContent = 'Hosts (' + selectedHosts.size + ' / ' + Math.min(cloudHosts.length, maxHosts) + ' selected)';
         maxNotice.style.display = atMax ? '' : 'none';
+        if (atMax) {
+            maxNotice.textContent = 'Max ' + maxHosts + ' hosts selected – deselect to add more';
+        }
 
-        cloudHosts.forEach(function(hostname, i) {
+        var visibleHosts = filterText
+            ? cloudHosts.filter(function(h) { return h.toLowerCase().includes(filterText); })
+            : cloudHosts;
+
+        if (visibleHosts.length === 0) {
+            var noMatch = document.createElement('div');
+            noMatch.id = 'qc-panel-empty';
+            noMatch.textContent = 'No hosts match the filter';
+            listEl.appendChild(noMatch);
+            return;
+        }
+
+        visibleHosts.forEach(function(hostname) {
+            var i = cloudHosts.indexOf(hostname);
             var item = document.createElement('div');
             var isSel = selectedHosts.has(hostname);
             var isDisabled = atMax && !isSel;
@@ -570,14 +629,14 @@
             var lo = Math.min(anchorIdx, idx);
             var hi = Math.max(anchorIdx, idx);
             for (var i = lo; i <= hi; i++) {
-                if (selectedHosts.size < 20) {
+                if (selectedHosts.size < maxHosts) {
                     selectedHosts.add(cloudHosts[i]);
                 }
             }
         } else if (e.ctrlKey || e.metaKey) {
             if (selectedHosts.has(hostname)) {
                 selectedHosts.delete(hostname);
-            } else if (selectedHosts.size < 20) {
+            } else if (selectedHosts.size < maxHosts) {
                 selectedHosts.add(hostname);
             }
             panelAnchor = hostname;
@@ -600,6 +659,33 @@
         var btn = document.getElementById('show-btn');
         btn.textContent = '[ ' + displayedHosts.length + ' / ' + selectedHosts.size + ' ]';
         btn.disabled = selectedHosts.size === 0;
+        document.getElementById('close-all-btn').disabled = displayedHosts.length === 0;
+    }
+
+    function onMaxChange(val) {
+        maxHosts = parseInt(val, 10);
+        renderHostPanel();
+        updateShowBtn();
+    }
+
+    function closeAllTiles() {
+        Array.from(displayedHosts).forEach(function(h) { removeTile(h); });
+        updateShowBtn();
+        updateGrid();
+    }
+
+    function onFilterChange(val) {
+        filterText = val.toLowerCase();
+        renderHostPanel();
+        applyTileFilter();
+    }
+
+    function applyTileFilter() {
+        document.querySelectorAll('.mc-cell').forEach(function(cell) {
+            var hostname = (cell.dataset.hostname || '').toLowerCase();
+            cell.style.display = (!filterText || hostname.includes(filterText)) ? '' : 'none';
+        });
+        updateGrid();
     }
 
     function setCols(n) {
@@ -617,7 +703,9 @@
 
     function updateGrid() {
         var grid = document.getElementById('mc-grid');
-        var cells = grid.querySelectorAll('.mc-cell');
+        var cells = Array.from(grid.querySelectorAll('.mc-cell')).filter(function(c) {
+            return c.style.display !== 'none';
+        });
         grid.style.gridTemplateColumns = 'repeat(' + mcCols + ', 1fr)';
         if (cells.length > 0) {
             var wrapH = document.getElementById('mc-grid-wrap').clientHeight;
@@ -658,6 +746,12 @@
 
         Array.from(displayedHosts).forEach(function(h) { removeTile(h); });
         updateGrid();
+
+        // Reset per-cloud transient state
+        maxHosts = 20;
+        document.getElementById('qc-max-select').value = '20';
+        filterText = '';
+        document.getElementById('qc-filter').value = '';
 
         var alloc = allocations.find(function(a) { return a.cloud === cloudName; });
         cloudHosts = alloc ? alloc.hosts : [];
@@ -876,6 +970,7 @@
             }
         });
 
+        applyTileFilter();
         updateShowBtn();
         updateGrid();
     }
