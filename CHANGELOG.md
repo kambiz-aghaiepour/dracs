@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.11.4 (2026-06-27)
+
+### Bug Fixes
+
+- Cleanup the quads_console layout
+  ([`0a0a68b`](https://github.com/kambiz-aghaiepour/dracs/commit/0a0a68b2a5aaf6fc09ab93343f08a1f09c38e65b))
+
+### Chores
+
+- Sync spec file version to 2.11.3 [skip ci]
+  ([`ae2db24`](https://github.com/kambiz-aghaiepour/dracs/commit/ae2db24fb240497a1ab4e644666a8c0342718a3d))
+
+
 ## v2.11.3 (2026-06-27)
 
 ### Bug Fixes
