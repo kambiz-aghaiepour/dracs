@@ -168,8 +168,8 @@
 
         /* Host panel (right sidebar) */
         #qc-host-panel {
-            width: 220px;
-            min-width: 220px;
+            width: 280px;
+            min-width: 280px;
             background: #252525;
             border-left: 1px solid #444;
             display: flex;
@@ -182,9 +182,6 @@
             padding: 5px 8px;
             background: #2d2d2d;
             border-bottom: 1px solid #444;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
             font-size: 11px;
             color: #aaa;
             flex-shrink: 0;
@@ -195,6 +192,7 @@
         #qc-panel-list {
             flex: 1;
             overflow-y: auto;
+            overflow-x: auto;
         }
 
         .qc-host-item {
@@ -203,8 +201,9 @@
             color: #888;
             cursor: pointer;
             white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            display: block;
+            width: max-content;
+            min-width: 100%;
             user-select: none;
             -webkit-user-select: none;
         }
@@ -421,7 +420,6 @@
     <div id="qc-host-panel">
         <div id="qc-panel-header">
             <span id="qc-panel-title">Select a QUADS allocation</span>
-            <button class="mc-show-btn" style="padding:1px 6px;font-size:11px;" onclick="toggleHostPanel()">Hide &#9654;</button>
         </div>
         <div id="qc-panel-max-notice">Max 20 hosts selected – deselect to add more</div>
         <div id="qc-panel-list">
@@ -656,6 +654,9 @@
             url.searchParams.delete('cloud');
         }
         history.pushState({}, '', url.toString());
+
+        Array.from(displayedHosts).forEach(function(h) { removeTile(h); });
+        updateGrid();
 
         var alloc = allocations.find(function(a) { return a.cloud === cloudName; });
         cloudHosts = alloc ? alloc.hosts : [];
