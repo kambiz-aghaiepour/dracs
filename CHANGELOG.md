@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.11.3 (2026-06-27)
+
+### Bug Fixes
+
+- Redirect from sso when going to consoles
+  ([`05bae78`](https://github.com/kambiz-aghaiepour/dracs/commit/05bae780fef60d69840c0efbf78b0a9b9f1b4912))
+
+### Chores
+
+- Sync spec file version to 2.11.2 [skip ci]
+  ([`eb58eee`](https://github.com/kambiz-aghaiepour/dracs/commit/eb58eeed236aea7bfcb19af53cdb91497c1122b1))
+
+
 ## v2.11.2 (2026-06-27)
 
 ### Bug Fixes
