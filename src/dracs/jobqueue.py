@@ -3,6 +3,8 @@ import configparser
 import json as json_module
 import logging
 import os
+import re
+import shutil
 import socket
 import subprocess  # nosec
 import threading
@@ -303,7 +305,7 @@ class JobProcessor:
         meta = job.get("metadata") or {}
         try:
             if job["job_type"] == "tsr":
-                execute_tsr_job(job["target"], job_id=job_id)
+                execute_tsr_job(job["target"], job_id=job_id, metadata=meta)
             elif job["job_type"] == "refresh":
                 execute_refresh_job(job["target"])
             elif job["job_type"] == "firmware_update":
@@ -364,7 +366,60 @@ def _poll_for_complete(get_sa_jobs, hostname, job_id, poll_interval, max_wait, e
     raise RuntimeError("TSR collection did not complete within timeout")
 
 
-def execute_tsr_job(hostname: str, job_id: Optional[int] = None) -> None:
+_TSR_TS_RE = re.compile(r"^\d{14}$")
+
+
+def _prune_tsr_before_collect(hostname: str, keep_max: int) -> None:
+    from dracs.webapp import _generate_tsr_index
+
+    host_dir = Path("/var/lib/dracs/web/tsr") / hostname
+    if not host_dir.is_dir():
+        return
+
+    entries = []
+    for zf in host_dir.glob("TSR*.zip"):
+        ts_part = zf.name.replace("TSR", "").split("_")[0]
+        try:
+            dt = datetime.strptime(ts_part, "%Y%m%d%H%M%S")
+            entries.append((dt, ts_part, zf))
+        except ValueError:
+            continue
+
+    entries.sort(key=lambda e: e[0], reverse=True)
+
+    target = keep_max - 1
+    if len(entries) <= target:
+        return
+
+    keep_ts = {e[1] for e in entries[:target]}
+
+    for _dt, _ts, zf_path in entries[target:]:
+        try:
+            zf_path.unlink()
+        except Exception as exc:
+            logger.warning("TSR prune: could not delete %s: %s", zf_path.name, exc)
+
+    for ts_dir in host_dir.iterdir():
+        if (
+            ts_dir.is_dir()
+            and _TSR_TS_RE.match(ts_dir.name)
+            and ts_dir.name not in keep_ts
+        ):
+            try:
+                shutil.rmtree(ts_dir)
+            except Exception as exc:
+                logger.warning(
+                    "TSR prune: could not delete dir %s: %s", ts_dir.name, exc
+                )
+
+    _generate_tsr_index(hostname)
+
+
+def execute_tsr_job(
+    hostname: str,
+    job_id: Optional[int] = None,
+    metadata: Optional[dict] = None,
+) -> None:
     from dracs.webapp import (
         _build_ssh_racadm_cmd,
         _find_tsr_zip,
@@ -372,6 +427,10 @@ def execute_tsr_job(hostname: str, job_id: Optional[int] = None) -> None:
         _stage_tsr_files,
         _wait_for_tsr_export,
     )
+
+    keep_max = (metadata or {}).get("keep_max")
+    if keep_max:
+        _prune_tsr_before_collect(hostname, int(keep_max))
 
     with get_session() as session:
         system = session.query(System).filter(System.name == hostname).first()
@@ -533,6 +592,11 @@ def parse_schedule_config(
 
     tasks = []
     for section in config.sections():
+        raw_keep_max = config.get(section, "keep_max", fallback=None)
+        try:
+            keep_max = int(raw_keep_max) if raw_keep_max is not None else None
+        except ValueError:
+            keep_max = None
         task = {
             "name": section,
             "type": config.get(section, "type", fallback=None),
@@ -541,6 +605,7 @@ def parse_schedule_config(
             "day": config.get(section, "day", fallback=None),
             "target": config.get(section, "target", fallback=None),
             "site": config.get(section, "site", fallback=None),
+            "keep_max": keep_max,
         }
         if (
             task["type"] in ("tsr", "refresh", "clear_job_queue")
@@ -572,23 +637,28 @@ def _resolve_targets(target_spec: str, site_id: Optional[int] = None) -> list:
 
 
 def enqueue_batch(
-    job_type: str, target_spec: str, site_id: Optional[int] = None
+    job_type: str,
+    target_spec: str,
+    site_id: Optional[int] = None,
+    metadata: Optional[dict] = None,
 ) -> int:
     hostnames = _resolve_targets(target_spec, site_id=site_id)
     if not hostnames:
         return 0
     if len(hostnames) == 1:
-        enqueue_job(job_type, hostnames[0], site_id=site_id)
+        enqueue_job(job_type, hostnames[0], site_id=site_id, metadata=metadata)
         return 1
 
-    parent_id = enqueue_job(job_type, target_spec, site_id=site_id)
+    parent_id = enqueue_job(job_type, target_spec, site_id=site_id, metadata=metadata)
     with get_session() as session:
         parent = session.get(Job, parent_id)
         parent.status = "running"
         session.commit()
 
     for hostname in hostnames:
-        enqueue_job(job_type, hostname, parent_id=parent_id, site_id=site_id)
+        enqueue_job(
+            job_type, hostname, parent_id=parent_id, site_id=site_id, metadata=metadata
+        )
     return len(hostnames)
 
 
@@ -657,7 +727,14 @@ class JobScheduler:
                 tasks = parse_schedule_config(self._config_path)
                 for task in tasks:
                     if _should_run_now(task, self._last_runs):
-                        count = enqueue_batch(task["type"], task["target"])
+                        metadata = (
+                            {"keep_max": task["keep_max"]}
+                            if task.get("keep_max")
+                            else None
+                        )
+                        count = enqueue_batch(
+                            task["type"], task["target"], metadata=metadata
+                        )
                         self._last_runs[task["name"]] = datetime.now()
                         logger.info(
                             "Scheduled %s: enqueued %d jobs for %s",
