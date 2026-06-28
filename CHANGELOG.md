@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.11.8 (2026-06-28)
+
+### Bug Fixes
+
+- Automate copr builds
+  ([`b76da8c`](https://github.com/kambiz-aghaiepour/dracs/commit/b76da8c9a28e7da44722fdf9ecedbf9382b0808d))
+
+### Chores
+
+- Sync spec file version to 2.11.7 [skip ci]
+  ([`159f2f4`](https://github.com/kambiz-aghaiepour/dracs/commit/159f2f4b4df86c2f27259f37d41c8a4317160c35))
+
+
 ## v2.11.7 (2026-06-28)
 
 ### Bug Fixes
