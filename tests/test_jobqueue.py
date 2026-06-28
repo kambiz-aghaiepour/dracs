@@ -575,6 +575,21 @@ class TestPruneTsrBeforeCollect:
                         _prune_tsr_before_collect("host01.example.com", keep_max=2)
         assert mock_logger.warning.called
 
+    def test_unparseable_zip_is_skipped(self, tmp_path, tsr_dir):
+        # Zip with a non-timestamp name should be ignored, not raise
+        (tsr_dir / "TSRbadname_ABCD123.zip").write_text("fake")
+        self._make_zip(tsr_dir, "20260620120000")
+        self._make_zip(tsr_dir, "20260621120000")
+
+        import dracs.jobqueue as jq
+
+        with patch.object(jq, "_TSR_BASE_DIR", tmp_path):
+            with patch("dracs.webapp._generate_tsr_index"):
+                _prune_tsr_before_collect("host01.example.com", keep_max=2)
+
+        # The two valid zips are within keep_max so nothing is deleted
+        assert (tsr_dir / "TSRbadname_ABCD123.zip").exists()
+
 
 class TestExecuteTsrJobKeepMax:
     def test_keep_max_in_metadata_calls_prune(self):
