@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.11.7 (2026-06-28)
+
+### Bug Fixes
+
+- Font-family inherit should be explicit
+  ([`e7e3d5d`](https://github.com/kambiz-aghaiepour/dracs/commit/e7e3d5d29e2bbafdb27bb2e1328d7084aef4ae58))
+
+### Chores
+
+- Sync spec file version to 2.11.6 [skip ci]
+  ([`bb7e170`](https://github.com/kambiz-aghaiepour/dracs/commit/bb7e1704fc61700e6f86e93c74324b2cbfd7f27d))
+
+
 ## v2.11.6 (2026-06-28)
 
 ### Bug Fixes
