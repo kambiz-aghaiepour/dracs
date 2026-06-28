@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.11.10 (2026-06-28)
+
+### Bug Fixes
+
+- Trigger build to test copr rebuild
+  ([`efbb3a5`](https://github.com/kambiz-aghaiepour/dracs/commit/efbb3a5854eea68bf7ad7b3d214995170156cee4))
+
+### Chores
+
+- Sync spec file version to 2.11.9 [skip ci]
+  ([`d53488c`](https://github.com/kambiz-aghaiepour/dracs/commit/d53488cffedbf728030a6608aea75bf169748efb))
+
+
 ## v2.11.9 (2026-06-28)
 
 ### Bug Fixes
