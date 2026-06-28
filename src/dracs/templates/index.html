@@ -24,6 +24,7 @@
             padding: 30px;
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: relative;
         }
 
         h1 {
@@ -118,6 +119,7 @@
             padding: 8px 12px;
             border: 1px solid #ddd;
             border-radius: 4px;
+            font-family: inherit;
             font-size: 14px;
             background-color: #ffffff;
             color: #333;
@@ -444,6 +446,20 @@
         }
 
         /* Header with login link */
+        .meta-bar {
+            position: absolute;
+            top: 8px;
+            left: 30px;
+            right: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            font-size: 10px;
+            color: #aaa;
+            pointer-events: none;
+            user-select: none;
+        }
+
         .header {
             display: flex;
             justify-content: space-between;
@@ -1019,6 +1035,10 @@
             color: #e0e0e0;
         }
 
+        body.dark-theme .meta-bar {
+            color: #666;
+        }
+
         body.dark-theme h1 {
             color: #e0e0e0;
             border-bottom-color: #007bff;
@@ -1513,6 +1533,10 @@
 <body>
 <script>if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark-theme');</script>
     <div class="container">
+        <div class="meta-bar">
+            <span>DRACS version {{ dracs_version }}</span>
+            <span>https://github.com/kambiz-aghaiepour/dracs</span>
+        </div>
         <div class="header">
             <div class="header-left">
                 <img src="{{ url_for('static', filename='images/dracs.svg') }}" alt="DRACS Logo" class="logo">

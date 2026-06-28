@@ -37,6 +37,7 @@ from flask import (
 from markupsafe import Markup
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+import dracs
 from dracs.audit import audit_log
 from dracs.db import db_initialize, get_session, System
 from dracs.commands import refresh_dell_warranty
@@ -733,6 +734,7 @@ def index():
         google_auth_enabled=GOOGLE_AUTH_ENABLED,
         is_sso_login=is_sso_login,
         site_quads_enabled=site_quads_enabled,
+        dracs_version=dracs.__version__,
     )
 
 
