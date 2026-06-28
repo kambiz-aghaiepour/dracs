@@ -63,3 +63,66 @@ jobs:
         # Pushes the GitHub Release out to your repository
         run: uv tool run --from python-semantic-release semantic-release publish
 
+      - name: Wait for PyPI source tarball to propagate to CDN
+        if: hashFiles('dist/*') != ''
+        run: |
+          NEW_VERSION=$(grep '^version' pyproject.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          echo "Polling PyPI index for dracs ${NEW_VERSION}..."
+
+          # Step 1: wait for the PyPI JSON index to know about this version and give us the exact tarball URL
+          TARBALL_URL=""
+          for i in $(seq 1 30); do
+            BODY=$(curl -sf "https://pypi.org/pypi/dracs/${NEW_VERSION}/json" 2>/dev/null)
+            if [ $? -eq 0 ] && [ -n "$BODY" ]; then
+              TARBALL_URL=$(echo "$BODY" | python3 -c "
+          import sys, json
+          urls = json.load(sys.stdin).get('urls', [])
+          print(next((u['url'] for u in urls if u.get('packagetype') == 'sdist'), ''))
+          " 2>/dev/null)
+              [ -n "$TARBALL_URL" ] && { echo "PyPI index ready (attempt $i): $TARBALL_URL"; break; }
+            fi
+            echo "Attempt $i/30: PyPI index not ready, retrying in 30s..."
+            sleep 30
+          done
+
+          if [ -z "$TARBALL_URL" ]; then
+            echo "::error::Failed to find source distribution on PyPI for dracs ${NEW_VERSION}"
+            exit 1
+          fi
+
+          # Step 2: wait for the actual tarball to be accessible on the CDN
+          # (files.pythonhosted.org CDN propagation can lag the PyPI index by several minutes)
+          echo "Polling CDN for source tarball availability..."
+          for i in $(seq 1 30); do
+            HTTP=$(curl -s -o /dev/null -w "%{http_code}" --head "$TARBALL_URL")
+            [ "$HTTP" = "200" ] && { echo "CDN ready (attempt $i)"; break; }
+            echo "Attempt $i/30: CDN returned HTTP $HTTP, retrying in 30s..."
+            [ "$i" = "30" ] && { echo "::error::Source tarball never became available on CDN"; exit 1; }
+            sleep 30
+          done
+
+      - name: Trigger COPR rebuild
+        if: hashFiles('dist/*') != ''
+        env:
+          COPR_API_LOGIN: ${{ secrets.COPR_API_LOGIN }}
+          COPR_API_TOKEN: ${{ secrets.COPR_API_TOKEN }}
+        run: |
+          NEW_VERSION=$(grep '^version' pyproject.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          echo "Triggering COPR rebuild for dracs ${NEW_VERSION}..."
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            -u "${COPR_API_LOGIN}:${COPR_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{"ownername": "kambiz", "projectname": "dracs", "package_name": "dracs"}' \
+            "https://copr.fedorainfracloud.org/api_3/package/build")
+          HTTP=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+          echo "COPR API response (HTTP ${HTTP}):"
+          echo "$BODY"
+          if [ "$HTTP" != "200" ] && [ "$HTTP" != "201" ]; then
+            echo "::error::COPR build trigger failed with HTTP ${HTTP}"
+            exit 1
+          fi
+          BUILD_ID=$(echo "$BODY" | python3 -c "import sys, json; print(json.load(sys.stdin).get('id', 'unknown'))" 2>/dev/null || echo "unknown")
+          echo "COPR build triggered: ID=${BUILD_ID}"
+          echo "Track at: https://copr.fedorainfracloud.org/coprs/kambiz/dracs/builds/"
+
