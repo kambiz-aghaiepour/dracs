@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v2.11.5 (2026-06-28)
+
+### Bug Fixes
+
+- Codecov/patch missed 99%
+  ([`e94c486`](https://github.com/kambiz-aghaiepour/dracs/commit/e94c486d3766d79e3368550186f4c0b8156581a4))
+
+- Test failures and codecov
+  ([`3f9e23b`](https://github.com/kambiz-aghaiepour/dracs/commit/3f9e23bd08059facdc7ec5ec40e9ffe3827842d2))
+
+- Tsr jobqueue type add keep_max key
+  ([`6794bba`](https://github.com/kambiz-aghaiepour/dracs/commit/6794bba7e21edd1e1668c2d488ccadade13b7a88))
+
+### Chores
+
+- Sync spec file version to 2.11.4 [skip ci]
+  ([`f5e7519`](https://github.com/kambiz-aghaiepour/dracs/commit/f5e7519a332b3d84f8b0d996e77fcf5b1145e2b5))
+
+
 ## v2.11.4 (2026-06-27)
 
 ### Bug Fixes
