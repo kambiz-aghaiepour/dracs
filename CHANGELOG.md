@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.11.11 (2026-06-28)
+
+### Bug Fixes
+
+- Workflow in github to trigger copr build
+  ([`94d898d`](https://github.com/kambiz-aghaiepour/dracs/commit/94d898d562eb0f0599d08ea63d2271455e1e30cf))
+
+### Chores
+
+- Sync spec file version to 2.11.10 [skip ci]
+  ([`834d7ce`](https://github.com/kambiz-aghaiepour/dracs/commit/834d7cebbeae3c018ba52833c63d24f8e12f855a))
+
+
 ## v2.11.10 (2026-06-28)
 
 ### Bug Fixes
