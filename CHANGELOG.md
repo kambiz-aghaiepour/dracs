@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.11.9 (2026-06-28)
+
+### Bug Fixes
+
+- Random update to trigger build
+  ([`120fd5e`](https://github.com/kambiz-aghaiepour/dracs/commit/120fd5e3708e1ac80cef028bfd56368c6ba74459))
+
+### Chores
+
+- Sync spec file version to 2.11.8 [skip ci]
+  ([`286ae6f`](https://github.com/kambiz-aghaiepour/dracs/commit/286ae6fa11ac458e8ec8c274652b846260f3a6c7))
+
+
 ## v2.11.8 (2026-06-28)
 
 ### Bug Fixes
