@@ -98,7 +98,9 @@ jobs:
           echo "Polling CDN for simple-URL tarball availability: $SIMPLE_URL"
           for i in $(seq 1 30); do
             HTTP=$(curl -s -o /dev/null -w "%{http_code}" --head "$SIMPLE_URL")
-            [ "$HTTP" = "200" ] && { echo "CDN ready (attempt $i)"; break; }
+            if [ "$HTTP" = "200" ] || [ "$HTTP" = "302" ]; then
+              echo "CDN ready (attempt $i, HTTP $HTTP)"; break
+            fi
             echo "Attempt $i/30: CDN returned HTTP $HTTP, retrying in 30s..."
             [ "$i" = "30" ] && { echo "::error::Source tarball never became available on CDN"; exit 1; }
             sleep 30
