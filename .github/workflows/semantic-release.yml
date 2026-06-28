@@ -90,11 +90,14 @@ jobs:
             exit 1
           fi
 
-          # Step 2: wait for the actual tarball to be accessible on the CDN
-          # (files.pythonhosted.org CDN propagation can lag the PyPI index by several minutes)
-          echo "Polling CDN for source tarball availability..."
+          # Step 2: wait for the simple URL to be accessible on the CDN.
+          # dracs.spec Source0 uses the /packages/source/d/dracs/ path (not the hashed URL
+          # from the PyPI JSON API), and these two CDN paths propagate independently.
+          # rpkg will 404 if only the hashed URL is ready but the simple URL is not.
+          SIMPLE_URL="https://files.pythonhosted.org/packages/source/d/dracs/dracs-${NEW_VERSION}.tar.gz"
+          echo "Polling CDN for simple-URL tarball availability: $SIMPLE_URL"
           for i in $(seq 1 30); do
-            HTTP=$(curl -s -o /dev/null -w "%{http_code}" --head "$TARBALL_URL")
+            HTTP=$(curl -s -o /dev/null -w "%{http_code}" --head "$SIMPLE_URL")
             [ "$HTTP" = "200" ] && { echo "CDN ready (attempt $i)"; break; }
             echo "Attempt $i/30: CDN returned HTTP $HTTP, retrying in 30s..."
             [ "$i" = "30" ] && { echo "::error::Source tarball never became available on CDN"; exit 1; }
