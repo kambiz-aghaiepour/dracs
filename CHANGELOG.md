@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.11.12 (2026-06-28)
+
+### Bug Fixes
+
+- Treat a 302 from the CDN as ready
+  ([`80df666`](https://github.com/kambiz-aghaiepour/dracs/commit/80df666c20906807797edd1960bca58f7ce2a128))
+
+### Chores
+
+- Sync spec file version to 2.11.11 [skip ci]
+  ([`0430666`](https://github.com/kambiz-aghaiepour/dracs/commit/043066657669b498de2d9b416166f57c9baff5c5))
+
+
 ## v2.11.11 (2026-06-28)
 
 ### Bug Fixes
