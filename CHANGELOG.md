@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.11.6 (2026-06-28)
+
+### Bug Fixes
+
+- Add version in header
+  ([`ac82890`](https://github.com/kambiz-aghaiepour/dracs/commit/ac828900e3aaed94557cbabcc56dc3c7aff934e0))
+
+### Chores
+
+- Sync spec file version to 2.11.5 [skip ci]
+  ([`a5c5f17`](https://github.com/kambiz-aghaiepour/dracs/commit/a5c5f179ee8125699e8670d2484badff82efd20c))
+
+
 ## v2.11.5 (2026-06-28)
 
 ### Bug Fixes
