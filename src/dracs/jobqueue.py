@@ -367,12 +367,13 @@ def _poll_for_complete(get_sa_jobs, hostname, job_id, poll_interval, max_wait, e
 
 
 _TSR_TS_RE = re.compile(r"^\d{14}$")
+_TSR_BASE_DIR = Path("/var/lib/dracs/web/tsr")
 
 
 def _prune_tsr_before_collect(hostname: str, keep_max: int) -> None:
     from dracs.webapp import _generate_tsr_index
 
-    host_dir = Path("/var/lib/dracs/web/tsr") / hostname
+    host_dir = _TSR_BASE_DIR / hostname
     if not host_dir.is_dir():
         return
 
