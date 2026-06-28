@@ -1,11 +1,14 @@
 import os
 import tempfile
 import time
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from dracs.db import Job, db_initialize, get_session
 from dracs.jobqueue import (
+    _prune_tsr_before_collect,
     cancel_job,
     claim_next_job,
     complete_job,
@@ -15,6 +18,7 @@ from dracs.jobqueue import (
     get_job_status,
     get_jobs_for_host,
     get_latest_job_for_host,
+    parse_schedule_config,
     purge_completed_jobs,
 )
 
@@ -461,3 +465,157 @@ class TestEnqueueJobWithMetadata:
         )
         claimed = claim_next_job("w1")
         assert claimed["metadata"] == {"target_bios": "2.10.0", "model": "R660"}
+
+
+class TestParsedScheduleKeepMax:
+    def test_valid_keep_max_parsed_as_int(self, tmp_path):
+        ini = tmp_path / "schedule.ini"
+        ini.write_text(
+            "[tsr-weekly]\ntype = tsr\nschedule = weekly\nday = sunday\n"
+            "time = 02:00\ntarget = all\nkeep_max = 3\n"
+        )
+        tasks = parse_schedule_config(str(ini))
+        assert len(tasks) == 1
+        assert tasks[0]["keep_max"] == 3
+
+    def test_invalid_keep_max_defaults_to_none(self, tmp_path):
+        ini = tmp_path / "schedule.ini"
+        ini.write_text(
+            "[tsr-weekly]\ntype = tsr\nschedule = weekly\nday = sunday\n"
+            "time = 02:00\ntarget = all\nkeep_max = notanumber\n"
+        )
+        tasks = parse_schedule_config(str(ini))
+        assert len(tasks) == 1
+        assert tasks[0]["keep_max"] is None
+
+    def test_absent_keep_max_is_none(self, tmp_path):
+        ini = tmp_path / "schedule.ini"
+        ini.write_text(
+            "[tsr-weekly]\ntype = tsr\nschedule = weekly\nday = sunday\n"
+            "time = 02:00\ntarget = all\n"
+        )
+        tasks = parse_schedule_config(str(ini))
+        assert tasks[0]["keep_max"] is None
+
+
+class TestPruneTsrBeforeCollect:
+    @pytest.fixture
+    def tsr_dir(self, tmp_path):
+        host_dir = tmp_path / "host01.example.com"
+        host_dir.mkdir()
+        return host_dir
+
+    def _make_zip(self, host_dir: Path, ts: str, svc: str = "ABCD123") -> Path:
+        zf = host_dir / f"TSR{ts}_{svc}.zip"
+        zf.write_text("fake")
+        (host_dir / ts).mkdir(exist_ok=True)
+        return zf
+
+    def test_no_prune_when_dir_missing(self, tmp_path):
+        import dracs.jobqueue as jq
+
+        with patch.object(jq, "_TSR_BASE_DIR", tmp_path):
+            with patch("dracs.webapp._generate_tsr_index") as mock_idx:
+                _prune_tsr_before_collect("nonexistent.example.com", keep_max=2)
+        mock_idx.assert_not_called()
+
+    def test_no_prune_when_within_limit(self, tmp_path, tsr_dir):
+        self._make_zip(tsr_dir, "20260601120000")
+        import dracs.jobqueue as jq
+
+        with patch.object(jq, "_TSR_BASE_DIR", tmp_path):
+            with patch("dracs.webapp._generate_tsr_index") as mock_idx:
+                _prune_tsr_before_collect("host01.example.com", keep_max=2)
+        mock_idx.assert_not_called()
+
+    def test_prunes_excess_zips_and_dirs(self, tmp_path, tsr_dir):
+        self._make_zip(tsr_dir, "20260601120000")
+        self._make_zip(tsr_dir, "20260610120000")
+        self._make_zip(tsr_dir, "20260620120000")
+
+        import dracs.jobqueue as jq
+
+        with patch.object(jq, "_TSR_BASE_DIR", tmp_path):
+            with patch("dracs.webapp._generate_tsr_index") as mock_idx:
+                _prune_tsr_before_collect("host01.example.com", keep_max=2)
+
+        remaining_zips = list(tsr_dir.glob("TSR*.zip"))
+        assert len(remaining_zips) == 1
+        assert "20260620120000" in remaining_zips[0].name
+        assert not (tsr_dir / "20260601120000").exists()
+        assert not (tsr_dir / "20260610120000").exists()
+        assert (tsr_dir / "20260620120000").exists()
+        mock_idx.assert_called_once_with("host01.example.com")
+
+    def test_zip_delete_error_is_logged(self, tmp_path, tsr_dir):
+        self._make_zip(tsr_dir, "20260601120000")
+        self._make_zip(tsr_dir, "20260620120000")
+
+        import dracs.jobqueue as jq
+
+        with patch.object(jq, "_TSR_BASE_DIR", tmp_path):
+            with patch("dracs.webapp._generate_tsr_index"):
+                with patch.object(
+                    Path, "unlink", side_effect=PermissionError("denied")
+                ):
+                    with patch("dracs.jobqueue.logger") as mock_logger:
+                        _prune_tsr_before_collect("host01.example.com", keep_max=2)
+        assert mock_logger.warning.called
+
+    def test_dir_delete_error_is_logged(self, tmp_path, tsr_dir):
+        self._make_zip(tsr_dir, "20260601120000")
+        self._make_zip(tsr_dir, "20260620120000")
+
+        import dracs.jobqueue as jq
+
+        with patch.object(jq, "_TSR_BASE_DIR", tmp_path):
+            with patch("dracs.webapp._generate_tsr_index"):
+                with patch("dracs.jobqueue.shutil.rmtree", side_effect=OSError("busy")):
+                    with patch("dracs.jobqueue.logger") as mock_logger:
+                        _prune_tsr_before_collect("host01.example.com", keep_max=2)
+        assert mock_logger.warning.called
+
+    def test_unparseable_zip_is_skipped(self, tmp_path, tsr_dir):
+        # Zip with a non-timestamp name should be ignored, not raise
+        (tsr_dir / "TSRbadname_ABCD123.zip").write_text("fake")
+        self._make_zip(tsr_dir, "20260620120000")
+        self._make_zip(tsr_dir, "20260621120000")
+
+        import dracs.jobqueue as jq
+
+        with patch.object(jq, "_TSR_BASE_DIR", tmp_path):
+            with patch("dracs.webapp._generate_tsr_index"):
+                _prune_tsr_before_collect("host01.example.com", keep_max=2)
+
+        # The two valid zips are within keep_max so nothing is deleted
+        assert (tsr_dir / "TSRbadname_ABCD123.zip").exists()
+
+
+class TestExecuteTsrJobKeepMax:
+    def test_keep_max_in_metadata_calls_prune(self):
+        with patch("dracs.jobqueue._prune_tsr_before_collect") as mock_prune:
+            with patch("dracs.jobqueue.get_session") as mock_session:
+                mock_session.return_value.__enter__ = MagicMock(
+                    return_value=MagicMock(
+                        query=MagicMock(
+                            return_value=MagicMock(
+                                filter=MagicMock(
+                                    return_value=MagicMock(
+                                        first=MagicMock(return_value=None)
+                                    )
+                                )
+                            )
+                        )
+                    )
+                )
+                mock_session.return_value.__exit__ = MagicMock(return_value=False)
+                from dracs.jobqueue import execute_tsr_job
+
+                try:
+                    execute_tsr_job(
+                        "host01.example.com",
+                        metadata={"keep_max": 2},
+                    )
+                except Exception:
+                    pass
+        mock_prune.assert_called_once_with("host01.example.com", 2)

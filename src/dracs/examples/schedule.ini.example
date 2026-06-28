@@ -8,7 +8,10 @@
 #   time     = HH:MM (24-hour format)
 #   day      = monday | tuesday | ... | sunday (required for weekly)
 #   target   = all | model:<model> | <hostname>
-#   site     = <site_name> (optional, defaults to primary site)
+#   site     = <site_name> (optional, defaults to all sites if not specified)
+#   keep_max = <integer>   (optional, tsr only) max TSRs to retain per host;
+#                          before each collection the oldest TSRs are pruned so
+#                          that after collection exactly keep_max remain
 #
 # Examples:
 #
@@ -18,6 +21,7 @@
 # day = sunday
 # time = 02:00
 # target = all
+# keep_max = 2
 #
 # [refresh-daily]
 # type = refresh
