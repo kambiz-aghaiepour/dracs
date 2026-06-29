@@ -21,6 +21,7 @@ dependencies = [
     "websockify>=0.12.0",
     "defusedxml>=0.7.1",
     "google-auth-oauthlib>=1.2.0",
+    "cryptography>=42.0.0",
     "uv",
     "build",
     "twine",
