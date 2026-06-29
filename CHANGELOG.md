@@ -2,6 +2,24 @@
 
 <!-- version list -->
 
+## v2.12.0 (2026-06-29)
+
+### Bug Fixes
+
+- Codecov/patch fell short
+  ([`5bd603c`](https://github.com/kambiz-aghaiepour/dracs/commit/5bd603c313964a0b6dc8cfa459238496c8653905))
+
+### Chores
+
+- Sync spec file version to 2.11.12 [skip ci]
+  ([`0d3037e`](https://github.com/kambiz-aghaiepour/dracs/commit/0d3037e94569b658336fb291965092a41104e917))
+
+### Features
+
+- Add allowed_domains to site configurations
+  ([`8e8e41b`](https://github.com/kambiz-aghaiepour/dracs/commit/8e8e41b3939d4f53efddc95b2d1f84319c26d84c))
+
+
 ## v2.11.12 (2026-06-28)
 
 ### Bug Fixes
