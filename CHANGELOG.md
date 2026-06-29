@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.12.1 (2026-06-29)
+
+### Bug Fixes
+
+- Dracs-client needs to handle site scoped role
+  ([`4eed508`](https://github.com/kambiz-aghaiepour/dracs/commit/4eed5089da4c9308528312bc3da54693525f76d9))
+
+### Chores
+
+- Sync spec file version to 2.12.0 [skip ci]
+  ([`2109d64`](https://github.com/kambiz-aghaiepour/dracs/commit/2109d640d5836276bd8a70d3667e05d70d9c8457))
+
+
 ## v2.12.0 (2026-06-29)
 
 ### Bug Fixes
