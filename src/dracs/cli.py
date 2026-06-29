@@ -514,7 +514,6 @@ async def main() -> None:
             set_site_ini_config,
         )
         from dracs.validation import validate_site_name
-        from tabulate import tabulate
 
         do_add = getattr(args, "add", False)
         do_delete = getattr(args, "delete", False)
@@ -605,9 +604,17 @@ async def main() -> None:
             defaults = cfg.get("defaults", {})
             hosts = cfg.get("hosts", {})
             if defaults:
+                from rich.console import Console
+                from rich.table import Table
+
                 print(f"Defaults for site '{args.name}':")
-                table = [[k, v] for k, v in sorted(defaults.items())]
-                print(tabulate(table, headers=["Key", "Value"], tablefmt="simple"))
+                console = Console()
+                tbl = Table(show_header=True, header_style="bold cyan")
+                tbl.add_column("Key")
+                tbl.add_column("Value")
+                for k, v in sorted(defaults.items()):
+                    tbl.add_row(k, v)
+                console.print(tbl)
             else:
                 print(f"No defaults configured for site '{args.name}'.")
             if hosts:
@@ -655,9 +662,17 @@ async def main() -> None:
             )
 
         else:
+            from rich.console import Console
+            from rich.table import Table
+
             sites = list_sites()
-            table = [[s["name"], s["host_count"]] for s in sites]
-            print(tabulate(table, headers=["Site", "Hosts"], tablefmt="simple"))
+            console = Console()
+            tbl = Table(show_header=True, header_style="bold cyan")
+            tbl.add_column("Site")
+            tbl.add_column("Hosts", justify="right")
+            for s in sites:
+                tbl.add_row(s["name"], str(s["host_count"]))
+            console.print(tbl)
         return
 
     if args.command in ["discover", "d"]:
@@ -900,7 +915,6 @@ async def main() -> None:
             update_user_password as _update_password,
             update_user_role as _update_role,
         )
-        from tabulate import tabulate
 
         if args.add:
             if not args.username:
@@ -966,25 +980,31 @@ async def main() -> None:
             print(f"Using Site: {site_name}")
             users = _list_users()
             if users:
-                table = [
-                    [
-                        u["username"],
-                        next(
-                            (
-                                r["role"]
-                                for r in u.get("site_roles", [])
-                                if r["site_name"] == site_name
-                            ),
-                            "",
+                from rich.console import Console
+                from rich.table import Table
+
+                console = Console()
+                tbl = Table(show_header=True, header_style="bold cyan")
+                tbl.add_column("Username")
+                tbl.add_column("Site Role")
+                tbl.add_column("Created")
+                tbl.add_column("By")
+                for u in users:
+                    site_role = next(
+                        (
+                            r["role"]
+                            for r in u.get("site_roles", [])
+                            if r["site_name"] == site_name
                         ),
+                        "",
+                    )
+                    tbl.add_row(
+                        u["username"],
+                        site_role,
                         u["created_at"],
                         u["created_by"] or "-",
-                    ]
-                    for u in users
-                ]
-                print(
-                    tabulate(table, headers=["Username", "Site Role", "Created", "By"])
-                )
+                    )
+                console.print(tbl)
             else:
                 print("No users found. Only the superadmin (config) account exists.")
         elif args.update:

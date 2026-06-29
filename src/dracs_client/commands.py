@@ -298,25 +298,27 @@ def cmd_jobs(args, base_url, verify_ssl, server):
         if data.get("success"):
             jobs = data.get("jobs", [])
             if jobs:
-                from tabulate import tabulate
+                from rich.console import Console
+                from rich.table import Table
 
-                table = [
-                    [
-                        j.get("id"),
-                        j.get("job_type"),
-                        j.get("target"),
-                        j.get("status"),
-                        j.get("created_at", "")[:19],
+                console = Console()
+                tbl = Table(show_header=True, header_style="bold cyan")
+                tbl.add_column("ID", justify="right")
+                tbl.add_column("Type")
+                tbl.add_column("Target")
+                tbl.add_column("Status")
+                tbl.add_column("Created")
+                tbl.add_column("Error")
+                for j in jobs:
+                    tbl.add_row(
+                        str(j.get("id")),
+                        j.get("job_type") or "",
+                        j.get("target") or "",
+                        j.get("status") or "",
+                        (j.get("created_at") or "")[:19],
                         j.get("error") or "",
-                    ]
-                    for j in jobs
-                ]
-                print(
-                    tabulate(
-                        table,
-                        headers=["ID", "Type", "Target", "Status", "Created", "Error"],
                     )
-                )
+                console.print(tbl)
             else:
                 print("No active jobs.")
     elif args.clear:
@@ -351,10 +353,19 @@ def cmd_idracjobs(args, base_url, verify_ssl, server):
         if data.get("success"):
             jobs = data.get("jobs", [])
             if jobs:
-                from tabulate import tabulate
+                from rich.console import Console
+                from rich.table import Table
 
-                table = [[j.get("id"), j.get("name"), j.get("status")] for j in jobs]
-                print(tabulate(table, headers=["ID", "Name", "Status"]))
+                console = Console()
+                tbl = Table(show_header=True, header_style="bold cyan")
+                tbl.add_column("ID", justify="right")
+                tbl.add_column("Name")
+                tbl.add_column("Status")
+                for j in jobs:
+                    tbl.add_row(
+                        str(j.get("id")), j.get("name") or "", j.get("status") or ""
+                    )
+                console.print(tbl)
             else:
                 print(f"No iDRAC jobs for {args.target}.")
         else:
@@ -442,27 +453,31 @@ def cmd_user(args, base_url, verify_ssl, server):
                 site_name = primary["name"] if primary else "Default"
             print(f"Using Site: {site_name}")
             if users:
-                from tabulate import tabulate
+                from rich.console import Console
+                from rich.table import Table
 
-                table = [
-                    [
-                        u["username"],
-                        next(
-                            (
-                                r["role"]
-                                for r in u.get("site_roles", [])
-                                if r["site_name"] == site_name
-                            ),
-                            "",
+                console = Console()
+                tbl = Table(show_header=True, header_style="bold cyan")
+                tbl.add_column("Username")
+                tbl.add_column("Site Role")
+                tbl.add_column("Created")
+                tbl.add_column("By")
+                for u in users:
+                    site_role = next(
+                        (
+                            r["role"]
+                            for r in u.get("site_roles", [])
+                            if r["site_name"] == site_name
                         ),
+                        "",
+                    )
+                    tbl.add_row(
+                        u["username"],
+                        site_role,
                         u.get("created_at", "")[:19],
                         u.get("created_by") or "-",
-                    ]
-                    for u in users
-                ]
-                print(
-                    tabulate(table, headers=["Username", "Site Role", "Created", "By"])
-                )
+                    )
+                console.print(tbl)
             else:
                 print("No users found. Only the superadmin (config) account exists.")
     elif args.update:
@@ -528,9 +543,16 @@ def cmd_discover(args, base_url, verify_ssl, server):
     data = resp.json()
     dns_failed = data.get("dns_failed", [])
     if dns_failed:
-        from tabulate import tabulate
+        from rich.console import Console
+        from rich.table import Table
 
         print(f"\n{len(dns_failed)} host(s) failed DNS check:")
-        table = [(f["hostname"], f["idrac_fqdn"], f["error"]) for f in dns_failed]
-        print(tabulate(table, headers=["Hostname", "iDRAC FQDN", "Error"]))
+        console = Console()
+        tbl = Table(show_header=True, header_style="bold red")
+        tbl.add_column("Hostname")
+        tbl.add_column("iDRAC FQDN")
+        tbl.add_column("Error")
+        for f in dns_failed:
+            tbl.add_row(f["hostname"], f["idrac_fqdn"], f["error"])
+        console.print(tbl)
     _print_result(resp)
