@@ -511,6 +511,16 @@ async def _discover_single_host(
     hostname: str, warranty: str, auto_add: bool, site_id: int | None = None
 ) -> dict:
     result = {"hostname": hostname, "status": "ok", "error": None}
+    if site_id is not None:
+        from dracs.db import get_site_allowed_domains
+        from dracs.sites import is_domain_allowed
+
+        allowed = get_site_allowed_domains(site_id)
+        if not is_domain_allowed(hostname, allowed):
+            result["status"] = "error"
+            result["error"] = f"Cannot add host '{hostname}'. Domain not allowed."
+            logger.warning(result["error"])
+            return result
     try:
         service_tag, model = await discover_dell_system(hostname, warranty)
         result["service_tag"] = service_tag

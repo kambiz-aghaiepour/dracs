@@ -193,6 +193,10 @@
             <div style="margin-top: 8px;">
                 <button class="btn btn-secondary" onclick="addHostOverrideRow()">+ Add Host Override</button>
             </div>
+            <h4 style="margin: 16px 0 4px;">DNS Domains</h4>
+            <p style="font-size: 0.85em; color: #888; margin: 0 0 6px;">Allowed DNS domains for host discovery. One per line. Leave blank to allow all.</p>
+            <textarea id="manage-allowed-domains" rows="4"
+                style="width: 100%; font-family: monospace; box-sizing: border-box;"></textarea>
             <h4 style="margin: 16px 0 4px;">QUADS</h4>
             <div class="form-row">
                 <div class="form-group">
@@ -541,6 +545,8 @@
                 addHostOverrideRow(hostname, overrides);
             }
 
+            document.getElementById('manage-allowed-domains').value = cfg.allowed_domains || '';
+
             document.getElementById('manage-panel').style.display = 'block';
         }
 
@@ -606,10 +612,12 @@
                 if (Object.keys(entry).length > 0) hosts[hn] = entry;
             });
 
+            const allowed_domains = document.getElementById('manage-allowed-domains').value;
+
             const resp = await fetch('/api/sites/' + encodeURIComponent(selectedSite.name) + '/config', {
                 method: 'PUT',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({defaults: defaults, hosts: hosts})
+                body: JSON.stringify({defaults: defaults, hosts: hosts, allowed_domains: allowed_domains})
             });
             const data = await resp.json();
             if (data.success) {

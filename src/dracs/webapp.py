@@ -3305,9 +3305,12 @@ def api_sites_config_get(name):
     if not session.get("is_superadmin", False):
         return jsonify({"success": False, "message": "Superadmin required"}), 403
 
+    from dracs.db import get_site_by_name
     from dracs.sites import get_site_ini_config
 
     config = get_site_ini_config(name)
+    site = get_site_by_name(name)
+    config["allowed_domains"] = site["allowed_domains"] or "" if site else ""
     return jsonify({"success": True, "config": config})
 
 
@@ -3325,9 +3328,15 @@ def api_sites_config_set(name):
         if not data:
             return jsonify({"success": False, "message": "Config data required"}), 400
 
+        from dracs.db import get_site_by_name, update_site_allowed_domains
         from dracs.sites import set_site_ini_config
 
         set_site_ini_config(name, data)
+
+        site = get_site_by_name(name)
+        if site:
+            update_site_allowed_domains(site["id"], data.get("allowed_domains") or None)
+
         audit_log(
             "site_config_update",
             target=name,

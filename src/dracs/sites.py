@@ -153,6 +153,19 @@ def rename_site_ini_sections(old_name: str, new_name: str) -> bool:
     return True
 
 
+def is_domain_allowed(hostname: str, allowed_domains: list) -> bool:
+    if not allowed_domains:
+        return True
+    hostname = hostname.lower().strip()
+    for domain in allowed_domains:
+        domain = domain.lower().strip()
+        if not domain:
+            continue
+        if hostname == domain or hostname.endswith("." + domain):
+            return True
+    return False
+
+
 def get_site_ini_config(site_name: str) -> dict:
     config_path = _find_passwords_ini()
     if config_path is None:

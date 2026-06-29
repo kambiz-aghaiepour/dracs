@@ -9,6 +9,8 @@ from dracs.db import (
     create_site,
     db_initialize,
     get_default_site_id,
+    get_site_by_name,
+    get_site_allowed_domains,
     upsert_system,
 )
 from dracs.users import create_user, set_user_site_role
@@ -276,6 +278,65 @@ class TestSiteConfig:
         _login(site_client, "testuser", "testpass")
         resp = site_client.get("/api/sites/Default/config")
         assert resp.status_code == 403
+
+    def test_get_config_includes_allowed_domains(
+        self, site_client, tmp_path, monkeypatch
+    ):
+        _login(site_client)
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text("[Default-DEFAULTS]\nusername = root\n")
+        monkeypatch.chdir(tmp_path)
+        resp = site_client.get("/api/sites/Default/config")
+        data = resp.get_json()
+        assert data["success"] is True
+        assert "allowed_domains" in data["config"]
+
+    def test_set_config_saves_allowed_domains(
+        self, site_client, site_db, tmp_path, monkeypatch
+    ):
+        _login(site_client)
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text("[Default-DEFAULTS]\nusername = root\n")
+        monkeypatch.chdir(tmp_path)
+
+        resp = site_client.put(
+            "/api/sites/Default/config",
+            data=json.dumps(
+                {
+                    "defaults": {"username": "root"},
+                    "allowed_domains": "example.com\nfoo.example.com",
+                }
+            ),
+            content_type="application/json",
+        )
+        assert resp.get_json()["success"] is True
+
+        site = get_site_by_name("Default")
+        domains = get_site_allowed_domains(site["id"])
+        assert "example.com" in domains
+        assert "foo.example.com" in domains
+
+    def test_set_config_clears_allowed_domains(
+        self, site_client, site_db, tmp_path, monkeypatch
+    ):
+        _login(site_client)
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text("[Default-DEFAULTS]\nusername = root\n")
+        monkeypatch.chdir(tmp_path)
+
+        site_client.put(
+            "/api/sites/Default/config",
+            data=json.dumps({"defaults": {}, "allowed_domains": "example.com"}),
+            content_type="application/json",
+        )
+        site_client.put(
+            "/api/sites/Default/config",
+            data=json.dumps({"defaults": {}, "allowed_domains": ""}),
+            content_type="application/json",
+        )
+
+        site = get_site_by_name("Default")
+        assert get_site_allowed_domains(site["id"]) == []
 
 
 class TestSitesCrudEdgeCases:
