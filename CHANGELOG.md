@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v2.12.2 (2026-06-29)
+
+### Bug Fixes
+
+- Codecov/patch dropped
+  ([`dae18b2`](https://github.com/kambiz-aghaiepour/dracs/commit/dae18b27ee66246ddd497864bccdc96a0f92391b))
+
+- Discovery related fixes
+  ([`7642579`](https://github.com/kambiz-aghaiepour/dracs/commit/7642579ecf492c8ddc79a5ea601046d38f6b639d))
+
+### Chores
+
+- Sync spec file version to 2.12.1 [skip ci]
+  ([`852d4ce`](https://github.com/kambiz-aghaiepour/dracs/commit/852d4cec1caa762dbe0fe383cadd36b43774397a))
+
+
 ## v2.12.1 (2026-06-29)
 
 ### Bug Fixes
