@@ -68,6 +68,7 @@ def _collect_and_store(hostname: str, site_name: str, site_id: int) -> None:
 
 class ConfigCollector:
     def __init__(self):
+        """Initialize the collector with no running executor."""
         self._executor = None
         self._running = False
         self._thread = None
