@@ -1038,6 +1038,10 @@ def api_token_login():
             return jsonify({"success": False, "message": "Invalid credentials"}), 401
 
         auth_username, auth_role = result
+        if auth_role is None:
+            sr_values = [sr["role"] for sr in get_user_site_roles(auth_username)]
+            auth_role = "admin" if "admin" in sr_values else "user"
+
         expiry = int(os.environ.get("DRACS_TOKEN_EXPIRY", "36000"))
 
         from dracs.tokens import cleanup_expired_tokens, generate_token
