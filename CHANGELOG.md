@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.13.0 (2026-06-29)
+
+### Chores
+
+- Sync spec file version to 2.12.2 [skip ci]
+  ([`c6ac1a3`](https://github.com/kambiz-aghaiepour/dracs/commit/c6ac1a3904a36f1d626b5d49d15d91023989ef3d))
+
+### Features
+
+- Add DNS pre-check to bulk discovery
+  ([`4376bca`](https://github.com/kambiz-aghaiepour/dracs/commit/4376bca502ecf4017834ae22ee9c22dd2ce5587c))
+
+
 ## v2.12.2 (2026-06-29)
 
 ### Bug Fixes
