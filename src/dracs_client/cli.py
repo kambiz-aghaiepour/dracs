@@ -605,10 +605,16 @@ def main() -> None:
             print(f"Error: HTTP {resp.status_code}", file=sys.stderr)
             sys.exit(1)
         if data.get("success") and data.get("sites"):
-            from tabulate import tabulate
+            from rich.console import Console
+            from rich.table import Table
 
-            table = [[s["name"], s["host_count"]] for s in data["sites"]]
-            print(tabulate(table, headers=["Site", "Hosts"], tablefmt="simple"))
+            console = Console()
+            tbl = Table(show_header=True, header_style="bold cyan")
+            tbl.add_column("Site")
+            tbl.add_column("Hosts", justify="right")
+            for s in data["sites"]:
+                tbl.add_row(s["name"], str(s["host_count"]))
+            console.print(tbl)
         return
 
     if getattr(args, "site", None):

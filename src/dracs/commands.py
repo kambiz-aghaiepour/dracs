@@ -8,8 +8,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 
-from tabulate import tabulate
-
 from dracs.display import (
     filter_list_results as _sync_filter_list_results,
     render_list_table,
@@ -581,26 +579,39 @@ async def discover_dell_systems_batch(
     failed = [r for r in results if r["status"] == "error"]
 
     if succeeded and show_discovered:
-        table_data = [
-            (
+        from rich.console import Console
+        from rich.table import Table
+
+        console = Console()
+        table = Table(show_header=True, header_style="bold cyan", show_lines=True)
+        table.add_column("Hostname")
+        table.add_column("Service Tag")
+        table.add_column("Model")
+        table.add_column("Status")
+        for r in succeeded:
+            table.add_row(
                 r["hostname"],
                 r["service_tag"],
                 r["model"],
                 "Added" if r.get("added") else "Discovered",
             )
-            for r in succeeded
-        ]
-        headers = ["Hostname", "Service Tag", "Model", "Status"]
-        print(tabulate(table_data, headers=headers, tablefmt="grid"))
+        console.print(table)
 
     if succeeded:
         print(f"\nSucceeded: {len(succeeded)}")
 
     if failed:
         print(f"Failed: {len(failed)}")
-        table_data = [(r["hostname"], r["error"]) for r in failed]
-        headers = ["Hostname", "Error"]
-        print(tabulate(table_data, headers=headers, tablefmt="grid"))
+        from rich.console import Console
+        from rich.table import Table
+
+        console = Console()
+        table = Table(show_header=True, header_style="bold red", show_lines=True)
+        table.add_column("Hostname")
+        table.add_column("Error")
+        for r in failed:
+            table.add_row(r["hostname"], r["error"])
+        console.print(table)
 
     total = len(results)
     print(f"Total: {total} hosts")
