@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v2.13.1 (2026-06-29)
+
+### Bug Fixes
+
+- Codecov/patch dropped below 99
+  ([`139f8be`](https://github.com/kambiz-aghaiepour/dracs/commit/139f8bebeb3b6d4542badcf39b9111d25dc21cae))
+
+- Failed filter missing on jobs server side
+  ([`4c10910`](https://github.com/kambiz-aghaiepour/dracs/commit/4c10910d5306d40f0ee30ef00d8c04cd11134f87))
+
+### Chores
+
+- Sync spec file version to 2.13.0 [skip ci]
+  ([`9f114b7`](https://github.com/kambiz-aghaiepour/dracs/commit/9f114b70cfd89ae6a0a409ac9e3d577e74464e3d))
+
+
 ## v2.13.0 (2026-06-29)
 
 ### Chores
