@@ -41,7 +41,10 @@ class TestGetCredentials:
     def test_host_specific_overrides_defaults(self):
         mock_cfg = {
             "hosts": {
-                "server01.example.com": {"username": "customuser", "password": "custompw"}
+                "server01.example.com": {
+                    "username": "customuser",
+                    "password": "custompw",
+                }
             },
             "defaults": {"username": "root", "password": "secret"},
         }
@@ -327,9 +330,12 @@ class TestCollectAllForHost:
         }
         with patch("dracs.redfish._get_credentials", return_value=("root", "pw")):
             with patch(
-                "dracs.redfish.collect_sys_profile", return_value="PerfPerWattOptimizedOs"
+                "dracs.redfish.collect_sys_profile",
+                return_value="PerfPerWattOptimizedOs",
             ) as mock_sys:
-                result = collect_all_for_host("server01.example.com", "Default", enabled)
+                result = collect_all_for_host(
+                    "server01.example.com", "Default", enabled
+                )
         mock_sys.assert_called_once()
         assert result["sys_profile"] == "PerfPerWattOptimizedOs"
 
@@ -352,6 +358,8 @@ class TestCollectAllForHost:
                 "dracs.redfish.collect_idrac_hostname",
                 return_value="mgmt-server01.example.com",
             ) as mock_hostname:
-                result = collect_all_for_host("server01.example.com", "Default", enabled)
+                result = collect_all_for_host(
+                    "server01.example.com", "Default", enabled
+                )
         mock_hostname.assert_called_once()
         assert result["idrac_hostname"] == "mgmt-server01.example.com"
