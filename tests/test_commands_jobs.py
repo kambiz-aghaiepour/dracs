@@ -5,7 +5,7 @@ import pytest
 
 from dracs.commands import cancel_job_cmd, clear_jobs, list_jobs
 from dracs.db import db_initialize, get_session, Job
-from dracs.jobqueue import complete_job, enqueue_job, claim_next_job
+from dracs.jobqueue import complete_job, enqueue_job, claim_next_job, fail_job
 
 
 @pytest.fixture
@@ -53,6 +53,20 @@ class TestListJobs:
         captured = capsys.readouterr()
         assert "tsr" in captured.out
         assert "completed" in captured.out
+
+    @pytest.mark.asyncio
+    async def test_failed_only_shows_only_failed_jobs(self, job_db, capsys):
+        job_ok = enqueue_job("tsr", "host01.example.com")
+        job_bad = enqueue_job("discover", "host02.example.com")
+        claim_next_job("w1")
+        complete_job(job_ok)
+        claim_next_job("w2")
+        fail_job(job_bad, "SNMP timeout")
+        await list_jobs(False, True, job_db)
+        captured = capsys.readouterr()
+        assert "host02" in captured.out
+        assert "failed" in captured.out
+        assert "host01" not in captured.out
 
     @pytest.mark.asyncio
     async def test_shows_batch_progress(self, job_db, capsys):
