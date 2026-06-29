@@ -10,6 +10,7 @@ import pytest
 import dracs.redfish as redfish_mod
 from dracs.redfish import (
     DESIRED,
+    _get_credentials,
     collect_all_for_host,
     collect_idrac_attributes,
     collect_idrac_hostname,
@@ -27,6 +28,34 @@ def _mock_response(json_data, status_code=200):
     if status_code >= 400:
         resp.raise_for_status.side_effect = Exception(f"HTTP {status_code}")
     return resp
+
+
+class TestGetCredentials:
+    def test_returns_defaults_when_no_host_section(self):
+        mock_cfg = {"hosts": {}, "defaults": {"username": "root", "password": "secret"}}
+        with patch("dracs.sites.get_site_ini_config", return_value=mock_cfg):
+            user, pw = _get_credentials("Default", "server01.example.com")
+        assert user == "root"
+        assert pw == "secret"
+
+    def test_host_specific_overrides_defaults(self):
+        mock_cfg = {
+            "hosts": {
+                "server01.example.com": {"username": "customuser", "password": "custompw"}
+            },
+            "defaults": {"username": "root", "password": "secret"},
+        }
+        with patch("dracs.sites.get_site_ini_config", return_value=mock_cfg):
+            user, pw = _get_credentials("Default", "server01.example.com")
+        assert user == "customuser"
+        assert pw == "custompw"
+
+    def test_falls_back_to_root_when_no_config(self):
+        mock_cfg = {"hosts": {}, "defaults": {}}
+        with patch("dracs.sites.get_site_ini_config", return_value=mock_cfg):
+            user, pw = _get_credentials("Default", "server01.example.com")
+        assert user == "root"
+        assert pw == ""
 
 
 class TestDesiredValues:
@@ -281,3 +310,48 @@ class TestCollectAllForHost:
         assert result["ssl_self_signed"] == 1
         assert result["ssl_valid_name"] == 0
         assert result["ssl_expiry"] == "2026-12-31"
+
+    @patch.dict(
+        os.environ,
+        {"DRACS_DNS_STRING": "mgmt-", "DRACS_DNS_MODE": "prefix"},
+    )
+    def test_sys_profile_collected_when_enabled(self):
+        enabled = {
+            "ps_rapid_on_enabled": False,
+            "dns_from_dhcp_enabled": False,
+            "ipmi_lan_enable_enabled": False,
+            "host_header_check_enabled": False,
+            "sys_profile_enabled": True,
+            "ssl_enabled": False,
+            "idrac_hostname_enabled": False,
+        }
+        with patch("dracs.redfish._get_credentials", return_value=("root", "pw")):
+            with patch(
+                "dracs.redfish.collect_sys_profile", return_value="PerfPerWattOptimizedOs"
+            ) as mock_sys:
+                result = collect_all_for_host("server01.example.com", "Default", enabled)
+        mock_sys.assert_called_once()
+        assert result["sys_profile"] == "PerfPerWattOptimizedOs"
+
+    @patch.dict(
+        os.environ,
+        {"DRACS_DNS_STRING": "mgmt-", "DRACS_DNS_MODE": "prefix"},
+    )
+    def test_idrac_hostname_collected_when_enabled(self):
+        enabled = {
+            "ps_rapid_on_enabled": False,
+            "dns_from_dhcp_enabled": False,
+            "ipmi_lan_enable_enabled": False,
+            "host_header_check_enabled": False,
+            "sys_profile_enabled": False,
+            "ssl_enabled": False,
+            "idrac_hostname_enabled": True,
+        }
+        with patch("dracs.redfish._get_credentials", return_value=("root", "pw")):
+            with patch(
+                "dracs.redfish.collect_idrac_hostname",
+                return_value="mgmt-server01.example.com",
+            ) as mock_hostname:
+                result = collect_all_for_host("server01.example.com", "Default", enabled)
+        mock_hostname.assert_called_once()
+        assert result["idrac_hostname"] == "mgmt-server01.example.com"

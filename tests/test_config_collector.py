@@ -76,6 +76,15 @@ class TestNeedsCollection:
         settings = {"ps_rapid_on_enabled": True, "ps_rapid_on_hours": 24}
         assert _needs_collection("host01.example.com", site_id, settings) is True
 
+    def test_true_when_collected_at_is_malformed(self, coll_db, site_id):
+        upsert_host_config(
+            "host01.example.com",
+            site_id,
+            {"ps_rapid_on": "Disabled", "collected_at": "not-a-valid-datetime"},
+        )
+        settings = {"ps_rapid_on_enabled": True, "ps_rapid_on_hours": 24}
+        assert _needs_collection("host01.example.com", site_id, settings) is True
+
     def test_false_when_nothing_enabled(self, coll_db, site_id):
         settings = {
             "ps_rapid_on_enabled": False,

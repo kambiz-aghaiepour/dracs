@@ -207,3 +207,19 @@ class TestApiSiteConfigCollectionPut:
             content_type="application/json",
         )
         assert resp.status_code == 404
+
+    def test_put_handles_server_error(self, client):
+        _login(client)
+        with client.session_transaction() as sess:
+            sess["is_superadmin"] = True
+        with patch(
+            "dracs.db.upsert_site_config_collection",
+            side_effect=RuntimeError("DB exploded"),
+        ):
+            resp = client.put(
+                "/api/sites/Default/config-collection",
+                data=json.dumps({"ps_rapid_on_enabled": True}),
+                content_type="application/json",
+            )
+        assert resp.status_code == 500
+        assert "DB exploded" in resp.get_json()["message"]
