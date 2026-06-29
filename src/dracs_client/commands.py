@@ -362,7 +362,9 @@ def cmd_idracjobs(args, base_url, verify_ssl, server):
                 tbl.add_column("Name")
                 tbl.add_column("Status")
                 for j in jobs:
-                    tbl.add_row(str(j.get("id")), j.get("name") or "", j.get("status") or "")
+                    tbl.add_row(
+                        str(j.get("id")), j.get("name") or "", j.get("status") or ""
+                    )
                 console.print(tbl)
             else:
                 print(f"No iDRAC jobs for {args.target}.")

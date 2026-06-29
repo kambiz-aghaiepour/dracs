@@ -915,6 +915,7 @@ async def main() -> None:
             update_user_password as _update_password,
             update_user_role as _update_role,
         )
+
         if args.add:
             if not args.username:
                 print("Error: --username is required with --add.", file=sys.stderr)
