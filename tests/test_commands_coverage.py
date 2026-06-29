@@ -20,7 +20,14 @@ from dracs.commands import (
     _discover_single_host,
     discover_dell_systems_batch,
 )
-from dracs.db import db_initialize, upsert_system, get_session, System
+from dracs.db import (
+    db_initialize,
+    get_site_by_name,
+    update_site_allowed_domains,
+    upsert_system,
+    get_session,
+    System,
+)
 from dracs.exceptions import DatabaseError, SNMPError, ValidationError
 
 
@@ -492,6 +499,77 @@ class TestDiscoverSingleHost:
         mock_discover.return_value = ("TAG001", "R660")
         result = asyncio.run(_discover_single_host("h1", temp_db, auto_add=False))
         assert result["added"] is False
+
+
+# ---------------------------------------------------------------------------
+# _discover_single_host domain validation
+# ---------------------------------------------------------------------------
+class TestDiscoverSingleHostDomainCheck:
+    @patch("dracs.commands.discover_dell_system", new_callable=AsyncMock)
+    def test_no_site_id_skips_domain_check(self, mock_discover, temp_db):
+        mock_discover.return_value = ("TAG001", "R660")
+        result = asyncio.run(
+            _discover_single_host(
+                "host01.other.com", temp_db, auto_add=False, site_id=None
+            )
+        )
+        assert result["status"] == "ok"
+        mock_discover.assert_called_once()
+
+    @patch("dracs.commands.discover_dell_system", new_callable=AsyncMock)
+    def test_empty_allowed_domains_permits_all(self, mock_discover, temp_db):
+        db_initialize(temp_db)
+        site = get_site_by_name("Default")
+        mock_discover.return_value = ("TAG001", "R660")
+        result = asyncio.run(
+            _discover_single_host(
+                "host01.other.com", temp_db, auto_add=False, site_id=site["id"]
+            )
+        )
+        assert result["status"] == "ok"
+        mock_discover.assert_called_once()
+
+    @patch("dracs.commands.discover_dell_system", new_callable=AsyncMock)
+    def test_matching_domain_permitted(self, mock_discover, temp_db):
+        db_initialize(temp_db)
+        site = get_site_by_name("Default")
+        update_site_allowed_domains(site["id"], "example.com")
+        mock_discover.return_value = ("TAG001", "R660")
+        result = asyncio.run(
+            _discover_single_host(
+                "host01.example.com", temp_db, auto_add=False, site_id=site["id"]
+            )
+        )
+        assert result["status"] == "ok"
+        mock_discover.assert_called_once()
+
+    @patch("dracs.commands.discover_dell_system", new_callable=AsyncMock)
+    def test_non_matching_domain_rejected(self, mock_discover, temp_db):
+        db_initialize(temp_db)
+        site = get_site_by_name("Default")
+        update_site_allowed_domains(site["id"], "example.com")
+        result = asyncio.run(
+            _discover_single_host(
+                "host01.other.com", temp_db, auto_add=False, site_id=site["id"]
+            )
+        )
+        assert result["status"] == "error"
+        assert "Domain not allowed" in result["error"]
+        mock_discover.assert_not_called()
+
+    @patch("dracs.commands.discover_dell_system", new_callable=AsyncMock)
+    def test_deep_subdomain_permitted(self, mock_discover, temp_db):
+        db_initialize(temp_db)
+        site = get_site_by_name("Default")
+        update_site_allowed_domains(site["id"], "example.com")
+        mock_discover.return_value = ("TAG001", "R660")
+        result = asyncio.run(
+            _discover_single_host(
+                "host01.bar.example.com", temp_db, auto_add=False, site_id=site["id"]
+            )
+        )
+        assert result["status"] == "ok"
+        mock_discover.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

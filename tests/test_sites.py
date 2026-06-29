@@ -9,11 +9,14 @@ from dracs.db import (
     delete_site,
     get_default_site_id,
     get_session,
+    get_site_allowed_domains,
     get_site_by_name,
     list_sites,
     rename_site,
+    update_site_allowed_domains,
     upsert_system,
 )
+from dracs.sites import is_domain_allowed
 from dracs.users import create_user
 
 
@@ -40,7 +43,14 @@ class TestSiteSchema:
         engine = create_engine(f"sqlite:///{temp_db}")
         inspector = inspect(engine)
         columns = {c["name"] for c in inspector.get_columns("sites")}
-        assert columns == {"id", "name", "is_primary", "created_at", "sort_order"}
+        assert columns == {
+            "id",
+            "name",
+            "is_primary",
+            "created_at",
+            "sort_order",
+            "allowed_domains",
+        }
         engine.dispose()
 
     def test_user_site_roles_table_columns(self, temp_db):
@@ -60,6 +70,94 @@ class TestSiteSchema:
         columns = {c["name"] for c in inspector.get_columns("jobs")}
         assert "site_id" in columns
         engine.dispose()
+
+    def test_sites_allowed_domains_migration(self, temp_db):
+        engine = create_engine(f"sqlite:///{temp_db}")
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "CREATE TABLE sites (id INTEGER PRIMARY KEY, name VARCHAR NOT NULL, "
+                    "is_primary BOOLEAN NOT NULL, created_at VARCHAR NOT NULL)"
+                )
+            )
+            conn.execute(
+                text(
+                    "INSERT INTO sites (id, name, is_primary, created_at) "
+                    "VALUES (1, 'Default', 1, '2024-01-01')"
+                )
+            )
+        engine.dispose()
+
+        db_initialize(temp_db)
+
+        engine = create_engine(f"sqlite:///{temp_db}")
+        inspector = inspect(engine)
+        columns = {c["name"] for c in inspector.get_columns("sites")}
+        assert "allowed_domains" in columns
+        engine.dispose()
+
+
+class TestAllowedDomains:
+    def test_get_set_allowed_domains(self, temp_db):
+        db_initialize(temp_db)
+        site = get_site_by_name("Default")
+        update_site_allowed_domains(site["id"], "example.com\nfoo.example.com")
+        domains = get_site_allowed_domains(site["id"])
+        assert domains == ["example.com", "foo.example.com"]
+
+    def test_empty_allowed_domains(self, temp_db):
+        db_initialize(temp_db)
+        site = get_site_by_name("Default")
+        assert get_site_allowed_domains(site["id"]) == []
+
+    def test_clear_allowed_domains(self, temp_db):
+        db_initialize(temp_db)
+        site = get_site_by_name("Default")
+        update_site_allowed_domains(site["id"], "example.com")
+        update_site_allowed_domains(site["id"], None)
+        assert get_site_allowed_domains(site["id"]) == []
+
+    def test_get_site_by_name_includes_allowed_domains(self, temp_db):
+        db_initialize(temp_db)
+        site = get_site_by_name("Default")
+        assert "allowed_domains" in site
+
+
+class TestIsDomainAllowed:
+    def test_empty_list_allows_all(self):
+        assert is_domain_allowed("host01.example.com", []) is True
+
+    def test_exact_match(self):
+        assert is_domain_allowed("example.com", ["example.com"]) is True
+
+    def test_direct_subdomain(self):
+        assert is_domain_allowed("host01.example.com", ["example.com"]) is True
+
+    def test_deep_subdomain(self):
+        assert is_domain_allowed("host01.bar.example.com", ["example.com"]) is True
+
+    def test_non_matching_domain(self):
+        assert is_domain_allowed("host01.other.com", ["example.com"]) is False
+
+    def test_partial_suffix_not_matched(self):
+        assert is_domain_allowed("notexample.com", ["example.com"]) is False
+
+    def test_case_insensitive(self):
+        assert is_domain_allowed("HOST01.EXAMPLE.COM", ["example.com"]) is True
+
+    def test_multiple_domains_first_matches(self):
+        assert is_domain_allowed("host01.foo.com", ["example.com", "foo.com"]) is True
+
+    def test_multiple_domains_second_matches(self):
+        assert (
+            is_domain_allowed("host01.example.com", ["foo.com", "example.com"]) is True
+        )
+
+    def test_blank_lines_in_list_ignored(self):
+        assert is_domain_allowed("host01.example.com", ["", "example.com", ""]) is True
+
+    def test_no_match_returns_false(self):
+        assert is_domain_allowed("host01.bar.com", ["example.com", "foo.com"]) is False
 
 
 class TestGrandfatherSites:

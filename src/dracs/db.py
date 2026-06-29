@@ -36,6 +36,9 @@ class Site(Base):
     sort_order: Mapped[Optional[int]] = mapped_column(
         Integer, nullable=True, default=None
     )
+    allowed_domains: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True, default=None
+    )
 
 
 class System(Base):
@@ -174,6 +177,9 @@ def _migrate_schema(engine) -> None:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE sites ADD COLUMN sort_order INTEGER"))
                 conn.execute(text("UPDATE sites SET sort_order = id"))
+        if "allowed_domains" not in site_cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE sites ADD COLUMN allowed_domains TEXT"))
 
 
 def _grandfather_sites(engine) -> None:
@@ -319,7 +325,25 @@ def get_site_by_name(name: str) -> Optional[dict]:
             "name": site.name,
             "is_primary": site.is_primary,
             "created_at": site.created_at,
+            "allowed_domains": site.allowed_domains,
         }
+
+
+def get_site_allowed_domains(site_id: int) -> list:
+    with get_session() as session:
+        site = session.get(Site, site_id)
+        if site is None or not site.allowed_domains:
+            return []
+        return [d.strip() for d in site.allowed_domains.splitlines() if d.strip()]
+
+
+def update_site_allowed_domains(site_id: int, domains: Optional[str]) -> None:
+    with get_session() as session:
+        site = session.get(Site, site_id)
+        if site is None:
+            raise ValueError(f"Site {site_id} not found.")
+        site.allowed_domains = domains or None
+        session.commit()
 
 
 def list_sites() -> list:
