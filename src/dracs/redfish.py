@@ -37,7 +37,9 @@ def collect_ps_rapid_on(idrac_fqdn: str, user: str, pw: str) -> str | None:
         "/Oem/Dell/DellAttributes/System.Embedded.1"
     )
     try:
-        resp = requests.get(url, auth=(user, pw), verify=_VERIFY, timeout=_TIMEOUT)  # nosec # nosemgrep
+        resp = requests.get(
+            url, auth=(user, pw), verify=_VERIFY, timeout=_TIMEOUT
+        )  # nosec # nosemgrep
         resp.raise_for_status()
         attrs = resp.json().get("Attributes", {})
         return attrs.get("ServerPwr.1.PSRapidOn")
@@ -49,7 +51,9 @@ def collect_ps_rapid_on(idrac_fqdn: str, user: str, pw: str) -> str | None:
 def collect_idrac_hostname(idrac_fqdn: str, user: str, pw: str) -> str | None:
     url = f"https://{idrac_fqdn}/redfish/v1/Managers/iDRAC.Embedded.1"
     try:
-        resp = requests.get(url, auth=(user, pw), verify=_VERIFY, timeout=_TIMEOUT)  # nosec # nosemgrep
+        resp = requests.get(
+            url, auth=(user, pw), verify=_VERIFY, timeout=_TIMEOUT
+        )  # nosec # nosemgrep
         resp.raise_for_status()
         return resp.json().get("HostName")
     except Exception as exc:
@@ -62,7 +66,9 @@ def collect_idrac_attributes(idrac_fqdn: str, user: str, pw: str) -> dict:
     url = f"https://{idrac_fqdn}/redfish/v1/Managers/iDRAC.Embedded.1/Attributes"
     result: dict = {}
     try:
-        resp = requests.get(url, auth=(user, pw), verify=_VERIFY, timeout=_TIMEOUT)  # nosec # nosemgrep
+        resp = requests.get(
+            url, auth=(user, pw), verify=_VERIFY, timeout=_TIMEOUT
+        )  # nosec # nosemgrep
         resp.raise_for_status()
         attrs = resp.json().get("Attributes", {})
         val = attrs.get("IPv4.1.DNSFromDHCP")
@@ -82,7 +88,9 @@ def collect_idrac_attributes(idrac_fqdn: str, user: str, pw: str) -> dict:
 def collect_sys_profile(idrac_fqdn: str, user: str, pw: str) -> str | None:
     url = f"https://{idrac_fqdn}/redfish/v1/Systems/System.Embedded.1/Bios"
     try:
-        resp = requests.get(url, auth=(user, pw), verify=_VERIFY, timeout=_TIMEOUT)  # nosec # nosemgrep
+        resp = requests.get(
+            url, auth=(user, pw), verify=_VERIFY, timeout=_TIMEOUT
+        )  # nosec # nosemgrep
         resp.raise_for_status()
         attrs = resp.json().get("Attributes", {})
         return attrs.get("SysProfile")
