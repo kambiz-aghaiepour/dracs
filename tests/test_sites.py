@@ -122,6 +122,11 @@ class TestAllowedDomains:
         site = get_site_by_name("Default")
         assert "allowed_domains" in site
 
+    def test_update_nonexistent_site_raises(self, temp_db):
+        db_initialize(temp_db)
+        with pytest.raises(ValueError, match="not found"):
+            update_site_allowed_domains(99999, "example.com")
+
 
 class TestIsDomainAllowed:
     def test_empty_list_allows_all(self):
