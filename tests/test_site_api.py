@@ -862,6 +862,36 @@ class TestDiscoverEndpoint:
         )
         assert resp.status_code == 400
 
+    def test_discover_domain_not_allowed_returns_400(self, site_client, site_db):
+        _login(site_client)
+        site = get_site_by_name("Default")
+        from dracs.db import update_site_allowed_domains
+
+        update_site_allowed_domains(site["id"], "example.com")
+        resp = site_client.post(
+            "/api/discover",
+            data=json.dumps({"hostnames": ["host01.other.com"]}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "Domain not allowed" in resp.get_json()["message"]
+
+    def test_discover_domain_allowed_queues_job(self, site_client, site_db):
+        _login(site_client)
+        site = get_site_by_name("Default")
+        from dracs.db import update_site_allowed_domains
+
+        update_site_allowed_domains(site["id"], "example.com")
+        with patch("dracs.jobqueue.enqueue_job") as mock_enqueue:
+            mock_enqueue.return_value = 1
+            resp = site_client.post(
+                "/api/discover",
+                data=json.dumps({"hostnames": ["host01.example.com"]}),
+                content_type="application/json",
+            )
+        assert resp.get_json()["success"] is True
+        assert mock_enqueue.call_count == 1
+
 
 class TestDiscoverEndpointErrors:
     def test_discover_exception_returns_500(self, site_client):

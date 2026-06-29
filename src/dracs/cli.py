@@ -671,6 +671,15 @@ async def main() -> None:
             )
         else:
             # Single host discover
+            site_id = _resolve_site_id()
+            from dracs.db import get_site_allowed_domains
+            from dracs.sites import is_domain_allowed
+
+            allowed = get_site_allowed_domains(site_id)
+            if not is_domain_allowed(args.target, allowed):
+                logger.error(f"Cannot add host '{args.target}'. Domain not allowed.")
+                sys.exit(1)
+
             discovered_tag, discovered_model = await commands.discover_dell_system(
                 args.target, warranty
             )
@@ -684,7 +693,7 @@ async def main() -> None:
                     args.target,
                     discovered_model,
                     warranty,
-                    site_id=_resolve_site_id(),
+                    site_id=site_id,
                 )
             else:
                 # Prompt user
@@ -702,7 +711,7 @@ async def main() -> None:
                         args.target,
                         discovered_model,
                         warranty,
-                        site_id=_resolve_site_id(),
+                        site_id=site_id,
                     )
                 else:
                     logger.info("User declined, not adding to database")

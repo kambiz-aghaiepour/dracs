@@ -9,6 +9,7 @@ from dracs_client.commands import (
     _api_request,
     _print_result,
     cmd_bios,
+    cmd_discover,
     cmd_fw,
     cmd_idracjobs,
     cmd_jobs,
@@ -683,3 +684,47 @@ class TestCmdTsrStatus:
             args = MagicMock(target="host01")
             cmd_tsr_status(args, "https://s", True, "s")
         assert "Not found" in capsys.readouterr().err
+
+
+class TestCmdDiscover:
+    def test_discover_single_host(self, capsys):
+        args = MagicMock(target="host01.example.com", host_list=None, site=None)
+        with patch("dracs_client.commands._api_request", return_value=_mock_resp()):
+            cmd_discover(args, "https://s", True, "s")
+        assert "OK" in capsys.readouterr().out
+
+    def test_discover_host_list(self, capsys, tmp_path):
+        host_file = tmp_path / "hosts.txt"
+        host_file.write_text("host01.example.com\nhost02.example.com\n")
+        args = MagicMock(target=None, host_list=str(host_file), site=None)
+        with patch("dracs_client.commands._api_request", return_value=_mock_resp()):
+            cmd_discover(args, "https://s", True, "s")
+        assert "OK" in capsys.readouterr().out
+
+    def test_discover_host_list_missing_file_exits(self):
+        args = MagicMock(target=None, host_list="/nonexistent/hosts.txt", site=None)
+        with pytest.raises(SystemExit):
+            cmd_discover(args, "https://s", True, "s")
+
+    def test_discover_host_list_empty_file_exits(self, tmp_path):
+        host_file = tmp_path / "hosts.txt"
+        host_file.write_text("   \n\n")
+        args = MagicMock(target=None, host_list=str(host_file), site=None)
+        with pytest.raises(SystemExit):
+            cmd_discover(args, "https://s", True, "s")
+
+    def test_discover_with_site(self, capsys):
+        args = MagicMock(target="host01.example.com", host_list=None, site="RDU2")
+        with patch(
+            "dracs_client.commands._api_request", return_value=_mock_resp()
+        ) as mock_req:
+            cmd_discover(args, "https://s", True, "s")
+        url = mock_req.call_args.args[1]
+        assert "site=RDU2" in url
+
+    def test_discover_domain_rejected_exits(self):
+        args = MagicMock(target="host01.other.com", host_list=None, site=None)
+        resp = _mock_resp(400, {"success": False, "message": "Domain not allowed"})
+        with patch("dracs_client.commands._api_request", return_value=resp):
+            with pytest.raises(SystemExit):
+                cmd_discover(args, "https://s", True, "s")

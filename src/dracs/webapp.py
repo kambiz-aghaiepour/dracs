@@ -2938,7 +2938,22 @@ def api_discover():
                     400,
                 )
 
+        from dracs.db import get_site_allowed_domains
+        from dracs.sites import is_domain_allowed
         from dracs.jobqueue import enqueue_job
+
+        allowed = get_site_allowed_domains(site_id)
+        for h in hostnames:
+            if not is_domain_allowed(h, allowed):
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "message": f"Cannot add host '{h}'. Domain not allowed.",
+                        }
+                    ),
+                    400,
+                )
 
         for hostname in hostnames:
             enqueue_job(
