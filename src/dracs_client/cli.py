@@ -402,6 +402,16 @@ def _add_admin_subparsers(subparsers):
     ij_action.add_argument("--clear", action="store_true", help="Clear iDRAC job queue")
     p_ij.add_argument("-t", "--target", help="Target hostname")
 
+    # --- DISCOVER ---
+    p_disc = subparsers.add_parser(
+        "discover", aliases=["d"], help="Discover and add hosts"
+    )
+    disc_target = p_disc.add_mutually_exclusive_group(required=True)
+    disc_target.add_argument("-t", "--target", help="Single hostname to discover")
+    disc_target.add_argument(
+        "-f", "--host-list", dest="host_list", help="File of hostnames (one per line)"
+    )
+
     # --- USER ---
     p_user = subparsers.add_parser("user", aliases=["u"], help="User management")
     user_action = p_user.add_mutually_exclusive_group(required=True)
@@ -651,3 +661,7 @@ def main() -> None:
         from dracs_client.commands import cmd_user
 
         cmd_user(args, base_url, verify_ssl, server)
+    elif args.command in ["discover", "d"]:
+        from dracs_client.commands import cmd_discover
+
+        cmd_discover(args, base_url, verify_ssl, server)

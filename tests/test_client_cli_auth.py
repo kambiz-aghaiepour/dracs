@@ -312,6 +312,14 @@ class TestMainRouting:
         resp.status_code = 200
         self._run_main_admin(["user", "--list"], resp)
 
+    def test_route_discover(self, capsys):
+        resp = MagicMock()
+        resp.json.return_value = {"success": True, "message": "Queued 1 host(s)"}
+        resp.status_code = 200
+        resp.content = b'{"success": true}'
+        self._run_main_admin(["discover", "-t", "host01.example.com"], resp)
+        assert "Queued" in capsys.readouterr().out
+
     def test_tsr_generate_via_main(self, capsys):
         systems_resp = MagicMock()
         systems_resp.json.return_value = [{"name": "host01", "svc_tag": "TAG001"}]

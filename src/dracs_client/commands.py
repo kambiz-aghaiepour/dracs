@@ -494,3 +494,28 @@ def cmd_user(args, base_url, verify_ssl, server):
             json=payload,
         )
         _print_result(resp)
+
+
+def cmd_discover(args, base_url, verify_ssl, server):
+    site = getattr(args, "site", None)
+
+    if args.host_list:
+        try:
+            with open(args.host_list) as fh:
+                hostnames = [line.strip() for line in fh if line.strip()]
+        except OSError as e:
+            print(f"Error reading host list: {e}", file=sys.stderr)
+            sys.exit(1)
+        if not hostnames:
+            print("Error: host list file is empty.", file=sys.stderr)
+            sys.exit(1)
+    else:
+        hostnames = [args.target]
+
+    resp = _post_json(
+        _site_url(f"{base_url}/api/discover", site),
+        server,
+        verify_ssl,
+        {"hostnames": hostnames},
+    )
+    _print_result(resp)

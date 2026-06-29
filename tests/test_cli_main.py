@@ -257,6 +257,17 @@ class TestMainDiscover:
             run_main_with_args(["d", "-t", "server01.example.com"])
         mock_discover.assert_called_once()
 
+    @patch("dracs.db.get_site_allowed_domains", return_value=["example.com"])
+    @patch("dracs.db.get_default_site_id", return_value=1)
+    @patch("dracs.commands.discover_dell_system", new_callable=AsyncMock)
+    @patch("dracs.cli.db_initialize")
+    def test_discover_domain_not_allowed_exits(
+        self, mock_db, mock_discover, mock_site_id, mock_domains, temp_db
+    ):
+        with pytest.raises(SystemExit):
+            run_main_with_args(["discover", "-t", "host01.other.net"])
+        mock_discover.assert_not_called()
+
     @patch("dracs.commands.discover_dell_systems_batch", new_callable=AsyncMock)
     @patch("dracs.cli.read_host_list", return_value=["host1", "host2"])
     @patch("dracs.cli.db_initialize")
