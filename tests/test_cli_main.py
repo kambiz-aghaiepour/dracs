@@ -426,7 +426,8 @@ class TestMainJobs:
         mock_list_jobs.return_value = None
         run_main_with_args(["jobs", "--list"])
         mock_list_jobs.assert_called_once()
-        assert mock_list_jobs.call_args[0][0] is False
+        assert mock_list_jobs.call_args[0][0] is False  # include_all
+        assert mock_list_jobs.call_args[0][1] is False  # failed_only
 
     @patch("dracs.commands.list_jobs", new_callable=AsyncMock)
     @patch("dracs.cli.db_initialize")
@@ -434,7 +435,16 @@ class TestMainJobs:
         mock_list_jobs.return_value = None
         run_main_with_args(["jobs", "--list", "--all"])
         mock_list_jobs.assert_called_once()
-        assert mock_list_jobs.call_args[0][0] is True
+        assert mock_list_jobs.call_args[0][0] is True  # include_all
+        assert mock_list_jobs.call_args[0][1] is False  # failed_only
+
+    @patch("dracs.commands.list_jobs", new_callable=AsyncMock)
+    @patch("dracs.cli.db_initialize")
+    def test_jobs_list_failed(self, mock_db, mock_list_jobs):
+        mock_list_jobs.return_value = None
+        run_main_with_args(["jobs", "--list", "--failed"])
+        mock_list_jobs.assert_called_once()
+        assert mock_list_jobs.call_args[0][1] is True  # failed_only
 
     @patch("dracs.commands.clear_jobs", new_callable=AsyncMock)
     @patch("dracs.cli.db_initialize")

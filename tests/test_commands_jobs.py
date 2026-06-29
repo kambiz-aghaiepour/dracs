@@ -23,7 +23,7 @@ class TestListJobs:
     async def test_lists_active_jobs(self, job_db, capsys):
         enqueue_job("tsr", "host01.example.com")
         enqueue_job("refresh", "host02.example.com")
-        await list_jobs(False, job_db)
+        await list_jobs(False, False, job_db)
         captured = capsys.readouterr()
         assert "tsr" in captured.out
         assert "refresh" in captured.out
@@ -31,7 +31,7 @@ class TestListJobs:
 
     @pytest.mark.asyncio
     async def test_no_jobs(self, job_db, capsys):
-        await list_jobs(False, job_db)
+        await list_jobs(False, False, job_db)
         captured = capsys.readouterr()
         assert "No jobs found" in captured.out
 
@@ -40,7 +40,7 @@ class TestListJobs:
         job_id = enqueue_job("tsr", "host01.example.com")
         claim_next_job("w1")
         complete_job(job_id)
-        await list_jobs(False, job_db)
+        await list_jobs(False, False, job_db)
         captured = capsys.readouterr()
         assert "No jobs found" in captured.out
 
@@ -49,7 +49,7 @@ class TestListJobs:
         job_id = enqueue_job("tsr", "host01.example.com")
         claim_next_job("w1")
         complete_job(job_id)
-        await list_jobs(True, job_db)
+        await list_jobs(True, False, job_db)
         captured = capsys.readouterr()
         assert "tsr" in captured.out
         assert "completed" in captured.out
@@ -68,7 +68,7 @@ class TestListJobs:
         claim_next_job("w1")
         complete_job(child1)
 
-        await list_jobs(False, job_db)
+        await list_jobs(False, False, job_db)
         captured = capsys.readouterr()
         assert "1/2" in captured.out
 

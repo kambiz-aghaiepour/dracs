@@ -758,14 +758,19 @@ async def tsr_status(hostname: str, warranty: str) -> None:
         print("No TSR Collection in progress.")
 
 
-async def list_jobs(include_all: bool, warranty: str) -> None:
+async def list_jobs(include_all: bool, failed_only: bool, warranty: str) -> None:
     from dracs.jobqueue import get_active_jobs
     from rich.console import Console
     from rich.table import Table
 
     db_initialize(warranty)
 
-    jobs = get_active_jobs(include_completed=include_all)
+    status_filter = "failed" if failed_only else None
+    jobs = get_active_jobs(
+        include_completed=include_all or failed_only,
+        status_filter=status_filter,
+        limit=200,
+    )
     if not jobs:
         print("No jobs found.")
         return
@@ -777,6 +782,7 @@ async def list_jobs(include_all: bool, warranty: str) -> None:
     table.add_column("Target")
     table.add_column("Status")
     table.add_column("Created")
+    table.add_column("Error")
 
     for job in jobs:
         target_display = job["target"]
@@ -788,6 +794,7 @@ async def list_jobs(include_all: bool, warranty: str) -> None:
             target_display,
             job["status"],
             job["created_at"],
+            job.get("error") or "",
         )
 
     console.print(table)

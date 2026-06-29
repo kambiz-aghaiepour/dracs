@@ -335,6 +335,11 @@ async def main() -> None:
         action="store_true",
         help="Include completed/failed jobs in listing",
     )
+    parser_jobs.add_argument(
+        "--failed",
+        action="store_true",
+        help="Show only failed jobs (implies --all)",
+    )
 
     # --- IDRACJOBS COMMAND ---
     parser_ij = subparsers.add_parser(
@@ -816,7 +821,7 @@ async def main() -> None:
             await commands.tsr_status(args.target, warranty)
     elif args.command in ["jobs", "j"]:
         if args.list:
-            await commands.list_jobs(args.all, warranty)
+            await commands.list_jobs(args.all, getattr(args, "failed", False), warranty)
         elif args.clear:
             await commands.clear_jobs(warranty)
             audit_log("jobs_clear", user=getpass.getuser(), source="cli")

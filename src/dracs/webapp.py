@@ -2664,9 +2664,11 @@ def api_jobs():
             "yes",
         )
         status_filter = request.args.get("status")
-        jobs = get_active_jobs(include_completed=include_all or bool(status_filter))
-        if status_filter:
-            jobs = [j for j in jobs if j.get("status") == status_filter]
+        jobs = get_active_jobs(
+            include_completed=include_all or bool(status_filter),
+            status_filter=status_filter,
+            limit=200,
+        )
         return jsonify({"success": True, "jobs": jobs})
 
     except Exception as e:

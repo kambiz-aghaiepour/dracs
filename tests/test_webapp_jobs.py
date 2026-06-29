@@ -87,7 +87,7 @@ class TestJobsEndpoint:
         _login(client)
         with patch("dracs.jobqueue.get_active_jobs", return_value=[]) as mock:
             resp = client.get("/api/jobs?all=true")
-        mock.assert_called_once_with(include_completed=True)
+        assert mock.call_args.kwargs.get("include_completed") is True
 
     def test_status_filter_failed(self, client):
         _login(client)
@@ -99,26 +99,21 @@ class TestJobsEndpoint:
                 "status": "failed",
                 "error": "SNMP timeout",
             },
-            {
-                "id": 2,
-                "job_type": "discover",
-                "target": "host02",
-                "status": "completed",
-                "error": None,
-            },
         ]
-        with patch("dracs.jobqueue.get_active_jobs", return_value=jobs):
+        with patch("dracs.jobqueue.get_active_jobs", return_value=jobs) as mock:
             resp = client.get("/api/jobs?status=failed")
         data = resp.get_json()
         assert data["success"] is True
         assert len(data["jobs"]) == 1
         assert data["jobs"][0]["status"] == "failed"
+        assert mock.call_args.kwargs.get("status_filter") == "failed"
 
     def test_status_filter_implies_include_completed(self, client):
         _login(client)
         with patch("dracs.jobqueue.get_active_jobs", return_value=[]) as mock:
             client.get("/api/jobs?status=failed")
-        mock.assert_called_once_with(include_completed=True)
+        assert mock.call_args.kwargs.get("include_completed") is True
+        assert mock.call_args.kwargs.get("status_filter") == "failed"
 
     def test_error_handling(self, client):
         _login(client)
