@@ -284,7 +284,13 @@ def cmd_power(args, base_url, verify_ssl, server):
 def cmd_jobs(args, base_url, verify_ssl, server):
     site = getattr(args, "site", None)
     if args.list:
-        params = "?all=true" if args.all else ""
+        failed_only = getattr(args, "failed", False)
+        params_parts = []
+        if args.all or failed_only:
+            params_parts.append("all=true")
+        if failed_only:
+            params_parts.append("status=failed")
+        params = ("?" + "&".join(params_parts)) if params_parts else ""
         resp = _api_request(
             "get", _site_url(f"{base_url}/api/jobs{params}", site), server, verify_ssl
         )
@@ -301,13 +307,14 @@ def cmd_jobs(args, base_url, verify_ssl, server):
                         j.get("target"),
                         j.get("status"),
                         j.get("created_at", "")[:19],
+                        j.get("error") or "",
                     ]
                     for j in jobs
                 ]
                 print(
                     tabulate(
                         table,
-                        headers=["ID", "Type", "Target", "Status", "Created"],
+                        headers=["ID", "Type", "Target", "Status", "Created", "Error"],
                     )
                 )
             else:
@@ -518,4 +525,12 @@ def cmd_discover(args, base_url, verify_ssl, server):
         verify_ssl,
         {"hostnames": hostnames},
     )
+    data = resp.json()
+    dns_failed = data.get("dns_failed", [])
+    if dns_failed:
+        from tabulate import tabulate
+
+        print(f"\n{len(dns_failed)} host(s) failed DNS check:")
+        table = [(f["hostname"], f["idrac_fqdn"], f["error"]) for f in dns_failed]
+        print(tabulate(table, headers=["Hostname", "iDRAC FQDN", "Error"]))
     _print_result(resp)

@@ -2663,7 +2663,10 @@ def api_jobs():
             "1",
             "yes",
         )
-        jobs = get_active_jobs(include_completed=include_all)
+        status_filter = request.args.get("status")
+        jobs = get_active_jobs(include_completed=include_all or bool(status_filter))
+        if status_filter:
+            jobs = [j for j in jobs if j.get("status") == status_filter]
         return jsonify({"success": True, "jobs": jobs})
 
     except Exception as e:
@@ -2941,6 +2944,7 @@ def api_discover():
         from dracs.db import get_site_allowed_domains
         from dracs.sites import is_domain_allowed
         from dracs.jobqueue import enqueue_job
+        from dracs.snmp import check_idrac_dns
 
         allowed = get_site_allowed_domains(site_id)
         for h in hostnames:
@@ -2955,7 +2959,30 @@ def api_discover():
                     400,
                 )
 
-        for hostname in hostnames:
+        dns_failed = []
+        queued_hosts = []
+        for h in hostnames:
+            idrac_fqdn, dns_err = check_idrac_dns(h)
+            if dns_err:
+                dns_failed.append(
+                    {"hostname": h, "idrac_fqdn": idrac_fqdn, "error": dns_err}
+                )
+            else:
+                queued_hosts.append(h)
+
+        if not queued_hosts:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": "All hosts failed DNS check.",
+                        "dns_failed": dns_failed,
+                    }
+                ),
+                400,
+            )
+
+        for hostname in queued_hosts:
             enqueue_job(
                 "discover",
                 hostname,
@@ -2967,14 +2994,18 @@ def api_discover():
             "discover",
             user=user,
             source=_client_ip(),
-            details=f"hosts={len(hostnames)},site={site_name}",
+            details=f"hosts={len(queued_hosts)},dns_failed={len(dns_failed)},site={site_name}",
         )
 
+        msg = f"Discovery queued for {len(queued_hosts)} host(s)."
+        if dns_failed:
+            msg += f" {len(dns_failed)} host(s) failed DNS check."
         return jsonify(
             {
                 "success": True,
-                "message": f"Discovery queued for {len(hostnames)} host(s).",
-                "queued": len(hostnames),
+                "message": msg,
+                "queued": len(queued_hosts),
+                "dns_failed": dns_failed,
             }
         )
     except Exception as e:

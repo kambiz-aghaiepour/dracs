@@ -219,7 +219,12 @@ class TestMainDiscover:
     @patch("dracs.commands.add_dell_warranty", new_callable=AsyncMock)
     @patch("dracs.commands.discover_dell_system", new_callable=AsyncMock)
     @patch("dracs.cli.db_initialize")
-    def test_discover_with_add_flag(self, mock_db, mock_discover, mock_add, temp_db):
+    @patch(
+        "dracs.snmp.check_idrac_dns", return_value=("mgmt-server01.example.com", None)
+    )
+    def test_discover_with_add_flag(
+        self, mock_dns, mock_db, mock_discover, mock_add, temp_db
+    ):
         mock_discover.return_value = ("TAG001", "R660")
         mock_add.return_value = None
         run_main_with_args(["discover", "-t", "server01.example.com", "--add"])
@@ -229,8 +234,11 @@ class TestMainDiscover:
     @patch("dracs.commands.discover_dell_system", new_callable=AsyncMock)
     @patch("dracs.cli.db_initialize")
     @patch("builtins.input", return_value="n")
+    @patch(
+        "dracs.snmp.check_idrac_dns", return_value=("mgmt-server01.example.com", None)
+    )
     def test_discover_user_declines(
-        self, mock_input, mock_db, mock_discover, temp_db, capsys
+        self, mock_dns, mock_input, mock_db, mock_discover, temp_db, capsys
     ):
         mock_discover.return_value = ("TAG001", "R660")
         run_main_with_args(["discover", "-t", "server01.example.com"])
@@ -241,8 +249,11 @@ class TestMainDiscover:
     @patch("dracs.commands.discover_dell_system", new_callable=AsyncMock)
     @patch("dracs.cli.db_initialize")
     @patch("builtins.input", return_value="y")
+    @patch(
+        "dracs.snmp.check_idrac_dns", return_value=("mgmt-server01.example.com", None)
+    )
     def test_discover_user_accepts(
-        self, mock_input, mock_db, mock_discover, mock_add, temp_db, capsys
+        self, mock_dns, mock_input, mock_db, mock_discover, mock_add, temp_db, capsys
     ):
         mock_discover.return_value = ("TAG001", "R660")
         mock_add.return_value = None
@@ -251,7 +262,10 @@ class TestMainDiscover:
 
     @patch("dracs.commands.discover_dell_system", new_callable=AsyncMock)
     @patch("dracs.cli.db_initialize")
-    def test_discover_alias(self, mock_db, mock_discover, temp_db):
+    @patch(
+        "dracs.snmp.check_idrac_dns", return_value=("mgmt-server01.example.com", None)
+    )
+    def test_discover_alias(self, mock_dns, mock_db, mock_discover, temp_db):
         mock_discover.return_value = ("TAG001", "R660")
         with patch("builtins.input", return_value="n"):
             run_main_with_args(["d", "-t", "server01.example.com"])
@@ -266,6 +280,24 @@ class TestMainDiscover:
     ):
         with pytest.raises(SystemExit):
             run_main_with_args(["discover", "-t", "host01.other.net"])
+        mock_discover.assert_not_called()
+
+    @patch(
+        "dracs.snmp.check_idrac_dns",
+        return_value=(
+            "mgmt-badhost.other.net",
+            "DNS resolution failed for mgmt-badhost.other.net",
+        ),
+    )
+    @patch("dracs.db.get_site_allowed_domains", return_value=[])
+    @patch("dracs.db.get_default_site_id", return_value=1)
+    @patch("dracs.commands.discover_dell_system", new_callable=AsyncMock)
+    @patch("dracs.cli.db_initialize")
+    def test_discover_dns_fails_exits(
+        self, mock_db, mock_discover, mock_site_id, mock_domains, mock_dns, temp_db
+    ):
+        with pytest.raises(SystemExit):
+            run_main_with_args(["discover", "-t", "badhost.other.net"])
         mock_discover.assert_not_called()
 
     @patch("dracs.commands.discover_dell_systems_batch", new_callable=AsyncMock)

@@ -314,11 +314,45 @@ class TestMainRouting:
 
     def test_route_discover(self, capsys):
         resp = MagicMock()
-        resp.json.return_value = {"success": True, "message": "Queued 1 host(s)"}
+        resp.json.return_value = {
+            "success": True,
+            "message": "Discovery queued for 1 host(s).",
+            "queued": 1,
+            "dns_failed": [],
+        }
         resp.status_code = 200
         resp.content = b'{"success": true}'
         self._run_main_admin(["discover", "-t", "host01.example.com"], resp)
-        assert "Queued" in capsys.readouterr().out
+        assert "queued" in capsys.readouterr().out.lower()
+
+    def test_jobs_failed_flag(self):
+        resp = MagicMock()
+        resp.json.return_value = {"success": True, "jobs": []}
+        resp.status_code = 200
+        resp.content = b'{"success": true}'
+        with (
+            patch("dracs_client.config.DRACSRC_PATH") as mock_path,
+            patch("dracs_client.cli.get_current_role", return_value="admin"),
+            patch(
+                "sys.argv",
+                [
+                    "dracs-client",
+                    "-s",
+                    "server.example.com",
+                    "jobs",
+                    "--list",
+                    "--failed",
+                ],
+            ),
+            patch("dracs_client.commands._api_request", return_value=resp) as mock_req,
+        ):
+            mock_path.exists.return_value = False
+            from dracs_client.cli import main
+
+            main()
+        url = mock_req.call_args.args[1]
+        assert "status=failed" in url
+        assert "all=true" in url
 
     def test_tsr_generate_via_main(self, capsys):
         systems_resp = MagicMock()

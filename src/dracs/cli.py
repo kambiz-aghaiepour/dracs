@@ -680,6 +680,13 @@ async def main() -> None:
                 logger.error(f"Cannot add host '{args.target}'. Domain not allowed.")
                 sys.exit(1)
 
+            from dracs.snmp import check_idrac_dns
+
+            _, dns_err = check_idrac_dns(args.target)
+            if dns_err:
+                logger.error(dns_err)
+                sys.exit(1)
+
             discovered_tag, discovered_model = await commands.discover_dell_system(
                 args.target, warranty
             )

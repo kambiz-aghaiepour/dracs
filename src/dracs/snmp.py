@@ -64,6 +64,24 @@ async def get_snmp_value(target: str, community: str, oid: str) -> Optional[str]
         snmp_dispatcher.transport_dispatcher.close_dispatcher()
 
 
+def check_idrac_dns(hostname: str) -> tuple[str, str | None]:
+    """
+    Checks whether the iDRAC FQDN for hostname resolves in DNS.
+
+    Returns (idrac_fqdn, None) on success, or (idrac_fqdn, error_string) on failure.
+    Does no SNMP — pure DNS lookup only.
+    """
+    try:
+        idrac_fqdn = build_idrac_hostname(hostname)
+    except ValidationError as e:
+        return (hostname, str(e))
+    try:
+        socket.getaddrinfo(idrac_fqdn, None)
+        return (idrac_fqdn, None)
+    except socket.gaierror as e:
+        return (idrac_fqdn, f"DNS resolution failed for {idrac_fqdn}: {e}")
+
+
 def build_idrac_hostname(hostname: str) -> str:
     """
     Builds the iDRAC hostname from the target hostname using environment variables.

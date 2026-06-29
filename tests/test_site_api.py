@@ -817,14 +817,19 @@ class TestDiscoverEndpoint:
         _login(site_client)
         with patch("dracs.jobqueue.enqueue_job") as mock_enqueue:
             mock_enqueue.return_value = 1
-            resp = site_client.post(
-                "/api/discover",
-                data=json.dumps({"hostnames": ["newhost01", "newhost02"]}),
-                content_type="application/json",
-            )
+            with patch(
+                "dracs.snmp.check_idrac_dns",
+                side_effect=lambda h: (f"mgmt-{h}", None),
+            ):
+                resp = site_client.post(
+                    "/api/discover",
+                    data=json.dumps({"hostnames": ["newhost01", "newhost02"]}),
+                    content_type="application/json",
+                )
             data = resp.get_json()
             assert data["success"] is True
             assert data["queued"] == 2
+            assert data["dns_failed"] == []
             assert mock_enqueue.call_count == 2
 
     def test_discover_unauthenticated(self, site_client):
@@ -884,12 +889,63 @@ class TestDiscoverEndpoint:
         update_site_allowed_domains(site["id"], "example.com")
         with patch("dracs.jobqueue.enqueue_job") as mock_enqueue:
             mock_enqueue.return_value = 1
+            with patch(
+                "dracs.snmp.check_idrac_dns",
+                return_value=("mgmt-host01.example.com", None),
+            ):
+                resp = site_client.post(
+                    "/api/discover",
+                    data=json.dumps({"hostnames": ["host01.example.com"]}),
+                    content_type="application/json",
+                )
+        assert resp.get_json()["success"] is True
+        assert mock_enqueue.call_count == 1
+
+    def test_discover_dns_failure_returns_dns_failed_list(self, site_client):
+        _login(site_client)
+        with patch(
+            "dracs.snmp.check_idrac_dns",
+            return_value=(
+                "mgmt-badhost.other.net",
+                "DNS resolution failed for mgmt-badhost.other.net",
+            ),
+        ):
             resp = site_client.post(
                 "/api/discover",
-                data=json.dumps({"hostnames": ["host01.example.com"]}),
+                data=json.dumps({"hostnames": ["badhost.other.net"]}),
                 content_type="application/json",
             )
-        assert resp.get_json()["success"] is True
+        assert resp.status_code == 400
+        data = resp.get_json()
+        assert data["success"] is False
+        assert len(data["dns_failed"]) == 1
+        assert data["dns_failed"][0]["hostname"] == "badhost.other.net"
+
+    def test_discover_partial_dns_failure_queues_passing_hosts(self, site_client):
+        _login(site_client)
+
+        def _mock_dns(h):
+            if h == "badhost.other.net":
+                return (
+                    "mgmt-badhost.other.net",
+                    "DNS resolution failed for mgmt-badhost.other.net",
+                )
+            return (f"mgmt-{h}", None)
+
+        with patch("dracs.jobqueue.enqueue_job") as mock_enqueue:
+            mock_enqueue.return_value = 1
+            with patch("dracs.snmp.check_idrac_dns", side_effect=_mock_dns):
+                resp = site_client.post(
+                    "/api/discover",
+                    data=json.dumps(
+                        {"hostnames": ["host01.example.com", "badhost.other.net"]}
+                    ),
+                    content_type="application/json",
+                )
+        data = resp.get_json()
+        assert data["success"] is True
+        assert data["queued"] == 1
+        assert len(data["dns_failed"]) == 1
         assert mock_enqueue.call_count == 1
 
 
