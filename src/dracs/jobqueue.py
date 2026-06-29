@@ -151,18 +151,34 @@ def get_jobs_for_host(hostname: str) -> list:
         return [_job_to_dict(j) for j in jobs]
 
 
-def get_active_jobs(include_completed: bool = False) -> list:
+def get_active_jobs(
+    include_completed: bool = False,
+    status_filter: str = None,
+    limit: int = None,
+) -> list:
     with get_session() as session:
         query = session.query(Job).filter(Job.parent_id.is_(None))
-        if not include_completed:
+        if status_filter:
+            query = query.filter(Job.status == status_filter)
+        elif not include_completed:
             query = query.filter(Job.status.in_(["pending", "running"]))
         query = query.order_by(Job.created_at.desc())
+        if limit:
+            query = query.limit(limit)
         jobs = query.all()
+
+        # Batch-load children in a single query to avoid N+1 per parent
+        job_ids = [j.id for j in jobs]
+        children_map: dict = {}
+        if job_ids:
+            all_children = session.query(Job).filter(Job.parent_id.in_(job_ids)).all()
+            for child in all_children:
+                children_map.setdefault(child.parent_id, []).append(child)
 
         result = []
         for job in jobs:
             d = _job_to_dict(job)
-            children = session.query(Job).filter(Job.parent_id == job.id).all()
+            children = children_map.get(job.id, [])
             if children:
                 completed = sum(1 for c in children if c.status == "completed")
                 failed = sum(1 for c in children if c.status == "failed")
