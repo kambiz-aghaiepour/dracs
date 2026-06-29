@@ -104,6 +104,34 @@ class TestTokenLogin:
         )
         assert resp.status_code == 401
 
+    def test_token_login_null_role_user_gets_user_role(self, client, webapp_db):
+        create_user("kambiz", "secret", role=None)
+        resp = client.post(
+            "/api/token-login",
+            data=json.dumps({"username": "kambiz", "password": "secret"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["success"] is True
+        assert data["role"] == "user"
+
+    def test_token_login_null_role_with_admin_site_role_gets_admin(
+        self, client, webapp_db
+    ):
+        create_user("kambiz", "secret", role=None)
+        site_id = get_default_site_id()
+        set_user_site_role("kambiz", site_id, "admin")
+        resp = client.post(
+            "/api/token-login",
+            data=json.dumps({"username": "kambiz", "password": "secret"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["success"] is True
+        assert data["role"] == "admin"
+
 
 class TestTokenLogout:
     def test_token_logout_success(self, client, webapp_db):
