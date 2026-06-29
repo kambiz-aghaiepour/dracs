@@ -2289,14 +2289,33 @@
                     <h2>Bulk Host Discovery</h2>
                 </div>
                 <div class="modal-body">
-                    <div class="form-group">
+                    <div id="discover-input-section" class="form-group">
                         <label for="discover-textarea">Enter hostnames (one per line)</label>
                         <textarea id="discover-textarea" placeholder="host01.example.com&#10;host02.example.com&#10;host03.example.com"></textarea>
                     </div>
+                    <div id="discover-result-section" style="display:none;">
+                        <div id="discover-queued-msg" style="margin-bottom:8px; font-weight:500;"></div>
+                        <div id="discover-dns-failures" style="display:none;">
+                            <p style="color:#dc3545; font-weight:500; margin:0 0 4px;">DNS check failures:</p>
+                            <table id="discover-dns-table" style="width:100%; border-collapse:collapse; font-size:0.85em;">
+                                <thead>
+                                    <tr>
+                                        <th style="text-align:left; padding:4px 6px; border-bottom:1px solid #ccc;">Hostname</th>
+                                        <th style="text-align:left; padding:4px 6px; border-bottom:1px solid #ccc;">iDRAC FQDN</th>
+                                        <th style="text-align:left; padding:4px 6px; border-bottom:1px solid #ccc;">Error</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="discover-dns-tbody"></tbody>
+                            </table>
+                            <p style="font-size:0.8em; color:#888; margin:6px 0 0;">
+                                Use <code>dracs-client jobs --list --failed</code> to see SNMP failures after discovery runs.
+                            </p>
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="hideDiscoverModal()">Cancel</button>
-                    <button type="button" class="btn btn-primary" onclick="submitDiscover()">OK</button>
+                    <button type="button" id="discover-cancel-btn" class="btn btn-secondary" onclick="hideDiscoverModal()">Cancel</button>
+                    <button type="button" id="discover-ok-btn" class="btn btn-primary" onclick="submitDiscover()">OK</button>
                 </div>
             </div>
         </div>
@@ -5099,6 +5118,12 @@
         // Custom Filter Functions
         function showDiscoverModal() {
             document.getElementById('discover-textarea').value = '';
+            document.getElementById('discover-input-section').style.display = '';
+            document.getElementById('discover-result-section').style.display = 'none';
+            document.getElementById('discover-dns-failures').style.display = 'none';
+            document.getElementById('discover-cancel-btn').textContent = 'Cancel';
+            document.getElementById('discover-ok-btn').style.display = '';
+            document.getElementById('discover-ok-btn').disabled = false;
             document.getElementById('discover-modal').classList.add('active');
             document.getElementById('discover-textarea').focus();
         }
@@ -5110,8 +5135,7 @@
             if (!text) { hideDiscoverModal(); return; }
             const hostnames = text.split('\n').map(h => h.trim()).filter(h => h);
             if (hostnames.length === 0) { hideDiscoverModal(); return; }
-            hideDiscoverModal();
-            showNotification('Queuing discovery for ' + hostnames.length + ' host(s)...', 'success');
+            document.getElementById('discover-ok-btn').disabled = true;
             try {
                 const response = await fetch(apiUrl('/api/discover'), {
                     method: 'POST',
@@ -5119,12 +5143,30 @@
                     body: JSON.stringify({hostnames: hostnames})
                 });
                 const data = await response.json();
-                if (data.success) {
+                const dnsFailed = data.dns_failed || [];
+                if (data.success && dnsFailed.length === 0) {
+                    hideDiscoverModal();
                     showNotification(data.message, 'success');
+                } else if (data.success && dnsFailed.length > 0) {
+                    document.getElementById('discover-input-section').style.display = 'none';
+                    document.getElementById('discover-queued-msg').textContent = data.message;
+                    const tbody = document.getElementById('discover-dns-tbody');
+                    tbody.innerHTML = '';
+                    dnsFailed.forEach(f => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `<td style="padding:3px 6px;">${f.hostname}</td><td style="padding:3px 6px;">${f.idrac_fqdn}</td><td style="padding:3px 6px; color:#dc3545;">${f.error}</td>`;
+                        tbody.appendChild(row);
+                    });
+                    document.getElementById('discover-dns-failures').style.display = '';
+                    document.getElementById('discover-result-section').style.display = '';
+                    document.getElementById('discover-cancel-btn').textContent = 'Close';
+                    document.getElementById('discover-ok-btn').style.display = 'none';
                 } else {
+                    hideDiscoverModal();
                     showNotification(data.message || 'Discovery failed', 'error');
                 }
             } catch (err) {
+                hideDiscoverModal();
                 showNotification('Discovery request failed: ' + err.message, 'error');
             }
         }

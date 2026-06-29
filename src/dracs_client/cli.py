@@ -392,6 +392,11 @@ def _add_admin_subparsers(subparsers):
         "--clear", action="store_true", help="Clear completed jobs"
     )
     p_jobs.add_argument("--all", action="store_true", help="Include completed/failed")
+    p_jobs.add_argument(
+        "--failed",
+        action="store_true",
+        help="Show only failed jobs (implies --all)",
+    )
 
     # --- IDRACJOBS ---
     p_ij = subparsers.add_parser(

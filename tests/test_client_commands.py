@@ -295,6 +295,39 @@ class TestCmdJobs:
         with pytest.raises(SystemExit):
             cmd_jobs(args, "https://s", True, "s")
 
+    def test_jobs_list_shows_error_column(self, capsys):
+        resp = _mock_resp(
+            200,
+            {
+                "success": True,
+                "jobs": [
+                    {
+                        "id": 2,
+                        "job_type": "discover",
+                        "target": "host02",
+                        "status": "failed",
+                        "created_at": "2026-01-01T00:00:00",
+                        "error": "SNMP timeout connecting to mgmt-host02",
+                    }
+                ],
+            },
+        )
+        args = MagicMock(list=True, clear=False, all=True, failed=False)
+        with patch("dracs_client.commands._api_request", return_value=resp):
+            cmd_jobs(args, "https://s", True, "s")
+        out = capsys.readouterr().out
+        assert "SNMP timeout" in out
+        assert "Error" in out
+
+    def test_jobs_failed_flag_passes_status_param(self):
+        resp = _mock_resp(200, {"success": True, "jobs": []})
+        args = MagicMock(list=True, clear=False, all=False, failed=True)
+        with patch("dracs_client.commands._api_request", return_value=resp) as mock_req:
+            cmd_jobs(args, "https://s", True, "s")
+        url = mock_req.call_args.args[1]
+        assert "status=failed" in url
+        assert "all=true" in url
+
 
 class TestCmdIdracJobs:
     def test_idracjobs_list(self, capsys):
@@ -728,3 +761,50 @@ class TestCmdDiscover:
         with patch("dracs_client.commands._api_request", return_value=resp):
             with pytest.raises(SystemExit):
                 cmd_discover(args, "https://s", True, "s")
+
+    def test_discover_dns_failure_prints_table(self, capsys):
+        args = MagicMock(target="host01.other.net", host_list=None, site=None)
+        resp = _mock_resp(
+            400,
+            {
+                "success": False,
+                "message": "All hosts failed DNS check.",
+                "dns_failed": [
+                    {
+                        "hostname": "host01.other.net",
+                        "idrac_fqdn": "mgmt-host01.other.net",
+                        "error": "DNS resolution failed for mgmt-host01.other.net",
+                    }
+                ],
+            },
+        )
+        with patch("dracs_client.commands._api_request", return_value=resp):
+            with pytest.raises(SystemExit):
+                cmd_discover(args, "https://s", True, "s")
+        out = capsys.readouterr().out
+        assert "failed DNS check" in out
+        assert "mgmt-host01.other.net" in out
+
+    def test_discover_partial_dns_failure_shows_table(self, capsys):
+        args = MagicMock(target=None, host_list=None, site=None)
+        resp = _mock_resp(
+            200,
+            {
+                "success": True,
+                "message": "Discovery queued for 1 host(s). 1 host(s) failed DNS check.",
+                "queued": 1,
+                "dns_failed": [
+                    {
+                        "hostname": "badhost.other.net",
+                        "idrac_fqdn": "mgmt-badhost.other.net",
+                        "error": "DNS resolution failed for mgmt-badhost.other.net",
+                    }
+                ],
+            },
+        )
+        with patch("dracs_client.commands._api_request", return_value=resp):
+            cmd_discover(args, "https://s", True, "s")
+        out = capsys.readouterr().out
+        assert "failed DNS check" in out
+        assert "mgmt-badhost.other.net" in out
+        assert "Discovery queued" in out
