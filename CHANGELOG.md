@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v2.13.2 (2026-06-29)
+
+### Bug Fixes
+
+- Black formatting
+  ([`c787247`](https://github.com/kambiz-aghaiepour/dracs/commit/c787247d621dc16ac7767a50dd17dc4d92c31f27))
+
+- Rich table output for CLI subcommands
+  ([`990412f`](https://github.com/kambiz-aghaiepour/dracs/commit/990412f08521d61ebc53337c83ca12d729912f11))
+
+### Chores
+
+- Sync spec file version to 2.13.1 [skip ci]
+  ([`4a9b586`](https://github.com/kambiz-aghaiepour/dracs/commit/4a9b58606ac81a66e63bf361b17a8932b611e91b))
+
+
 ## v2.13.1 (2026-06-29)
 
 ### Bug Fixes
