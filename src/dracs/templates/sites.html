@@ -123,6 +123,39 @@
         body.dark-theme .coll-settings-table thead th { border-bottom-color: #555; }
         body.dark-theme .coll-settings-table input[type="number"] { background-color: #4a4a4a; color: #e0e0e0; border-color: #555; border: 1px solid #555; border-radius: 3px; }
         body.dark-theme .coll-desc { color: #999; }
+        /* SSL Certificate Management */
+        .ssl-section { margin-top: 4px; }
+        .ssl-subsection { margin-top: 10px; }
+        .ssl-subsection h5 { margin: 0 0 6px; font-size: 0.9em; font-weight: 600; }
+        .ssl-tools-warn { color: #dc3545; font-size: 0.82em; margin-left: 6px; }
+        .ssl-fingerprint-box {
+            margin-top: 6px; padding: 6px 10px; font-size: 0.8em; font-family: monospace;
+            background: #f0f4ff; border: 1px solid #cce; border-radius: 4px;
+        }
+        body.dark-theme .ssl-fingerprint-box { background: #1a2a3a; border-color: #335; }
+        .ssl-pem-area {
+            width: 100%; font-family: monospace; font-size: 0.78em;
+            box-sizing: border-box; resize: vertical;
+        }
+        .ssl-file-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+        .ssl-file-label { font-size: 0.83em; color: #555; }
+        body.dark-theme .ssl-file-label { color: #aaa; }
+        .ssl-override-panel {
+            margin-top: 6px; padding: 8px 10px;
+            border: 1px dashed #ccc; border-radius: 4px; background: #f9f9f9;
+        }
+        body.dark-theme .ssl-override-panel { background: #2a3a4a; border-color: #445; }
+        .ssl-override-fp { font-size: 0.78em; font-family: monospace; color: #555; }
+        body.dark-theme .ssl-override-fp { color: #aaa; }
+        .schedule-row { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; margin-top: 8px; }
+        .schedule-row .form-group select,
+        .schedule-row .form-group input[type="time"] {
+            padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px;
+        }
+        body.dark-theme .schedule-row .form-group select,
+        body.dark-theme .schedule-row .form-group input[type="time"] {
+            background-color: #4a4a4a; color: #e0e0e0; border-color: #555;
+        }
     </style>
 </head>
 <body>
@@ -197,11 +230,83 @@
                     </div>
                 </div>
             </div>
+            <h4 style="margin: 16px 0 4px;">SSL Certificate Management</h4>
+            <div class="ssl-section">
+                <div>
+                    <label style="display:inline-flex;align-items:center;gap:6px;">
+                        <input type="checkbox" id="ssl-enabled" onchange="updateSslSectionState()">
+                        Enable SSL Certificate Management (Requires Dell racadm tools)
+                    </label>
+                    <span id="ssl-tools-status" class="ssl-tools-warn"></span>
+                </div>
+                <div id="ssl-cert-section" style="margin-top:10px;display:none;">
+                    <div class="ssl-subsection">
+                        <h5>SSL Certificate (PEM)</h5>
+                        <div class="ssl-file-row">
+                            <button class="btn btn-secondary" onclick="document.getElementById('ssl-cert-file').click()">Choose File&hellip;</button>
+                            <input type="file" id="ssl-cert-file" accept=".pem,.crt,.cer" style="display:none;"
+                                   onchange="sslFileToArea(this,'ssl-cert-pem')">
+                            <span class="ssl-file-label">or paste PEM below</span>
+                        </div>
+                        <textarea id="ssl-cert-pem" class="ssl-pem-area" rows="5"
+                                  placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"></textarea>
+                        <div id="ssl-cert-fp" class="ssl-fingerprint-box" style="display:none;"></div>
+                    </div>
+                    <div class="ssl-subsection">
+                        <h5>SSL Private Key (PEM)</h5>
+                        <div class="ssl-file-row">
+                            <button class="btn btn-secondary" onclick="document.getElementById('ssl-key-file').click()">Choose File&hellip;</button>
+                            <input type="file" id="ssl-key-file" accept=".pem,.key" style="display:none;"
+                                   onchange="sslFileToArea(this,'ssl-key-pem')">
+                            <span class="ssl-file-label">or paste PEM below</span>
+                        </div>
+                        <textarea id="ssl-key-pem" class="ssl-pem-area" rows="5"
+                                  placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----"></textarea>
+                    </div>
+                </div>
+                <div style="margin-top:8px;">
+                    <button class="btn btn-secondary" onclick="saveSslConfig()">Save SSL Settings</button>
+                    <button class="btn btn-primary" id="ssl-sweep-btn" onclick="triggerSslSweep()"
+                            style="display:none;margin-left:8px;">Run Now</button>
+                </div>
+            </div>
+
             <h4 style="margin: 16px 0 4px;">Host-Specific Overrides</h4>
             <div id="host-overrides-list"></div>
             <div style="margin-top: 8px;">
                 <button class="btn btn-secondary" onclick="addHostOverrideRow()">+ Add Host Override</button>
             </div>
+
+            <h4 style="margin: 16px 0 4px;">SSL Certificate Schedule</h4>
+            <div id="ssl-schedule-section" class="ssl-section">
+                <p style="font-size:0.85em;color:#888;margin:0 0 6px;">
+                    Schedule automatic SSL certificate updates. Only enabled when SSL Certificate Management is active and a certificate/key pair has been uploaded.
+                </p>
+                <label style="display:inline-flex;align-items:center;gap:6px;">
+                    <input type="checkbox" id="ssl-schedule-enabled">
+                    Enable SSL Certificate Schedule
+                </label>
+                <div class="schedule-row">
+                    <div class="form-group">
+                        <label>Frequency</label>
+                        <select id="ssl-schedule-frequency">
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="biweekly">Bi-Weekly</option>
+                            <option value="monthly">Monthly</option>
+                            <option value="quarterly">Quarterly</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Time of Day</label>
+                        <input type="time" id="ssl-schedule-time" value="02:00">
+                    </div>
+                </div>
+                <div style="margin-top:8px;">
+                    <button class="btn btn-secondary" onclick="saveSslConfig()">Save SSL Schedule</button>
+                </div>
+            </div>
+
             <h4 style="margin: 16px 0 4px;">DNS Domains</h4>
             <p style="font-size: 0.85em; color: #888; margin: 0 0 6px;">Allowed DNS domains for host discovery. One per line. Leave blank to allow all.</p>
             <textarea id="manage-allowed-domains" rows="4"
@@ -580,11 +685,15 @@
             if (!selectedSite) return;
             document.getElementById('manage-site-name').textContent = selectedSite.name;
 
-            const resp = await fetch('/api/sites/' + encodeURIComponent(selectedSite.name) + '/config');
-            const data = await resp.json();
-            if (!data.success) { showNotification(data.message || 'Failed to load config', 'error'); return; }
+            // Load credentials config and SSL config concurrently
+            const [credsResp, sslOverrides] = await Promise.all([
+                fetch('/api/sites/' + encodeURIComponent(selectedSite.name) + '/config').then(r => r.json()),
+                loadSslConfig(selectedSite.name),
+            ]);
 
-            const cfg = data.config;
+            if (!credsResp.success) { showNotification(credsResp.message || 'Failed to load config', 'error'); return; }
+
+            const cfg = credsResp.config;
             document.getElementById('manage-username').value = cfg.defaults.username || '';
             const pwInput = document.getElementById('manage-password');
             pwInput.value = cfg.defaults.password || '';
@@ -602,7 +711,7 @@
             const list = document.getElementById('host-overrides-list');
             list.innerHTML = '';
             for (const [hostname, overrides] of Object.entries(cfg.hosts || {})) {
-                addHostOverrideRow(hostname, overrides);
+                addHostOverrideRow(hostname, overrides, sslOverrides[hostname] || {});
             }
 
             document.getElementById('manage-allowed-domains').value = cfg.allowed_domains || '';
@@ -612,21 +721,214 @@
             document.getElementById('manage-panel').style.display = 'block';
         }
 
-        function addHostOverrideRow(hostname, overrides) {
+        function addHostOverrideRow(hostname, overrides, sslData) {
             hostname = hostname || '';
             overrides = overrides || {};
+            sslData = sslData || {};
             const list = document.getElementById('host-overrides-list');
             const row = document.createElement('div');
             row.className = 'host-override-row';
+            const hasCert = sslData.has_cert && sslData.has_key;
+            const fpText = hasCert
+                ? `<span class="ssl-override-fp">Cert: ${sslData.cert_fingerprint || '(no fingerprint)'}</span>`
+                : '<span class="ssl-override-fp" style="color:#999;">No SSL cert override</span>';
             row.innerHTML = `
                 <input type="text" placeholder="hostname" value="${hostname}" class="ho-hostname">
                 <input type="text" placeholder="username" value="${overrides.username || ''}" class="ho-username">
                 <input type="text" placeholder="password" value="${overrides.password || ''}" class="ho-password">
                 <input type="text" placeholder="vnc_port" value="${overrides.vnc_port || ''}" class="ho-vnc-port" style="width:80px;">
                 <input type="text" placeholder="vnc_password" value="${overrides.vnc_password || ''}" class="ho-vnc-password">
+                <button class="btn btn-secondary" onclick="toggleHostSslPanel(this)">SSL</button>
                 <button class="btn btn-danger" onclick="this.parentElement.remove()">Remove</button>
+                <div class="ssl-override-panel" style="display:none;width:100%;margin-top:6px;">
+                    <div style="margin-bottom:6px;">${fpText}</div>
+                    <div class="ssl-subsection">
+                        <h5>Certificate PEM</h5>
+                        <div class="ssl-file-row">
+                            <button class="btn btn-secondary" style="font-size:0.82em;" onclick="this.nextElementSibling.click()">Choose File&hellip;</button>
+                            <input type="file" accept=".pem,.crt,.cer" style="display:none;" onchange="sslFileToArea(this, null, this.closest('.ssl-override-panel').querySelector('.ho-ssl-cert'))">
+                        </div>
+                        <textarea class="ho-ssl-cert ssl-pem-area" rows="4" placeholder="-----BEGIN CERTIFICATE-----"></textarea>
+                    </div>
+                    <div class="ssl-subsection">
+                        <h5>Private Key PEM</h5>
+                        <div class="ssl-file-row">
+                            <button class="btn btn-secondary" style="font-size:0.82em;" onclick="this.nextElementSibling.click()">Choose File&hellip;</button>
+                            <input type="file" accept=".pem,.key" style="display:none;" onchange="sslFileToArea(this, null, this.closest('.ssl-override-panel').querySelector('.ho-ssl-key'))">
+                        </div>
+                        <textarea class="ho-ssl-key ssl-pem-area" rows="4" placeholder="-----BEGIN PRIVATE KEY-----"></textarea>
+                    </div>
+                    <div style="display:flex;gap:8px;margin-top:8px;">
+                        <button class="btn btn-primary" style="font-size:0.85em;" onclick="saveHostSslOverride(this)">Save SSL Override</button>
+                        ${hasCert ? `<button class="btn btn-danger" style="font-size:0.85em;" onclick="deleteHostSslOverride(this,'${hostname}')">Remove SSL</button>` : ''}
+                    </div>
+                </div>
             `;
             list.appendChild(row);
+        }
+
+        function toggleHostSslPanel(btn) {
+            const panel = btn.parentElement.querySelector('.ssl-override-panel');
+            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function sslFileToArea(input, textareaId, textareaEl) {
+            const file = input.files && input.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = e => {
+                const ta = textareaEl || document.getElementById(textareaId);
+                if (ta) ta.value = e.target.result;
+            };
+            reader.readAsText(file);
+            input.value = '';
+        }
+
+        async function saveHostSslOverride(btn) {
+            const row = btn.closest('.host-override-row');
+            const hostname = row.querySelector('.ho-hostname').value.trim();
+            if (!hostname || !selectedSite) return;
+            const certPem = row.querySelector('.ho-ssl-cert').value.trim();
+            const keyPem = row.querySelector('.ho-ssl-key').value.trim();
+            if (!certPem || !keyPem) {
+                showNotification('Both certificate and key PEM are required', 'error'); return;
+            }
+            const resp = await fetch(
+                `/api/sites/${encodeURIComponent(selectedSite.name)}/ssl-overrides/${encodeURIComponent(hostname)}`,
+                { method: 'PUT', headers: {'Content-Type': 'application/json'},
+                  body: JSON.stringify({cert_pem: certPem, key_pem: keyPem}) }
+            );
+            const data = await resp.json();
+            if (data.success) {
+                row.querySelector('.ho-ssl-cert').value = '';
+                row.querySelector('.ho-ssl-key').value = '';
+                const fpEl = row.querySelector('.ssl-override-fp');
+                if (fpEl) fpEl.textContent = `Cert: ${data.cert_fingerprint || ''}`;
+                showNotification('SSL override saved', 'success');
+            } else {
+                showNotification(data.message || 'Failed to save SSL override', 'error');
+            }
+        }
+
+        async function deleteHostSslOverride(btn, hostname) {
+            if (!selectedSite || !hostname) return;
+            const resp = await fetch(
+                `/api/sites/${encodeURIComponent(selectedSite.name)}/ssl-overrides/${encodeURIComponent(hostname)}`,
+                { method: 'DELETE' }
+            );
+            const data = await resp.json();
+            if (data.success) {
+                const row = btn.closest('.host-override-row');
+                const fpEl = row.querySelector('.ssl-override-fp');
+                if (fpEl) { fpEl.textContent = 'No SSL cert override'; fpEl.style.color = '#999'; }
+                btn.remove();
+                showNotification('SSL override removed', 'success');
+            } else {
+                showNotification(data.message || 'Failed to remove override', 'error');
+            }
+        }
+
+        function updateSslSectionState() {
+            const enabled = document.getElementById('ssl-enabled').checked;
+            document.getElementById('ssl-cert-section').style.display = enabled ? '' : 'none';
+        }
+
+        async function loadSslConfig(siteName) {
+            const [toolsResp, cfgResp, ovResp] = await Promise.all([
+                fetch('/api/system/ssl-tools'),
+                fetch('/api/sites/' + encodeURIComponent(siteName) + '/ssl-config'),
+                fetch('/api/sites/' + encodeURIComponent(siteName) + '/ssl-overrides'),
+            ]);
+            const toolsData = await toolsResp.json();
+            const cfgData = await cfgResp.json();
+            const ovData = await ovResp.json();
+
+            const available = toolsData.available;
+            const statusEl = document.getElementById('ssl-tools-status');
+            const enabledCb = document.getElementById('ssl-enabled');
+
+            if (!available) {
+                statusEl.textContent = ` — ${toolsData.path} not found on system`;
+                enabledCb.disabled = true;
+                enabledCb.checked = false;
+            } else {
+                statusEl.textContent = '';
+                enabledCb.disabled = false;
+            }
+
+            if (cfgData.success) {
+                enabledCb.checked = cfgData.enabled && available;
+                updateSslSectionState();
+
+                const sweepBtn = document.getElementById('ssl-sweep-btn');
+                sweepBtn.style.display = (cfgData.enabled && cfgData.has_cert) ? '' : 'none';
+
+                const fpBox = document.getElementById('ssl-cert-fp');
+                if (cfgData.cert_fingerprint) {
+                    fpBox.style.display = '';
+                    fpBox.innerHTML = `<strong>SHA-256:</strong> ${cfgData.cert_fingerprint}<br>` +
+                        `<strong>Expires:</strong> ${cfgData.cert_expiry || '—'}`;
+                } else {
+                    fpBox.style.display = 'none';
+                }
+
+                document.getElementById('ssl-schedule-enabled').checked = cfgData.schedule_enabled;
+                document.getElementById('ssl-schedule-frequency').value = cfgData.schedule_frequency || 'weekly';
+                document.getElementById('ssl-schedule-time').value = cfgData.schedule_time || '02:00';
+            }
+
+            return ovData.success ? (ovData.overrides || {}) : {};
+        }
+
+        async function saveSslConfig() {
+            if (!selectedSite) return;
+            const enabled = document.getElementById('ssl-enabled').checked;
+            const certPem = document.getElementById('ssl-cert-pem').value.trim();
+            const keyPem = document.getElementById('ssl-key-pem').value.trim();
+            const scheduleEnabled = document.getElementById('ssl-schedule-enabled').checked;
+            const scheduleFrequency = document.getElementById('ssl-schedule-frequency').value;
+            const scheduleTime = document.getElementById('ssl-schedule-time').value;
+
+            const payload = {
+                enabled, schedule_enabled: scheduleEnabled,
+                schedule_frequency: scheduleFrequency, schedule_time: scheduleTime,
+            };
+            if (certPem || keyPem) { payload.cert_pem = certPem; payload.key_pem = keyPem; }
+
+            const resp = await fetch(
+                '/api/sites/' + encodeURIComponent(selectedSite.name) + '/ssl-config',
+                { method: 'PUT', headers: {'Content-Type': 'application/json'},
+                  body: JSON.stringify(payload) }
+            );
+            const data = await resp.json();
+            if (data.success) {
+                document.getElementById('ssl-cert-pem').value = '';
+                document.getElementById('ssl-key-pem').value = '';
+                if (data.cert_fingerprint) {
+                    const fpBox = document.getElementById('ssl-cert-fp');
+                    fpBox.style.display = '';
+                    fpBox.innerHTML = `<strong>SHA-256:</strong> ${data.cert_fingerprint}<br>` +
+                        `<strong>Expires:</strong> ${data.cert_expiry || '—'}`;
+                }
+                const sweepBtn = document.getElementById('ssl-sweep-btn');
+                if (data.cert_fingerprint || enabled) sweepBtn.style.display = '';
+                showNotification('SSL settings saved', 'success');
+            } else {
+                showNotification(data.message || 'Failed to save SSL settings', 'error');
+            }
+        }
+
+        async function triggerSslSweep() {
+            if (!selectedSite) return;
+            const resp = await fetch(
+                '/api/sites/' + encodeURIComponent(selectedSite.name) + '/ssl-sweep',
+                { method: 'POST' }
+            );
+            const data = await resp.json();
+            showNotification(
+                data.success ? `SSL sweep queued: ${data.queued} host(s)` : (data.message || 'Failed'),
+                data.success ? 'success' : 'error'
+            );
         }
 
         function updateQuadsUrlState() {

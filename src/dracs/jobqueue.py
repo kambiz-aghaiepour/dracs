@@ -336,6 +336,8 @@ class JobProcessor:
                 execute_racadm_config_job(job["target"], meta)
             elif job["job_type"] == "config_collect":
                 execute_config_collect_job(job["target"], meta)
+            elif job["job_type"] == "ssl_cert_upload":
+                execute_ssl_cert_upload_job(job["target"], meta)
             else:
                 fail_job(job_id, error=f"Unknown job type: {job['job_type']}")
                 return
@@ -683,6 +685,126 @@ def execute_config_collect_job(hostname: str, metadata: dict) -> None:
         upsert_host_config(hostname, site_id, data)
 
 
+def execute_ssl_cert_upload_job(hostname: str, metadata: dict) -> None:
+    """Upload site SSL cert/key to an iDRAC if the stored cert expires later than the current one."""
+    import tempfile
+
+    from dracs.db import (
+        get_host_config_data,
+        get_host_ssl_override,
+        get_site_by_name,
+        get_site_ssl_config,
+    )
+    from dracs.snmp import build_idrac_hostname
+    from dracs.webapp import get_idrac_credentials
+
+    _IDRACADM7 = "/opt/dell/srvadmin/bin/idracadm7"
+    if not os.path.exists(_IDRACADM7):
+        raise RuntimeError(f"idracadm7 not found at {_IDRACADM7}")
+
+    site_name = metadata.get("site_name", "")
+    site = get_site_by_name(site_name) if site_name else None
+    if site is None:
+        raise RuntimeError(f"Unknown site: {site_name!r}")
+    site_id = site["id"]
+
+    ssl_cfg = get_site_ssl_config(site_id)
+    if not ssl_cfg.get("enabled"):
+        return
+
+    host_override = get_host_ssl_override(hostname, site_id)
+    cert_pem = (host_override or {}).get("cert_pem") or ssl_cfg.get("cert_pem")
+    key_pem = (host_override or {}).get("key_pem") or ssl_cfg.get("key_pem")
+
+    if not cert_pem or not key_pem:
+        raise RuntimeError("No SSL cert/key configured for this site")
+
+    stored_expiry = ssl_cfg.get("cert_expiry")
+    host_rows = get_host_config_data(site_id, [hostname])
+    idrac_expiry = host_rows[0].get("ssl_expiry") if host_rows else None
+
+    if stored_expiry and idrac_expiry:
+        if stored_expiry <= idrac_expiry:
+            logger.info(
+                "SSL cert for %s already current (stored=%s idrac=%s), skipping",
+                hostname,
+                stored_expiry,
+                idrac_expiry,
+            )
+            return
+
+    idrac_fqdn = build_idrac_hostname(hostname)
+    username, password = get_idrac_credentials(hostname, site=site_name)
+
+    tmp_key = tmp_cert = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".pem", delete=False) as f:
+            f.write(key_pem)
+            tmp_key = f.name
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".pem", delete=False) as f:
+            f.write(cert_pem)
+            tmp_cert = f.name
+
+        result = subprocess.run(  # nosec # nosemgrep
+            [
+                _IDRACADM7,
+                "-r",
+                idrac_fqdn,
+                "-u",
+                username,
+                "-p",
+                password,
+                "sslkeyupload",
+                "-t",
+                "1",
+                "-f",
+                tmp_key,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,  # nosemgrep
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"sslkeyupload failed: {(result.stderr or result.stdout)[:200]}"
+            )
+
+        result = subprocess.run(  # nosec # nosemgrep
+            [
+                _IDRACADM7,
+                "-r",
+                idrac_fqdn,
+                "-u",
+                username,
+                "-p",
+                password,
+                "sslcertupload",
+                "-t",
+                "1",
+                "-f",
+                tmp_cert,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,  # nosemgrep
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"sslcertupload failed: {(result.stderr or result.stdout)[:200]}"
+            )
+
+        logger.info(
+            "SSL cert uploaded to %s (idrac_expiry=%s → stored_expiry=%s)",
+            hostname,
+            idrac_expiry,
+            stored_expiry,
+        )
+    finally:
+        for path in (tmp_key, tmp_cert):
+            if path and os.path.exists(path):
+                os.unlink(path)
+
+
 def get_child_jobs(parent_id: int) -> list:
     with get_session() as session:
         jobs = session.query(Job).filter(Job.parent_id == parent_id).all()
@@ -818,6 +940,43 @@ def _should_run_now(task: dict, last_runs: dict) -> bool:
     return False
 
 
+def _ssl_schedule_due(cfg: dict) -> bool:
+    """Return True if the SSL cert schedule for the given site config should fire now."""
+    if not cfg.get("enabled") or not cfg.get("schedule_enabled"):
+        return False
+    schedule_time = cfg.get("schedule_time") or ""
+    frequency = cfg.get("schedule_frequency") or ""
+    last_run_str = cfg.get("schedule_last_run")
+
+    try:
+        hour, minute = map(int, schedule_time.split(":"))
+    except (ValueError, AttributeError):
+        return False
+
+    now = datetime.now()
+    if now < now.replace(hour=hour, minute=minute, second=0, microsecond=0):
+        return False  # haven't hit the scheduled time yet today
+
+    last_run = None
+    if last_run_str:
+        try:
+            last_run = datetime.fromisoformat(last_run_str)
+        except (ValueError, TypeError):
+            pass
+
+    min_days = {"daily": 1, "weekly": 7, "biweekly": 14, "monthly": 30, "quarterly": 90}
+    days_needed = min_days.get(frequency)
+    if days_needed is None:
+        return False
+    if frequency == "daily":
+        if last_run and last_run.date() == now.date():
+            return False
+    else:
+        if last_run and (now - last_run).days < days_needed:
+            return False
+    return True
+
+
 class JobScheduler:
     def __init__(self, config_path: str = DEFAULT_SCHEDULE_PATH):
         """Initialize job scheduler with path to schedule config."""
@@ -864,4 +1023,28 @@ class JobScheduler:
                         )
             except Exception as exc:
                 logger.error("Scheduler error: %s", exc)
+
+            try:
+                from dracs.db import (
+                    get_all_ssl_scheduled_sites,
+                    update_ssl_schedule_last_run,
+                )
+
+                for cfg in get_all_ssl_scheduled_sites():
+                    if _ssl_schedule_due(cfg):
+                        count = enqueue_batch(
+                            "ssl_cert_upload",
+                            "all",
+                            site_id=cfg["site_id"],
+                            metadata={"site_name": cfg["site_name"]},
+                        )
+                        update_ssl_schedule_last_run(cfg["site_id"])
+                        logger.info(
+                            "SSL cert schedule fired for site %s: %d jobs enqueued",
+                            cfg["site_name"],
+                            count,
+                        )
+            except Exception as exc:
+                logger.error("SSL schedule check error: %s", exc)
+
             time.sleep(60)

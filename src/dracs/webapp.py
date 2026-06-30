@@ -4258,6 +4258,340 @@ def api_site_config_collection_put(name):
         return jsonify({"success": False, "message": str(e)}), 500
 
 
+_IDRACADM7 = "/opt/dell/srvadmin/bin/idracadm7"
+
+
+def _parse_cert_pem(pem: str):
+    """Return (sha256_fingerprint_hex, expiry_iso) from a PEM certificate string."""
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes
+
+    try:
+        cert = x509.load_pem_x509_certificate(pem.encode())
+    except Exception as exc:
+        raise ValueError(f"Invalid certificate PEM: {exc}") from exc
+    fp_str = ":".join(f"{b:02X}" for b in cert.fingerprint(hashes.SHA256()))
+    try:
+        expiry = cert.not_valid_after_utc.isoformat()
+    except AttributeError:
+        from datetime import timezone as _tz
+
+        expiry = cert.not_valid_after.replace(tzinfo=_tz.utc).isoformat()
+    return fp_str, expiry
+
+
+def _validate_key_pem(pem: str) -> None:
+    """Validate a PEM private key; raises ValueError if invalid."""
+    from cryptography.hazmat.primitives.serialization import load_pem_private_key
+
+    try:
+        load_pem_private_key(pem.encode(), password=None)
+    except Exception as exc:
+        raise ValueError(f"Invalid private key PEM: {exc}") from exc
+
+
+@app.route("/api/system/ssl-tools")
+def api_ssl_tools():
+    """Report whether idracadm7 is present on this system (superadmin only)."""
+    _, err = _require_auth(required_role="admin")
+    if err:
+        return err
+    if not session.get("is_superadmin", False):
+        return jsonify({"success": False, "message": "Superadmin required"}), 403
+    return jsonify(
+        {"success": True, "available": os.path.exists(_IDRACADM7), "path": _IDRACADM7}
+    )
+
+
+@app.route("/api/sites/<name>/ssl-config")
+def api_site_ssl_config_get(name):
+    """Return SSL cert management config for a site (PEM content never returned)."""
+    _, err = _require_auth(required_role="admin")
+    if err:
+        return err
+    if not session.get("is_superadmin", False):
+        return jsonify({"success": False, "message": "Superadmin required"}), 403
+    try:
+        from dracs.db import get_site_by_name, get_site_ssl_config
+
+        site = get_site_by_name(name)
+        if not site:
+            return jsonify({"success": False, "message": "Site not found"}), 404
+        cfg = get_site_ssl_config(site["id"])
+        cfg.pop("cert_pem", None)
+        cfg.pop("key_pem", None)
+        return jsonify({"success": True, **cfg})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route("/api/sites/<name>/ssl-config", methods=["PUT"])
+def api_site_ssl_config_put(name):
+    """Save SSL cert management and schedule config for a site (superadmin only)."""
+    user, err = _require_auth(required_role="admin")
+    if err:
+        return err
+    if not session.get("is_superadmin", False):
+        return jsonify({"success": False, "message": "Superadmin required"}), 403
+    try:
+        from dracs.db import get_site_by_name, upsert_site_ssl_config
+
+        data = request.get_json(silent=True) or {}
+        site = get_site_by_name(name)
+        if not site:
+            return jsonify({"success": False, "message": "Site not found"}), 404
+
+        payload = {}
+
+        if "enabled" in data:
+            if data["enabled"] and not os.path.exists(_IDRACADM7):
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "message": f"Cannot enable: {_IDRACADM7} not found on this system",
+                        }
+                    ),
+                    400,
+                )
+            payload["enabled"] = bool(data["enabled"])
+
+        cert_pem = (data.get("cert_pem") or "").strip()
+        key_pem = (data.get("key_pem") or "").strip()
+        cert_fingerprint = cert_expiry = None
+
+        if cert_pem or key_pem:
+            if not cert_pem or not key_pem:
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "message": "Both certificate and private key are required",
+                        }
+                    ),
+                    400,
+                )
+            try:
+                cert_fingerprint, cert_expiry = _parse_cert_pem(cert_pem)
+            except ValueError as ve:
+                return jsonify({"success": False, "message": str(ve)}), 400
+            try:
+                _validate_key_pem(key_pem)
+            except ValueError as ve:
+                return jsonify({"success": False, "message": str(ve)}), 400
+            payload.update(
+                cert_pem=cert_pem,
+                key_pem=key_pem,
+                cert_fingerprint=cert_fingerprint,
+                cert_expiry=cert_expiry,
+            )
+
+        if "schedule_enabled" in data:
+            payload["schedule_enabled"] = bool(data["schedule_enabled"])
+        if "schedule_frequency" in data:
+            freq = data["schedule_frequency"] or ""
+            valid = {"daily", "weekly", "biweekly", "monthly", "quarterly", ""}
+            if freq not in valid:
+                return (
+                    jsonify(
+                        {"success": False, "message": f"Invalid frequency: {freq!r}"}
+                    ),
+                    400,
+                )
+            payload["schedule_frequency"] = freq or None
+        if "schedule_time" in data:
+            t = (data.get("schedule_time") or "").strip()
+            if t:
+                try:
+                    h, m = t.split(":")
+                    if not (0 <= int(h) <= 23 and 0 <= int(m) <= 59):
+                        raise ValueError()
+                except Exception:
+                    return (
+                        jsonify({"success": False, "message": f"Invalid time: {t!r}"}),
+                        400,
+                    )
+            payload["schedule_time"] = t or None
+
+        upsert_site_ssl_config(site["id"], payload)
+        audit_log("site_ssl_config_update", target=name, user=user, source=_client_ip())
+        resp = {"success": True}
+        if cert_fingerprint:
+            resp["cert_fingerprint"] = cert_fingerprint
+            resp["cert_expiry"] = cert_expiry
+        return jsonify(resp)
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route("/api/sites/<name>/ssl-overrides")
+def api_site_ssl_overrides_get(name):
+    """Return per-host SSL override summaries for a site (fingerprints only)."""
+    _, err = _require_auth(required_role="admin")
+    if err:
+        return err
+    if not session.get("is_superadmin", False):
+        return jsonify({"success": False, "message": "Superadmin required"}), 403
+    try:
+        from dracs.db import get_site_by_name, get_all_host_ssl_overrides
+
+        site = get_site_by_name(name)
+        if not site:
+            return jsonify({"success": False, "message": "Site not found"}), 404
+        return jsonify(
+            {"success": True, "overrides": get_all_host_ssl_overrides(site["id"])}
+        )
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route("/api/sites/<name>/ssl-overrides/<path:hostname>", methods=["PUT"])
+def api_host_ssl_override_put(name, hostname):
+    """Set per-host SSL cert/key override (superadmin only)."""
+    user, err = _require_auth(required_role="admin")
+    if err:
+        return err
+    if not session.get("is_superadmin", False):
+        return jsonify({"success": False, "message": "Superadmin required"}), 403
+    try:
+        from dracs.db import get_site_by_name, upsert_host_ssl_override
+
+        data = request.get_json(silent=True) or {}
+        site = get_site_by_name(name)
+        if not site:
+            return jsonify({"success": False, "message": "Site not found"}), 404
+
+        cert_pem = (data.get("cert_pem") or "").strip()
+        key_pem = (data.get("key_pem") or "").strip()
+        if not cert_pem or not key_pem:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": "Both cert_pem and key_pem are required",
+                    }
+                ),
+                400,
+            )
+
+        try:
+            cert_fingerprint, cert_expiry = _parse_cert_pem(cert_pem)
+        except ValueError as ve:
+            return jsonify({"success": False, "message": str(ve)}), 400
+        try:
+            _validate_key_pem(key_pem)
+        except ValueError as ve:
+            return jsonify({"success": False, "message": str(ve)}), 400
+
+        upsert_host_ssl_override(
+            hostname,
+            site["id"],
+            {
+                "cert_pem": cert_pem,
+                "key_pem": key_pem,
+                "cert_fingerprint": cert_fingerprint,
+            },
+        )
+        audit_log(
+            "host_ssl_override_set",
+            target=hostname,
+            user=user,
+            source=_client_ip(),
+            details=f"site={name}",
+        )
+        return jsonify(
+            {
+                "success": True,
+                "cert_fingerprint": cert_fingerprint,
+                "cert_expiry": cert_expiry,
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route("/api/sites/<name>/ssl-overrides/<path:hostname>", methods=["DELETE"])
+def api_host_ssl_override_delete(name, hostname):
+    """Remove per-host SSL cert/key override (superadmin only)."""
+    user, err = _require_auth(required_role="admin")
+    if err:
+        return err
+    if not session.get("is_superadmin", False):
+        return jsonify({"success": False, "message": "Superadmin required"}), 403
+    try:
+        from dracs.db import get_site_by_name, delete_host_ssl_override
+
+        site = get_site_by_name(name)
+        if not site:
+            return jsonify({"success": False, "message": "Site not found"}), 404
+        if not delete_host_ssl_override(hostname, site["id"]):
+            return jsonify({"success": False, "message": "Override not found"}), 404
+        audit_log(
+            "host_ssl_override_delete",
+            target=hostname,
+            user=user,
+            source=_client_ip(),
+            details=f"site={name}",
+        )
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route("/api/sites/<name>/ssl-sweep", methods=["POST"])
+def api_site_ssl_sweep(name):
+    """Manually trigger an SSL cert sweep for all hosts in a site (superadmin only)."""
+    user, err = _require_auth(required_role="admin")
+    if err:
+        return err
+    if not session.get("is_superadmin", False):
+        return jsonify({"success": False, "message": "Superadmin required"}), 403
+    try:
+        from dracs.db import get_site_by_name, get_site_ssl_config
+        from dracs.jobqueue import enqueue_batch
+
+        site = get_site_by_name(name)
+        if not site:
+            return jsonify({"success": False, "message": "Site not found"}), 404
+        cfg = get_site_ssl_config(site["id"])
+        if not cfg.get("enabled"):
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": "SSL cert management is not enabled for this site",
+                    }
+                ),
+                400,
+            )
+        if not cfg.get("has_cert") or not cfg.get("has_key"):
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": "No SSL certificate/key configured for this site",
+                    }
+                ),
+                400,
+            )
+        count = enqueue_batch(
+            "ssl_cert_upload",
+            "all",
+            site_id=site["id"],
+            metadata={"site_name": name},
+        )
+        audit_log(
+            "site_ssl_sweep",
+            target=name,
+            user=user,
+            source=_client_ip(),
+            details=f"queued={count}",
+        )
+        return jsonify({"success": True, "queued": count})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
 def _parse_debug_env() -> bool:
     value = os.getenv("DEBUG", "false")
     if value in ("true", "True", "TRUE", "1"):
