@@ -532,11 +532,15 @@ class TestExecuteRacadmConfigJob:
     def test_basic_setting_applied(self):
         mock_build_cmd = MagicMock(return_value=["echo", "test"])
         mock_result = MagicMock(returncode=0)
+        mock_upsert = MagicMock()
         with patch("dracs.jobqueue.subprocess.run", return_value=mock_result):
             with patch("dracs.webapp._build_ssh_racadm_cmd", mock_build_cmd):
                 with patch("dracs.db.get_site_by_name", return_value=self._MOCK_SITE):
-                    with patch("dracs.redfish.collect_all_for_host", return_value={}):
-                        with patch("dracs.db.upsert_host_config"):
+                    with patch(
+                        "dracs.redfish.collect_all_for_host",
+                        return_value={"ps_rapid_on": "Disabled"},
+                    ):
+                        with patch("dracs.db.upsert_host_config", mock_upsert):
                             execute_racadm_config_job(
                                 "host01.example.com",
                                 {
@@ -554,6 +558,7 @@ class TestExecuteRacadmConfigJob:
             "Disabled",
             site="Default",
         )
+        mock_upsert.assert_called_once()
 
     def test_disabled_setting_skipped(self):
         mock_build_cmd = MagicMock(return_value=["echo", "test"])

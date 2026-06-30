@@ -344,6 +344,29 @@ class TestApiConfigEdit:
         assert data["job_count"] == 2
         assert isinstance(data["parent_job_id"], int)
 
+    def test_rejects_no_body(self, client):
+        _login(client)
+        with client.session_transaction() as sess:
+            sess["is_superadmin"] = True
+        resp = client.post("/api/config-edit", json={})
+        assert resp.status_code == 400
+
+    def test_server_error_returns_500(self, client):
+        _login(client)
+        with client.session_transaction() as sess:
+            sess["is_superadmin"] = True
+        with patch("dracs.jobqueue.enqueue_job", side_effect=RuntimeError("DB locked")):
+            resp = client.post(
+                "/api/config-edit",
+                json={
+                    "site": "Default",
+                    "hosts": ["host01.example.com"],
+                    "settings": {"ps_rapid_on": True},
+                },
+            )
+        assert resp.status_code == 500
+        assert "DB locked" in resp.get_json()["message"]
+
 
 class TestApiConfigEditStatus:
     def test_requires_auth(self, client):
@@ -376,6 +399,24 @@ class TestApiConfigEditStatus:
         assert data["parent"]["status"] in ("pending", "running", "completed", "failed")
         assert len(data["children"]) == 1
         assert data["children"][0]["hostname"] == "host01.example.com"
+
+    def test_server_error_returns_500(self, client, api_db):
+        _login(client)
+        with client.session_transaction() as sess:
+            sess["is_superadmin"] = True
+        submit_data = client.post(
+            "/api/config-edit",
+            json={
+                "site": "Default",
+                "hosts": ["host01.example.com"],
+                "settings": {"ps_rapid_on": True},
+            },
+        ).get_json()
+        parent_id = submit_data["parent_job_id"]
+        with patch("dracs.jobqueue.get_child_jobs", side_effect=RuntimeError("DB gone")):
+            resp = client.get(f"/api/config-edit/status/{parent_id}")
+        assert resp.status_code == 500
+        assert "DB gone" in resp.get_json()["message"]
 
     def test_completed_child_includes_config(self, client, api_db):
         from dracs.db import get_site_by_name, upsert_host_config
