@@ -9,6 +9,7 @@ from sqlalchemy import (
     ForeignKey,
     String,
     Integer,
+    Text,
 )
 from sqlalchemy.pool import NullPool
 from sqlalchemy.orm import (
@@ -189,6 +190,38 @@ class HostConfig(Base):
     ssl_valid_name: Mapped[int | None] = mapped_column(Integer, nullable=True)
     ssl_expiry: Mapped[str | None] = mapped_column(String, nullable=True)
     collected_at: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
+class SiteSslConfig(Base):
+    __tablename__ = "site_ssl_config"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    site_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("sites.id"), nullable=False, unique=True
+    )
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    cert_pem: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    key_pem: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    cert_fingerprint: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    cert_expiry: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    schedule_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    schedule_frequency: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    schedule_time: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    schedule_last_run: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+
+class HostSslOverride(Base):
+    __tablename__ = "host_ssl_override"
+    __table_args__ = (UniqueConstraint("hostname", "site_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    hostname: Mapped[str] = mapped_column(String, nullable=False)
+    site_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("sites.id"), nullable=False
+    )
+    cert_pem: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    key_pem: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    cert_fingerprint: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
 
 def make_db_url(path: str) -> str:
@@ -625,3 +658,170 @@ def get_hosts_for_site(site_id: int) -> list:
             .all()
         )
         return [{"hostname": s.name, "svc_tag": s.svc_tag} for s in systems]
+
+
+# ── SSL certificate management ──────────────────────────────────────────────
+
+def get_site_ssl_config(site_id: int) -> dict:
+    """Return SSL cert management config for a site, with safe defaults."""
+    with get_session() as session:
+        row = session.query(SiteSslConfig).filter(
+            SiteSslConfig.site_id == site_id
+        ).first()
+        if row is None:
+            return {
+                "enabled": False,
+                "has_cert": False,
+                "has_key": False,
+                "cert_pem": None,
+                "key_pem": None,
+                "cert_fingerprint": None,
+                "cert_expiry": None,
+                "schedule_enabled": False,
+                "schedule_frequency": None,
+                "schedule_time": None,
+                "schedule_last_run": None,
+            }
+        return {
+            "enabled": bool(row.enabled),
+            "has_cert": bool(row.cert_pem),
+            "has_key": bool(row.key_pem),
+            "cert_pem": row.cert_pem,
+            "key_pem": row.key_pem,
+            "cert_fingerprint": row.cert_fingerprint,
+            "cert_expiry": row.cert_expiry,
+            "schedule_enabled": bool(row.schedule_enabled),
+            "schedule_frequency": row.schedule_frequency,
+            "schedule_time": row.schedule_time,
+            "schedule_last_run": row.schedule_last_run,
+        }
+
+
+def upsert_site_ssl_config(site_id: int, data: dict) -> None:
+    """Create or update SSL cert management config for a site."""
+    with get_session() as session:
+        row = session.query(SiteSslConfig).filter(
+            SiteSslConfig.site_id == site_id
+        ).first()
+        if row is None:
+            row = SiteSslConfig(site_id=site_id)
+            session.add(row)
+        if "enabled" in data:
+            row.enabled = bool(data["enabled"])
+        if "cert_pem" in data:
+            row.cert_pem = data["cert_pem"] or None
+        if "key_pem" in data:
+            row.key_pem = data["key_pem"] or None
+        if "cert_fingerprint" in data:
+            row.cert_fingerprint = data["cert_fingerprint"] or None
+        if "cert_expiry" in data:
+            row.cert_expiry = data["cert_expiry"] or None
+        if "schedule_enabled" in data:
+            row.schedule_enabled = bool(data["schedule_enabled"])
+        if "schedule_frequency" in data:
+            row.schedule_frequency = data["schedule_frequency"] or None
+        if "schedule_time" in data:
+            row.schedule_time = data["schedule_time"] or None
+        session.commit()
+
+
+def get_host_ssl_override(hostname: str, site_id: int) -> Optional[dict]:
+    """Return per-host SSL cert override, or None if not set."""
+    with get_session() as session:
+        row = session.query(HostSslOverride).filter(
+            HostSslOverride.hostname == hostname,
+            HostSslOverride.site_id == site_id,
+        ).first()
+        if row is None:
+            return None
+        return {
+            "hostname": row.hostname,
+            "has_cert": bool(row.cert_pem),
+            "has_key": bool(row.key_pem),
+            "cert_pem": row.cert_pem,
+            "key_pem": row.key_pem,
+            "cert_fingerprint": row.cert_fingerprint,
+        }
+
+
+def upsert_host_ssl_override(hostname: str, site_id: int, data: dict) -> None:
+    """Create or update per-host SSL cert override."""
+    with get_session() as session:
+        row = session.query(HostSslOverride).filter(
+            HostSslOverride.hostname == hostname,
+            HostSslOverride.site_id == site_id,
+        ).first()
+        if row is None:
+            row = HostSslOverride(hostname=hostname, site_id=site_id)
+            session.add(row)
+        if "cert_pem" in data:
+            row.cert_pem = data["cert_pem"] or None
+        if "key_pem" in data:
+            row.key_pem = data["key_pem"] or None
+        if "cert_fingerprint" in data:
+            row.cert_fingerprint = data["cert_fingerprint"] or None
+        session.commit()
+
+
+def delete_host_ssl_override(hostname: str, site_id: int) -> bool:
+    """Remove per-host SSL cert override. Returns True if a row was deleted."""
+    with get_session() as session:
+        row = session.query(HostSslOverride).filter(
+            HostSslOverride.hostname == hostname,
+            HostSslOverride.site_id == site_id,
+        ).first()
+        if row is None:
+            return False
+        session.delete(row)
+        session.commit()
+        return True
+
+
+def get_all_host_ssl_overrides(site_id: int) -> dict:
+    """Return {hostname: {has_cert, has_key, cert_fingerprint}} for all hosts in site."""
+    with get_session() as session:
+        rows = session.query(HostSslOverride).filter(
+            HostSslOverride.site_id == site_id
+        ).all()
+        return {
+            row.hostname: {
+                "has_cert": bool(row.cert_pem),
+                "has_key": bool(row.key_pem),
+                "cert_fingerprint": row.cert_fingerprint,
+            }
+            for row in rows
+        }
+
+
+def get_all_ssl_scheduled_sites() -> list:
+    """Return all sites with SSL cert management enabled and a schedule configured."""
+    with get_session() as session:
+        rows = session.query(SiteSslConfig).filter(
+            SiteSslConfig.enabled.is_(True),
+            SiteSslConfig.schedule_enabled.is_(True),
+        ).all()
+        result = []
+        for row in rows:
+            site = session.get(Site, row.site_id)
+            if site:
+                result.append({
+                    "site_id": row.site_id,
+                    "site_name": site.name,
+                    "enabled": True,
+                    "schedule_enabled": True,
+                    "schedule_frequency": row.schedule_frequency,
+                    "schedule_time": row.schedule_time,
+                    "schedule_last_run": row.schedule_last_run,
+                })
+        return result
+
+
+def update_ssl_schedule_last_run(site_id: int) -> None:
+    """Stamp schedule_last_run to now for a site's SSL config."""
+    with get_session() as session:
+        row = session.query(SiteSslConfig).filter(
+            SiteSslConfig.site_id == site_id
+        ).first()
+        if row:
+            row.schedule_last_run = datetime.now().isoformat()
+            session.commit()
