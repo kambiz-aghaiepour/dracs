@@ -137,6 +137,35 @@ class TestApiConfigData:
         assert data["success"] is True
         assert len(data["data"]) == 200
 
+    def test_post_accepts_hosts_as_comma_string(self, client, api_db):
+        from dracs.db import upsert_host_config
+
+        site = get_site_by_name("Default")
+        site_id = site["id"]
+        upsert_host_config("host01.example.com", site_id, {"ps_rapid_on": "Disabled"})
+        upsert_host_config("host02.example.com", site_id, {"ps_rapid_on": "Enabled"})
+        _login(client)
+        resp = client.post(
+            "/api/config-data",
+            json={"site": "Default", "hosts": "host01.example.com,host02.example.com"},
+        )
+        data = resp.get_json()
+        assert data["success"] is True
+        assert len(data["data"]) == 2
+
+    def test_get_returns_data(self, client, api_db):
+        from dracs.db import upsert_host_config
+
+        site = get_site_by_name("Default")
+        site_id = site["id"]
+        upsert_host_config("host01.example.com", site_id, {"ps_rapid_on": "Disabled"})
+        _login(client)
+        resp = client.get("/api/config-data?site=Default&hosts=host01.example.com")
+        data = resp.get_json()
+        assert data["success"] is True
+        assert len(data["data"]) == 1
+        assert data["data"][0]["hostname"] == "host01.example.com"
+
 
 class TestApiSiteConfigCollectionGet:
     def test_requires_auth(self, client):
