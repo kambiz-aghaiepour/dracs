@@ -654,6 +654,12 @@ def execute_racadm_config_job(hostname: str, metadata: dict) -> None:
     except Exception as exc:
         logger.warning("Post-edit verification failed for %s: %s", hostname, exc)
 
+    from dracs.config_collector import get_collector
+
+    _cc = get_collector()
+    if _cc is not None:
+        _cc.trigger_host(hostname, site_name, site["id"])
+
 
 def get_child_jobs(parent_id: int) -> list:
     with get_session() as session:

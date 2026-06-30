@@ -65,10 +65,11 @@ def post_worker_init(worker):
         scheduler = JobScheduler(config_path=schedule_path)
         scheduler.start()
 
-        from dracs.config_collector import ConfigCollector
+        from dracs.config_collector import ConfigCollector, set_instance as _set_cc
 
         config_collector = ConfigCollector()
         config_collector.start()
+        _set_cc(config_collector)
 
         worker._job_processor = processor
         worker._job_scheduler = scheduler

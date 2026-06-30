@@ -8,6 +8,18 @@ from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
+_instance = None
+
+
+def set_instance(collector) -> None:
+    global _instance
+    _instance = collector
+
+
+def get_collector():
+    return _instance
+
+
 CHECK_INTERVAL = 300
 MAX_WORKERS = 20
 

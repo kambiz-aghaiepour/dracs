@@ -292,6 +292,19 @@
         body.dark-theme .config-row-selected { background-color: #1a3a5c !important; }
         table.config-table tbody tr { cursor: pointer; }
 
+        /* Refresh button */
+        .refresh-btn {
+            padding: 8px 20px;
+            background-color: #198754;
+            color: white; border: none;
+            border-radius: 4px; cursor: pointer; font-size: 14px;
+            margin-right: 8px;
+        }
+        .refresh-btn:hover:not(:disabled) { background-color: #146c43; }
+        .refresh-btn:disabled { opacity: 0.4; cursor: default; }
+        [data-theme="dark"] .refresh-btn { background-color: #157347; }
+        [data-theme="dark"] .refresh-btn:hover:not(:disabled) { background-color: #0f5132; }
+
         /* Edit button */
         .edit-btn {
             padding: 8px 20px;
@@ -352,7 +365,7 @@
             </div>
         </div>
         <div>
-            {% if is_admin %}<button id="edit-btn" class="edit-btn" onclick="openEditModal()" disabled>Edit</button>{% endif %}
+            {% if is_admin %}<button id="refresh-btn" class="refresh-btn" onclick="applyConfigRefresh()" disabled>Refresh</button><button id="edit-btn" class="edit-btn" onclick="openEditModal()" disabled>Edit</button>{% endif %}
             <button class="close-btn" onclick="closePage()">Close</button>
         </div>
     </div>
@@ -725,6 +738,8 @@ const isAdmin = {{ 'true' if is_admin else 'false' }};
                     tr.classList.add('config-row-selected');
             });
         }
+        updateEditButton();
+        updateRefreshButton();
 
         renderPagination();
     }
@@ -769,6 +784,11 @@ const isAdmin = {{ 'true' if is_admin else 'false' }};
         if (btn) btn.disabled = selectedConfigRows.length === 0;
     }
 
+    function updateRefreshButton() {
+        const btn = document.getElementById('refresh-btn');
+        if (btn) btn.disabled = selectedConfigRows.length === 0;
+    }
+
     function handleRowClick(event) {
         const tr = event.target.closest('tr');
         if (!tr || !tr.dataset.hostname) return;
@@ -804,7 +824,55 @@ const isAdmin = {{ 'true' if is_admin else 'false' }};
         }
         lastClickedTr = tr;
         updateEditButton();
+        updateRefreshButton();
     }
+
+    // ── Refresh ───────────────────────────────────────────────────────────────
+
+    window.applyConfigRefresh = async function () {
+        const btn = document.getElementById('refresh-btn');
+        const editBtn = document.getElementById('edit-btn');
+        if (btn) { btn.disabled = true; btn.textContent = 'Refreshing…'; }
+        if (editBtn) editBtn.disabled = true;
+
+        const site = getQueryParam('site');
+        try {
+            const resp = await fetch('/api/config-refresh', {
+                method: 'POST', credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ site, hosts: selectedConfigRows }),
+            });
+            const data = await resp.json();
+            if (!data.success) {
+                if (btn) { btn.disabled = false; btn.textContent = 'Refresh'; }
+                if (editBtn) editBtn.disabled = selectedConfigRows.length === 0;
+                alert('Refresh failed: ' + data.message);
+                return;
+            }
+        } catch (e) {
+            if (btn) { btn.disabled = false; btn.textContent = 'Refresh'; }
+            if (editBtn) editBtn.disabled = selectedConfigRows.length === 0;
+            return;
+        }
+
+        // Re-fetch from DB ~20s later to pick up the updated host_config rows
+        setTimeout(async () => {
+            const hostsJson = sessionStorage.getItem('dracs_config_hosts');
+            let hostnames = [];
+            if (hostsJson) { try { hostnames = JSON.parse(hostsJson); } catch (e) {} }
+            try {
+                const r = await fetch('/api/config-data', {
+                    method: 'POST', credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ site, hosts: hostnames }),
+                });
+                const d = await r.json();
+                if (d.success) { allRows = d.data || []; renderTable(); }
+            } catch (e) {}
+            if (btn) { btn.disabled = selectedConfigRows.length === 0; btn.textContent = 'Refresh'; }
+            if (editBtn) editBtn.disabled = selectedConfigRows.length === 0;
+        }, 20000);
+    };
 
     // ── Edit modal ────────────────────────────────────────────────────────────
 
