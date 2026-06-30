@@ -2935,8 +2935,7 @@
             if (!selectedSystems.length) return;
             sessionStorage.setItem('dracs_config_hosts',
                 JSON.stringify(selectedSystems.map(s => s.hostname)));
-            const site = new URLSearchParams(window.location.search).get('site') || '';
-            window.location.href = '/config' + (site ? '?site=' + encodeURIComponent(site) : '');
+            window.location.href = '/config?site=' + encodeURIComponent(currentSite);
         }
 
         // Toggle select only systems shown on current page

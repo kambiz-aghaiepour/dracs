@@ -111,29 +111,21 @@
             white-space: nowrap;
             font-size: 13px;
             vertical-align: middle;
+            text-align: center;
         }
+        table.config-table td:first-child { text-align: left; }
+        table.config-table td:last-child { text-align: left; }
         table.config-table tr:nth-child(even) { background: #f9f9f9; }
         table.config-table tr:hover { background: #f1f4ff; }
 
-        /* Rotated column headers */
-        th.rotate-header {
-            height: 110px;
-            padding: 0;
-            vertical-align: bottom;
-            border-bottom: 2px solid #aaa;
-            background: transparent;
-        }
-        th.rotate-header > div {
-            display: inline-block;
-            width: 28px;
-            overflow: visible;
-            transform: rotate(-60deg);
-            transform-origin: left bottom;
-            white-space: nowrap;
-            padding-bottom: 4px;
+        /* Column headers */
+        th.attr-header {
+            text-align: center;
             font-size: 12px;
             font-weight: 600;
             color: #333;
+            white-space: nowrap;
+            padding: 6px 10px;
         }
         th.hostname-header {
             text-align: left;
@@ -187,7 +179,7 @@
         body.dark-theme table.config-table th { border-color: #444; color: #ddd; }
         body.dark-theme table.config-table tr:nth-child(even) { background: #1f2d4a; }
         body.dark-theme table.config-table tr:hover { background: #253555; }
-        body.dark-theme th.rotate-header > div { color: #ccc; }
+        body.dark-theme th.attr-header { color: #ccc; }
         body.dark-theme .page-size-label,
         body.dark-theme .results-info,
         body.dark-theme .pagination-info { color: #aaa; }
@@ -318,9 +310,7 @@
     function boolCell(val, goodVal) {
         if (val === null || val === undefined) return '<span class="na">—</span>';
         const ok = String(val) === String(goodVal);
-        return ok
-            ? '<span class="ok">✓</span>'
-            : '<span class="bad">✗</span> ' + escHtml(String(val));
+        return ok ? '<span class="ok">✓</span>' : '<span class="bad">✗</span>';
     }
 
     function intBoolCell(val, goodIs1) {
@@ -347,7 +337,7 @@
         const thead = document.getElementById('config-thead');
         let hrow = '<tr><th class="hostname-header">Hostname</th>';
         for (const attr of visibleAttrs) {
-            hrow += `<th class="rotate-header"><div>${ATTR_LABELS[attr] || attr}</div></th>`;
+            hrow += `<th class="attr-header">${ATTR_LABELS[attr] || attr}</th>`;
         }
         hrow += '<th class="collected-header">Collected At</th></tr>';
         thead.innerHTML = hrow;
