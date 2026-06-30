@@ -126,6 +126,70 @@ class Job(Base):
     )
 
 
+class SiteConfigCollection(Base):
+    __tablename__ = "site_config_collection"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    site_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("sites.id"), nullable=False, unique=True
+    )
+    ps_rapid_on_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )
+    ps_rapid_on_hours: Mapped[int] = mapped_column(Integer, nullable=False, default=24)
+    dns_from_dhcp_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )
+    dns_from_dhcp_hours: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=24
+    )
+    ipmi_lan_enable_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )
+    ipmi_lan_enable_hours: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=24
+    )
+    host_header_check_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )
+    host_header_check_hours: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=24
+    )
+    sys_profile_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )
+    sys_profile_hours: Mapped[int] = mapped_column(Integer, nullable=False, default=24)
+    ssl_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    ssl_hours: Mapped[int] = mapped_column(Integer, nullable=False, default=24)
+    idrac_hostname_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )
+    idrac_hostname_hours: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=24
+    )
+
+
+class HostConfig(Base):
+    __tablename__ = "host_config"
+    __table_args__ = (UniqueConstraint("hostname", "site_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    hostname: Mapped[str] = mapped_column(String, nullable=False)
+    site_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("sites.id"), nullable=False
+    )
+    ps_rapid_on: Mapped[str | None] = mapped_column(String, nullable=True)
+    idrac_hostname: Mapped[str | None] = mapped_column(String, nullable=True)
+    dns_from_dhcp: Mapped[str | None] = mapped_column(String, nullable=True)
+    ipmi_lan_enable: Mapped[str | None] = mapped_column(String, nullable=True)
+    host_header_check: Mapped[str | None] = mapped_column(String, nullable=True)
+    sys_profile: Mapped[str | None] = mapped_column(String, nullable=True)
+    ssl_self_signed: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ssl_valid_name: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ssl_expiry: Mapped[str | None] = mapped_column(String, nullable=True)
+    collected_at: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
 def make_db_url(path: str) -> str:
     if "://" in path:
         return path
@@ -445,3 +509,103 @@ def reorder_sites(ordered_ids: list) -> None:
                 {"sort_order": position}
             )
         session.commit()
+
+
+_COLLECTION_ATTRS = [
+    "ps_rapid_on",
+    "dns_from_dhcp",
+    "ipmi_lan_enable",
+    "host_header_check",
+    "sys_profile",
+    "ssl",
+    "idrac_hostname",
+]
+
+
+def get_site_config_collection(site_id: int) -> dict:
+    with get_session() as session:
+        row = (
+            session.query(SiteConfigCollection)
+            .filter(SiteConfigCollection.site_id == site_id)
+            .first()
+        )
+        if row is None:
+            result = {}
+            for attr in _COLLECTION_ATTRS:
+                result[f"{attr}_enabled"] = False
+                result[f"{attr}_hours"] = 24
+            return result
+        result = {}
+        for attr in _COLLECTION_ATTRS:
+            result[f"{attr}_enabled"] = getattr(row, f"{attr}_enabled")
+            result[f"{attr}_hours"] = getattr(row, f"{attr}_hours")
+        return result
+
+
+def upsert_site_config_collection(site_id: int, settings: dict) -> None:
+    with get_session() as session:
+        row = (
+            session.query(SiteConfigCollection)
+            .filter(SiteConfigCollection.site_id == site_id)
+            .first()
+        )
+        if row is None:
+            row = SiteConfigCollection(site_id=site_id)
+            session.add(row)
+        for key, value in settings.items():
+            if hasattr(row, key):
+                setattr(row, key, value)
+        session.commit()
+
+
+def get_host_config_data(site_id: int, hostnames: list) -> list:
+    with get_session() as session:
+        query = session.query(HostConfig).filter(HostConfig.site_id == site_id)
+        if hostnames:
+            query = query.filter(HostConfig.hostname.in_(hostnames))
+        rows = query.order_by(HostConfig.hostname).all()
+        return [
+            {
+                "hostname": r.hostname,
+                "ps_rapid_on": r.ps_rapid_on,
+                "idrac_hostname": r.idrac_hostname,
+                "dns_from_dhcp": r.dns_from_dhcp,
+                "ipmi_lan_enable": r.ipmi_lan_enable,
+                "host_header_check": r.host_header_check,
+                "sys_profile": r.sys_profile,
+                "ssl_self_signed": r.ssl_self_signed,
+                "ssl_valid_name": r.ssl_valid_name,
+                "ssl_expiry": r.ssl_expiry,
+                "collected_at": r.collected_at,
+            }
+            for r in rows
+        ]
+
+
+def upsert_host_config(hostname: str, site_id: int, data: dict) -> None:
+    with get_session() as session:
+        row = (
+            session.query(HostConfig)
+            .filter(
+                HostConfig.hostname == hostname,
+                HostConfig.site_id == site_id,
+            )
+            .first()
+        )
+        if row is None:
+            row = HostConfig(hostname=hostname, site_id=site_id)
+            session.add(row)
+        for key, value in data.items():
+            if hasattr(row, key):
+                setattr(row, key, value)
+        session.commit()
+
+
+def get_hosts_for_site(site_id: int) -> list:
+    with get_session() as session:
+        systems = (
+            session.query(System)
+            .filter(System.site_id == site_id, System.name.isnot(None))
+            .all()
+        )
+        return [{"hostname": s.name, "svc_tag": s.svc_tag} for s in systems]

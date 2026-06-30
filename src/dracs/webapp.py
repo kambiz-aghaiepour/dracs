@@ -3963,6 +3963,104 @@ def api_remoteimage_apply(hostname):
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
 
 
+@app.route("/config")
+def config_page():
+    """Serve the iDRAC configuration view page."""
+    is_authenticated = session.get("authenticated", False)
+    if not is_authenticated:
+        return redirect(url_for("index"))
+    return render_template(
+        "config.html",
+        username=session.get("username", ""),
+        user_role=session.get("role", ""),
+        is_superadmin=session.get("is_superadmin", False),
+    )
+
+
+@app.route("/api/config-data")
+def api_config_data():
+    """Return cached iDRAC config data for requested hosts within a site."""
+    _, err = _require_auth()
+    if err:
+        return err
+
+    from dracs.db import (
+        get_host_config_data,
+        get_site_by_name,
+        get_site_config_collection,
+    )
+
+    site_name = request.args.get("site", "")
+    hosts_param = request.args.get("hosts", "")
+    hostnames = [h.strip() for h in hosts_param.split(",") if h.strip()]
+
+    site = get_site_by_name(site_name) if site_name else None
+    site_id = site["id"] if site else None
+
+    if site_id is None:
+        return jsonify({"success": True, "settings": {}, "data": []})
+
+    settings = get_site_config_collection(site_id)
+    data = get_host_config_data(site_id, hostnames)
+    return jsonify({"success": True, "settings": settings, "data": data})
+
+
+@app.route("/api/sites/<name>/config-collection")
+def api_site_config_collection_get(name):
+    """Get iDRAC collection settings for a site (superadmin only)."""
+    _, err = _require_auth(required_role="admin")
+    if err:
+        return err
+    if not session.get("is_superadmin", False):
+        return jsonify({"success": False, "message": "Superadmin required"}), 403
+
+    from dracs.db import get_site_by_name, get_site_config_collection
+
+    site = get_site_by_name(name)
+    if not site:
+        return jsonify({"success": False, "message": "Site not found"}), 404
+
+    settings = get_site_config_collection(site["id"])
+    return jsonify({"success": True, "settings": settings})
+
+
+@app.route("/api/sites/<name>/config-collection", methods=["PUT"])
+def api_site_config_collection_put(name):
+    """Update iDRAC collection settings for a site (superadmin only)."""
+    try:
+        user, err = _require_auth(required_role="admin")
+        if err:
+            return err
+        if not session.get("is_superadmin", False):
+            return jsonify({"success": False, "message": "Superadmin required"}), 403
+
+        data = request.get_json(silent=True)
+        if not data:
+            return (
+                jsonify({"success": False, "message": "Settings data required"}),
+                400,
+            )
+
+        from dracs.db import get_site_by_name, upsert_site_config_collection
+
+        site = get_site_by_name(name)
+        if not site:
+            return jsonify({"success": False, "message": "Site not found"}), 404
+
+        upsert_site_config_collection(site["id"], data)
+        audit_log(
+            "site_config_collection_update",
+            target=name,
+            user=user,
+            source=_client_ip(),
+        )
+        return jsonify(
+            {"success": True, "message": f"Collection settings for '{name}' updated."}
+        )
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
 def _parse_debug_env() -> bool:
     value = os.getenv("DEBUG", "false")
     if value in ("true", "True", "TRUE", "1"):

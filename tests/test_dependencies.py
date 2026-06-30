@@ -86,4 +86,4 @@ def test_google_auth_oauthlib(deps):
 
 
 def test_dependency_count(deps):
-    assert len(deps) == 14
+    assert len(deps) == 15

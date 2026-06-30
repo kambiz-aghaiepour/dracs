@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DRACS - Configuration</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            font-size: 14px;
+        }
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .logo { height: 48px; width: auto; }
+        .theme-toggle {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-left: 20px;
+        }
+        .theme-toggle label {
+            font-size: 14px;
+            color: #555;
+            font-weight: 500;
+        }
+        .toggle-switch {
+            width: 44px;
+            height: 24px;
+            background-color: #ccc;
+            border-radius: 12px;
+            cursor: pointer;
+            position: relative;
+            transition: background-color 0.3s;
+        }
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 20px;
+            height: 20px;
+            background-color: white;
+            border-radius: 50%;
+            transition: transform 0.3s;
+        }
+        body.dark-theme .toggle-switch { background-color: #4CAF50; }
+        body.dark-theme .toggle-switch::after { transform: translateX(20px); }
+
+        h1 { margin: 0; font-size: 1.4rem; }
+
+        /* Close button */
+        .close-btn {
+            padding: 8px 20px;
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .close-btn:hover { background-color: #5a6268; }
+
+        /* Controls bar */
+        .controls-bar {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 12px;
+        }
+        .page-size-label { font-size: 13px; color: #555; }
+        .page-size-select {
+            padding: 4px 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        .results-info { font-size: 13px; color: #777; }
+
+        /* Rotated-header table */
+        .config-table-wrapper {
+            overflow-x: auto;
+        }
+        table.config-table {
+            border-collapse: collapse;
+            min-width: 100%;
+        }
+        table.config-table td, table.config-table th {
+            border: 1px solid #ddd;
+            padding: 6px 10px;
+            white-space: nowrap;
+            font-size: 13px;
+            vertical-align: middle;
+        }
+        table.config-table tr:nth-child(even) { background: #f9f9f9; }
+        table.config-table tr:hover { background: #f1f4ff; }
+
+        /* Rotated column headers */
+        th.rotate-header {
+            height: 110px;
+            padding: 0;
+            vertical-align: bottom;
+            border-bottom: 2px solid #aaa;
+            background: transparent;
+        }
+        th.rotate-header > div {
+            display: inline-block;
+            width: 28px;
+            overflow: visible;
+            transform: rotate(-60deg);
+            transform-origin: left bottom;
+            white-space: nowrap;
+            padding-bottom: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #333;
+        }
+        th.hostname-header {
+            text-align: left;
+            min-width: 220px;
+            font-weight: 600;
+        }
+        th.collected-header {
+            min-width: 160px;
+            font-weight: 600;
+        }
+
+        /* Status indicators */
+        .ok { color: #28a745; font-weight: bold; }
+        .bad { color: #dc3545; font-weight: bold; }
+        .expiry-yellow { color: #c8860a; font-weight: bold; }
+        .expiry-orange { color: #e07000; font-weight: bold; }
+        .expiry-red { color: #dc3545; font-weight: bold; }
+        .expiry-ok { color: #28a745; }
+        .na { color: #bbb; }
+
+        /* Pagination */
+        .pagination-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 16px;
+        }
+        .pagination-container button {
+            padding: 4px 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: white;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .pagination-container button:disabled { opacity: 0.4; cursor: default; }
+        .pagination-container button.active {
+            background: #0d6efd;
+            color: white;
+            border-color: #0d6efd;
+        }
+        .pagination-info { font-size: 13px; color: #555; }
+
+        /* Dark theme */
+        body.dark-theme { background-color: #1a1a2e; color: #e0e0e0; }
+        body.dark-theme .container { background-color: #16213e; }
+        body.dark-theme h1 { color: #e0e0e0; }
+        body.dark-theme .theme-toggle label { color: #aaa; }
+        body.dark-theme table.config-table td,
+        body.dark-theme table.config-table th { border-color: #444; color: #ddd; }
+        body.dark-theme table.config-table tr:nth-child(even) { background: #1f2d4a; }
+        body.dark-theme table.config-table tr:hover { background: #253555; }
+        body.dark-theme th.rotate-header > div { color: #ccc; }
+        body.dark-theme .page-size-label,
+        body.dark-theme .results-info,
+        body.dark-theme .pagination-info { color: #aaa; }
+        body.dark-theme .page-size-select {
+            background: #253555;
+            color: #ddd;
+            border-color: #444;
+        }
+        body.dark-theme .pagination-container button {
+            background: #253555;
+            color: #ddd;
+            border-color: #444;
+        }
+        body.dark-theme .pagination-container button.active {
+            background: #0d6efd;
+            color: white;
+        }
+        body.dark-theme .close-btn { background-color: #5a6268; }
+
+        #loading { text-align: center; color: #888; padding: 40px 0; font-size: 1.1em; }
+        #error-msg { color: #dc3545; padding: 20px 0; }
+    </style>
+</head>
+<body>
+<script>if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark-theme');</script>
+<div class="container">
+    <div class="header">
+        <div class="header-left">
+            <img src="{{ url_for('static', filename='images/dracs.svg') }}" alt="DRACS Logo" class="logo">
+            <h1>DRACS Configuration</h1>
+            <div class="theme-toggle">
+                <label for="theme-toggle-switch">Dark Mode</label>
+                <div id="theme-toggle-switch" class="toggle-switch" onclick="toggleTheme()"></div>
+            </div>
+        </div>
+        <button class="close-btn" onclick="closePage()">Close</button>
+    </div>
+
+    <div id="loading">Loading configuration data&hellip;</div>
+    <div id="error-msg" style="display:none;"></div>
+
+    <div id="main-content" style="display:none;">
+        <div class="controls-bar">
+            <span class="page-size-label">Rows per page:</span>
+            <select class="page-size-select" id="page-size-select" onchange="changePageSize()">
+                <option value="20">20</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="500">500</option>
+                <option value="1000">1000</option>
+                <option value="0">ALL</option>
+            </select>
+            <span class="results-info" id="results-info"></span>
+        </div>
+
+        <div class="config-table-wrapper">
+            <table class="config-table" id="config-table">
+                <thead id="config-thead"></thead>
+                <tbody id="config-tbody"></tbody>
+            </table>
+        </div>
+
+        <div class="pagination-container" id="pagination"></div>
+    </div>
+</div>
+
+<script>
+(function () {
+    const DESIRED = {
+        ps_rapid_on: 'Disabled',
+        dns_from_dhcp: 'Enabled',
+        ipmi_lan_enable: 'Enabled',
+        host_header_check: 'Disabled',
+        sys_profile: 'PerfPerWattOptimizedOs',
+    };
+
+    const ATTR_LABELS = {
+        ps_rapid_on: 'PS Rapid On',
+        dns_from_dhcp: 'DNS from DHCP',
+        ipmi_lan_enable: 'IPMI LAN',
+        host_header_check: 'Host Header Check',
+        sys_profile: 'Sys Profile',
+        idrac_hostname: 'iDRAC Hostname',
+        ssl_self_signed: 'SSL Self-Signed',
+        ssl_valid_name: 'SSL Valid Name',
+        ssl_expiry: 'SSL Expiry',
+    };
+
+    let allRows = [];
+    let visibleAttrs = [];
+    let pageSize = 20;
+    let currentPage = 1;
+    let hostMap = {};
+
+    function getQueryParam(name) {
+        return new URLSearchParams(window.location.search).get(name) || '';
+    }
+
+    function closePage() {
+        sessionStorage.removeItem('dracs_config_hosts');
+        window.location.href = '/';
+    }
+
+    function toggleTheme() {
+        const dark = document.body.classList.toggle('dark-theme');
+        localStorage.setItem('theme', dark ? 'dark' : 'light');
+    }
+
+    function showError(msg) {
+        document.getElementById('loading').style.display = 'none';
+        const el = document.getElementById('error-msg');
+        el.textContent = msg;
+        el.style.display = '';
+    }
+
+    function sslExpiryClass(expiry) {
+        if (!expiry) return 'na';
+        const ms = new Date(expiry) - new Date();
+        const days = ms / 86400000;
+        if (days < 0) return 'expiry-red';
+        if (days < 30) return 'expiry-orange';
+        if (days < 60) return 'expiry-yellow';
+        return 'expiry-ok';
+    }
+
+    function boolCell(val, goodVal) {
+        if (val === null || val === undefined) return '<span class="na">—</span>';
+        const ok = String(val) === String(goodVal);
+        return ok
+            ? '<span class="ok">✓</span>'
+            : '<span class="bad">✗</span> ' + escHtml(String(val));
+    }
+
+    function intBoolCell(val, goodIs1) {
+        if (val === null || val === undefined) return '<span class="na">—</span>';
+        const ok = goodIs1 ? val === 1 : val === 0;
+        return ok
+            ? '<span class="ok">✓</span>'
+            : '<span class="bad">✗</span>';
+    }
+
+    function escHtml(s) {
+        return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function renderTable() {
+        const start = pageSize === 0 ? 0 : (currentPage - 1) * pageSize;
+        const end = pageSize === 0 ? allRows.length : start + pageSize;
+        const slice = allRows.slice(start, end);
+
+        document.getElementById('results-info').textContent =
+            `Showing ${start + 1}–${Math.min(end, allRows.length)} of ${allRows.length}`;
+
+        // Build header
+        const thead = document.getElementById('config-thead');
+        let hrow = '<tr><th class="hostname-header">Hostname</th>';
+        for (const attr of visibleAttrs) {
+            hrow += `<th class="rotate-header"><div>${ATTR_LABELS[attr] || attr}</div></th>`;
+        }
+        hrow += '<th class="collected-header">Collected At</th></tr>';
+        thead.innerHTML = hrow;
+
+        // Build body
+        const tbody = document.getElementById('config-tbody');
+        let html = '';
+        for (const row of slice) {
+            html += '<tr>';
+            html += `<td>${escHtml(row.hostname || '')}</td>`;
+
+            for (const attr of visibleAttrs) {
+                if (attr === 'ssl_self_signed') {
+                    // good = NOT self-signed (0)
+                    html += `<td>${intBoolCell(row[attr], false)}</td>`;
+                } else if (attr === 'ssl_valid_name') {
+                    html += `<td>${intBoolCell(row[attr], true)}</td>`;
+                } else if (attr === 'ssl_expiry') {
+                    const cls = sslExpiryClass(row[attr]);
+                    const label = row[attr] ? escHtml(row[attr]) : '—';
+                    html += `<td><span class="${cls}">${label}</span></td>`;
+                } else if (attr === 'idrac_hostname') {
+                    const expected = hostMap[row.hostname] || '';
+                    const val = row[attr] || '';
+                    const ok = expected && val === expected;
+                    if (!val) {
+                        html += '<td><span class="na">—</span></td>';
+                    } else if (ok) {
+                        html += `<td><span class="ok">✓</span> ${escHtml(val)}</td>`;
+                    } else {
+                        html += `<td><span class="bad">✗</span> ${escHtml(val)}</td>`;
+                    }
+                } else {
+                    const desired = DESIRED[attr];
+                    html += `<td>${desired !== undefined ? boolCell(row[attr], desired) : escHtml(String(row[attr] ?? '—'))}</td>`;
+                }
+            }
+
+            const ts = row.collected_at ? row.collected_at.replace('T', ' ').slice(0, 19) : '—';
+            html += `<td>${escHtml(ts)}</td>`;
+            html += '</tr>';
+        }
+        tbody.innerHTML = html;
+
+        renderPagination();
+    }
+
+    function renderPagination() {
+        const pag = document.getElementById('pagination');
+        if (pageSize === 0 || allRows.length <= pageSize) {
+            pag.innerHTML = '';
+            return;
+        }
+        const totalPages = Math.ceil(allRows.length / pageSize);
+        let html = '';
+        html += `<button onclick="goPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>‹</button>`;
+        for (let p = 1; p <= totalPages; p++) {
+            if (totalPages > 12 && Math.abs(p - currentPage) > 3 && p !== 1 && p !== totalPages) {
+                if (p === 2 || p === totalPages - 1) html += '<span>…</span>';
+                continue;
+            }
+            html += `<button class="${p === currentPage ? 'active' : ''}" onclick="goPage(${p})">${p}</button>`;
+        }
+        html += `<button onclick="goPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>›</button>`;
+        pag.innerHTML = html;
+    }
+
+    window.goPage = function (p) {
+        const total = pageSize === 0 ? 1 : Math.ceil(allRows.length / pageSize);
+        if (p < 1 || p > total) return;
+        currentPage = p;
+        renderTable();
+    };
+
+    window.changePageSize = function () {
+        pageSize = parseInt(document.getElementById('page-size-select').value);
+        currentPage = 1;
+        renderTable();
+    };
+
+    window.closePage = closePage;
+    window.toggleTheme = toggleTheme;
+
+    async function init() {
+        const site = getQueryParam('site');
+        const hostsJson = sessionStorage.getItem('dracs_config_hosts');
+        let hostnames = [];
+        if (hostsJson) {
+            try { hostnames = JSON.parse(hostsJson); } catch (e) { hostnames = []; }
+        }
+
+        const hostsParam = hostnames.length ? '&hosts=' + encodeURIComponent(hostnames.join(',')) : '';
+        const url = `/api/config-data?site=${encodeURIComponent(site)}${hostsParam}`;
+
+        let resp, data;
+        try {
+            resp = await fetch(url, { credentials: 'same-origin' });
+            data = await resp.json();
+        } catch (e) {
+            showError('Failed to load configuration data: ' + e.message);
+            return;
+        }
+        if (!data.success) {
+            showError('Error: ' + (data.message || 'Unknown error'));
+            return;
+        }
+
+        const settings = data.settings || {};
+        allRows = data.data || [];
+
+        // Determine which attribute columns to show based on settings
+        const attrOrder = [
+            'ps_rapid_on', 'dns_from_dhcp', 'ipmi_lan_enable',
+            'host_header_check', 'sys_profile',
+            'idrac_hostname', 'ssl_self_signed', 'ssl_valid_name', 'ssl_expiry',
+        ];
+        const settingsAttrMap = {
+            ps_rapid_on: 'ps_rapid_on_enabled',
+            dns_from_dhcp: 'dns_from_dhcp_enabled',
+            ipmi_lan_enable: 'ipmi_lan_enable_enabled',
+            host_header_check: 'host_header_check_enabled',
+            sys_profile: 'sys_profile_enabled',
+            idrac_hostname: 'idrac_hostname_enabled',
+            ssl_self_signed: 'ssl_enabled',
+            ssl_valid_name: 'ssl_enabled',
+            ssl_expiry: 'ssl_enabled',
+        };
+
+        visibleAttrs = attrOrder.filter(a => {
+            const key = settingsAttrMap[a];
+            return key ? settings[key] : true;
+        });
+
+        // If all disabled, show all columns anyway
+        if (visibleAttrs.length === 0) {
+            visibleAttrs = attrOrder;
+        }
+
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('main-content').style.display = '';
+
+        renderTable();
+    }
+
+    init();
+})();
+</script>
+</body>
+</html>

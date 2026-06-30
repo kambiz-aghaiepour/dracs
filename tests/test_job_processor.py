@@ -108,7 +108,13 @@ class TestJobProcessor:
         time.sleep(0.3)
         processor.stop()
 
+        # Poll until executor thread finishes writing the failed status
+        deadline = time.time() + 2.0
         status = get_job_status(job_id)
+        while status["status"] == "running" and time.time() < deadline:
+            time.sleep(0.05)
+            status = get_job_status(job_id)
+
         assert status["status"] == "failed"
         assert "Unknown job type" in status["error"]
 

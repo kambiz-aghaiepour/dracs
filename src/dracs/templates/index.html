@@ -817,6 +817,7 @@
         .btn-orange { background-color: #fd7e14; color: white; }
         .btn-indigo { background-color: #6610f2; color: white; }
         .btn-dark-red { background-color: #c82333; color: white; }
+        .btn-purple { background-color: #6f42c1; color: white; }
 
         /* Collapsible Filters */
         .filters-wrapper {
@@ -1627,6 +1628,7 @@
             <div class="action-panel">
                 <div class="panel-header selection">Selection</div>
                 <div class="panel-body">
+                    <button id="config-btn" class="panel-btn btn-purple" data-min-role="none" onclick="openConfigPage()" disabled>Configuration</button>
                     <button id="select-all-btn" class="panel-btn btn-green" data-min-role="none" onclick="toggleSelectAll()">Select All</button>
                     <button id="select-shown-btn" class="panel-btn btn-teal" data-min-role="none" onclick="selectShown()">Select Shown</button>
                 </div>
@@ -2883,6 +2885,7 @@
             updateViewTsrButtonState();
             updateSelectAllButtonText();
             updateSelectShownButtonText();
+            updateConfigButton();
         }
 
         // Update select all button text based on current selection state
@@ -2918,6 +2921,20 @@
 
             const allShownSelected = shownRows.every(row => row.classList.contains('selected'));
             selectShownBtn.textContent = allShownSelected ? 'Deselect Shown' : 'Select Shown';
+        }
+
+        function updateConfigButton() {
+            const btn = document.getElementById('config-btn');
+            if (!btn) return;
+            btn.disabled = selectedSystems.length === 0;
+        }
+
+        function openConfigPage() {
+            if (!selectedSystems.length) return;
+            sessionStorage.setItem('dracs_config_hosts',
+                JSON.stringify(selectedSystems.map(s => s.hostname)));
+            const site = new URLSearchParams(window.location.search).get('site') || '';
+            window.location.href = '/config' + (site ? '?site=' + encodeURIComponent(site) : '');
         }
 
         // Toggle select only systems shown on current page
