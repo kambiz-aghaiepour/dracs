@@ -753,8 +753,8 @@
         /* Action Panel Grid */
         .action-panels {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 12px;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 10px;
             margin: 16px 0;
         }
 
@@ -781,14 +781,14 @@
         .panel-header.selection { background-color: #6c757d; }
 
         .panel-body {
-            padding: 10px;
+            padding: 8px;
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            gap: 5px;
         }
 
         .panel-btn {
-            padding: 7px 12px;
+            padding: 6px 10px;
             border: none;
             border-radius: 4px;
             cursor: pointer;
@@ -872,14 +872,16 @@
         }
 
         .firmware-version-select, .bios-version-select {
-            padding: 8px 16px;
+            padding: 6px 10px;
             border: none;
             border-radius: 4px;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 13px;
+            font-weight: 500;
             background-color: #007bff;
             color: white;
             transition: all 0.2s;
+            text-align-last: left;
         }
 
         .firmware-version-select:hover, .bios-version-select:hover {
@@ -2933,6 +2935,7 @@
 
         function openConfigPage() {
             if (!selectedSystems.length) return;
+            saveMainPageState();
             sessionStorage.setItem('dracs_config_hosts',
                 JSON.stringify(selectedSystems.map(s => s.hostname)));
             window.location.href = '/config?site=' + encodeURIComponent(currentSite);
@@ -6000,6 +6003,7 @@
                 biosOldest: biosOldestCheck.checked,
                 warrantyExpired: warrantyExpiredCheck.checked,
                 warrantyExpires: warrantyExpiresSelect.value,
+                selectedHostnames: selectedSystems.map(s => s.hostname),
             };
             sessionStorage.setItem('dracs_main_state', JSON.stringify(state));
         }
@@ -6036,7 +6040,28 @@
             if (state.biosOldest !== undefined) biosOldestCheck.checked = state.biosOldest;
             if (state.warrantyExpired !== undefined) warrantyExpiredCheck.checked = state.warrantyExpired;
             if (state.warrantyExpires !== undefined) warrantyExpiresSelect.value = state.warrantyExpires;
+            if (state.selectedHostnames && state.selectedHostnames.length > 0) {
+                const hostnameSet = new Set(state.selectedHostnames);
+                selectedRows = [];
+                selectedSystems = [];
+                Array.from(tableBody.querySelectorAll('tr')).forEach(row => {
+                    if (hostnameSet.has(row.dataset.hostname)) {
+                        row.classList.add('selected');
+                        selectedRows.push(row);
+                        const cells = row.getElementsByTagName('td');
+                        selectedSystems.push({
+                            service_tag: cells[0].textContent,
+                            hostname: cells[1].textContent,
+                            model: cells[2].textContent,
+                        });
+                    }
+                });
+            }
             applyFilters();
+            if (selectedSystems.length > 0) {
+                updateConfigButton();
+                updateRefreshButtonLabel();
+            }
         }
 
         // Initialize table

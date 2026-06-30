@@ -332,6 +332,8 @@ class JobProcessor:
                 execute_clear_job_queue(job["target"])
             elif job["job_type"] == "discover":
                 execute_discover_job(job["target"], meta)
+            elif job["job_type"] == "racadm_config":
+                execute_racadm_config_job(job["target"], meta)
             else:
                 fail_job(job_id, error=f"Unknown job type: {job['job_type']}")
                 return
@@ -584,6 +586,79 @@ def execute_discover_job(hostname: str, metadata: dict) -> None:
     asyncio.run(
         add_dell_warranty(service_tag, hostname, model, warranty, site_id=site_id)
     )
+
+
+_RACADM_SETTINGS = {
+    "dns_from_dhcp": ("iDRAC.IPv4.DNSFromDHCP", "Enabled"),
+    "ipmi_lan": ("iDRAC.IPMILan.Enable", "Enabled"),
+    "host_header": ("iDRAC.webserver.HostHeaderCheck", "Disabled"),
+    "ps_rapid_on": ("System.ServerPwr.PSRapidOn", "Disabled"),
+    "sys_profile": ("BIOS.SysProfileSettings.SysProfile", "PerfPerWattOptimizedOs"),
+}
+
+
+def execute_racadm_config_job(hostname: str, metadata: dict) -> None:
+    from dracs.webapp import _build_ssh_racadm_cmd
+    from dracs.snmp import build_idrac_hostname
+    from dracs.db import get_site_by_name, upsert_host_config
+    from dracs.redfish import collect_all_for_host
+
+    site_name = metadata.get("site_name", "")
+    settings = metadata.get("settings", {})
+
+    site = get_site_by_name(site_name) if site_name else None
+    if site is None:
+        raise RuntimeError(f"Unknown site: {site_name!r}")
+
+    errors = []
+    for key, enabled in settings.items():
+        if not enabled:
+            continue
+        if key == "idrac_hostname":
+            attr, value = "System.ServerOS.Hostname", build_idrac_hostname(hostname)
+        elif key in _RACADM_SETTINGS:
+            attr, value = _RACADM_SETTINGS[key]
+        else:
+            continue
+        cmd = _build_ssh_racadm_cmd(hostname, "set", attr, value, site=site_name)
+        result = subprocess.run(  # nosec # nosemgrep
+            cmd, capture_output=True, text=True, timeout=60  # nosemgrep
+        )
+        if result.returncode != 0:
+            errors.append(f"{key}: {(result.stderr or result.stdout)[:120]}")
+            continue
+        if key == "sys_profile":
+            cmd2 = _build_ssh_racadm_cmd(
+                hostname, "jobqueue", "create", "BIOS.Setup.1-1", site=site_name
+            )
+            subprocess.run(  # nosec # nosemgrep
+                cmd2, capture_output=True, text=True, timeout=60  # nosemgrep
+            )
+
+    if errors:
+        raise RuntimeError("; ".join(errors))
+
+    enabled_attrs = {
+        "ps_rapid_on_enabled": settings.get("ps_rapid_on", False),
+        "dns_from_dhcp_enabled": settings.get("dns_from_dhcp", False),
+        "ipmi_lan_enable_enabled": settings.get("ipmi_lan", False),
+        "host_header_check_enabled": settings.get("host_header", False),
+        "idrac_hostname_enabled": settings.get("idrac_hostname", False),
+        "sys_profile_enabled": settings.get("sys_profile", False),
+        "ssl_enabled": False,
+    }
+    try:
+        collected = collect_all_for_host(hostname, site_name, enabled_attrs)
+        if collected:
+            upsert_host_config(hostname, site["id"], collected)
+    except Exception as exc:
+        logger.warning("Post-edit verification failed for %s: %s", hostname, exc)
+
+
+def get_child_jobs(parent_id: int) -> list:
+    with get_session() as session:
+        jobs = session.query(Job).filter(Job.parent_id == parent_id).all()
+        return [_job_to_dict(j) for j in jobs]
 
 
 VALID_DAYS = {

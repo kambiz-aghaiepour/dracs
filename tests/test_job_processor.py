@@ -15,6 +15,7 @@ from dracs.jobqueue import (
     execute_bios_update_job,
     execute_clear_job_queue,
     execute_firmware_update_job,
+    execute_racadm_config_job,
     execute_refresh_job,
     execute_tsr_job,
     get_job_status,
@@ -515,6 +516,179 @@ class TestExecuteClearJobQueue:
             with patch("dracs.webapp._build_ssh_racadm_cmd", mock_build_cmd):
                 with pytest.raises(RuntimeError, match="Clear job queue failed"):
                     execute_clear_job_queue("server01.example.com")
+
+
+class TestExecuteRacadmConfigJob:
+    _MOCK_SITE = {"id": 1, "name": "Default"}
+
+    def test_unknown_site_raises(self):
+        with patch("dracs.db.get_site_by_name", return_value=None):
+            with pytest.raises(RuntimeError, match="Unknown site"):
+                execute_racadm_config_job(
+                    "host01.example.com",
+                    {"site_name": "nosuchsite", "settings": {"ps_rapid_on": True}},
+                )
+
+    def test_basic_setting_applied(self):
+        mock_build_cmd = MagicMock(return_value=["echo", "test"])
+        mock_result = MagicMock(returncode=0)
+        mock_upsert = MagicMock()
+        with patch("dracs.jobqueue.subprocess.run", return_value=mock_result):
+            with patch("dracs.webapp._build_ssh_racadm_cmd", mock_build_cmd):
+                with patch("dracs.db.get_site_by_name", return_value=self._MOCK_SITE):
+                    with patch(
+                        "dracs.redfish.collect_all_for_host",
+                        return_value={"ps_rapid_on": "Disabled"},
+                    ):
+                        with patch("dracs.db.upsert_host_config", mock_upsert):
+                            execute_racadm_config_job(
+                                "host01.example.com",
+                                {
+                                    "site_name": "Default",
+                                    "settings": {
+                                        "ps_rapid_on": True,
+                                        "dns_from_dhcp": False,
+                                    },
+                                },
+                            )
+        mock_build_cmd.assert_called_once_with(
+            "host01.example.com",
+            "set",
+            "System.ServerPwr.PSRapidOn",
+            "Disabled",
+            site="Default",
+        )
+        mock_upsert.assert_called_once()
+
+    def test_disabled_setting_skipped(self):
+        mock_build_cmd = MagicMock(return_value=["echo", "test"])
+        mock_result = MagicMock(returncode=0)
+        with patch("dracs.jobqueue.subprocess.run", return_value=mock_result):
+            with patch("dracs.webapp._build_ssh_racadm_cmd", mock_build_cmd):
+                with patch("dracs.db.get_site_by_name", return_value=self._MOCK_SITE):
+                    with patch("dracs.redfish.collect_all_for_host", return_value={}):
+                        with patch("dracs.db.upsert_host_config"):
+                            execute_racadm_config_job(
+                                "host01.example.com",
+                                {
+                                    "site_name": "Default",
+                                    "settings": {"ps_rapid_on": False},
+                                },
+                            )
+        mock_build_cmd.assert_not_called()
+
+    def test_unknown_key_skipped(self):
+        mock_build_cmd = MagicMock(return_value=["echo", "test"])
+        mock_result = MagicMock(returncode=0)
+        with patch("dracs.jobqueue.subprocess.run", return_value=mock_result):
+            with patch("dracs.webapp._build_ssh_racadm_cmd", mock_build_cmd):
+                with patch("dracs.db.get_site_by_name", return_value=self._MOCK_SITE):
+                    with patch("dracs.redfish.collect_all_for_host", return_value={}):
+                        with patch("dracs.db.upsert_host_config"):
+                            execute_racadm_config_job(
+                                "host01.example.com",
+                                {
+                                    "site_name": "Default",
+                                    "settings": {"nonexistent_key": True},
+                                },
+                            )
+        mock_build_cmd.assert_not_called()
+
+    def test_idrac_hostname_setting(self):
+        mock_build_cmd = MagicMock(return_value=["echo", "test"])
+        mock_result = MagicMock(returncode=0)
+        mock_fqdn = MagicMock(return_value="mgmt-host01.example.com")
+        with patch("dracs.jobqueue.subprocess.run", return_value=mock_result):
+            with patch("dracs.webapp._build_ssh_racadm_cmd", mock_build_cmd):
+                with patch("dracs.db.get_site_by_name", return_value=self._MOCK_SITE):
+                    with patch("dracs.snmp.build_idrac_hostname", mock_fqdn):
+                        with patch(
+                            "dracs.redfish.collect_all_for_host", return_value={}
+                        ):
+                            with patch("dracs.db.upsert_host_config"):
+                                execute_racadm_config_job(
+                                    "host01.example.com",
+                                    {
+                                        "site_name": "Default",
+                                        "settings": {"idrac_hostname": True},
+                                    },
+                                )
+        mock_build_cmd.assert_called_once_with(
+            "host01.example.com",
+            "set",
+            "System.ServerOS.Hostname",
+            "mgmt-host01.example.com",
+            site="Default",
+        )
+
+    def test_sys_profile_creates_bios_jobqueue(self):
+        mock_build_cmd = MagicMock(return_value=["echo", "test"])
+        mock_result = MagicMock(returncode=0)
+        with patch("dracs.jobqueue.subprocess.run", return_value=mock_result):
+            with patch("dracs.webapp._build_ssh_racadm_cmd", mock_build_cmd):
+                with patch("dracs.db.get_site_by_name", return_value=self._MOCK_SITE):
+                    with patch("dracs.redfish.collect_all_for_host", return_value={}):
+                        with patch("dracs.db.upsert_host_config"):
+                            execute_racadm_config_job(
+                                "host01.example.com",
+                                {
+                                    "site_name": "Default",
+                                    "settings": {"sys_profile": True},
+                                },
+                            )
+        assert mock_build_cmd.call_count == 2
+        calls = [c.args for c in mock_build_cmd.call_args_list]
+        assert any("jobqueue" in c for c in calls)
+
+    def test_command_failure_raises(self):
+        mock_build_cmd = MagicMock(return_value=["echo", "test"])
+        mock_result = MagicMock(returncode=1, stderr="SSH error", stdout="")
+        with patch("dracs.jobqueue.subprocess.run", return_value=mock_result):
+            with patch("dracs.webapp._build_ssh_racadm_cmd", mock_build_cmd):
+                with patch("dracs.db.get_site_by_name", return_value=self._MOCK_SITE):
+                    with patch("dracs.redfish.collect_all_for_host", return_value={}):
+                        with patch("dracs.db.upsert_host_config"):
+                            with pytest.raises(RuntimeError, match="ps_rapid_on"):
+                                execute_racadm_config_job(
+                                    "host01.example.com",
+                                    {
+                                        "site_name": "Default",
+                                        "settings": {"ps_rapid_on": True},
+                                    },
+                                )
+
+    def test_verification_failure_is_logged_not_raised(self):
+        mock_build_cmd = MagicMock(return_value=["echo", "test"])
+        mock_result = MagicMock(returncode=0)
+        with patch("dracs.jobqueue.subprocess.run", return_value=mock_result):
+            with patch("dracs.webapp._build_ssh_racadm_cmd", mock_build_cmd):
+                with patch("dracs.db.get_site_by_name", return_value=self._MOCK_SITE):
+                    with patch(
+                        "dracs.redfish.collect_all_for_host",
+                        side_effect=RuntimeError("Redfish timeout"),
+                    ):
+                        with patch("dracs.db.upsert_host_config"):
+                            execute_racadm_config_job(
+                                "host01.example.com",
+                                {
+                                    "site_name": "Default",
+                                    "settings": {"ps_rapid_on": True},
+                                },
+                            )
+
+    def test_dispatched_by_processor(self, job_db):
+        enqueue_job(
+            "racadm_config",
+            "server01.example.com",
+            metadata={"site_name": "Default", "settings": {}},
+        )
+        mock_execute = MagicMock()
+        processor = JobProcessor(max_workers=2, poll_interval=0.05)
+        with patch("dracs.jobqueue.execute_racadm_config_job", mock_execute):
+            processor.start()
+            time.sleep(0.3)
+            processor.stop()
+        mock_execute.assert_called_once()
 
 
 class TestProcessorDispatchUpdateJobs:
