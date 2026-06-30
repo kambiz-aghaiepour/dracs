@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v2.15.4 (2026-06-30)
+
+### Bug Fixes
+
+- Dark mode highlight color hard to see
+  ([`9677a5f`](https://github.com/kambiz-aghaiepour/dracs/commit/9677a5f4c2cb7cad4ff51ebe6fd47541a8898b85))
+
+- Refresh functionality needs to be corrected
+  ([`a30c021`](https://github.com/kambiz-aghaiepour/dracs/commit/a30c021a2566046dadca65503bbd510ebea8a068))
+
+### Chores
+
+- Sync spec file version to 2.15.3 [skip ci]
+  ([`8e0c8d5`](https://github.com/kambiz-aghaiepour/dracs/commit/8e0c8d5c4b1c7a9667a3e8b1d20a04bbe2f687ae))
+
+
 ## v2.15.3 (2026-06-30)
 
 ### Bug Fixes
