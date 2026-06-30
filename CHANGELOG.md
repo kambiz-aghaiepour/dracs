@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.14.1 (2026-06-30)
+
+### Bug Fixes
+
+- Dark theme not setup correctly
+  ([`71edacd`](https://github.com/kambiz-aghaiepour/dracs/commit/71edacdae044df23f522183829775e76af79b043))
+
+### Chores
+
+- Sync spec file version to 2.14.0 [skip ci]
+  ([`ebeb239`](https://github.com/kambiz-aghaiepour/dracs/commit/ebeb2396652826b107db0dc2d664ea1f9cee5439))
+
+
 ## v2.14.0 (2026-06-30)
 
 ### Bug Fixes
