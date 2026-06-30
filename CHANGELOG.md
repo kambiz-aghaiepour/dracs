@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v2.14.2 (2026-06-30)
+
+### Bug Fixes
+
+- Modify look of the config page
+  ([`a4b9d6a`](https://github.com/kambiz-aghaiepour/dracs/commit/a4b9d6a8500b735b47530e51e1fbb0578428215b))
+
+- The config section is not rendered
+  ([`83e19b4`](https://github.com/kambiz-aghaiepour/dracs/commit/83e19b419f4f487bd18834380c5f0461695e6ace))
+
+### Chores
+
+- Sync spec file version to 2.14.1 [skip ci]
+  ([`28dffa1`](https://github.com/kambiz-aghaiepour/dracs/commit/28dffa1718dc824bf94ee54550d769fd18945596))
+
+
 ## v2.14.1 (2026-06-30)
 
 ### Bug Fixes
