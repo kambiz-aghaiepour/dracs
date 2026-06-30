@@ -37,9 +37,9 @@ def collect_ps_rapid_on(idrac_fqdn: str, user: str, pw: str) -> str | None:
         "/Oem/Dell/DellAttributes/System.Embedded.1"
     )
     try:
-        resp = requests.get(
+        resp = requests.get(  # nosec # nosemgrep
             url, auth=(user, pw), verify=_VERIFY, timeout=_TIMEOUT
-        )  # nosec # nosemgrep
+        )
         resp.raise_for_status()
         attrs = resp.json().get("Attributes", {})
         return attrs.get("ServerPwr.1.PSRapidOn")
@@ -51,9 +51,9 @@ def collect_ps_rapid_on(idrac_fqdn: str, user: str, pw: str) -> str | None:
 def collect_idrac_hostname(idrac_fqdn: str, user: str, pw: str) -> str | None:
     url = f"https://{idrac_fqdn}/redfish/v1/Managers/iDRAC.Embedded.1"
     try:
-        resp = requests.get(
+        resp = requests.get(  # nosec # nosemgrep
             url, auth=(user, pw), verify=_VERIFY, timeout=_TIMEOUT
-        )  # nosec # nosemgrep
+        )
         resp.raise_for_status()
         return resp.json().get("HostName")
     except Exception as exc:
@@ -66,9 +66,9 @@ def collect_idrac_attributes(idrac_fqdn: str, user: str, pw: str) -> dict:
     url = f"https://{idrac_fqdn}/redfish/v1/Managers/iDRAC.Embedded.1/Attributes"
     result: dict = {}
     try:
-        resp = requests.get(
+        resp = requests.get(  # nosec # nosemgrep
             url, auth=(user, pw), verify=_VERIFY, timeout=_TIMEOUT
-        )  # nosec # nosemgrep
+        )
         resp.raise_for_status()
         attrs = resp.json().get("Attributes", {})
         val = attrs.get("IPv4.1.DNSFromDHCP")
@@ -88,9 +88,9 @@ def collect_idrac_attributes(idrac_fqdn: str, user: str, pw: str) -> dict:
 def collect_sys_profile(idrac_fqdn: str, user: str, pw: str) -> str | None:
     url = f"https://{idrac_fqdn}/redfish/v1/Systems/System.Embedded.1/Bios"
     try:
-        resp = requests.get(
+        resp = requests.get(  # nosec # nosemgrep
             url, auth=(user, pw), verify=_VERIFY, timeout=_TIMEOUT
-        )  # nosec # nosemgrep
+        )
         resp.raise_for_status()
         attrs = resp.json().get("Attributes", {})
         return attrs.get("SysProfile")
@@ -137,11 +137,7 @@ def collect_ssl_info(idrac_fqdn: str) -> dict:
 
 
 def collect_all_for_host(hostname: str, site_name: str, enabled_attrs: dict) -> dict:
-    """Collect all enabled iDRAC configuration attributes for one host.
-
-    `enabled_attrs` is a dict of {attr_enabled: bool} keys from SiteConfigCollection.
-    Returns a dict matching HostConfig columns (excluding hostname/site_id).
-    """
+    """Collect enabled iDRAC config attributes for one host; return HostConfig fields."""
     from dracs.snmp import build_idrac_hostname
 
     idrac_fqdn = build_idrac_hostname(hostname)
