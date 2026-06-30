@@ -2,6 +2,30 @@
 
 <!-- version list -->
 
+## v2.16.0 (2026-06-30)
+
+### Bug Fixes
+
+- Add the tests related to ssl
+  ([`14ed537`](https://github.com/kambiz-aghaiepour/dracs/commit/14ed5375d11dd2749a240370da3267f8de27abc7))
+
+- Close the gap on missing coverage
+  ([`68eac9f`](https://github.com/kambiz-aghaiepour/dracs/commit/68eac9f2f9e0a9d54e3152ed6ffcb0e853eb98b5))
+
+- Codacy and codecov
+  ([`5afad4e`](https://github.com/kambiz-aghaiepour/dracs/commit/5afad4e7fc38a4fa4883720a86f37d37657c3174))
+
+### Chores
+
+- Sync spec file version to 2.15.4 [skip ci]
+  ([`9a3ca5c`](https://github.com/kambiz-aghaiepour/dracs/commit/9a3ca5ceac27eab7f61f9d823b1f52dde915b193))
+
+### Features
+
+- Add ssl certificate management
+  ([`299a82d`](https://github.com/kambiz-aghaiepour/dracs/commit/299a82d0c916e0b96e925020970168b12dd10488))
+
+
 ## v2.15.4 (2026-06-30)
 
 ### Bug Fixes

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-__version__ = "2.15.4"
+__version__ = "2.16.0"
 
 from dracs.exceptions import (  # noqa: F401
     APIError,
