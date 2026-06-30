@@ -541,12 +541,18 @@ class TestExecuteRacadmConfigJob:
                                 "host01.example.com",
                                 {
                                     "site_name": "Default",
-                                    "settings": {"ps_rapid_on": True, "dns_from_dhcp": False},
+                                    "settings": {
+                                        "ps_rapid_on": True,
+                                        "dns_from_dhcp": False,
+                                    },
                                 },
                             )
         mock_build_cmd.assert_called_once_with(
-            "host01.example.com", "set", "System.ServerPwr.PSRapidOn", "Disabled",
-            site="Default"
+            "host01.example.com",
+            "set",
+            "System.ServerPwr.PSRapidOn",
+            "Disabled",
+            site="Default",
         )
 
     def test_disabled_setting_skipped(self):
@@ -559,7 +565,10 @@ class TestExecuteRacadmConfigJob:
                         with patch("dracs.db.upsert_host_config"):
                             execute_racadm_config_job(
                                 "host01.example.com",
-                                {"site_name": "Default", "settings": {"ps_rapid_on": False}},
+                                {
+                                    "site_name": "Default",
+                                    "settings": {"ps_rapid_on": False},
+                                },
                             )
         mock_build_cmd.assert_not_called()
 
@@ -573,7 +582,10 @@ class TestExecuteRacadmConfigJob:
                         with patch("dracs.db.upsert_host_config"):
                             execute_racadm_config_job(
                                 "host01.example.com",
-                                {"site_name": "Default", "settings": {"nonexistent_key": True}},
+                                {
+                                    "site_name": "Default",
+                                    "settings": {"nonexistent_key": True},
+                                },
                             )
         mock_build_cmd.assert_not_called()
 
@@ -585,7 +597,9 @@ class TestExecuteRacadmConfigJob:
             with patch("dracs.webapp._build_ssh_racadm_cmd", mock_build_cmd):
                 with patch("dracs.db.get_site_by_name", return_value=self._MOCK_SITE):
                     with patch("dracs.snmp.build_idrac_hostname", mock_fqdn):
-                        with patch("dracs.redfish.collect_all_for_host", return_value={}):
+                        with patch(
+                            "dracs.redfish.collect_all_for_host", return_value={}
+                        ):
                             with patch("dracs.db.upsert_host_config"):
                                 execute_racadm_config_job(
                                     "host01.example.com",
@@ -595,8 +609,11 @@ class TestExecuteRacadmConfigJob:
                                     },
                                 )
         mock_build_cmd.assert_called_once_with(
-            "host01.example.com", "set", "System.ServerOS.Hostname",
-            "mgmt-host01.example.com", site="Default"
+            "host01.example.com",
+            "set",
+            "System.ServerOS.Hostname",
+            "mgmt-host01.example.com",
+            site="Default",
         )
 
     def test_sys_profile_creates_bios_jobqueue(self):
@@ -655,8 +672,11 @@ class TestExecuteRacadmConfigJob:
                             )
 
     def test_dispatched_by_processor(self, job_db):
-        enqueue_job("racadm_config", "server01.example.com",
-                    metadata={"site_name": "Default", "settings": {}})
+        enqueue_job(
+            "racadm_config",
+            "server01.example.com",
+            metadata={"site_name": "Default", "settings": {}},
+        )
         mock_execute = MagicMock()
         processor = JobProcessor(max_workers=2, poll_interval=0.05)
         with patch("dracs.jobqueue.execute_racadm_config_job", mock_execute):
