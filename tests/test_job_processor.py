@@ -14,6 +14,7 @@ from dracs.jobqueue import (
     enqueue_job,
     execute_bios_update_job,
     execute_clear_job_queue,
+    execute_config_collect_job,
     execute_firmware_update_job,
     execute_racadm_config_job,
     execute_refresh_job,
@@ -771,6 +772,75 @@ class TestProcessorDispatchUpdateJobs:
             time.sleep(0.3)
             processor.stop()
         mock_execute.assert_called_once_with("server01.example.com")
+
+
+class TestExecuteConfigCollectJob:
+    _MOCK_SITE = {"id": 1, "name": "Default"}
+
+    def test_unknown_site_raises(self):
+        with patch("dracs.db.get_site_by_name", return_value=None):
+            with pytest.raises(RuntimeError, match="Unknown site"):
+                execute_config_collect_job(
+                    "host01.example.com",
+                    {"site_name": "nosuchsite"},
+                )
+
+    def test_collects_and_stores(self):
+        mock_upsert = MagicMock()
+        with patch("dracs.db.get_site_by_name", return_value=self._MOCK_SITE):
+            with patch(
+                "dracs.db.get_site_config_collection",
+                return_value={"ps_rapid_on_enabled": True},
+            ):
+                with patch(
+                    "dracs.redfish.collect_all_for_host",
+                    return_value={"ps_rapid_on": "Disabled"},
+                ):
+                    with patch("dracs.db.upsert_host_config", mock_upsert):
+                        execute_config_collect_job(
+                            "host01.example.com",
+                            {"site_name": "Default"},
+                        )
+        mock_upsert.assert_called_once()
+
+    def test_empty_collection_skips_upsert(self):
+        mock_upsert = MagicMock()
+        with patch("dracs.db.get_site_by_name", return_value=self._MOCK_SITE):
+            with patch("dracs.db.get_site_config_collection", return_value={}):
+                with patch("dracs.redfish.collect_all_for_host", return_value={}):
+                    with patch("dracs.db.upsert_host_config", mock_upsert):
+                        execute_config_collect_job(
+                            "host01.example.com",
+                            {"site_name": "Default"},
+                        )
+        mock_upsert.assert_not_called()
+
+    def test_redfish_failure_propagates(self):
+        with patch("dracs.db.get_site_by_name", return_value=self._MOCK_SITE):
+            with patch("dracs.db.get_site_config_collection", return_value={}):
+                with patch(
+                    "dracs.redfish.collect_all_for_host",
+                    side_effect=RuntimeError("Redfish timeout"),
+                ):
+                    with pytest.raises(RuntimeError, match="Redfish timeout"):
+                        execute_config_collect_job(
+                            "host01.example.com",
+                            {"site_name": "Default"},
+                        )
+
+    def test_dispatched_by_processor(self, job_db):
+        enqueue_job(
+            "config_collect",
+            "server01.example.com",
+            metadata={"site_name": "Default"},
+        )
+        mock_execute = MagicMock()
+        processor = JobProcessor(max_workers=2, poll_interval=0.05)
+        with patch("dracs.jobqueue.execute_config_collect_job", mock_execute):
+            processor.start()
+            time.sleep(0.3)
+            processor.stop()
+        mock_execute.assert_called_once()
 
 
 class TestGunicornHook:

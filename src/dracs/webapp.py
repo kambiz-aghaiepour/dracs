@@ -3966,27 +3966,30 @@ def api_remoteimage_apply(hostname):
 @app.route("/config")
 def config_page():
     """Serve the iDRAC configuration view page."""
-    is_authenticated = session.get("authenticated", False)
-    if not is_authenticated:
-        return redirect(url_for("index"))
     is_sa = session.get("is_superadmin", False)
     role = session.get("role", "")
+    username = session.get("username", "")
+
+    is_admin = is_sa
+    if not is_admin:
+        site_id, _ = _get_requested_site()
+        if site_id is not None:
+            from dracs.users import get_user_role_for_site
+
+            is_admin = get_user_role_for_site(username, site_id) == "admin"
+
     return render_template(
         "config.html",
-        username=session.get("username", ""),
+        username=username,
         user_role=role,
         is_superadmin=is_sa,
-        is_admin=is_sa or role == "admin",
+        is_admin=is_admin,
     )
 
 
 @app.route("/api/config-data", methods=["GET", "POST"])
 def api_config_data():
     """Return cached iDRAC config data for requested hosts within a site."""
-    _, err = _require_auth()
-    if err:
-        return err
-
     from dracs.db import (
         get_host_config_data,
         get_site_by_name,
@@ -4019,10 +4022,6 @@ def api_config_data():
 def api_config_edit():
     """Queue racadm_config jobs for selected hosts (admin only)."""
     try:
-        user, err = _require_auth(required_role="admin")
-        if err:
-            return err
-
         data = request.get_json()
         if not data:
             return jsonify({"success": False, "message": "Invalid request"}), 400
@@ -4050,6 +4049,10 @@ def api_config_edit():
                 jsonify({"success": False, "message": f"Unknown site: {site_name!r}"}),
                 400,
             )
+
+        user, err = _require_auth(required_role="admin", site_id=site["id"])
+        if err:
+            return err
 
         site_id = site["id"]
         parent_id = _eq(
@@ -4086,10 +4089,6 @@ def api_config_edit():
 def api_config_refresh():
     """Immediately queue a full Redfish re-collection for selected hosts (admin only)."""
     try:
-        user, err = _require_auth(required_role="admin")
-        if err:
-            return err
-
         data = request.get_json()
         if not data:
             return jsonify({"success": False, "message": "Invalid request"}), 400
@@ -4108,7 +4107,7 @@ def api_config_refresh():
                 )
 
         from dracs.db import get_site_by_name as _gsbn
-        from dracs.config_collector import get_collector
+        from dracs.jobqueue import enqueue_job as _eq
 
         site = _gsbn(site_name) if site_name else None
         if site is None:
@@ -4117,15 +4116,18 @@ def api_config_refresh():
                 400,
             )
 
-        collector = get_collector()
-        if collector is None:
-            return (
-                jsonify({"success": False, "message": "Collector not available"}),
-                503,
-            )
+        user, err = _require_auth(required_role="admin", site_id=site["id"])
+        if err:
+            return err
 
+        site_id = site["id"]
         for hostname in hosts:
-            collector.trigger_host(hostname, site_name, site["id"])
+            _eq(
+                "config_collect",
+                hostname,
+                site_id=site_id,
+                metadata={"site_name": site_name},
+            )
 
         audit_log(
             "config_refresh",
