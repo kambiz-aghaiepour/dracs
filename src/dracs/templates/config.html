@@ -420,12 +420,16 @@
             try { hostnames = JSON.parse(hostsJson); } catch (e) { hostnames = []; }
         }
 
-        const hostsParam = hostnames.length ? '&hosts=' + encodeURIComponent(hostnames.join(',')) : '';
-        const url = `/api/config-data?site=${encodeURIComponent(site)}${hostsParam}`;
+        const url = '/api/config-data';
 
         let resp, data;
         try {
-            resp = await fetch(url, { credentials: 'same-origin' });
+            resp = await fetch(url, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ site, hosts: hostnames }),
+            });
             data = await resp.json();
         } catch (e) {
             showError('Failed to load configuration data: ' + e.message);

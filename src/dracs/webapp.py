@@ -3977,7 +3977,7 @@ def config_page():
     )
 
 
-@app.route("/api/config-data")
+@app.route("/api/config-data", methods=["GET", "POST"])
 def api_config_data():
     """Return cached iDRAC config data for requested hosts within a site."""
     _, err = _require_auth()
@@ -3990,9 +3990,16 @@ def api_config_data():
         get_site_config_collection,
     )
 
-    site_name = request.args.get("site", "")
-    hosts_param = request.args.get("hosts", "")
-    hostnames = [h.strip() for h in hosts_param.split(",") if h.strip()]
+    if request.method == "POST":
+        body = request.get_json(silent=True) or {}
+        site_name = body.get("site", "")
+        hostnames = body.get("hosts", [])
+        if isinstance(hostnames, str):
+            hostnames = [h.strip() for h in hostnames.split(",") if h.strip()]
+    else:
+        site_name = request.args.get("site", "")
+        hosts_param = request.args.get("hosts", "")
+        hostnames = [h.strip() for h in hosts_param.split(",") if h.strip()]
 
     site = get_site_by_name(site_name) if site_name else None
     site_id = site["id"] if site else None
