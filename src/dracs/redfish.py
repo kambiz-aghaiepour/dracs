@@ -170,8 +170,10 @@ def collect_all_for_host(hostname: str, site_name: str, enabled_attrs: dict) -> 
         fetched = collect_idrac_hostname(idrac_fqdn, user, pw)
         if fetched is None:
             data["idrac_hostname"] = None
+            data["idrac_hostname_value"] = None
         else:
             data["idrac_hostname"] = 1 if fetched.lower() == idrac_fqdn.lower() else 0
+            data["idrac_hostname_value"] = fetched
 
     if enabled_attrs.get("ssl_enabled"):
         ssl_info = collect_ssl_info(idrac_fqdn)

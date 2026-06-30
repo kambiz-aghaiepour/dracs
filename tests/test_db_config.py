@@ -77,6 +77,7 @@ class TestUpsertHostConfig:
             "host_header_check": "Disabled",
             "sys_profile": "PerfPerWattOptimizedOs",
             "idrac_hostname": 1,
+            "idrac_hostname_value": "mgmt-server01.example.com",
             "ssl_self_signed": 1,
             "ssl_valid_name": 0,
             "ssl_expiry": "2025-12-31",
@@ -89,6 +90,7 @@ class TestUpsertHostConfig:
         assert row["hostname"] == "server01.example.com"
         assert row["ps_rapid_on"] == "Disabled"
         assert row["idrac_hostname"] == 1
+        assert row["idrac_hostname_value"] == "mgmt-server01.example.com"
         assert row["ssl_self_signed"] == 1
         assert row["ssl_expiry"] == "2025-12-31"
 
@@ -188,6 +190,46 @@ class TestMigrateHostConfigIdracHostname:
                     for row in con.execute("PRAGMA table_info(host_config)")
                 }
             assert col_types["idrac_hostname"].upper() == "INTEGER"
+            assert "idrac_hostname_value" in col_types
+        finally:
+            if os.path.exists(path):
+                os.unlink(path)
+
+    def test_drops_and_recreates_when_idrac_hostname_value_missing(self):
+        fd, path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        try:
+            db_initialize(path)
+            # Replace host_config with a schema that has INTEGER idrac_hostname
+            # but is missing the idrac_hostname_value column
+            with sqlite3.connect(path) as con:
+                con.execute("DROP TABLE IF EXISTS host_config")
+                con.execute("""
+                    CREATE TABLE host_config (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        hostname VARCHAR NOT NULL,
+                        site_id INTEGER NOT NULL,
+                        ps_rapid_on TEXT,
+                        idrac_hostname INTEGER,
+                        dns_from_dhcp TEXT,
+                        ipmi_lan_enable TEXT,
+                        host_header_check TEXT,
+                        sys_profile TEXT,
+                        ssl_self_signed INTEGER,
+                        ssl_valid_name INTEGER,
+                        ssl_expiry TEXT,
+                        collected_at TEXT,
+                        UNIQUE (hostname, site_id)
+                    )
+                    """)
+                con.commit()
+            db_initialize(path)
+            with sqlite3.connect(path) as con:
+                col_types = {
+                    row[1]: row[2]
+                    for row in con.execute("PRAGMA table_info(host_config)")
+                }
+            assert "idrac_hostname_value" in col_types
         finally:
             if os.path.exists(path):
                 os.unlink(path)
