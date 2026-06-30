@@ -1132,3 +1132,293 @@ class TestExecuteSslCertUploadJob:
         with patch("os.path.exists", return_value=True):
             with pytest.raises(RuntimeError, match="No SSL cert/key"):
                 execute_ssl_cert_upload_job("server01", self._make_metadata())
+
+    def test_raises_when_certupload_fails(self, ssl_db_with_system):
+        from dracs.jobqueue import execute_ssl_cert_upload_job
+
+        site = get_site_by_name("Default")
+        cert_pem, key_pem = _make_cert_and_key_pem(days_until_expiry=180)
+        upsert_site_ssl_config(
+            site["id"],
+            {
+                "enabled": True,
+                "cert_pem": cert_pem,
+                "key_pem": key_pem,
+                "cert_expiry": "2027-06-01T00:00:00+00:00",
+            },
+        )
+        from dracs.db import upsert_host_config
+
+        upsert_host_config(
+            "server01", site["id"], {"ssl_expiry": "2026-01-01T00:00:00+00:00"}
+        )
+
+        ok_result = MagicMock()
+        ok_result.returncode = 0
+        ok_result.stderr = ""
+        ok_result.stdout = ""
+
+        fail_result = MagicMock()
+        fail_result.returncode = 1
+        fail_result.stderr = "cert upload error"
+        fail_result.stdout = ""
+
+        with patch("os.path.exists", return_value=True):
+            with patch("subprocess.run", side_effect=[ok_result, fail_result]):
+                with patch(
+                    "dracs.webapp.get_idrac_credentials",
+                    return_value=("root", "calvin"),
+                ):
+                    with patch(
+                        "dracs.snmp.build_idrac_hostname",
+                        return_value="mgmt-server01.example.com",
+                    ):
+                        with pytest.raises(RuntimeError, match="sslcertupload failed"):
+                            execute_ssl_cert_upload_job(
+                                "server01", self._make_metadata()
+                            )
+
+
+# ── Dispatch through _execute_job ─────────────────────────────────────────────
+
+
+class TestSslCertUploadDispatch:
+    def test_ssl_cert_upload_dispatched_by_processor(self, ssl_db_with_system):
+        import time
+
+        from dracs.jobqueue import JobProcessor, enqueue_job
+
+        enqueue_job(
+            "ssl_cert_upload",
+            "server01",
+            metadata={"site_name": "Default"},
+        )
+        mock_execute = MagicMock()
+        processor = JobProcessor(max_workers=2, poll_interval=0.05)
+        with patch("dracs.jobqueue.execute_ssl_cert_upload_job", mock_execute):
+            processor.start()
+            time.sleep(0.3)
+            processor.stop()
+        mock_execute.assert_called_once()
+
+
+# ── SSL schedule loop ─────────────────────────────────────────────────────────
+
+
+class TestSslScheduleLoop:
+    def test_schedule_loop_fires_when_due(self, ssl_db_with_system):
+        import time
+
+        from dracs.jobqueue import JobScheduler
+
+        site_cfg = {
+            "site_id": 1,
+            "site_name": "Default",
+            "enabled": True,
+            "schedule_enabled": True,
+            "schedule_frequency": "daily",
+            "schedule_time": "00:00",
+            "schedule_last_run": None,
+        }
+
+        scheduler = JobScheduler(config_path="/nonexistent")
+        scheduler._running = True
+
+        iteration = [0]
+
+        def mock_sleep(seconds):
+            iteration[0] += 1
+            if iteration[0] >= 1:
+                scheduler._running = False
+
+        mock_enqueue = MagicMock(return_value=1)
+        mock_last_run = MagicMock()
+
+        with patch("dracs.db.get_all_ssl_scheduled_sites", return_value=[site_cfg]):
+            with patch("dracs.jobqueue._ssl_schedule_due", return_value=True):
+                with patch("dracs.jobqueue.enqueue_batch", mock_enqueue):
+                    with patch("dracs.db.update_ssl_schedule_last_run", mock_last_run):
+                        with patch("dracs.jobqueue.time.sleep", side_effect=mock_sleep):
+                            scheduler._schedule_loop()
+
+        mock_enqueue.assert_called_once_with(
+            "ssl_cert_upload",
+            "all",
+            site_id=1,
+            metadata={"site_name": "Default"},
+        )
+        mock_last_run.assert_called_once_with(1)
+
+    def test_schedule_loop_skips_when_not_due(self, ssl_db_with_system):
+        import time
+
+        from dracs.jobqueue import JobScheduler
+
+        site_cfg = {
+            "site_id": 1,
+            "site_name": "Default",
+            "enabled": True,
+            "schedule_enabled": True,
+            "schedule_frequency": "daily",
+            "schedule_time": "23:59",
+            "schedule_last_run": None,
+        }
+
+        scheduler = JobScheduler(config_path="/nonexistent")
+        scheduler._running = True
+
+        iteration = [0]
+
+        def mock_sleep(seconds):
+            iteration[0] += 1
+            scheduler._running = False
+
+        mock_enqueue = MagicMock()
+
+        with patch("dracs.db.get_all_ssl_scheduled_sites", return_value=[site_cfg]):
+            with patch("dracs.jobqueue._ssl_schedule_due", return_value=False):
+                with patch("dracs.jobqueue.enqueue_batch", mock_enqueue):
+                    with patch("dracs.jobqueue.time.sleep", side_effect=mock_sleep):
+                        scheduler._schedule_loop()
+
+        mock_enqueue.assert_not_called()
+
+
+# ── Additional scheduler: invalid last_run_str ────────────────────────────────
+
+
+class TestSslScheduleDueEdgeCases:
+    def test_returns_false_with_invalid_last_run_iso_string(self):
+        from dracs.jobqueue import _ssl_schedule_due
+
+        cfg = {
+            "enabled": True,
+            "schedule_enabled": True,
+            "schedule_frequency": "daily",
+            "schedule_time": "00:00",
+            "schedule_last_run": "not-a-valid-iso-date",
+        }
+        # Invalid ISO string → last_run stays None → should return True (never run)
+        assert _ssl_schedule_due(cfg) is True
+
+
+# ── Additional helper: _parse_cert_pem AttributeError fallback ────────────────
+
+
+class TestParseCertPemFallback:
+    def test_fallback_when_not_valid_after_utc_missing(self):
+        """Covers the AttributeError fallback path for older cryptography builds."""
+        import dracs.webapp as webapp_mod
+
+        fake_dt = datetime(2027, 6, 1, 0, 0, 0)
+
+        class _OldStyleCert:
+            """Simulates a cryptography cert object that lacks not_valid_after_utc."""
+
+            @property
+            def not_valid_after_utc(self):
+                raise AttributeError("not_valid_after_utc")
+
+            @property
+            def not_valid_after(self):
+                return fake_dt
+
+            def fingerprint(self, alg):
+                return bytes.fromhex("deadbeef" * 8)
+
+        with patch(
+            "cryptography.x509.load_pem_x509_certificate", return_value=_OldStyleCert()
+        ):
+            fp, expiry = webapp_mod._parse_cert_pem(
+                "-----BEGIN CERTIFICATE-----\nfake\n-----END CERTIFICATE-----\n"
+            )
+
+        assert ":" in fp
+        assert "2027" in expiry
+
+
+# ── Additional API exception handler tests ────────────────────────────────────
+
+
+class TestApiSslExceptionHandlers:
+    def test_ssl_config_get_returns_500_on_exception(self, ssl_client):
+        _login(ssl_client)
+        with patch(
+            "dracs.db.get_site_ssl_config", side_effect=RuntimeError("db error")
+        ):
+            resp = ssl_client.get("/api/sites/Default/ssl-config")
+        assert resp.status_code == 500
+
+    def test_ssl_config_put_returns_500_on_exception(self, ssl_client):
+        _login(ssl_client)
+        with patch(
+            "dracs.db.upsert_site_ssl_config", side_effect=RuntimeError("db error")
+        ):
+            resp = ssl_client.put(
+                "/api/sites/Default/ssl-config", json={"schedule_enabled": True}
+            )
+        assert resp.status_code == 500
+
+    def test_ssl_overrides_get_returns_500_on_exception(self, ssl_client):
+        _login(ssl_client)
+        with patch(
+            "dracs.db.get_all_host_ssl_overrides", side_effect=RuntimeError("db error")
+        ):
+            resp = ssl_client.get("/api/sites/Default/ssl-overrides")
+        assert resp.status_code == 500
+
+    def test_ssl_override_put_rejects_invalid_key(self, ssl_client):
+        _login(ssl_client)
+        cert_pem, _ = _make_cert_and_key_pem()
+        resp = ssl_client.put(
+            "/api/sites/Default/ssl-overrides/host1.example.com",
+            json={"cert_pem": cert_pem, "key_pem": "INVALID-KEY"},
+        )
+        assert resp.status_code == 400
+        assert "Invalid private key" in resp.get_json()["message"]
+
+    def test_ssl_override_put_returns_500_on_exception(self, ssl_client):
+        _login(ssl_client)
+        cert_pem, key_pem = _make_cert_and_key_pem()
+        with patch(
+            "dracs.db.upsert_host_ssl_override", side_effect=RuntimeError("db error")
+        ):
+            resp = ssl_client.put(
+                "/api/sites/Default/ssl-overrides/host1.example.com",
+                json={"cert_pem": cert_pem, "key_pem": key_pem},
+            )
+        assert resp.status_code == 500
+
+    def test_ssl_override_delete_returns_404_for_unknown_site(self, ssl_client):
+        _login(ssl_client)
+        resp = ssl_client.delete("/api/sites/NoSuch/ssl-overrides/host1.example.com")
+        assert resp.status_code == 404
+
+    def test_ssl_override_delete_returns_500_on_exception(self, ssl_client):
+        _login(ssl_client)
+        with patch(
+            "dracs.db.delete_host_ssl_override", side_effect=RuntimeError("db error")
+        ):
+            resp = ssl_client.delete(
+                "/api/sites/Default/ssl-overrides/host1.example.com"
+            )
+        assert resp.status_code == 500
+
+    def test_ssl_sweep_returns_500_on_exception(self, ssl_client, ssl_db_with_system):
+        _login(ssl_client)
+        site = get_site_by_name("Default")
+        cert_pem, key_pem = _make_cert_and_key_pem()
+        upsert_site_ssl_config(
+            site["id"],
+            {
+                "enabled": True,
+                "cert_pem": cert_pem,
+                "key_pem": key_pem,
+                "cert_fingerprint": "FP",
+            },
+        )
+        with patch(
+            "dracs.jobqueue.enqueue_batch", side_effect=RuntimeError("queue error")
+        ):
+            resp = ssl_client.post("/api/sites/Default/ssl-sweep")
+        assert resp.status_code == 500
