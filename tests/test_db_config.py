@@ -161,8 +161,7 @@ class TestMigrateHostConfigIdracHostname:
             db_initialize(path)
             with sqlite3.connect(path) as con:
                 con.execute("DROP TABLE IF EXISTS host_config")
-                con.execute(
-                    """
+                con.execute("""
                     CREATE TABLE host_config (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         hostname VARCHAR NOT NULL,
@@ -179,8 +178,7 @@ class TestMigrateHostConfigIdracHostname:
                         collected_at TEXT,
                         UNIQUE (hostname, site_id)
                     )
-                    """
-                )
+                    """)
                 con.commit()
             # Re-initialize — migration should drop and recreate with INTEGER column
             db_initialize(path)
