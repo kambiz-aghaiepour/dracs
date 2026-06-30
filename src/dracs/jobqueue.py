@@ -334,6 +334,8 @@ class JobProcessor:
                 execute_discover_job(job["target"], meta)
             elif job["job_type"] == "racadm_config":
                 execute_racadm_config_job(job["target"], meta)
+            elif job["job_type"] == "config_collect":
+                execute_config_collect_job(job["target"], meta)
             else:
                 fail_job(job_id, error=f"Unknown job type: {job['job_type']}")
                 return
@@ -659,6 +661,26 @@ def execute_racadm_config_job(hostname: str, metadata: dict) -> None:
     _cc = get_collector()
     if _cc is not None:
         _cc.trigger_host(hostname, site_name, site["id"])
+
+
+def execute_config_collect_job(hostname: str, metadata: dict) -> None:
+    from dracs.db import (
+        get_site_by_name,
+        get_site_config_collection,
+        upsert_host_config,
+    )
+    from dracs.redfish import collect_all_for_host
+
+    site_name = metadata.get("site_name", "")
+    site = get_site_by_name(site_name) if site_name else None
+    if site is None:
+        raise RuntimeError(f"Unknown site: {site_name!r}")
+
+    site_id = site["id"]
+    settings = get_site_config_collection(site_id)
+    data = collect_all_for_host(hostname, site_name, settings)
+    if data:
+        upsert_host_config(hostname, site_id, data)
 
 
 def get_child_jobs(parent_id: int) -> list:

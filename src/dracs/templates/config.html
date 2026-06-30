@@ -481,6 +481,17 @@
 </div>
 {% endif %}
 
+<div id="notify-modal-overlay" class="edit-modal-overlay" style="display:none;"
+     onclick="if(event.target===this)closeNotifyModal()">
+  <div class="edit-modal-box" style="max-width:420px" onclick="event.stopPropagation()">
+    <h3 id="notify-modal-title">Error</h3>
+    <p id="notify-modal-message" style="margin:12px 0 20px"></p>
+    <div class="edit-modal-footer">
+      <button onclick="closeNotifyModal()">OK</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const isAdmin = {{ 'true' if is_admin else 'false' }};
 (function () {
@@ -827,6 +838,18 @@ const isAdmin = {{ 'true' if is_admin else 'false' }};
         updateRefreshButton();
     }
 
+    // ── Notification modal ────────────────────────────────────────────────────
+
+    function showNotifyModal(title, message) {
+        document.getElementById('notify-modal-title').textContent = title;
+        document.getElementById('notify-modal-message').textContent = message;
+        document.getElementById('notify-modal-overlay').style.display = '';
+    }
+
+    window.closeNotifyModal = function () {
+        document.getElementById('notify-modal-overlay').style.display = 'none';
+    };
+
     // ── Refresh ───────────────────────────────────────────────────────────────
 
     window.applyConfigRefresh = async function () {
@@ -846,7 +869,7 @@ const isAdmin = {{ 'true' if is_admin else 'false' }};
             if (!data.success) {
                 if (btn) { btn.disabled = false; btn.textContent = 'Refresh'; }
                 if (editBtn) editBtn.disabled = selectedConfigRows.length === 0;
-                alert('Refresh failed: ' + data.message);
+                showNotifyModal('Refresh Failed', data.message);
                 return;
             }
         } catch (e) {
