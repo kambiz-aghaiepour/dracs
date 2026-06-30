@@ -413,7 +413,9 @@ class TestApiConfigEditStatus:
             },
         ).get_json()
         parent_id = submit_data["parent_job_id"]
-        with patch("dracs.jobqueue.get_child_jobs", side_effect=RuntimeError("DB gone")):
+        with patch(
+            "dracs.jobqueue.get_child_jobs", side_effect=RuntimeError("DB gone")
+        ):
             resp = client.get(f"/api/config-edit/status/{parent_id}")
         assert resp.status_code == 500
         assert "DB gone" in resp.get_json()["message"]
