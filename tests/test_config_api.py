@@ -275,3 +275,143 @@ class TestApiSiteConfigCollectionPut:
             )
         assert resp.status_code == 500
         assert "DB exploded" in resp.get_json()["message"]
+
+
+class TestApiConfigEdit:
+    def test_requires_auth(self, client):
+        resp = client.post(
+            "/api/config-edit",
+            json={"site": "Default", "hosts": ["h.example.com"], "settings": {}},
+        )
+        assert resp.status_code == 401
+
+    def test_requires_admin(self, client):
+        _login(client)
+        with client.session_transaction() as sess:
+            sess["is_superadmin"] = False
+            sess["role"] = "user"
+        resp = client.post(
+            "/api/config-edit",
+            json={"site": "Default", "hosts": ["h.example.com"], "settings": {}},
+        )
+        assert resp.status_code == 403
+
+    def test_rejects_missing_hosts(self, client):
+        _login(client)
+        with client.session_transaction() as sess:
+            sess["is_superadmin"] = True
+        resp = client.post(
+            "/api/config-edit",
+            json={"site": "Default", "hosts": [], "settings": {}},
+        )
+        assert resp.status_code == 400
+
+    def test_rejects_invalid_hostname(self, client):
+        _login(client)
+        with client.session_transaction() as sess:
+            sess["is_superadmin"] = True
+        resp = client.post(
+            "/api/config-edit",
+            json={"site": "Default", "hosts": ["bad hostname!"], "settings": {}},
+        )
+        assert resp.status_code == 400
+
+    def test_rejects_unknown_site(self, client):
+        _login(client)
+        with client.session_transaction() as sess:
+            sess["is_superadmin"] = True
+        resp = client.post(
+            "/api/config-edit",
+            json={"site": "nosuchsite", "hosts": ["h.example.com"], "settings": {}},
+        )
+        assert resp.status_code == 400
+
+    def test_enqueues_jobs(self, client, api_db):
+        _login(client)
+        with client.session_transaction() as sess:
+            sess["is_superadmin"] = True
+        resp = client.post(
+            "/api/config-edit",
+            json={
+                "site": "Default",
+                "hosts": ["host01.example.com", "host02.example.com"],
+                "settings": {"ps_rapid_on": True, "dns_from_dhcp": False},
+            },
+        )
+        data = resp.get_json()
+        assert resp.status_code == 200
+        assert data["success"] is True
+        assert data["job_count"] == 2
+        assert isinstance(data["parent_job_id"], int)
+
+
+class TestApiConfigEditStatus:
+    def test_requires_auth(self, client):
+        resp = client.get("/api/config-edit/status/999")
+        assert resp.status_code == 401
+
+    def test_returns_not_found_for_missing_job(self, client):
+        _login(client)
+        resp = client.get("/api/config-edit/status/99999")
+        assert resp.status_code == 404
+
+    def test_returns_status_for_queued_batch(self, client, api_db):
+        _login(client)
+        with client.session_transaction() as sess:
+            sess["is_superadmin"] = True
+        submit_data = client.post(
+            "/api/config-edit",
+            json={
+                "site": "Default",
+                "hosts": ["host01.example.com"],
+                "settings": {"ps_rapid_on": True},
+            },
+        ).get_json()
+        parent_id = submit_data["parent_job_id"]
+
+        resp = client.get(f"/api/config-edit/status/{parent_id}")
+        data = resp.get_json()
+        assert data["success"] is True
+        assert data["parent"]["total_count"] == 1
+        assert data["parent"]["status"] in ("pending", "running", "completed", "failed")
+        assert len(data["children"]) == 1
+        assert data["children"][0]["hostname"] == "host01.example.com"
+
+    def test_completed_child_includes_config(self, client, api_db):
+        from dracs.db import get_site_by_name, upsert_host_config
+        from dracs.jobqueue import complete_job, enqueue_job
+
+        site = get_site_by_name("Default")
+        site_id = site["id"]
+        upsert_host_config("host01.example.com", site_id, {"ps_rapid_on": "Disabled"})
+
+        _login(client)
+        with client.session_transaction() as sess:
+            sess["is_superadmin"] = True
+
+        submit_data = client.post(
+            "/api/config-edit",
+            json={
+                "site": "Default",
+                "hosts": ["host01.example.com"],
+                "settings": {"ps_rapid_on": True},
+            },
+        ).get_json()
+        parent_id = submit_data["parent_job_id"]
+
+        # Manually complete the child job to simulate successful execution
+        status_data = client.get(f"/api/config-edit/status/{parent_id}").get_json()
+        child_id = status_data["children"][0]["status"]
+        # Find the child job id via jobqueue
+        from dracs.jobqueue import get_child_jobs
+
+        children = get_child_jobs(parent_id)
+        assert len(children) == 1
+        complete_job(children[0]["id"], result="Success")
+
+        resp = client.get(f"/api/config-edit/status/{parent_id}")
+        data = resp.get_json()
+        completed = [c for c in data["children"] if c["status"] == "completed"]
+        assert len(completed) == 1
+        assert completed[0]["config"] is not None
+        assert completed[0]["config"]["ps_rapid_on"] == "Disabled"

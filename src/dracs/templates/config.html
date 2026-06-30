@@ -30,7 +30,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 12px;
+            margin-bottom: 8px;
         }
         .header-left {
             display: flex;
@@ -99,6 +99,7 @@
             flex-direction: column;
             overflow: hidden;
             min-height: 0;
+            padding-top: 4px;
         }
 
         /* ── Filters section ── */
@@ -285,6 +286,57 @@
         #loading   { flex-shrink: 0; text-align: center; color: #888; padding: 40px 0; font-size: 1.1em; }
         #error-msg { flex-shrink: 0; color: #dc3545; padding: 20px 0; }
         body.dark-theme #loading { color: #aaa; }
+
+        /* Row selection */
+        .config-row-selected { background-color: #cce5ff !important; }
+        body.dark-theme .config-row-selected { background-color: #1a3a5c !important; }
+        table.config-table tbody tr { cursor: pointer; }
+
+        /* Edit button */
+        .edit-btn {
+            padding: 8px 20px;
+            background-color: #0d6efd;
+            color: white; border: none;
+            border-radius: 4px; cursor: pointer; font-size: 14px;
+            margin-right: 8px;
+        }
+        .edit-btn:hover:not(:disabled) { background-color: #0b5ed7; }
+        .edit-btn:disabled { opacity: 0.4; cursor: default; }
+
+        /* Edit modal */
+        .edit-modal-overlay {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000; display: flex;
+            align-items: center; justify-content: center;
+        }
+        .edit-modal-box {
+            background: white; border-radius: 8px;
+            padding: 24px; min-width: 420px; max-width: 560px; width: 90%;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+        .edit-modal-box h3 { margin: 0 0 6px; font-size: 1.1rem; }
+        .edit-modal-subtitle { margin: 0 0 16px; font-size: 13px; color: #555; }
+        #edit-options { display: flex; flex-direction: column; gap: 10px; margin-bottom: 4px; }
+        #edit-options label {
+            display: flex; align-items: center; gap: 10px;
+            font-size: 14px; cursor: pointer;
+        }
+        #edit-options code { font-size: 12px; color: #0d6efd; }
+        .edit-modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+        .edit-modal-footer button {
+            padding: 8px 20px; border-radius: 4px; font-size: 14px;
+            border: 1px solid #ccc; cursor: pointer; background: #f0f0f0; color: #333;
+        }
+        #apply-btn { background: #0d6efd; color: white; border-color: #0d6efd; }
+        #apply-btn:disabled { opacity: 0.4; cursor: default; }
+        #apply-btn:not(:disabled):hover { background: #0b5ed7; }
+        #edit-progress { font-size: 13px; color: #555; margin-top: 8px; }
+        body.dark-theme .edit-modal-box { background: #16213e; color: #e0e0e0; }
+        body.dark-theme .edit-modal-subtitle { color: #aaa; }
+        body.dark-theme #edit-options label { color: #ddd; }
+        body.dark-theme .edit-modal-footer button { background: #253555; color: #ddd; border-color: #444; }
+        body.dark-theme #apply-btn { background: #0d6efd; color: white; border-color: #0d6efd; }
     </style>
 </head>
 <body>
@@ -299,7 +351,10 @@
                 <div id="theme-toggle-switch" class="toggle-switch" onclick="toggleTheme()"></div>
             </div>
         </div>
-        <button class="close-btn" onclick="closePage()">Close</button>
+        <div>
+            {% if is_admin %}<button id="edit-btn" class="edit-btn" onclick="openEditModal()" disabled>Edit</button>{% endif %}
+            <button class="close-btn" onclick="closePage()">Close</button>
+        </div>
     </div>
 
     <div id="loading">Loading configuration data&hellip;</div>
@@ -384,7 +439,37 @@
     </div>
 </div>
 
+{% if is_admin %}
+<div id="edit-modal-overlay" class="edit-modal-overlay" style="display:none;"
+     onclick="if(event.target===this)closeEditModal()">
+  <div class="edit-modal-box" onclick="event.stopPropagation()">
+    <h3>Edit iDRAC Settings</h3>
+    <p class="edit-modal-subtitle">Applying to <strong id="edit-host-count">0</strong> host(s)</p>
+    <div id="edit-options">
+      <label><input type="checkbox" id="ec-dns-from-dhcp" onchange="updateApplyBtn()">
+        iDRAC.IPv4.DNSFromDHCP → <code>Enabled</code></label>
+      <label><input type="checkbox" id="ec-ipmi-lan" onchange="updateApplyBtn()">
+        iDRAC.IPMILan.Enable → <code>Enabled</code></label>
+      <label><input type="checkbox" id="ec-host-header" onchange="updateApplyBtn()">
+        iDRAC.webserver.HostHeaderCheck → <code>Disabled</code></label>
+      <label><input type="checkbox" id="ec-ps-rapid-on" onchange="updateApplyBtn()">
+        System.ServerPwr.PSRapidOn → <code>Disabled</code></label>
+      <label><input type="checkbox" id="ec-idrac-hostname" onchange="updateApplyBtn()">
+        System.ServerOS.Hostname → <code>correct FQDN</code></label>
+      <label><input type="checkbox" id="ec-sys-profile" onchange="updateApplyBtn()">
+        BIOS.SysProfileSettings.SysProfile → <code>PerfPerWattOptimizedOs</code></label>
+    </div>
+    <div id="edit-progress" style="display:none;"></div>
+    <div class="edit-modal-footer">
+      <button id="apply-btn" onclick="applyConfigEdit()" disabled>Apply</button>
+      <button id="cancel-btn" onclick="closeEditModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <script>
+const isAdmin = {{ 'true' if is_admin else 'false' }};
 (function () {
     const ATTR_LABELS = {
         ps_rapid_on:       'PS Rapid On',
@@ -403,6 +488,8 @@
     let pageSize     = 20;
     let currentPage  = 1;
     let displayedTotal = 0;
+    let selectedConfigRows = [];
+    let lastClickedTr = null;
 
     function getQueryParam(name) {
         return new URLSearchParams(window.location.search).get(name) || '';
@@ -575,51 +662,51 @@
         const tbody = document.getElementById('config-tbody');
         let html = '';
         for (const row of slice) {
-            html += '<tr>';
+            html += `<tr data-hostname="${escHtml(row.hostname || '')}">`;
             html += `<td>${escHtml(row.hostname || '')}</td>`;
 
             for (const attr of visibleAttrs) {
                 if (attr === 'ps_rapid_on') {
-                    html += `<td>${boolCell(row[attr], 'Disabled',
+                    html += `<td data-field="ps_rapid_on">${boolCell(row[attr], 'Disabled',
                         'System.ServerPwr.PSRapidOn Disabled',
                         'System.ServerPwr.PSRapidOn Enabled')}</td>`;
 
                 } else if (attr === 'dns_from_dhcp') {
-                    html += `<td>${boolCell(row[attr], 'Enabled',
+                    html += `<td data-field="dns_from_dhcp">${boolCell(row[attr], 'Enabled',
                         'iDRAC.IPv4.DNSFromDHCP Enabled',
                         'iDRAC.IPv4.DNSFromDHCP Disabled')}</td>`;
 
                 } else if (attr === 'ipmi_lan_enable') {
-                    html += `<td>${boolCell(row[attr], 'Enabled',
+                    html += `<td data-field="ipmi_lan_enable">${boolCell(row[attr], 'Enabled',
                         'iDRAC.IPMILan.Enable Enabled',
                         'iDRAC.IPMILan.Enable Disabled')}</td>`;
 
                 } else if (attr === 'host_header_check') {
-                    html += `<td>${boolCell(row[attr], 'Disabled',
+                    html += `<td data-field="host_header_check">${boolCell(row[attr], 'Disabled',
                         'iDRAC.webserver.HostHeaderCheck Disabled',
                         'iDRAC.webserver.HostHeaderCheck Enabled')}</td>`;
 
                 } else if (attr === 'sys_profile') {
                     const actual = row[attr] != null ? String(row[attr]) : '';
-                    html += `<td>${boolCell(row[attr], 'PerfPerWattOptimizedOs',
+                    html += `<td data-field="sys_profile">${boolCell(row[attr], 'PerfPerWattOptimizedOs',
                         'BIOS.SysProfileSettings.SysProfile PerfPerWattOptimizedOs',
                         actual ? `BIOS.SysProfileSettings.SysProfile ${actual}` : '')}</td>`;
 
                 } else if (attr === 'idrac_hostname') {
                     const fetchedVal = row.idrac_hostname_value || '';
-                    const tip = fetchedVal ? `set System.ServerOS.Hostname ${fetchedVal}` : '';
-                    html += `<td>${intBoolCell(row[attr], true, tip, tip)}</td>`;
+                    const tip = fetchedVal ? `System.ServerOS.Hostname ${fetchedVal}` : '';
+                    html += `<td data-field="idrac_hostname">${intBoolCell(row[attr], true, tip, tip)}</td>`;
 
                 } else if (attr === 'ssl_self_signed') {
-                    html += `<td>${intBoolCell(row[attr], false)}</td>`;
+                    html += `<td data-field="ssl_self_signed">${intBoolCell(row[attr], false)}</td>`;
 
                 } else if (attr === 'ssl_valid_name') {
-                    html += `<td>${intBoolCell(row[attr], true)}</td>`;
+                    html += `<td data-field="ssl_valid_name">${intBoolCell(row[attr], true)}</td>`;
 
                 } else if (attr === 'ssl_expiry') {
                     const cls   = sslExpiryClass(row[attr]);
                     const label = row[attr] ? escHtml(row[attr]) : '—';
-                    html += `<td><span class="${cls}">${label}</span></td>`;
+                    html += `<td data-field="ssl_expiry"><span class="${cls}">${label}</span></td>`;
 
                 } else {
                     html += `<td>${escHtml(String(row[attr] ?? '—'))}</td>`;
@@ -631,6 +718,13 @@
             html += '</tr>';
         }
         tbody.innerHTML = html;
+
+        if (selectedConfigRows.length > 0) {
+            tbody.querySelectorAll('tr').forEach(tr => {
+                if (selectedConfigRows.includes(tr.dataset.hostname))
+                    tr.classList.add('config-row-selected');
+            });
+        }
 
         renderPagination();
     }
@@ -667,6 +761,178 @@
 
     window.closePage    = closePage;
     window.toggleTheme  = toggleTheme;
+
+    // ── Row selection ──────────────────────────────────────────────────────────
+
+    function updateEditButton() {
+        const btn = document.getElementById('edit-btn');
+        if (btn) btn.disabled = selectedConfigRows.length === 0;
+    }
+
+    function handleRowClick(event) {
+        const tr = event.target.closest('tr');
+        if (!tr || !tr.dataset.hostname) return;
+        const hostname = tr.dataset.hostname;
+        const tbody = document.getElementById('config-tbody');
+
+        if (event.shiftKey && lastClickedTr) {
+            const allTrs = Array.from(tbody.querySelectorAll('tr'));
+            const a = allTrs.indexOf(lastClickedTr);
+            const b = allTrs.indexOf(tr);
+            const [lo, hi] = a < b ? [a, b] : [b, a];
+            selectedConfigRows = [];
+            tbody.querySelectorAll('tr').forEach(r => r.classList.remove('config-row-selected'));
+            for (let i = lo; i <= hi; i++) {
+                if (allTrs[i].dataset.hostname) {
+                    selectedConfigRows.push(allTrs[i].dataset.hostname);
+                    allTrs[i].classList.add('config-row-selected');
+                }
+            }
+        } else if (event.ctrlKey || event.metaKey) {
+            const idx = selectedConfigRows.indexOf(hostname);
+            if (idx >= 0) {
+                selectedConfigRows.splice(idx, 1);
+                tr.classList.remove('config-row-selected');
+            } else {
+                selectedConfigRows.push(hostname);
+                tr.classList.add('config-row-selected');
+            }
+        } else {
+            selectedConfigRows = [hostname];
+            tbody.querySelectorAll('tr').forEach(r => r.classList.remove('config-row-selected'));
+            tr.classList.add('config-row-selected');
+        }
+        lastClickedTr = tr;
+        updateEditButton();
+    }
+
+    // ── Edit modal ────────────────────────────────────────────────────────────
+
+    window.openEditModal = function () {
+        document.getElementById('edit-host-count').textContent = selectedConfigRows.length;
+        ['ec-dns-from-dhcp','ec-ipmi-lan','ec-host-header','ec-ps-rapid-on','ec-idrac-hostname','ec-sys-profile']
+            .forEach(id => { document.getElementById(id).checked = false; });
+        document.getElementById('apply-btn').disabled = true;
+        document.getElementById('cancel-btn').textContent = 'Cancel';
+        document.getElementById('edit-options').style.display = '';
+        document.getElementById('edit-progress').style.display = 'none';
+        document.getElementById('edit-progress').innerHTML = '';
+        document.getElementById('edit-modal-overlay').style.display = '';
+    };
+
+    window.closeEditModal = function () {
+        document.getElementById('edit-modal-overlay').style.display = 'none';
+    };
+
+    window.updateApplyBtn = function () {
+        const anyChecked = ['ec-dns-from-dhcp','ec-ipmi-lan','ec-host-header',
+            'ec-ps-rapid-on','ec-idrac-hostname','ec-sys-profile']
+            .some(id => document.getElementById(id).checked);
+        document.getElementById('apply-btn').disabled = !anyChecked;
+    };
+
+    window.applyConfigEdit = async function () {
+        document.getElementById('edit-options').style.display = 'none';
+        document.getElementById('apply-btn').disabled = true;
+        document.getElementById('cancel-btn').textContent = 'Close';
+        const prog = document.getElementById('edit-progress');
+        prog.style.display = '';
+        prog.innerHTML = '<p>Submitting jobs…</p>';
+
+        const settings = {
+            dns_from_dhcp:  document.getElementById('ec-dns-from-dhcp').checked,
+            ipmi_lan:       document.getElementById('ec-ipmi-lan').checked,
+            host_header:    document.getElementById('ec-host-header').checked,
+            ps_rapid_on:    document.getElementById('ec-ps-rapid-on').checked,
+            idrac_hostname: document.getElementById('ec-idrac-hostname').checked,
+            sys_profile:    document.getElementById('ec-sys-profile').checked,
+        };
+        const site = getQueryParam('site');
+        let resp, data;
+        try {
+            resp = await fetch('/api/config-edit', {
+                method: 'POST', credentials: 'same-origin',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({site, hosts: selectedConfigRows, settings}),
+            });
+            data = await resp.json();
+        } catch (e) {
+            prog.innerHTML = `<p style="color:#dc3545">Network error: ${e.message}</p>`;
+            return;
+        }
+        if (!data.success) {
+            prog.innerHTML = `<p style="color:#dc3545">${data.message || 'Unknown error'}</p>`;
+            return;
+        }
+        startEditPolling(data.parent_job_id, data.job_count);
+    };
+
+    function startEditPolling(parentId, total) {
+        const prog = document.getElementById('edit-progress');
+        prog.innerHTML = `<p>Running… (0/${total} complete)</p>`;
+
+        const interval = setInterval(async () => {
+            let r;
+            try {
+                r = await fetch(`/api/config-edit/status/${parentId}`,
+                    {credentials: 'same-origin'}).then(x => x.json());
+            } catch (e) { return; }
+            if (!r.success) return;
+
+            const done = r.parent.completed_count + r.parent.failed_count;
+            prog.innerHTML = `<p>Running… (${done}/${r.parent.total_count} complete)</p>`;
+            applyTableUpdates(r.children);
+
+            if (['completed', 'failed'].includes(r.parent.status)) {
+                clearInterval(interval);
+                const failN = r.parent.failed_count;
+                prog.innerHTML = failN > 0
+                    ? `<p style="color:#dc3545">${failN} of ${r.parent.total_count} host(s) failed. Check job logs.</p>`
+                    : `<p style="color:#28a745">All ${r.parent.total_count} host(s) updated successfully.</p>`;
+            }
+        }, 3000);
+    }
+
+    function renderFieldValue(field, value) {
+        if (field === 'ps_rapid_on')
+            return boolCell(value, 'Disabled',
+                'System.ServerPwr.PSRapidOn Disabled',
+                'System.ServerPwr.PSRapidOn Enabled');
+        if (field === 'dns_from_dhcp')
+            return boolCell(value, 'Enabled',
+                'iDRAC.IPv4.DNSFromDHCP Enabled',
+                'iDRAC.IPv4.DNSFromDHCP Disabled');
+        if (field === 'ipmi_lan_enable')
+            return boolCell(value, 'Enabled',
+                'iDRAC.IPMILan.Enable Enabled',
+                'iDRAC.IPMILan.Enable Disabled');
+        if (field === 'host_header_check')
+            return boolCell(value, 'Disabled',
+                'iDRAC.webserver.HostHeaderCheck Disabled',
+                'iDRAC.webserver.HostHeaderCheck Enabled');
+        if (field === 'sys_profile') {
+            const actual = value != null ? String(value) : '';
+            return boolCell(value, 'PerfPerWattOptimizedOs',
+                'BIOS.SysProfileSettings.SysProfile PerfPerWattOptimizedOs',
+                actual ? `BIOS.SysProfileSettings.SysProfile ${actual}` : '');
+        }
+        if (field === 'idrac_hostname')
+            return intBoolCell(value, true);
+        return '';
+    }
+
+    function applyTableUpdates(children) {
+        for (const child of children) {
+            if (child.status !== 'completed' || !child.config) continue;
+            const hn = child.hostname.replace(/"/g, '\\"');
+            const row = document.querySelector(`#config-tbody tr[data-hostname="${hn}"]`);
+            if (!row) continue;
+            for (const [field, value] of Object.entries(child.config)) {
+                const cell = row.querySelector(`td[data-field="${field}"]`);
+                if (cell) cell.innerHTML = renderFieldValue(field, value);
+            }
+        }
+    }
 
     async function init() {
         const site = getQueryParam('site');
@@ -722,6 +988,10 @@
 
         document.getElementById('loading').style.display = 'none';
         document.getElementById('main-content').style.display = '';
+
+        if (isAdmin) {
+            document.getElementById('config-tbody').addEventListener('click', handleRowClick);
+        }
 
         renderTable();
     }

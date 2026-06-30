@@ -3969,11 +3969,14 @@ def config_page():
     is_authenticated = session.get("authenticated", False)
     if not is_authenticated:
         return redirect(url_for("index"))
+    is_sa = session.get("is_superadmin", False)
+    role = session.get("role", "")
     return render_template(
         "config.html",
         username=session.get("username", ""),
-        user_role=session.get("role", ""),
-        is_superadmin=session.get("is_superadmin", False),
+        user_role=role,
+        is_superadmin=is_sa,
+        is_admin=is_sa or role == "admin",
     )
 
 
@@ -4010,6 +4013,133 @@ def api_config_data():
     settings = get_site_config_collection(site_id)
     data = get_host_config_data(site_id, hostnames)
     return jsonify({"success": True, "settings": settings, "data": data})
+
+
+@app.route("/api/config-edit", methods=["POST"])
+def api_config_edit():
+    """Queue racadm_config jobs for selected hosts (admin only)."""
+    try:
+        user, err = _require_auth(required_role="admin")
+        if err:
+            return err
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "message": "Invalid request"}), 400
+
+        site_name = data.get("site", "")
+        hosts = data.get("hosts", [])
+        settings = data.get("settings", {})
+
+        if not hosts or not isinstance(hosts, list):
+            return jsonify({"success": False, "message": "hosts list required"}), 400
+
+        for h in hosts:
+            if not validate_hostname(h):
+                return (
+                    jsonify({"success": False, "message": f"Invalid hostname: {h}"}),
+                    400,
+                )
+
+        from dracs.db import get_site_by_name as _gsbn
+        from dracs.jobqueue import enqueue_job as _eq
+
+        site = _gsbn(site_name) if site_name else None
+        if site is None:
+            return (
+                jsonify({"success": False, "message": f"Unknown site: {site_name!r}"}),
+                400,
+            )
+
+        site_id = site["id"]
+        parent_id = _eq(
+            "racadm_config_batch",
+            "batch",
+            site_id=site_id,
+            metadata={"site_name": site_name},
+        )
+        for hostname in hosts:
+            _eq(
+                "racadm_config",
+                hostname,
+                parent_id=parent_id,
+                site_id=site_id,
+                metadata={"site_name": site_name, "settings": settings},
+            )
+
+        audit_log(
+            "config_edit",
+            user=user,
+            source=_client_ip(),
+            details=f"site={site_name} hosts={','.join(hosts)} settings={settings}",
+        )
+
+        return jsonify(
+            {"success": True, "parent_job_id": parent_id, "job_count": len(hosts)}
+        )
+
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+
+@app.route("/api/config-edit/status/<int:parent_id>")
+def api_config_edit_status(parent_id):
+    """Poll status of a config-edit batch job."""
+    try:
+        _, err = _require_auth()
+        if err:
+            return err
+
+        from dracs.jobqueue import get_child_jobs, get_job_status
+        from dracs.db import get_host_config_data
+
+        parent = get_job_status(parent_id)
+        if parent is None:
+            return jsonify({"success": False, "message": "Job not found"}), 404
+
+        children = get_child_jobs(parent_id)
+        total = len(children)
+        completed_count = sum(1 for c in children if c["status"] == "completed")
+        failed_count = sum(1 for c in children if c["status"] == "failed")
+
+        parent_meta = parent.get("metadata") or {}
+        site_name = parent_meta.get("site_name", "")
+
+        from dracs.db import get_site_by_name as _gsbn
+
+        site = _gsbn(site_name) if site_name else None
+        site_id = site["id"] if site else None
+
+        child_results = []
+        for c in children:
+            config_data = None
+            if c["status"] == "completed" and site_id is not None:
+                rows = get_host_config_data(site_id, [c["target"]])
+                config_data = rows[0] if rows else None
+            child_results.append(
+                {
+                    "hostname": c["target"],
+                    "status": c["status"],
+                    "error": c.get("error"),
+                    "config": config_data,
+                }
+            )
+
+        return jsonify(
+            {
+                "success": True,
+                "parent": {
+                    "status": parent["status"],
+                    "total_count": total,
+                    "completed_count": completed_count,
+                    "failed_count": failed_count,
+                },
+                "children": child_results,
+            }
+        )
+
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
 
 
 @app.route("/api/sites/<name>/config-collection")
