@@ -410,7 +410,8 @@
 
     function closePage() {
         sessionStorage.removeItem('dracs_config_hosts');
-        window.location.href = '/';
+        const site = getQueryParam('site');
+        window.location.href = site ? '/?site=' + encodeURIComponent(site) : '/';
     }
 
     function toggleTheme() {

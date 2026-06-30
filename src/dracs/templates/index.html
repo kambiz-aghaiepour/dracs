@@ -2933,6 +2933,7 @@
 
         function openConfigPage() {
             if (!selectedSystems.length) return;
+            saveMainPageState();
             sessionStorage.setItem('dracs_config_hosts',
                 JSON.stringify(selectedSystems.map(s => s.hostname)));
             window.location.href = '/config?site=' + encodeURIComponent(currentSite);
@@ -6000,6 +6001,7 @@
                 biosOldest: biosOldestCheck.checked,
                 warrantyExpired: warrantyExpiredCheck.checked,
                 warrantyExpires: warrantyExpiresSelect.value,
+                selectedHostnames: selectedSystems.map(s => s.hostname),
             };
             sessionStorage.setItem('dracs_main_state', JSON.stringify(state));
         }
@@ -6036,7 +6038,28 @@
             if (state.biosOldest !== undefined) biosOldestCheck.checked = state.biosOldest;
             if (state.warrantyExpired !== undefined) warrantyExpiredCheck.checked = state.warrantyExpired;
             if (state.warrantyExpires !== undefined) warrantyExpiresSelect.value = state.warrantyExpires;
+            if (state.selectedHostnames && state.selectedHostnames.length > 0) {
+                const hostnameSet = new Set(state.selectedHostnames);
+                selectedRows = [];
+                selectedSystems = [];
+                Array.from(tableBody.querySelectorAll('tr')).forEach(row => {
+                    if (hostnameSet.has(row.dataset.hostname)) {
+                        row.classList.add('selected');
+                        selectedRows.push(row);
+                        const cells = row.getElementsByTagName('td');
+                        selectedSystems.push({
+                            service_tag: cells[0].textContent,
+                            hostname: cells[1].textContent,
+                            model: cells[2].textContent,
+                        });
+                    }
+                });
+            }
             applyFilters();
+            if (selectedSystems.length > 0) {
+                updateConfigButton();
+                updateRefreshButtonLabel();
+            }
         }
 
         // Initialize table
