@@ -3017,6 +3017,7 @@
             updateGenerateTsrButtonState();
             updateViewTsrButtonState();
             updateSelectAllButtonText();
+            updateConfigButton();
         }
 
         // Toggle select all visible systems
@@ -3085,6 +3086,7 @@
 
             // Update Select Shown button text
             updateSelectShownButtonText();
+            updateConfigButton();
         }
 
         function updateRefreshButtonLabel() {
@@ -5818,6 +5820,7 @@
             // Update select all button text based on new visible rows
             updateSelectAllButtonText();
             updateSelectShownButtonText();
+            saveMainPageState();
         }
 
         // Pagination functions
@@ -5976,6 +5979,64 @@
             pageSize = parseInt(event.target.value);
             currentPage = 1;  // Reset to first page when changing page size
             updatePagination();
+            saveMainPageState();
+        }
+
+        function saveMainPageState() {
+            const state = {
+                pageSize: pageSize,
+                hostname: hostnameFilter.value,
+                servicetag: servicetagFilter.value,
+                models: Array.from(modelFilter.selectedOptions).map(o => o.value),
+                biosVersion: biosVersionSelect.value,
+                biosOperator: biosOperatorSelect.value,
+                firmwareVersion: firmwareVersionSelect.value,
+                firmwareOperator: firmwareOperatorSelect.value,
+                firmwareCurrent: firmwareCurrentCheck.checked,
+                firmwareOlder: firmwareOlderCheck.checked,
+                firmwareOldest: firmwareOldestCheck.checked,
+                biosCurrent: biosCurrentCheck.checked,
+                biosOlder: biosOlderCheck.checked,
+                biosOldest: biosOldestCheck.checked,
+                warrantyExpired: warrantyExpiredCheck.checked,
+                warrantyExpires: warrantyExpiresSelect.value,
+            };
+            sessionStorage.setItem('dracs_main_state', JSON.stringify(state));
+        }
+
+        function restoreMainPageState() {
+            const raw = sessionStorage.getItem('dracs_main_state');
+            if (!raw) {
+                document.getElementById('page-size').value = pageSize;
+                updatePagination();
+                return;
+            }
+            const state = JSON.parse(raw);
+            if (state.pageSize) {
+                pageSize = state.pageSize;
+                document.getElementById('page-size').value = pageSize;
+            }
+            if (state.hostname !== undefined) hostnameFilter.value = state.hostname;
+            if (state.servicetag !== undefined) servicetagFilter.value = state.servicetag;
+            if (state.models && state.models.length > 0) {
+                Array.from(modelFilter.options).forEach(opt => {
+                    opt.selected = state.models.includes(opt.value);
+                });
+                updateVersionDropdowns();
+            }
+            if (state.biosVersion !== undefined) biosVersionSelect.value = state.biosVersion;
+            if (state.biosOperator !== undefined) biosOperatorSelect.value = state.biosOperator;
+            if (state.firmwareVersion !== undefined) firmwareVersionSelect.value = state.firmwareVersion;
+            if (state.firmwareOperator !== undefined) firmwareOperatorSelect.value = state.firmwareOperator;
+            if (state.firmwareCurrent !== undefined) firmwareCurrentCheck.checked = state.firmwareCurrent;
+            if (state.firmwareOlder !== undefined) firmwareOlderCheck.checked = state.firmwareOlder;
+            if (state.firmwareOldest !== undefined) firmwareOldestCheck.checked = state.firmwareOldest;
+            if (state.biosCurrent !== undefined) biosCurrentCheck.checked = state.biosCurrent;
+            if (state.biosOlder !== undefined) biosOlderCheck.checked = state.biosOlder;
+            if (state.biosOldest !== undefined) biosOldestCheck.checked = state.biosOldest;
+            if (state.warrantyExpired !== undefined) warrantyExpiredCheck.checked = state.warrantyExpired;
+            if (state.warrantyExpires !== undefined) warrantyExpiresSelect.value = state.warrantyExpires;
+            applyFilters();
         }
 
         // Initialize table
@@ -6000,9 +6061,8 @@
                 document.getElementById('systems-table').style.display = 'none';
                 document.getElementById('pagination-container').style.display = 'none';
             } else {
-                // Initialize pagination
-                document.getElementById('page-size').value = pageSize;
-                updatePagination();
+                // Restore saved page size and filters if returning from config page
+                restoreMainPageState();
             }
         }
 
