@@ -49,7 +49,7 @@ def collect_ps_rapid_on(idrac_fqdn: str, user: str, pw: str) -> str | None:
 
 
 def collect_idrac_hostname(idrac_fqdn: str, user: str, pw: str) -> str | None:
-    url = f"https://{idrac_fqdn}/redfish/v1/Managers/iDRAC.Embedded.1"
+    url = f"https://{idrac_fqdn}/redfish/v1/Systems/System.Embedded.1"
     try:
         resp = requests.get(  # nosec # nosemgrep
             url, auth=(user, pw), verify=_VERIFY, timeout=_TIMEOUT
@@ -167,7 +167,11 @@ def collect_all_for_host(hostname: str, site_name: str, enabled_attrs: dict) -> 
         data["sys_profile"] = collect_sys_profile(idrac_fqdn, user, pw)
 
     if enabled_attrs.get("idrac_hostname_enabled"):
-        data["idrac_hostname"] = collect_idrac_hostname(idrac_fqdn, user, pw)
+        fetched = collect_idrac_hostname(idrac_fqdn, user, pw)
+        if fetched is None:
+            data["idrac_hostname"] = None
+        else:
+            data["idrac_hostname"] = 1 if fetched.lower() == idrac_fqdn.lower() else 0
 
     if enabled_attrs.get("ssl_enabled"):
         ssl_info = collect_ssl_info(idrac_fqdn)

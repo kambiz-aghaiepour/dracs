@@ -98,9 +98,10 @@ class TestCollectPsRapidOn:
 class TestCollectIdracHostname:
     def test_success(self):
         resp = _mock_response({"HostName": "mgmt-server01.example.com"})
-        with patch("requests.get", return_value=resp):
+        with patch("requests.get", return_value=resp) as mock_get:
             result = collect_idrac_hostname("mgmt-server01.example.com", "root", "pw")
         assert result == "mgmt-server01.example.com"
+        assert "Systems/System.Embedded.1" in mock_get.call_args[0][0]
 
     def test_returns_none_on_error(self):
         with patch("requests.get", side_effect=OSError("timeout")):
@@ -343,7 +344,7 @@ class TestCollectAllForHost:
         os.environ,
         {"DRACS_DNS_STRING": "mgmt-", "DRACS_DNS_MODE": "prefix"},
     )
-    def test_idrac_hostname_collected_when_enabled(self):
+    def test_idrac_hostname_match_stores_1(self):
         enabled = {
             "ps_rapid_on_enabled": False,
             "dns_from_dhcp_enabled": False,
@@ -362,4 +363,49 @@ class TestCollectAllForHost:
                     "server01.example.com", "Default", enabled
                 )
         mock_hostname.assert_called_once()
-        assert result["idrac_hostname"] == "mgmt-server01.example.com"
+        assert result["idrac_hostname"] == 1
+
+    @patch.dict(
+        os.environ,
+        {"DRACS_DNS_STRING": "mgmt-", "DRACS_DNS_MODE": "prefix"},
+    )
+    def test_idrac_hostname_mismatch_stores_0(self):
+        enabled = {
+            "ps_rapid_on_enabled": False,
+            "dns_from_dhcp_enabled": False,
+            "ipmi_lan_enable_enabled": False,
+            "host_header_check_enabled": False,
+            "sys_profile_enabled": False,
+            "ssl_enabled": False,
+            "idrac_hostname_enabled": True,
+        }
+        with patch("dracs.redfish._get_credentials", return_value=("root", "pw")):
+            with patch(
+                "dracs.redfish.collect_idrac_hostname",
+                return_value="wrong-hostname.example.com",
+            ):
+                result = collect_all_for_host(
+                    "server01.example.com", "Default", enabled
+                )
+        assert result["idrac_hostname"] == 0
+
+    @patch.dict(
+        os.environ,
+        {"DRACS_DNS_STRING": "mgmt-", "DRACS_DNS_MODE": "prefix"},
+    )
+    def test_idrac_hostname_unreachable_stores_none(self):
+        enabled = {
+            "ps_rapid_on_enabled": False,
+            "dns_from_dhcp_enabled": False,
+            "ipmi_lan_enable_enabled": False,
+            "host_header_check_enabled": False,
+            "sys_profile_enabled": False,
+            "ssl_enabled": False,
+            "idrac_hostname_enabled": True,
+        }
+        with patch("dracs.redfish._get_credentials", return_value=("root", "pw")):
+            with patch("dracs.redfish.collect_idrac_hostname", return_value=None):
+                result = collect_all_for_host(
+                    "server01.example.com", "Default", enabled
+                )
+        assert result["idrac_hostname"] is None
