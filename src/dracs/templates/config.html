@@ -360,16 +360,7 @@
                     const label = row[attr] ? escHtml(row[attr]) : '—';
                     html += `<td><span class="${cls}">${label}</span></td>`;
                 } else if (attr === 'idrac_hostname') {
-                    const expected = hostMap[row.hostname] || '';
-                    const val = row[attr] || '';
-                    const ok = expected && val === expected;
-                    if (!val) {
-                        html += '<td><span class="na">—</span></td>';
-                    } else if (ok) {
-                        html += `<td><span class="ok">✓</span> ${escHtml(val)}</td>`;
-                    } else {
-                        html += `<td><span class="bad">✗</span> ${escHtml(val)}</td>`;
-                    }
+                    html += `<td>${intBoolCell(row[attr], true)}</td>`;
                 } else {
                     const desired = DESIRED[attr];
                     html += `<td>${desired !== undefined ? boolCell(row[attr], desired) : escHtml(String(row[attr] ?? '—'))}</td>`;

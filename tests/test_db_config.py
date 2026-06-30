@@ -1,4 +1,5 @@
 import os
+import sqlite3
 import tempfile
 
 import pytest
@@ -75,7 +76,7 @@ class TestUpsertHostConfig:
             "ipmi_lan_enable": "Enabled",
             "host_header_check": "Disabled",
             "sys_profile": "PerfPerWattOptimizedOs",
-            "idrac_hostname": "mgmt-server01.example.com",
+            "idrac_hostname": 1,
             "ssl_self_signed": 1,
             "ssl_valid_name": 0,
             "ssl_expiry": "2025-12-31",
@@ -87,6 +88,7 @@ class TestUpsertHostConfig:
         row = rows[0]
         assert row["hostname"] == "server01.example.com"
         assert row["ps_rapid_on"] == "Disabled"
+        assert row["idrac_hostname"] == 1
         assert row["ssl_self_signed"] == 1
         assert row["ssl_expiry"] == "2025-12-31"
 
@@ -148,3 +150,44 @@ class TestGetHostsForSite:
         new_site = create_site("empty-site")
         hosts = get_hosts_for_site(new_site["id"])
         assert hosts == []
+
+
+class TestMigrateHostConfigIdracHostname:
+    def test_drops_and_recreates_when_idrac_hostname_is_text(self):
+        fd, path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        try:
+            # Bootstrap a DB then replace host_config with the old TEXT schema
+            db_initialize(path)
+            with sqlite3.connect(path) as con:
+                con.execute("DROP TABLE IF EXISTS host_config")
+                con.execute("""
+                    CREATE TABLE host_config (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        hostname VARCHAR NOT NULL,
+                        site_id INTEGER NOT NULL,
+                        ps_rapid_on TEXT,
+                        idrac_hostname TEXT,
+                        dns_from_dhcp TEXT,
+                        ipmi_lan_enable TEXT,
+                        host_header_check TEXT,
+                        sys_profile TEXT,
+                        ssl_self_signed INTEGER,
+                        ssl_valid_name INTEGER,
+                        ssl_expiry TEXT,
+                        collected_at TEXT,
+                        UNIQUE (hostname, site_id)
+                    )
+                    """)
+                con.commit()
+            # Re-initialize — migration should drop and recreate with INTEGER column
+            db_initialize(path)
+            with sqlite3.connect(path) as con:
+                col_types = {
+                    row[1]: row[2]
+                    for row in con.execute("PRAGMA table_info(host_config)")
+                }
+            assert col_types["idrac_hostname"].upper() == "INTEGER"
+        finally:
+            if os.path.exists(path):
+                os.unlink(path)

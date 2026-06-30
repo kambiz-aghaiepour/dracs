@@ -179,7 +179,7 @@ class HostConfig(Base):
         Integer, ForeignKey("sites.id"), nullable=False
     )
     ps_rapid_on: Mapped[str | None] = mapped_column(String, nullable=True)
-    idrac_hostname: Mapped[str | None] = mapped_column(String, nullable=True)
+    idrac_hostname: Mapped[int | None] = mapped_column(Integer, nullable=True)
     dns_from_dhcp: Mapped[str | None] = mapped_column(String, nullable=True)
     ipmi_lan_enable: Mapped[str | None] = mapped_column(String, nullable=True)
     host_header_check: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -234,6 +234,16 @@ def _migrate_schema(engine) -> None:
                 conn.execute(text("INSERT INTO users_new SELECT * FROM users"))
                 conn.execute(text("DROP TABLE users"))
                 conn.execute(text("ALTER TABLE users_new RENAME TO users"))
+
+    if "host_config" in tables:
+        with engine.connect() as conn:
+            col_types = {
+                row[1]: row[2]
+                for row in conn.execute(text("PRAGMA table_info(host_config)"))
+            }
+        if col_types.get("idrac_hostname", "").upper() in ("TEXT", "VARCHAR"):
+            with engine.begin() as conn:
+                conn.execute(text("DROP TABLE host_config"))
 
     if "sites" in tables:
         site_cols = {c["name"] for c in inspector.get_columns("sites")}
