@@ -317,6 +317,34 @@
         .edit-btn:hover:not(:disabled) { background-color: #0b5ed7; }
         .edit-btn:disabled { opacity: 0.4; cursor: default; }
 
+        /* Auto-refresh ring button */
+        .ar-wrapper { position: relative; display: inline-flex; }
+        .ar-btn {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 34px; height: 34px; padding: 0;
+            background: transparent; border: none; border-radius: 50%;
+            cursor: pointer; color: #6c757d;
+        }
+        .ar-btn:hover { background: rgba(0,0,0,0.06); }
+        .ar-btn.ar-live { color: #0d6efd; }
+        body.dark-theme .ar-btn { color: #aaa; }
+        body.dark-theme .ar-btn:hover { background: rgba(255,255,255,0.08); }
+        body.dark-theme .ar-btn.ar-live { color: #6ea8fe; }
+        .ar-menu {
+            position: absolute; left: 0; top: calc(100% + 4px);
+            background: white; border: 1px solid #ccc;
+            border-radius: 4px; box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+            z-index: 200; min-width: 80px; overflow: hidden;
+        }
+        body.dark-theme .ar-menu { background: #1f2d4a; border-color: #444; }
+        .ar-option {
+            padding: 7px 14px; cursor: pointer;
+            font-size: 13px; white-space: nowrap;
+        }
+        .ar-option:hover { background: #f0f4ff; }
+        body.dark-theme .ar-option:hover { background: #253555; }
+        .ar-option.ar-sel { font-weight: 600; color: #0d6efd; }
+
         /* Edit modal */
         .edit-modal-overlay {
             position: fixed; inset: 0;
@@ -365,7 +393,23 @@
                 <div id="theme-toggle-switch" class="toggle-switch" onclick="toggleTheme()"></div>
             </div>
         </div>
-        <div>
+        <div style="display:flex;align-items:center;gap:8px;">
+            <div class="ar-wrapper" id="ar-wrapper">
+                <button class="ar-btn" id="ar-btn" onclick="toggleArMenu(event)" title="Auto-refresh interval">
+                    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+                        <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2.5" opacity="0.25"/>
+                        <circle id="ar-arc" cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2.5"
+                                stroke-dasharray="0 56.55" transform="rotate(-90 12 12)" stroke-linecap="round"/>
+                    </svg>
+                </button>
+                <div class="ar-menu" id="ar-menu" style="display:none;">
+                    <div class="ar-option" data-val="0"   onclick="setArInterval(0)">Off</div>
+                    <div class="ar-option" data-val="15"  onclick="setArInterval(15)">15 s</div>
+                    <div class="ar-option" data-val="30"  onclick="setArInterval(30)">30 s</div>
+                    <div class="ar-option" data-val="60"  onclick="setArInterval(60)">1 min</div>
+                    <div class="ar-option" data-val="300" onclick="setArInterval(300)">5 min</div>
+                </div>
+            </div>
             {% if is_admin %}<button id="refresh-btn" class="refresh-btn" onclick="applyConfigRefresh()" disabled>Refresh</button><button id="edit-btn" class="edit-btn" onclick="openEditModal()" disabled>Edit</button>{% endif %}
             <button class="close-btn" onclick="closePage()">Close</button>
         </div>
@@ -1125,6 +1169,101 @@ const isAdmin = {{ 'true' if is_admin else 'false' }};
 
         renderTable();
     }
+
+    // ── Auto-refresh ring ──────────────────────────────────────────────────────
+    const AR_VALID = [0, 15, 30, 60, 300];
+    const AR_C = 56.55; // 2π × r=9
+
+    let arInterval   = 0;    // selected seconds (0 = off)
+    let arCycleStart = null; // performance.now() timestamp
+    let arRafId      = null;
+    let arTimerId    = null;
+
+    function arSetArc(p) {
+        const arc = document.getElementById('ar-arc');
+        if (!arc) return;
+        arc.setAttribute('stroke-dasharray',
+            `${(AR_C * p).toFixed(2)} ${(AR_C * (1 - p)).toFixed(2)}`);
+    }
+
+    function arTick() {
+        if (!arCycleStart || arInterval <= 0) return;
+        const p = Math.min((performance.now() - arCycleStart) / (arInterval * 1000), 1);
+        arSetArc(p);
+        if (p < 1) arRafId = requestAnimationFrame(arTick);
+    }
+
+    function arBegin() {
+        cancelAnimationFrame(arRafId);
+        clearTimeout(arTimerId);
+        arCycleStart = performance.now();
+        arRafId  = requestAnimationFrame(arTick);
+        arTimerId = setTimeout(arFire, arInterval * 1000);
+    }
+
+    function arStop() {
+        cancelAnimationFrame(arRafId);
+        clearTimeout(arTimerId);
+        arCycleStart = null;
+        arRafId = null;
+        arTimerId = null;
+    }
+
+    async function arFire() {
+        arStop();
+        arSetArc(1);
+        const site = getQueryParam('site');
+        const hostsJson = sessionStorage.getItem('dracs_config_hosts');
+        let hostnames = [];
+        if (hostsJson) { try { hostnames = JSON.parse(hostsJson); } catch (_) {} }
+        try {
+            const r = await fetch('/api/config-data', {
+                method: 'POST', credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ site, hosts: hostnames }),
+            });
+            const d = await r.json();
+            if (d.success) { allRows = d.data || []; renderTable(); }
+        } catch (_) {}
+        if (arInterval > 0) arBegin();
+    }
+
+    function arSyncUI() {
+        document.querySelectorAll('.ar-option').forEach(el => {
+            el.classList.toggle('ar-sel', parseInt(el.dataset.val, 10) === arInterval);
+        });
+        const btn = document.getElementById('ar-btn');
+        if (btn) btn.classList.toggle('ar-live', arInterval > 0);
+    }
+
+    window.toggleArMenu = function(e) {
+        e.stopPropagation();
+        const m = document.getElementById('ar-menu');
+        if (m) m.style.display = m.style.display === 'none' ? '' : 'none';
+    };
+
+    window.setArInterval = function(s) {
+        arInterval = s;
+        localStorage.setItem('dracs_ar_interval', s);
+        const m = document.getElementById('ar-menu');
+        if (m) m.style.display = 'none';
+        arStop();
+        arSetArc(0);
+        arSyncUI();
+        if (arInterval > 0) arBegin();
+    };
+
+    // Restore saved preference and close menu on outside click
+    const _arSaved = parseInt(localStorage.getItem('dracs_ar_interval') || '0', 10);
+    if (AR_VALID.includes(_arSaved)) arInterval = _arSaved;
+    arSyncUI();
+    if (arInterval > 0) arBegin();
+    document.addEventListener('click', function(e) {
+        const m = document.getElementById('ar-menu');
+        const w = document.getElementById('ar-wrapper');
+        if (m && w && !w.contains(e.target)) m.style.display = 'none';
+    });
+    // ── End auto-refresh ring ──────────────────────────────────────────────────
 
     init();
 })();
