@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.15.2 (2026-06-30)
+
+### Bug Fixes
+
+- Anon access to config settings
+  ([`c01965c`](https://github.com/kambiz-aghaiepour/dracs/commit/c01965c27c53a90a3ca80004c9a60097113aeb4e))
+
+### Chores
+
+- Sync spec file version to 2.15.1 [skip ci]
+  ([`8b001ed`](https://github.com/kambiz-aghaiepour/dracs/commit/8b001ed9f143e790314f3468cc52ae89dc730c82))
+
+
 ## v2.15.1 (2026-06-30)
 
 ### Bug Fixes
