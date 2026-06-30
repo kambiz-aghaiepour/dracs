@@ -13,6 +13,8 @@ from dracs.config_collector import (
     ConfigCollector,
     _collect_and_store,
     _needs_collection,
+    get_collector,
+    set_instance,
 )
 from dracs.db import (
     db_initialize,
@@ -212,3 +214,24 @@ class TestConfigCollector:
     def test_trigger_host_noop_when_not_started(self):
         collector = ConfigCollector()
         collector.trigger_host("host01.example.com", "Default", 1)
+
+
+class TestSingleton:
+    def setup_method(self):
+        set_instance(None)
+
+    def teardown_method(self):
+        set_instance(None)
+
+    def test_get_collector_returns_none_by_default(self):
+        assert get_collector() is None
+
+    def test_set_and_get_instance(self):
+        mock_cc = MagicMock()
+        set_instance(mock_cc)
+        assert get_collector() is mock_cc
+
+    def test_set_instance_to_none_clears(self):
+        set_instance(MagicMock())
+        set_instance(None)
+        assert get_collector() is None

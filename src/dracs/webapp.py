@@ -4082,6 +4082,64 @@ def api_config_edit():
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
 
 
+@app.route("/api/config-refresh", methods=["POST"])
+def api_config_refresh():
+    """Immediately queue a full Redfish re-collection for selected hosts (admin only)."""
+    try:
+        user, err = _require_auth(required_role="admin")
+        if err:
+            return err
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "message": "Invalid request"}), 400
+
+        site_name = data.get("site", "")
+        hosts = data.get("hosts", [])
+
+        if not hosts or not isinstance(hosts, list):
+            return jsonify({"success": False, "message": "hosts list required"}), 400
+
+        for h in hosts:
+            if not validate_hostname(h):
+                return (
+                    jsonify({"success": False, "message": f"Invalid hostname: {h}"}),
+                    400,
+                )
+
+        from dracs.db import get_site_by_name as _gsbn
+        from dracs.config_collector import get_collector
+
+        site = _gsbn(site_name) if site_name else None
+        if site is None:
+            return (
+                jsonify({"success": False, "message": f"Unknown site: {site_name!r}"}),
+                400,
+            )
+
+        collector = get_collector()
+        if collector is None:
+            return (
+                jsonify({"success": False, "message": "Collector not available"}),
+                503,
+            )
+
+        for hostname in hosts:
+            collector.trigger_host(hostname, site_name, site["id"])
+
+        audit_log(
+            "config_refresh",
+            user=user,
+            source=_client_ip(),
+            details=f"site={site_name} hosts={','.join(hosts)}",
+        )
+
+        return jsonify({"success": True, "queued": len(hosts)})
+
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+
 @app.route("/api/config-edit/status/<int:parent_id>")
 def api_config_edit_status(parent_id):
     """Poll status of a config-edit batch job."""

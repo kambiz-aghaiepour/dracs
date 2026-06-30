@@ -676,6 +676,48 @@ class TestExecuteRacadmConfigJob:
                                 },
                             )
 
+    def test_post_job_trigger_host_called(self):
+        mock_build_cmd = MagicMock(return_value=["echo", "test"])
+        mock_result = MagicMock(returncode=0)
+        mock_cc = MagicMock()
+        with patch("dracs.jobqueue.subprocess.run", return_value=mock_result):
+            with patch("dracs.webapp._build_ssh_racadm_cmd", mock_build_cmd):
+                with patch("dracs.db.get_site_by_name", return_value=self._MOCK_SITE):
+                    with patch("dracs.redfish.collect_all_for_host", return_value={}):
+                        with patch("dracs.db.upsert_host_config"):
+                            with patch(
+                                "dracs.config_collector.get_collector",
+                                return_value=mock_cc,
+                            ):
+                                execute_racadm_config_job(
+                                    "host01.example.com",
+                                    {
+                                        "site_name": "Default",
+                                        "settings": {"ps_rapid_on": True},
+                                    },
+                                )
+        mock_cc.trigger_host.assert_called_once_with("host01.example.com", "Default", 1)
+
+    def test_post_job_no_error_when_collector_none(self):
+        mock_build_cmd = MagicMock(return_value=["echo", "test"])
+        mock_result = MagicMock(returncode=0)
+        with patch("dracs.jobqueue.subprocess.run", return_value=mock_result):
+            with patch("dracs.webapp._build_ssh_racadm_cmd", mock_build_cmd):
+                with patch("dracs.db.get_site_by_name", return_value=self._MOCK_SITE):
+                    with patch("dracs.redfish.collect_all_for_host", return_value={}):
+                        with patch("dracs.db.upsert_host_config"):
+                            with patch(
+                                "dracs.config_collector.get_collector",
+                                return_value=None,
+                            ):
+                                execute_racadm_config_job(
+                                    "host01.example.com",
+                                    {
+                                        "site_name": "Default",
+                                        "settings": {"ps_rapid_on": True},
+                                    },
+                                )
+
     def test_dispatched_by_processor(self, job_db):
         enqueue_job(
             "racadm_config",

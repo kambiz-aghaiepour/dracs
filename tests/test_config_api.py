@@ -458,3 +458,108 @@ class TestApiConfigEditStatus:
         assert len(completed) == 1
         assert completed[0]["config"] is not None
         assert completed[0]["config"]["ps_rapid_on"] == "Disabled"
+
+
+class TestApiConfigRefresh:
+    def test_requires_auth(self, client):
+        resp = client.post(
+            "/api/config-refresh",
+            json={"site": "Default", "hosts": ["h.example.com"]},
+        )
+        assert resp.status_code == 401
+
+    def test_requires_admin(self, client):
+        _login(client)
+        with client.session_transaction() as sess:
+            sess["is_superadmin"] = False
+            sess["role"] = "user"
+        resp = client.post(
+            "/api/config-refresh",
+            json={"site": "Default", "hosts": ["h.example.com"]},
+        )
+        assert resp.status_code == 403
+
+    def test_rejects_missing_hosts(self, client):
+        _login(client)
+        with client.session_transaction() as sess:
+            sess["is_superadmin"] = True
+        resp = client.post(
+            "/api/config-refresh",
+            json={"site": "Default", "hosts": []},
+        )
+        assert resp.status_code == 400
+
+    def test_rejects_invalid_hostname(self, client):
+        _login(client)
+        with client.session_transaction() as sess:
+            sess["is_superadmin"] = True
+        resp = client.post(
+            "/api/config-refresh",
+            json={"site": "Default", "hosts": ["bad hostname!"]},
+        )
+        assert resp.status_code == 400
+
+    def test_rejects_unknown_site(self, client):
+        _login(client)
+        with client.session_transaction() as sess:
+            sess["is_superadmin"] = True
+        resp = client.post(
+            "/api/config-refresh",
+            json={"site": "nosuchsite", "hosts": ["h.example.com"]},
+        )
+        assert resp.status_code == 400
+
+    def test_no_body_returns_400(self, client):
+        _login(client)
+        with client.session_transaction() as sess:
+            sess["is_superadmin"] = True
+        resp = client.post("/api/config-refresh", json={})
+        assert resp.status_code == 400
+
+    def test_calls_trigger_host(self, client):
+        from unittest.mock import MagicMock
+
+        _login(client)
+        with client.session_transaction() as sess:
+            sess["is_superadmin"] = True
+        mock_cc = MagicMock()
+        with patch("dracs.config_collector.get_collector", return_value=mock_cc):
+            resp = client.post(
+                "/api/config-refresh",
+                json={
+                    "site": "Default",
+                    "hosts": ["host01.example.com", "host02.example.com"],
+                },
+            )
+        data = resp.get_json()
+        assert resp.status_code == 200
+        assert data["success"] is True
+        assert data["queued"] == 2
+        assert mock_cc.trigger_host.call_count == 2
+
+    def test_collector_unavailable_returns_503(self, client):
+        _login(client)
+        with client.session_transaction() as sess:
+            sess["is_superadmin"] = True
+        with patch("dracs.config_collector.get_collector", return_value=None):
+            resp = client.post(
+                "/api/config-refresh",
+                json={"site": "Default", "hosts": ["host01.example.com"]},
+            )
+        assert resp.status_code == 503
+
+    def test_server_error_returns_500(self, client):
+        _login(client)
+        with client.session_transaction() as sess:
+            sess["is_superadmin"] = True
+        from unittest.mock import MagicMock
+
+        mock_cc = MagicMock()
+        mock_cc.trigger_host.side_effect = RuntimeError("executor gone")
+        with patch("dracs.config_collector.get_collector", return_value=mock_cc):
+            resp = client.post(
+                "/api/config-refresh",
+                json={"site": "Default", "hosts": ["host01.example.com"]},
+            )
+        assert resp.status_code == 500
+        assert "executor gone" in resp.get_json()["message"]
