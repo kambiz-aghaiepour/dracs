@@ -687,7 +687,6 @@ def execute_config_collect_job(hostname: str, metadata: dict) -> None:
 
 def execute_ssl_cert_upload_job(hostname: str, metadata: dict) -> None:
     """Upload site SSL cert/key to an iDRAC if the stored cert expires later than the current one."""
-    import os as _os
     import tempfile
 
     from dracs.db import (
@@ -700,7 +699,7 @@ def execute_ssl_cert_upload_job(hostname: str, metadata: dict) -> None:
     from dracs.webapp import get_idrac_credentials
 
     _IDRACADM7 = "/opt/dell/srvadmin/bin/idracadm7"
-    if not _os.path.exists(_IDRACADM7):
+    if not os.path.exists(_IDRACADM7):
         raise RuntimeError(f"idracadm7 not found at {_IDRACADM7}")
 
     site_name = metadata.get("site_name", "")
@@ -802,8 +801,8 @@ def execute_ssl_cert_upload_job(hostname: str, metadata: dict) -> None:
         )
     finally:
         for path in (tmp_key, tmp_cert):
-            if path and _os.path.exists(path):
-                _os.unlink(path)
+            if path and os.path.exists(path):
+                os.unlink(path)
 
 
 def get_child_jobs(parent_id: int) -> list:

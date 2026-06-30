@@ -363,9 +363,13 @@ class TestSslScheduleDue:
     def test_returns_false_when_time_not_yet_reached(self):
         from dracs.jobqueue import _ssl_schedule_due
 
-        future_hour = (datetime.now().hour + 2) % 24
-        cfg = self._cfg(schedule_time=f"{future_hour:02d}:00")
-        assert _ssl_schedule_due(cfg) is False
+        # Freeze "now" to 06:00 so 23:59 is definitely in the future
+        frozen = datetime(2026, 1, 15, 6, 0, 0)
+        with patch("dracs.jobqueue.datetime") as mock_dt:
+            mock_dt.now.return_value = frozen
+            mock_dt.fromisoformat = datetime.fromisoformat
+            cfg = self._cfg(schedule_time="23:59")
+            assert _ssl_schedule_due(cfg) is False
 
     def test_returns_true_daily_not_run_today(self):
         from dracs.jobqueue import _ssl_schedule_due
