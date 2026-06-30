@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v2.14.4 (2026-06-30)
+
+### Bug Fixes
+
+- Add filtering to the config page
+  ([`9841042`](https://github.com/kambiz-aghaiepour/dracs/commit/98410427c9b751f0ecb2a3566c5a1c05c0810dfc))
+
+- Codecov/patch dropped below 99
+  ([`246bd83`](https://github.com/kambiz-aghaiepour/dracs/commit/246bd83ccd131341d8ffd5af66910f8c2a68510a))
+
+- Large host selection configuration page
+  ([`179871a`](https://github.com/kambiz-aghaiepour/dracs/commit/179871a533577f10959aabc5f1f46e3f6bcb06ad))
+
+### Chores
+
+- Sync spec file version to 2.14.3 [skip ci]
+  ([`61b9377`](https://github.com/kambiz-aghaiepour/dracs/commit/61b93772ce67fd93fdc0b1280639eb2cc1956865))
+
+
 ## v2.14.3 (2026-06-30)
 
 ### Bug Fixes
