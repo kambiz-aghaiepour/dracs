@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.15.3 (2026-06-30)
+
+### Bug Fixes
+
+- Add a polling mechanism to config page
+  ([`00911c9`](https://github.com/kambiz-aghaiepour/dracs/commit/00911c98570f6b2ae9a452f72f7465c22a50d78e))
+
+### Chores
+
+- Sync spec file version to 2.15.2 [skip ci]
+  ([`85f2e51`](https://github.com/kambiz-aghaiepour/dracs/commit/85f2e516ce3e333ec6be2e3a456434cc7e5fb016))
+
+
 ## v2.15.2 (2026-06-30)
 
 ### Bug Fixes
