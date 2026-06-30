@@ -631,9 +631,9 @@ def execute_racadm_config_job(hostname: str, metadata: dict) -> None:
             cmd2 = _build_ssh_racadm_cmd(
                 hostname, "jobqueue", "create", "BIOS.Setup.1-1", site=site_name
             )
-            subprocess.run(
-                cmd2, capture_output=True, text=True, timeout=60
-            )  # nosec # nosemgrep
+            subprocess.run(  # nosec # nosemgrep
+                cmd2, capture_output=True, text=True, timeout=60  # nosemgrep
+            )
 
     if errors:
         raise RuntimeError("; ".join(errors))
