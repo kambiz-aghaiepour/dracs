@@ -115,6 +115,14 @@
         body.dark-theme .modal-box input { background-color: #4a4a4a; color: #e0e0e0; border-color: #555; }
         body.dark-theme .notification.success { background: #1e4d2b; }
         body.dark-theme .notification.error { background: #5c1e1e; }
+        /* Config Collection table */
+        .coll-settings-table { border-collapse: collapse; width: 100%; font-size: 13px; }
+        .coll-settings-table thead th { border-bottom: 1px solid #ddd; padding: 4px 8px; text-align: left; }
+        .coll-settings-table td { padding: 4px 8px; }
+        .coll-settings-table input[type="number"] { width: 70px; }
+        body.dark-theme .coll-settings-table thead th { border-bottom-color: #555; }
+        body.dark-theme .coll-settings-table input[type="number"] { background-color: #4a4a4a; color: #e0e0e0; border-color: #555; border: 1px solid #555; border-radius: 3px; }
+        body.dark-theme .coll-desc { color: #999; }
     </style>
 </head>
 <body>
@@ -218,50 +226,50 @@
                 </div>
             </div>
             <h4 style="margin: 16px 0 4px;">Config Collection</h4>
-            <p style="font-size: 0.85em; color: #888; margin: 0 0 8px;">Enable per-attribute iDRAC data collection and set refresh interval in hours.</p>
-            <table style="border-collapse: collapse; width: 100%; font-size: 13px;">
+            <p class="coll-desc" style="font-size: 0.85em; margin: 0 0 8px;">Enable per-attribute iDRAC data collection and set refresh interval in hours.</p>
+            <table class="coll-settings-table">
                 <thead>
-                    <tr style="text-align: left; border-bottom: 1px solid #ddd;">
-                        <th style="padding: 4px 8px;">Attribute</th>
-                        <th style="padding: 4px 8px;">Enabled</th>
-                        <th style="padding: 4px 8px;">Interval (hours)</th>
+                    <tr>
+                        <th>Attribute</th>
+                        <th>Enabled</th>
+                        <th>Interval (hours)</th>
                     </tr>
                 </thead>
                 <tbody id="collection-settings-tbody">
                     <tr data-attr="ps_rapid_on">
-                        <td style="padding: 4px 8px;">PS Rapid On</td>
-                        <td style="padding: 4px 8px;"><input type="checkbox" class="coll-enabled"></td>
-                        <td style="padding: 4px 8px;"><input type="number" class="coll-hours" min="1" max="8760" value="24" style="width:70px;"></td>
+                        <td>PS Rapid On</td>
+                        <td><input type="checkbox" class="coll-enabled"></td>
+                        <td><input type="number" class="coll-hours" min="1" max="8760" value="24"></td>
                     </tr>
                     <tr data-attr="dns_from_dhcp">
-                        <td style="padding: 4px 8px;">DNS from DHCP</td>
-                        <td style="padding: 4px 8px;"><input type="checkbox" class="coll-enabled"></td>
-                        <td style="padding: 4px 8px;"><input type="number" class="coll-hours" min="1" max="8760" value="24" style="width:70px;"></td>
+                        <td>DNS from DHCP</td>
+                        <td><input type="checkbox" class="coll-enabled"></td>
+                        <td><input type="number" class="coll-hours" min="1" max="8760" value="24"></td>
                     </tr>
                     <tr data-attr="ipmi_lan_enable">
-                        <td style="padding: 4px 8px;">IPMI LAN</td>
-                        <td style="padding: 4px 8px;"><input type="checkbox" class="coll-enabled"></td>
-                        <td style="padding: 4px 8px;"><input type="number" class="coll-hours" min="1" max="8760" value="24" style="width:70px;"></td>
+                        <td>IPMI LAN</td>
+                        <td><input type="checkbox" class="coll-enabled"></td>
+                        <td><input type="number" class="coll-hours" min="1" max="8760" value="24"></td>
                     </tr>
                     <tr data-attr="host_header_check">
-                        <td style="padding: 4px 8px;">Host Header Check</td>
-                        <td style="padding: 4px 8px;"><input type="checkbox" class="coll-enabled"></td>
-                        <td style="padding: 4px 8px;"><input type="number" class="coll-hours" min="1" max="8760" value="24" style="width:70px;"></td>
+                        <td>Host Header Check</td>
+                        <td><input type="checkbox" class="coll-enabled"></td>
+                        <td><input type="number" class="coll-hours" min="1" max="8760" value="24"></td>
                     </tr>
                     <tr data-attr="sys_profile">
-                        <td style="padding: 4px 8px;">System Profile</td>
-                        <td style="padding: 4px 8px;"><input type="checkbox" class="coll-enabled"></td>
-                        <td style="padding: 4px 8px;"><input type="number" class="coll-hours" min="1" max="8760" value="24" style="width:70px;"></td>
+                        <td>System Profile</td>
+                        <td><input type="checkbox" class="coll-enabled"></td>
+                        <td><input type="number" class="coll-hours" min="1" max="8760" value="24"></td>
                     </tr>
                     <tr data-attr="ssl">
-                        <td style="padding: 4px 8px;">SSL Certificate</td>
-                        <td style="padding: 4px 8px;"><input type="checkbox" class="coll-enabled"></td>
-                        <td style="padding: 4px 8px;"><input type="number" class="coll-hours" min="1" max="8760" value="24" style="width:70px;"></td>
+                        <td>SSL Certificate</td>
+                        <td><input type="checkbox" class="coll-enabled"></td>
+                        <td><input type="number" class="coll-hours" min="1" max="8760" value="24"></td>
                     </tr>
                     <tr data-attr="idrac_hostname">
-                        <td style="padding: 4px 8px;">iDRAC Hostname</td>
-                        <td style="padding: 4px 8px;"><input type="checkbox" class="coll-enabled"></td>
-                        <td style="padding: 4px 8px;"><input type="number" class="coll-hours" min="1" max="8760" value="24" style="width:70px;"></td>
+                        <td>iDRAC Hostname</td>
+                        <td><input type="checkbox" class="coll-enabled"></td>
+                        <td><input type="number" class="coll-hours" min="1" max="8760" value="24"></td>
                     </tr>
                 </tbody>
             </table>
