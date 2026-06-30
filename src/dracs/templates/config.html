@@ -859,42 +859,80 @@ const isAdmin = {{ 'true' if is_admin else 'false' }};
         if (editBtn) editBtn.disabled = true;
 
         const site = getQueryParam('site');
+        const refreshedHosts = [...selectedConfigRows];
+
+        // Snapshot collected_at for each host before the job runs
+        const beforeMap = {};
+        for (const h of refreshedHosts) {
+            const row = allRows.find(r => r.hostname === h);
+            beforeMap[h] = row ? (row.collected_at || null) : null;
+        }
+
         try {
             const resp = await fetch('/api/config-refresh', {
                 method: 'POST', credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ site, hosts: selectedConfigRows }),
+                body: JSON.stringify({ site, hosts: refreshedHosts }),
             });
             const data = await resp.json();
             if (!data.success) {
                 if (btn) { btn.disabled = false; btn.textContent = 'Refresh'; }
-                if (editBtn) editBtn.disabled = selectedConfigRows.length === 0;
+                if (editBtn) editBtn.disabled = refreshedHosts.length === 0;
                 showNotifyModal('Refresh Failed', data.message);
                 return;
             }
         } catch (e) {
             if (btn) { btn.disabled = false; btn.textContent = 'Refresh'; }
-            if (editBtn) editBtn.disabled = selectedConfigRows.length === 0;
+            if (editBtn) editBtn.disabled = refreshedHosts.length === 0;
             return;
         }
 
-        // Re-fetch from DB ~20s later to pick up the updated host_config rows
-        setTimeout(async () => {
-            const hostsJson = sessionStorage.getItem('dracs_config_hosts');
-            let hostnames = [];
-            if (hostsJson) { try { hostnames = JSON.parse(hostsJson); } catch (e) {} }
+        // Poll every 3 s until all refreshed hosts have a newer collected_at (90 s max)
+        const hostsJson = sessionStorage.getItem('dracs_config_hosts');
+        let allHostnames = [];
+        if (hostsJson) { try { allHostnames = JSON.parse(hostsJson); } catch (e) {} }
+
+        const POLL_MS = 3000;
+        const MAX_POLLS = 30;
+        let polls = 0;
+
+        const restoreButtons = () => {
+            if (btn) { btn.disabled = refreshedHosts.length === 0; btn.textContent = 'Refresh'; }
+            if (editBtn) editBtn.disabled = refreshedHosts.length === 0;
+        };
+
+        const poll = async () => {
+            polls++;
             try {
                 const r = await fetch('/api/config-data', {
                     method: 'POST', credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ site, hosts: hostnames }),
+                    body: JSON.stringify({ site, hosts: allHostnames }),
                 });
                 const d = await r.json();
-                if (d.success) { allRows = d.data || []; renderTable(); }
+                if (d.success) {
+                    const newRows = d.data || [];
+                    const allUpdated = refreshedHosts.every(h => {
+                        const newRow = newRows.find(r => r.hostname === h);
+                        if (!newRow) return false;
+                        const before = beforeMap[h];
+                        const after = newRow.collected_at || null;
+                        if (before === null) return after !== null;
+                        return after && after > before;
+                    });
+                    if (allUpdated || polls >= MAX_POLLS) {
+                        allRows = newRows;
+                        renderTable();
+                        restoreButtons();
+                        return;
+                    }
+                }
             } catch (e) {}
-            if (btn) { btn.disabled = selectedConfigRows.length === 0; btn.textContent = 'Refresh'; }
-            if (editBtn) editBtn.disabled = selectedConfigRows.length === 0;
-        }, 20000);
+            if (polls >= MAX_POLLS) { restoreButtons(); return; }
+            setTimeout(poll, POLL_MS);
+        };
+
+        setTimeout(poll, POLL_MS);
     };
 
     // ── Edit modal ────────────────────────────────────────────────────────────
