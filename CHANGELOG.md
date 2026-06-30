@@ -2,6 +2,36 @@
 
 <!-- version list -->
 
+## v2.14.0 (2026-06-30)
+
+### Bug Fixes
+
+- Black formatting
+  ([`0466d84`](https://github.com/kambiz-aghaiepour/dracs/commit/0466d84cfa5efad54fb59e57180e0aef3d3fd170))
+
+- Codacy flagged issues
+  ([`9864a78`](https://github.com/kambiz-aghaiepour/dracs/commit/9864a789c05639f0d2269e57a915a50ae6e7dca1))
+
+- Codacy flagged issues
+  ([`33f8436`](https://github.com/kambiz-aghaiepour/dracs/commit/33f8436947c867f6f2f3a8ebeac4c567c6615de2))
+
+- Codecov and codacy issues flagged
+  ([`8fac496`](https://github.com/kambiz-aghaiepour/dracs/commit/8fac496b2018ebb7c83c4cdbe47e09b8e1719cfd))
+
+- Rerun black312
+  ([`54e1616`](https://github.com/kambiz-aghaiepour/dracs/commit/54e1616a0e39ad6987df5e30009d2955b056c0d1))
+
+### Chores
+
+- Sync spec file version to 2.13.2 [skip ci]
+  ([`9675b6c`](https://github.com/kambiz-aghaiepour/dracs/commit/9675b6c8da77916eedd3063b31fb5f554cdd880a))
+
+### Features
+
+- Add iDRAC configuration collection
+  ([`d7e8abd`](https://github.com/kambiz-aghaiepour/dracs/commit/d7e8abd38c35451c58b88973c38ff7c197c406e9))
+
+
 ## v2.13.2 (2026-06-29)
 
 ### Bug Fixes
