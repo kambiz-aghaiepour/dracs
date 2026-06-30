@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v2.14.3 (2026-06-30)
+
+### Bug Fixes
+
+- Black formatting
+  ([`a932a6c`](https://github.com/kambiz-aghaiepour/dracs/commit/a932a6cfd1aa3a82e7a1a4f1196b0eedc4145971))
+
+- Codecov/coverage dropped
+  ([`7a9473f`](https://github.com/kambiz-aghaiepour/dracs/commit/7a9473fb7b2c8e75ff5fcd3b563bde04d9d75015))
+
+- Hostname verification was not working
+  ([`ee26eaf`](https://github.com/kambiz-aghaiepour/dracs/commit/ee26eafa0ed28d9d29fafc48937f4486a7d09c63))
+
+### Chores
+
+- Sync spec file version to 2.14.2 [skip ci]
+  ([`3a01c1f`](https://github.com/kambiz-aghaiepour/dracs/commit/3a01c1f3d27aea97e95a5f0d1b62af9208002d3f))
+
+
 ## v2.14.2 (2026-06-30)
 
 ### Bug Fixes
