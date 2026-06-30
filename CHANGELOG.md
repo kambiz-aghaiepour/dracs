@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.14.5 (2026-06-30)
+
+### Bug Fixes
+
+- Multiple fixes related to the config page
+  ([`2c23d67`](https://github.com/kambiz-aghaiepour/dracs/commit/2c23d678c33e0859d01b394cde2fa0da3ebd78c5))
+
+### Chores
+
+- Sync spec file version to 2.14.4 [skip ci]
+  ([`dbafe82`](https://github.com/kambiz-aghaiepour/dracs/commit/dbafe8274c0d0595cd65b2619e4184005f61edff))
+
+
 ## v2.14.4 (2026-06-30)
 
 ### Bug Fixes
