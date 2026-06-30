@@ -728,7 +728,9 @@ def execute_ssl_cert_upload_job(hostname: str, metadata: dict) -> None:
         if stored_expiry <= idrac_expiry:
             logger.info(
                 "SSL cert for %s already current (stored=%s idrac=%s), skipping",
-                hostname, stored_expiry, idrac_expiry,
+                hostname,
+                stored_expiry,
+                idrac_expiry,
             )
             return
 
@@ -745,9 +747,23 @@ def execute_ssl_cert_upload_job(hostname: str, metadata: dict) -> None:
             tmp_cert = f.name
 
         result = subprocess.run(  # nosec # nosemgrep
-            [_IDRACADM7, "-r", idrac_fqdn, "-u", username, "-p", password,
-             "sslkeyupload", "-t", "1", "-f", tmp_key],
-            capture_output=True, text=True, timeout=120,  # nosemgrep
+            [
+                _IDRACADM7,
+                "-r",
+                idrac_fqdn,
+                "-u",
+                username,
+                "-p",
+                password,
+                "sslkeyupload",
+                "-t",
+                "1",
+                "-f",
+                tmp_key,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,  # nosemgrep
         )
         if result.returncode != 0:
             raise RuntimeError(
@@ -755,9 +771,23 @@ def execute_ssl_cert_upload_job(hostname: str, metadata: dict) -> None:
             )
 
         result = subprocess.run(  # nosec # nosemgrep
-            [_IDRACADM7, "-r", idrac_fqdn, "-u", username, "-p", password,
-             "sslcertupload", "-t", "1", "-f", tmp_cert],
-            capture_output=True, text=True, timeout=120,  # nosemgrep
+            [
+                _IDRACADM7,
+                "-r",
+                idrac_fqdn,
+                "-u",
+                username,
+                "-p",
+                password,
+                "sslcertupload",
+                "-t",
+                "1",
+                "-f",
+                tmp_cert,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,  # nosemgrep
         )
         if result.returncode != 0:
             raise RuntimeError(
@@ -766,7 +796,9 @@ def execute_ssl_cert_upload_job(hostname: str, metadata: dict) -> None:
 
         logger.info(
             "SSL cert uploaded to %s (idrac_expiry=%s → stored_expiry=%s)",
-            hostname, idrac_expiry, stored_expiry,
+            hostname,
+            idrac_expiry,
+            stored_expiry,
         )
     finally:
         for path in (tmp_key, tmp_cert):
@@ -994,7 +1026,10 @@ class JobScheduler:
                 logger.error("Scheduler error: %s", exc)
 
             try:
-                from dracs.db import get_all_ssl_scheduled_sites, update_ssl_schedule_last_run
+                from dracs.db import (
+                    get_all_ssl_scheduled_sites,
+                    update_ssl_schedule_last_run,
+                )
 
                 for cfg in get_all_ssl_scheduled_sites():
                     if _ssl_schedule_due(cfg):

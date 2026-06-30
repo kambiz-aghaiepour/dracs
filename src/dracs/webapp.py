@@ -4275,6 +4275,7 @@ def _parse_cert_pem(pem: str):
         expiry = cert.not_valid_after_utc.isoformat()
     except AttributeError:
         from datetime import timezone as _tz
+
         expiry = cert.not_valid_after.replace(tzinfo=_tz.utc).isoformat()
     return fp_str, expiry
 
@@ -4344,10 +4345,15 @@ def api_site_ssl_config_put(name):
 
         if "enabled" in data:
             if data["enabled"] and not os.path.exists(_IDRACADM7):
-                return jsonify({
-                    "success": False,
-                    "message": f"Cannot enable: {_IDRACADM7} not found on this system",
-                }), 400
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "message": f"Cannot enable: {_IDRACADM7} not found on this system",
+                        }
+                    ),
+                    400,
+                )
             payload["enabled"] = bool(data["enabled"])
 
         cert_pem = (data.get("cert_pem") or "").strip()
@@ -4356,10 +4362,15 @@ def api_site_ssl_config_put(name):
 
         if cert_pem or key_pem:
             if not cert_pem or not key_pem:
-                return jsonify({
-                    "success": False,
-                    "message": "Both certificate and private key are required",
-                }), 400
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "message": "Both certificate and private key are required",
+                        }
+                    ),
+                    400,
+                )
             try:
                 cert_fingerprint, cert_expiry = _parse_cert_pem(cert_pem)
             except ValueError as ve:
@@ -4381,7 +4392,12 @@ def api_site_ssl_config_put(name):
             freq = data["schedule_frequency"] or ""
             valid = {"daily", "weekly", "biweekly", "monthly", "quarterly", ""}
             if freq not in valid:
-                return jsonify({"success": False, "message": f"Invalid frequency: {freq!r}"}), 400
+                return (
+                    jsonify(
+                        {"success": False, "message": f"Invalid frequency: {freq!r}"}
+                    ),
+                    400,
+                )
             payload["schedule_frequency"] = freq or None
         if "schedule_time" in data:
             t = (data.get("schedule_time") or "").strip()
@@ -4391,7 +4407,10 @@ def api_site_ssl_config_put(name):
                     if not (0 <= int(h) <= 23 and 0 <= int(m) <= 59):
                         raise ValueError()
                 except Exception:
-                    return jsonify({"success": False, "message": f"Invalid time: {t!r}"}), 400
+                    return (
+                        jsonify({"success": False, "message": f"Invalid time: {t!r}"}),
+                        400,
+                    )
             payload["schedule_time"] = t or None
 
         upsert_site_ssl_config(site["id"], payload)
@@ -4419,7 +4438,9 @@ def api_site_ssl_overrides_get(name):
         site = get_site_by_name(name)
         if not site:
             return jsonify({"success": False, "message": "Site not found"}), 404
-        return jsonify({"success": True, "overrides": get_all_host_ssl_overrides(site["id"])})
+        return jsonify(
+            {"success": True, "overrides": get_all_host_ssl_overrides(site["id"])}
+        )
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
@@ -4443,10 +4464,15 @@ def api_host_ssl_override_put(name, hostname):
         cert_pem = (data.get("cert_pem") or "").strip()
         key_pem = (data.get("key_pem") or "").strip()
         if not cert_pem or not key_pem:
-            return jsonify({
-                "success": False,
-                "message": "Both cert_pem and key_pem are required",
-            }), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": "Both cert_pem and key_pem are required",
+                    }
+                ),
+                400,
+            )
 
         try:
             cert_fingerprint, cert_expiry = _parse_cert_pem(cert_pem)
@@ -4460,7 +4486,11 @@ def api_host_ssl_override_put(name, hostname):
         upsert_host_ssl_override(
             hostname,
             site["id"],
-            {"cert_pem": cert_pem, "key_pem": key_pem, "cert_fingerprint": cert_fingerprint},
+            {
+                "cert_pem": cert_pem,
+                "key_pem": key_pem,
+                "cert_fingerprint": cert_fingerprint,
+            },
         )
         audit_log(
             "host_ssl_override_set",
@@ -4469,7 +4499,13 @@ def api_host_ssl_override_put(name, hostname):
             source=_client_ip(),
             details=f"site={name}",
         )
-        return jsonify({"success": True, "cert_fingerprint": cert_fingerprint, "cert_expiry": cert_expiry})
+        return jsonify(
+            {
+                "success": True,
+                "cert_fingerprint": cert_fingerprint,
+                "cert_expiry": cert_expiry,
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
@@ -4519,23 +4555,38 @@ def api_site_ssl_sweep(name):
             return jsonify({"success": False, "message": "Site not found"}), 404
         cfg = get_site_ssl_config(site["id"])
         if not cfg.get("enabled"):
-            return jsonify({
-                "success": False,
-                "message": "SSL cert management is not enabled for this site",
-            }), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": "SSL cert management is not enabled for this site",
+                    }
+                ),
+                400,
+            )
         if not cfg.get("has_cert") or not cfg.get("has_key"):
-            return jsonify({
-                "success": False,
-                "message": "No SSL certificate/key configured for this site",
-            }), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": "No SSL certificate/key configured for this site",
+                    }
+                ),
+                400,
+            )
         count = enqueue_batch(
             "ssl_cert_upload",
             "all",
             site_id=site["id"],
             metadata={"site_name": name},
         )
-        audit_log("site_ssl_sweep", target=name, user=user, source=_client_ip(),
-                  details=f"queued={count}")
+        audit_log(
+            "site_ssl_sweep",
+            target=name,
+            user=user,
+            source=_client_ip(),
+            details=f"queued={count}",
+        )
         return jsonify({"success": True, "queued": count})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
