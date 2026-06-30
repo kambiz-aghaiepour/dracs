@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.15.1 (2026-06-30)
+
+### Bug Fixes
+
+- Refresh edited configs from configs page
+  ([`0fabf12`](https://github.com/kambiz-aghaiepour/dracs/commit/0fabf1215409b8123e865ea11e2c6a91fab3c17c))
+
+### Chores
+
+- Sync spec file version to 2.15.0 [skip ci]
+  ([`f21952d`](https://github.com/kambiz-aghaiepour/dracs/commit/f21952d5eb861b4cfa153c42ff1d5bd73b3249ac))
+
+
 ## v2.15.0 (2026-06-30)
 
 ### Bug Fixes
