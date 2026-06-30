@@ -6,26 +6,31 @@
     <title>DRACS - Configuration</title>
     <style>
         * { box-sizing: border-box; }
+        html { height: 100%; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            height: 100%;
             margin: 0;
-            padding: 20px;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             background-color: #f5f5f5;
             font-size: 14px;
+            display: flex;
+            flex-direction: column;
         }
         .container {
-            max-width: 100%;
-            margin: 0 auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
             background-color: white;
-            padding: 20px 30px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 16px 24px 8px;
         }
         .header {
+            flex-shrink: 0;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 16px;
+            margin-bottom: 12px;
         }
         .header-left {
             display: flex;
@@ -39,14 +44,9 @@
             gap: 10px;
             margin-left: 20px;
         }
-        .theme-toggle label {
-            font-size: 14px;
-            color: #555;
-            font-weight: 500;
-        }
+        .theme-toggle label { font-size: 14px; color: #555; font-weight: 500; }
         .toggle-switch {
-            width: 44px;
-            height: 24px;
+            width: 44px; height: 24px;
             background-color: #ccc;
             border-radius: 12px;
             cursor: pointer;
@@ -56,10 +56,8 @@
         .toggle-switch::after {
             content: '';
             position: absolute;
-            top: 2px;
-            left: 2px;
-            width: 20px;
-            height: 20px;
+            top: 2px; left: 2px;
+            width: 20px; height: 20px;
             background-color: white;
             border-radius: 50%;
             transition: transform 0.3s;
@@ -69,24 +67,21 @@
 
         h1 { margin: 0; font-size: 1.4rem; }
 
-        /* Close button */
         .close-btn {
             padding: 8px 20px;
             background-color: #6c757d;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
+            color: white; border: none;
+            border-radius: 4px; cursor: pointer; font-size: 14px;
         }
         .close-btn:hover { background-color: #5a6268; }
 
         /* Controls bar */
         .controls-bar {
+            flex-shrink: 0;
             display: flex;
             align-items: center;
             gap: 16px;
-            margin-bottom: 12px;
+            margin-bottom: 8px;
         }
         .page-size-label { font-size: 13px; color: #555; }
         .page-size-select {
@@ -97,9 +92,102 @@
         }
         .results-info { font-size: 13px; color: #777; }
 
-        /* Rotated-header table */
+        /* Main content */
+        #main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        /* ── Filters section ── */
+        .filters-section {
+            flex-shrink: 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            overflow: hidden;
+        }
+        .filters-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 10px;
+            cursor: pointer;
+            user-select: none;
+            background-color: #f8f9fa;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .filters-header:hover { background-color: #e9ecef; }
+        .filters-triangle {
+            font-size: 9px;
+            display: inline-block;
+            transition: transform 0.2s;
+            color: #666;
+        }
+        .filters-triangle.open { transform: rotate(90deg); }
+        .filters-active-badge {
+            margin-left: auto;
+            font-size: 11px;
+            font-weight: 600;
+            color: white;
+            background-color: #0d6efd;
+            border-radius: 10px;
+            padding: 1px 8px;
+        }
+        .filters-body {
+            padding: 10px 14px;
+            border-top: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .filter-row {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 14px;
+        }
+        .filter-label {
+            font-size: 13px;
+            color: #555;
+            white-space: nowrap;
+            font-weight: 500;
+            min-width: 70px;
+        }
+        .filter-hostname-input {
+            padding: 3px 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 13px;
+            width: 260px;
+        }
+        .filter-check-label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 13px;
+            cursor: pointer;
+            white-space: nowrap;
+            color: #333;
+        }
+        .filter-check-label input[type="checkbox"] { cursor: pointer; }
+        .filter-expiry-select {
+            padding: 3px 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        /* Scrollable table wrapper */
         .config-table-wrapper {
-            overflow-x: auto;
+            flex: 1;
+            overflow-y: auto;
+            min-height: 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
         }
         table.config-table {
             border-collapse: collapse;
@@ -114,63 +202,52 @@
             text-align: center;
         }
         table.config-table td:first-child { text-align: left; }
-        table.config-table td:last-child { text-align: left; }
+        table.config-table td:last-child  { text-align: left; }
         table.config-table tr:nth-child(even) { background: #f9f9f9; }
         table.config-table tr:hover { background: #f1f4ff; }
-
-        /* Column headers */
+        table.config-table thead th {
+            position: sticky;
+            top: 0; z-index: 2;
+            background-color: white;
+        }
         th.attr-header {
             text-align: center;
-            font-size: 12px;
-            font-weight: 600;
-            color: #333;
-            white-space: nowrap;
-            padding: 6px 10px;
+            font-size: 12px; font-weight: 600;
+            color: #333; white-space: nowrap; padding: 6px 10px;
         }
-        th.hostname-header {
-            text-align: left;
-            min-width: 220px;
-            font-weight: 600;
-        }
-        th.collected-header {
-            min-width: 160px;
-            font-weight: 600;
-        }
+        th.hostname-header { text-align: left; min-width: 220px; font-weight: 600; }
+        th.collected-header { min-width: 160px; font-weight: 600; }
 
         /* Status indicators */
-        .ok { color: #28a745; font-weight: bold; }
-        .bad { color: #dc3545; font-weight: bold; }
+        .ok   { color: #28a745; font-weight: bold; cursor: default; }
+        .bad  { color: #dc3545; font-weight: bold; cursor: default; }
         .expiry-yellow { color: #c8860a; font-weight: bold; }
         .expiry-orange { color: #e07000; font-weight: bold; }
-        .expiry-red { color: #dc3545; font-weight: bold; }
-        .expiry-ok { color: #28a745; }
+        .expiry-red    { color: #dc3545; font-weight: bold; }
+        .expiry-ok     { color: #28a745; }
         .na { color: #bbb; }
 
         /* Pagination */
         .pagination-container {
+            flex-shrink: 0;
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
-            margin-top: 16px;
+            padding: 8px 0 4px;
         }
         .pagination-container button {
             padding: 4px 10px;
             border: 1px solid #ccc;
             border-radius: 4px;
             background: white;
-            cursor: pointer;
-            font-size: 13px;
+            cursor: pointer; font-size: 13px;
         }
         .pagination-container button:disabled { opacity: 0.4; cursor: default; }
-        .pagination-container button.active {
-            background: #0d6efd;
-            color: white;
-            border-color: #0d6efd;
-        }
+        .pagination-container button.active { background: #0d6efd; color: white; border-color: #0d6efd; }
         .pagination-info { font-size: 13px; color: #555; }
 
-        /* Dark theme */
+        /* ── Dark theme ── */
         body.dark-theme { background-color: #1a1a2e; color: #e0e0e0; }
         body.dark-theme .container { background-color: #16213e; }
         body.dark-theme h1 { color: #e0e0e0; }
@@ -179,30 +256,35 @@
         body.dark-theme table.config-table th { border-color: #444; color: #ddd; }
         body.dark-theme table.config-table tr:nth-child(even) { background: #1f2d4a; }
         body.dark-theme table.config-table tr:hover { background: #253555; }
+        body.dark-theme table.config-table thead th { background-color: #16213e; }
         body.dark-theme th.attr-header { color: #ccc; }
         body.dark-theme .page-size-label,
         body.dark-theme .results-info,
         body.dark-theme .pagination-info { color: #aaa; }
         body.dark-theme .page-size-select {
-            background: #253555;
-            color: #ddd;
-            border-color: #444;
+            background: #253555; color: #ddd; border-color: #444;
         }
         body.dark-theme .pagination-container button {
-            background: #253555;
-            color: #ddd;
-            border-color: #444;
+            background: #253555; color: #ddd; border-color: #444;
         }
-        body.dark-theme .pagination-container button.active {
-            background: #0d6efd;
-            color: white;
-        }
+        body.dark-theme .pagination-container button.active { background: #0d6efd; color: white; }
         body.dark-theme .close-btn { background-color: #5a6268; }
-        body.dark-theme .container { box-shadow: none; }
-        body.dark-theme #loading { color: #aaa; }
+        body.dark-theme .config-table-wrapper { border-color: #444; }
+        body.dark-theme .filters-section { border-color: #444; }
+        body.dark-theme .filters-header { background-color: #1f2d4a; color: #ddd; }
+        body.dark-theme .filters-header:hover { background-color: #253555; }
+        body.dark-theme .filters-triangle { color: #aaa; }
+        body.dark-theme .filters-body { border-top-color: #444; }
+        body.dark-theme .filter-label { color: #aaa; }
+        body.dark-theme .filter-check-label { color: #ddd; }
+        body.dark-theme .filter-hostname-input,
+        body.dark-theme .filter-expiry-select {
+            background-color: #253555; color: #ddd; border-color: #444;
+        }
 
-        #loading { text-align: center; color: #888; padding: 40px 0; font-size: 1.1em; }
-        #error-msg { color: #dc3545; padding: 20px 0; }
+        #loading   { flex-shrink: 0; text-align: center; color: #888; padding: 40px 0; font-size: 1.1em; }
+        #error-msg { flex-shrink: 0; color: #dc3545; padding: 20px 0; }
+        body.dark-theme #loading { color: #aaa; }
     </style>
 </head>
 <body>
@@ -237,6 +319,60 @@
             <span class="results-info" id="results-info"></span>
         </div>
 
+        <div class="filters-section">
+            <div class="filters-header" onclick="toggleFilters()">
+                <span class="filters-triangle" id="filters-triangle">&#9658;</span>
+                <span>Filters</span>
+                <span class="filters-active-badge" id="filters-badge" style="display:none;"></span>
+            </div>
+            <div class="filters-body" id="filters-body" style="display:none;">
+                <div class="filter-row">
+                    <span class="filter-label">Hostname:</span>
+                    <input type="text" id="f-hostname" class="filter-hostname-input"
+                           placeholder="partial match…" oninput="onFilterChange()">
+                </div>
+                <div class="filter-row">
+                    <label class="filter-check-label">
+                        <input type="checkbox" id="f-ps-rapid-on" onchange="onFilterChange()">
+                        PS Rapid On Enabled
+                    </label>
+                    <label class="filter-check-label">
+                        <input type="checkbox" id="f-dns-from-dhcp" onchange="onFilterChange()">
+                        DNS from DHCP Disabled
+                    </label>
+                    <label class="filter-check-label">
+                        <input type="checkbox" id="f-ipmi-lan" onchange="onFilterChange()">
+                        IPMI LAN Disabled
+                    </label>
+                    <label class="filter-check-label">
+                        <input type="checkbox" id="f-host-header" onchange="onFilterChange()">
+                        Host Header Check Enabled
+                    </label>
+                    <label class="filter-check-label">
+                        <input type="checkbox" id="f-sys-profile" onchange="onFilterChange()">
+                        Sys Profile mismatch
+                    </label>
+                    <label class="filter-check-label">
+                        <input type="checkbox" id="f-idrac-hostname" onchange="onFilterChange()">
+                        iDRAC Hostname mismatch
+                    </label>
+                    <label class="filter-check-label">
+                        <input type="checkbox" id="f-ssl-self-signed" onchange="onFilterChange()">
+                        SSL self-signed
+                    </label>
+                </div>
+                <div class="filter-row">
+                    <span class="filter-label">SSL Expiry &le;</span>
+                    <select id="f-ssl-expiry" class="filter-expiry-select" onchange="onFilterChange()">
+                        <option value="-1">Off</option>
+                        <option value="0">Expired</option>
+                        <option value="30">30 days</option>
+                        <option value="60">60 days</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
         <div class="config-table-wrapper">
             <table class="config-table" id="config-table">
                 <thead id="config-thead"></thead>
@@ -250,31 +386,23 @@
 
 <script>
 (function () {
-    const DESIRED = {
-        ps_rapid_on: 'Disabled',
-        dns_from_dhcp: 'Enabled',
-        ipmi_lan_enable: 'Enabled',
-        host_header_check: 'Disabled',
-        sys_profile: 'PerfPerWattOptimizedOs',
-    };
-
     const ATTR_LABELS = {
-        ps_rapid_on: 'PS Rapid On',
-        dns_from_dhcp: 'DNS from DHCP',
-        ipmi_lan_enable: 'IPMI LAN',
+        ps_rapid_on:       'PS Rapid On',
+        dns_from_dhcp:     'DNS from DHCP',
+        ipmi_lan_enable:   'IPMI LAN',
         host_header_check: 'Host Header Check',
-        sys_profile: 'Sys Profile',
-        idrac_hostname: 'iDRAC Hostname',
-        ssl_self_signed: 'SSL Self-Signed',
-        ssl_valid_name: 'SSL Valid Name',
-        ssl_expiry: 'SSL Expiry',
+        sys_profile:       'Sys Profile',
+        idrac_hostname:    'iDRAC Hostname',
+        ssl_self_signed:   'SSL CA-Signed',
+        ssl_valid_name:    'SSL Valid Name',
+        ssl_expiry:        'SSL Expiry',
     };
 
-    let allRows = [];
+    let allRows      = [];
     let visibleAttrs = [];
-    let pageSize = 20;
-    let currentPage = 1;
-    let hostMap = {};
+    let pageSize     = 20;
+    let currentPage  = 1;
+    let displayedTotal = 0;
 
     function getQueryParam(name) {
         return new URLSearchParams(window.location.search).get(name) || '';
@@ -297,52 +425,152 @@
         el.style.display = '';
     }
 
+    // ── Filters ──────────────────────────────────────────────────────────────
+
+    window.toggleFilters = function () {
+        const body = document.getElementById('filters-body');
+        const tri  = document.getElementById('filters-triangle');
+        const open = body.style.display === 'none';
+        body.style.display = open ? '' : 'none';
+        tri.classList.toggle('open', open);
+    };
+
+    function readFilters() {
+        return {
+            hostname:      document.getElementById('f-hostname').value.trim().toLowerCase(),
+            psRapidOn:     document.getElementById('f-ps-rapid-on').checked,
+            dnsFromDhcp:   document.getElementById('f-dns-from-dhcp').checked,
+            ipmiLan:       document.getElementById('f-ipmi-lan').checked,
+            hostHeader:    document.getElementById('f-host-header').checked,
+            sysProfile:    document.getElementById('f-sys-profile').checked,
+            idracHostname: document.getElementById('f-idrac-hostname').checked,
+            sslSelfSigned: document.getElementById('f-ssl-self-signed').checked,
+            sslExpiry:     parseInt(document.getElementById('f-ssl-expiry').value, 10),
+        };
+    }
+
+    function applyFilters(rows) {
+        const f = readFilters();
+        return rows.filter(row => {
+            if (f.hostname && !row.hostname.toLowerCase().includes(f.hostname))
+                return false;
+            // Show only hosts where PS Rapid On is NOT "Disabled" (bad = Enabled)
+            if (f.psRapidOn && (row.ps_rapid_on == null || row.ps_rapid_on === 'Disabled'))
+                return false;
+            // Show only hosts where DNS from DHCP is NOT "Enabled" (bad = Disabled)
+            if (f.dnsFromDhcp && (row.dns_from_dhcp == null || row.dns_from_dhcp === 'Enabled'))
+                return false;
+            // Show only hosts where IPMI LAN is NOT "Enabled" (bad = Disabled)
+            if (f.ipmiLan && (row.ipmi_lan_enable == null || row.ipmi_lan_enable === 'Enabled'))
+                return false;
+            // Show only hosts where Host Header Check is NOT "Disabled" (bad = Enabled)
+            if (f.hostHeader && (row.host_header_check == null || row.host_header_check === 'Disabled'))
+                return false;
+            // Show only hosts where Sys Profile is NOT the desired value
+            if (f.sysProfile && (row.sys_profile == null || row.sys_profile === 'PerfPerWattOptimizedOs'))
+                return false;
+            // Show only explicit iDRAC hostname mismatches (stored as 0)
+            if (f.idracHostname && row.idrac_hostname !== 0)
+                return false;
+            // Show only self-signed certs (stored as 1)
+            if (f.sslSelfSigned && row.ssl_self_signed !== 1)
+                return false;
+            // Show only certs expiring within n days (or already expired)
+            if (f.sslExpiry >= 0) {
+                if (row.ssl_expiry == null) return false;
+                const days = (new Date(row.ssl_expiry) - new Date()) / 86400000;
+                if (days > f.sslExpiry) return false;
+            }
+            return true;
+        });
+    }
+
+    function updateBadge() {
+        const f = readFilters();
+        const n = [
+            f.hostname, f.psRapidOn, f.dnsFromDhcp, f.ipmiLan, f.hostHeader,
+            f.sysProfile, f.idracHostname, f.sslSelfSigned, f.sslExpiry >= 0,
+        ].filter(Boolean).length;
+        const badge = document.getElementById('filters-badge');
+        badge.textContent = n + ' active';
+        badge.style.display = n > 0 ? '' : 'none';
+    }
+
+    window.onFilterChange = function () {
+        currentPage = 1;
+        updateBadge();
+        renderTable();
+    };
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
     function sslExpiryClass(expiry) {
         if (!expiry) return 'na';
-        const ms = new Date(expiry) - new Date();
+        const ms   = new Date(expiry) - new Date();
         const days = ms / 86400000;
-        if (days < 0) return 'expiry-red';
+        if (days < 0)  return 'expiry-red';
         if (days < 30) return 'expiry-orange';
         if (days < 60) return 'expiry-yellow';
         return 'expiry-ok';
     }
 
-    function boolCell(val, goodVal) {
-        if (val === null || val === undefined) return '<span class="na">—</span>';
-        const ok = String(val) === String(goodVal);
-        return ok ? '<span class="ok">✓</span>' : '<span class="bad">✗</span>';
-    }
-
-    function intBoolCell(val, goodIs1) {
-        if (val === null || val === undefined) return '<span class="na">—</span>';
-        const ok = goodIs1 ? val === 1 : val === 0;
-        return ok
-            ? '<span class="ok">✓</span>'
-            : '<span class="bad">✗</span>';
-    }
-
     function escHtml(s) {
-        return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        return String(s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
+
+    function boolCell(val, goodVal, tipGood, tipBad) {
+        if (val === null || val === undefined) return '<span class="na">—</span>';
+        const ok  = String(val) === String(goodVal);
+        const tip = ok ? (tipGood || '') : (tipBad || '');
+        const ta  = tip ? ` title="${escHtml(tip)}"` : '';
+        return ok
+            ? `<span class="ok"${ta}>✓</span>`
+            : `<span class="bad"${ta}>✗</span>`;
+    }
+
+    function intBoolCell(val, goodIs1, tipGood, tipBad) {
+        if (val === null || val === undefined) return '<span class="na">—</span>';
+        const ok  = goodIs1 ? val === 1 : val === 0;
+        const tip = ok ? (tipGood || '') : (tipBad || '');
+        const ta  = tip ? ` title="${escHtml(tip)}"` : '';
+        return ok
+            ? `<span class="ok"${ta}>✓</span>`
+            : `<span class="bad"${ta}>✗</span>`;
+    }
+
+    // ── Render ────────────────────────────────────────────────────────────────
 
     function renderTable() {
+        const displayRows = applyFilters(allRows);
+        displayedTotal = displayRows.length;
+
         const start = pageSize === 0 ? 0 : (currentPage - 1) * pageSize;
-        const end = pageSize === 0 ? allRows.length : start + pageSize;
-        const slice = allRows.slice(start, end);
+        const end   = pageSize === 0 ? displayedTotal : Math.min(start + pageSize, displayedTotal);
+        const slice = displayRows.slice(start, end);
 
-        document.getElementById('results-info').textContent =
-            `Showing ${start + 1}–${Math.min(end, allRows.length)} of ${allRows.length}`;
+        let countStr;
+        if (displayedTotal === 0) {
+            countStr = allRows.length > 0
+                ? `No hosts match the current filters (${allRows.length} total)`
+                : 'No data';
+        } else {
+            countStr = `Showing ${start + 1}–${end} of ${displayedTotal}`;
+            if (displayedTotal < allRows.length)
+                countStr += ` (filtered from ${allRows.length})`;
+        }
+        document.getElementById('results-info').textContent = countStr;
 
-        // Build header
+        // Header
         const thead = document.getElementById('config-thead');
         let hrow = '<tr><th class="hostname-header">Hostname</th>';
-        for (const attr of visibleAttrs) {
+        for (const attr of visibleAttrs)
             hrow += `<th class="attr-header">${ATTR_LABELS[attr] || attr}</th>`;
-        }
         hrow += '<th class="collected-header">Collected At</th></tr>';
         thead.innerHTML = hrow;
 
-        // Build body
+        // Body
         const tbody = document.getElementById('config-tbody');
         let html = '';
         for (const row of slice) {
@@ -350,20 +578,50 @@
             html += `<td>${escHtml(row.hostname || '')}</td>`;
 
             for (const attr of visibleAttrs) {
-                if (attr === 'ssl_self_signed') {
-                    // good = NOT self-signed (0)
+                if (attr === 'ps_rapid_on') {
+                    html += `<td>${boolCell(row[attr], 'Disabled',
+                        'System.ServerPwr.PSRapidOn Disabled',
+                        'System.ServerPwr.PSRapidOn Enabled')}</td>`;
+
+                } else if (attr === 'dns_from_dhcp') {
+                    html += `<td>${boolCell(row[attr], 'Enabled',
+                        'iDRAC.IPv4.DNSFromDHCP Enabled',
+                        'iDRAC.IPv4.DNSFromDHCP Disabled')}</td>`;
+
+                } else if (attr === 'ipmi_lan_enable') {
+                    html += `<td>${boolCell(row[attr], 'Enabled',
+                        'iDRAC.IPMILan.Enable Enabled',
+                        'iDRAC.IPMILan.Enable Disabled')}</td>`;
+
+                } else if (attr === 'host_header_check') {
+                    html += `<td>${boolCell(row[attr], 'Disabled',
+                        'iDRAC.webserver.HostHeaderCheck Disabled',
+                        'iDRAC.webserver.HostHeaderCheck Enabled')}</td>`;
+
+                } else if (attr === 'sys_profile') {
+                    const actual = row[attr] != null ? String(row[attr]) : '';
+                    html += `<td>${boolCell(row[attr], 'PerfPerWattOptimizedOs',
+                        'BIOS.SysProfileSettings.SysProfile PerfPerWattOptimizedOs',
+                        actual ? `BIOS.SysProfileSettings.SysProfile ${actual}` : '')}</td>`;
+
+                } else if (attr === 'idrac_hostname') {
+                    const fetchedVal = row.idrac_hostname_value || '';
+                    const tip = fetchedVal ? `set System.ServerOS.Hostname ${fetchedVal}` : '';
+                    html += `<td>${intBoolCell(row[attr], true, tip, tip)}</td>`;
+
+                } else if (attr === 'ssl_self_signed') {
                     html += `<td>${intBoolCell(row[attr], false)}</td>`;
+
                 } else if (attr === 'ssl_valid_name') {
                     html += `<td>${intBoolCell(row[attr], true)}</td>`;
+
                 } else if (attr === 'ssl_expiry') {
-                    const cls = sslExpiryClass(row[attr]);
+                    const cls   = sslExpiryClass(row[attr]);
                     const label = row[attr] ? escHtml(row[attr]) : '—';
                     html += `<td><span class="${cls}">${label}</span></td>`;
-                } else if (attr === 'idrac_hostname') {
-                    html += `<td>${intBoolCell(row[attr], true)}</td>`;
+
                 } else {
-                    const desired = DESIRED[attr];
-                    html += `<td>${desired !== undefined ? boolCell(row[attr], desired) : escHtml(String(row[attr] ?? '—'))}</td>`;
+                    html += `<td>${escHtml(String(row[attr] ?? '—'))}</td>`;
                 }
             }
 
@@ -378,13 +636,10 @@
 
     function renderPagination() {
         const pag = document.getElementById('pagination');
-        if (pageSize === 0 || allRows.length <= pageSize) {
-            pag.innerHTML = '';
-            return;
-        }
-        const totalPages = Math.ceil(allRows.length / pageSize);
+        if (pageSize === 0 || displayedTotal <= pageSize) { pag.innerHTML = ''; return; }
+        const totalPages = Math.ceil(displayedTotal / pageSize);
         let html = '';
-        html += `<button onclick="goPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>‹</button>`;
+        html += `<button onclick="goPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>&#8249;</button>`;
         for (let p = 1; p <= totalPages; p++) {
             if (totalPages > 12 && Math.abs(p - currentPage) > 3 && p !== 1 && p !== totalPages) {
                 if (p === 2 || p === totalPages - 1) html += '<span>…</span>';
@@ -392,12 +647,12 @@
             }
             html += `<button class="${p === currentPage ? 'active' : ''}" onclick="goPage(${p})">${p}</button>`;
         }
-        html += `<button onclick="goPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>›</button>`;
+        html += `<button onclick="goPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>&#8250;</button>`;
         pag.innerHTML = html;
     }
 
     window.goPage = function (p) {
-        const total = pageSize === 0 ? 1 : Math.ceil(allRows.length / pageSize);
+        const total = pageSize === 0 ? 1 : Math.ceil(displayedTotal / pageSize);
         if (p < 1 || p > total) return;
         currentPage = p;
         renderTable();
@@ -409,8 +664,8 @@
         renderTable();
     };
 
-    window.closePage = closePage;
-    window.toggleTheme = toggleTheme;
+    window.closePage    = closePage;
+    window.toggleTheme  = toggleTheme;
 
     async function init() {
         const site = getQueryParam('site');
@@ -420,12 +675,14 @@
             try { hostnames = JSON.parse(hostsJson); } catch (e) { hostnames = []; }
         }
 
-        const hostsParam = hostnames.length ? '&hosts=' + encodeURIComponent(hostnames.join(',')) : '';
-        const url = `/api/config-data?site=${encodeURIComponent(site)}${hostsParam}`;
-
         let resp, data;
         try {
-            resp = await fetch(url, { credentials: 'same-origin' });
+            resp = await fetch('/api/config-data', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ site, hosts: hostnames }),
+            });
             data = await resp.json();
         } catch (e) {
             showError('Failed to load configuration data: ' + e.message);
@@ -439,33 +696,28 @@
         const settings = data.settings || {};
         allRows = data.data || [];
 
-        // Determine which attribute columns to show based on settings
         const attrOrder = [
             'ps_rapid_on', 'dns_from_dhcp', 'ipmi_lan_enable',
             'host_header_check', 'sys_profile',
             'idrac_hostname', 'ssl_self_signed', 'ssl_valid_name', 'ssl_expiry',
         ];
         const settingsAttrMap = {
-            ps_rapid_on: 'ps_rapid_on_enabled',
-            dns_from_dhcp: 'dns_from_dhcp_enabled',
-            ipmi_lan_enable: 'ipmi_lan_enable_enabled',
+            ps_rapid_on:       'ps_rapid_on_enabled',
+            dns_from_dhcp:     'dns_from_dhcp_enabled',
+            ipmi_lan_enable:   'ipmi_lan_enable_enabled',
             host_header_check: 'host_header_check_enabled',
-            sys_profile: 'sys_profile_enabled',
-            idrac_hostname: 'idrac_hostname_enabled',
-            ssl_self_signed: 'ssl_enabled',
-            ssl_valid_name: 'ssl_enabled',
-            ssl_expiry: 'ssl_enabled',
+            sys_profile:       'sys_profile_enabled',
+            idrac_hostname:    'idrac_hostname_enabled',
+            ssl_self_signed:   'ssl_enabled',
+            ssl_valid_name:    'ssl_enabled',
+            ssl_expiry:        'ssl_enabled',
         };
 
         visibleAttrs = attrOrder.filter(a => {
             const key = settingsAttrMap[a];
             return key ? settings[key] : true;
         });
-
-        // If all disabled, show all columns anyway
-        if (visibleAttrs.length === 0) {
-            visibleAttrs = attrOrder;
-        }
+        if (visibleAttrs.length === 0) visibleAttrs = attrOrder;
 
         document.getElementById('loading').style.display = 'none';
         document.getElementById('main-content').style.display = '';

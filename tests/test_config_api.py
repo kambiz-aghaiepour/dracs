@@ -57,12 +57,12 @@ class TestConfigPage:
 
 class TestApiConfigData:
     def test_requires_auth(self, client):
-        resp = client.get("/api/config-data")
+        resp = client.post("/api/config-data", json={"site": "Default", "hosts": []})
         assert resp.status_code == 401
 
     def test_returns_empty_for_unknown_site(self, client):
         _login(client)
-        resp = client.get("/api/config-data?site=nosuchsite")
+        resp = client.post("/api/config-data", json={"site": "nosuchsite", "hosts": []})
         data = resp.get_json()
         assert data["success"] is True
         assert data["data"] == []
@@ -81,7 +81,10 @@ class TestApiConfigData:
             },
         )
         _login(client)
-        resp = client.get("/api/config-data?site=Default&hosts=server01.example.com")
+        resp = client.post(
+            "/api/config-data",
+            json={"site": "Default", "hosts": ["server01.example.com"]},
+        )
         data = resp.get_json()
         assert data["success"] is True
         assert len(data["data"]) == 1
@@ -96,7 +99,7 @@ class TestApiConfigData:
             site["id"], {"ps_rapid_on_enabled": True, "ps_rapid_on_hours": 12}
         )
         _login(client)
-        resp = client.get("/api/config-data?site=Default")
+        resp = client.post("/api/config-data", json={"site": "Default", "hosts": []})
         data = resp.get_json()
         assert data["settings"]["ps_rapid_on_enabled"] is True
         assert data["settings"]["ps_rapid_on_hours"] == 12
@@ -109,8 +112,57 @@ class TestApiConfigData:
         upsert_host_config("host01.example.com", site_id, {"ps_rapid_on": "Disabled"})
         upsert_host_config("host02.example.com", site_id, {"ps_rapid_on": "Enabled"})
         _login(client)
+        resp = client.post(
+            "/api/config-data",
+            json={"site": "Default", "hosts": ["host01.example.com"]},
+        )
+        data = resp.get_json()
+        assert len(data["data"]) == 1
+        assert data["data"][0]["hostname"] == "host01.example.com"
+
+    def test_post_with_large_host_list(self, client, api_db):
+        from dracs.db import upsert_host_config
+
+        site = get_site_by_name("Default")
+        site_id = site["id"]
+        hostnames = [f"host{i:03d}.example.com" for i in range(200)]
+        for h in hostnames:
+            upsert_host_config(h, site_id, {"ps_rapid_on": "Disabled"})
+        _login(client)
+        resp = client.post(
+            "/api/config-data",
+            json={"site": "Default", "hosts": hostnames},
+        )
+        data = resp.get_json()
+        assert data["success"] is True
+        assert len(data["data"]) == 200
+
+    def test_post_accepts_hosts_as_comma_string(self, client, api_db):
+        from dracs.db import upsert_host_config
+
+        site = get_site_by_name("Default")
+        site_id = site["id"]
+        upsert_host_config("host01.example.com", site_id, {"ps_rapid_on": "Disabled"})
+        upsert_host_config("host02.example.com", site_id, {"ps_rapid_on": "Enabled"})
+        _login(client)
+        resp = client.post(
+            "/api/config-data",
+            json={"site": "Default", "hosts": "host01.example.com,host02.example.com"},
+        )
+        data = resp.get_json()
+        assert data["success"] is True
+        assert len(data["data"]) == 2
+
+    def test_get_returns_data(self, client, api_db):
+        from dracs.db import upsert_host_config
+
+        site = get_site_by_name("Default")
+        site_id = site["id"]
+        upsert_host_config("host01.example.com", site_id, {"ps_rapid_on": "Disabled"})
+        _login(client)
         resp = client.get("/api/config-data?site=Default&hosts=host01.example.com")
         data = resp.get_json()
+        assert data["success"] is True
         assert len(data["data"]) == 1
         assert data["data"][0]["hostname"] == "host01.example.com"
 

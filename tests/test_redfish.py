@@ -364,6 +364,7 @@ class TestCollectAllForHost:
                 )
         mock_hostname.assert_called_once()
         assert result["idrac_hostname"] == 1
+        assert result["idrac_hostname_value"] == "mgmt-server01.example.com"
 
     @patch.dict(
         os.environ,
@@ -388,6 +389,7 @@ class TestCollectAllForHost:
                     "server01.example.com", "Default", enabled
                 )
         assert result["idrac_hostname"] == 0
+        assert result["idrac_hostname_value"] == "wrong-hostname.example.com"
 
     @patch.dict(
         os.environ,
@@ -409,3 +411,4 @@ class TestCollectAllForHost:
                     "server01.example.com", "Default", enabled
                 )
         assert result["idrac_hostname"] is None
+        assert result["idrac_hostname_value"] is None

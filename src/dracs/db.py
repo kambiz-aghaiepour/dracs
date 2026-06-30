@@ -180,6 +180,7 @@ class HostConfig(Base):
     )
     ps_rapid_on: Mapped[str | None] = mapped_column(String, nullable=True)
     idrac_hostname: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    idrac_hostname_value: Mapped[str | None] = mapped_column(String, nullable=True)
     dns_from_dhcp: Mapped[str | None] = mapped_column(String, nullable=True)
     ipmi_lan_enable: Mapped[str | None] = mapped_column(String, nullable=True)
     host_header_check: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -241,7 +242,11 @@ def _migrate_schema(engine) -> None:
                 row[1]: row[2]
                 for row in conn.execute(text("PRAGMA table_info(host_config)"))
             }
-        if col_types.get("idrac_hostname", "").upper() in ("TEXT", "VARCHAR"):
+        needs_rebuild = (
+            col_types.get("idrac_hostname", "").upper() in ("TEXT", "VARCHAR")
+            or "idrac_hostname_value" not in col_types
+        )
+        if needs_rebuild:
             with engine.begin() as conn:
                 conn.execute(text("DROP TABLE host_config"))
 
@@ -579,6 +584,7 @@ def get_host_config_data(site_id: int, hostnames: list) -> list:
                 "hostname": r.hostname,
                 "ps_rapid_on": r.ps_rapid_on,
                 "idrac_hostname": r.idrac_hostname,
+                "idrac_hostname_value": r.idrac_hostname_value,
                 "dns_from_dhcp": r.dns_from_dhcp,
                 "ipmi_lan_enable": r.ipmi_lan_enable,
                 "host_header_check": r.host_header_check,
