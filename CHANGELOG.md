@@ -2,6 +2,36 @@
 
 <!-- version list -->
 
+## v2.15.0 (2026-06-30)
+
+### Bug Fixes
+
+- Black formatting
+  ([`1457a93`](https://github.com/kambiz-aghaiepour/dracs/commit/1457a936b8170b8c9bdff5aa7dc7f86cac201499))
+
+- Black formatting
+  ([`af75e84`](https://github.com/kambiz-aghaiepour/dracs/commit/af75e844972ba28c616dfbb4c157fb3d93a535a1))
+
+- Codecov/patch fell short
+  ([`6af72b1`](https://github.com/kambiz-aghaiepour/dracs/commit/6af72b1d877311c791ee767ddfde6d74ee10b053))
+
+- Save states properly for selection
+  ([`d7c3709`](https://github.com/kambiz-aghaiepour/dracs/commit/d7c3709f58a340ab151bcded9d71545fbae32259))
+
+- Update to pass codacy and codecov
+  ([`4c7b7ea`](https://github.com/kambiz-aghaiepour/dracs/commit/4c7b7eae13bec901952a8be4f7b12159fb23d43e))
+
+### Chores
+
+- Sync spec file version to 2.14.5 [skip ci]
+  ([`8c918b9`](https://github.com/kambiz-aghaiepour/dracs/commit/8c918b995c5e37a39b49383935cef31539b4b2d6))
+
+### Features
+
+- Add bulk iDRAC config editing via racadm
+  ([`6448202`](https://github.com/kambiz-aghaiepour/dracs/commit/64482028cd65f2ea5acbfa869de647d739f5708d))
+
+
 ## v2.14.5 (2026-06-30)
 
 ### Bug Fixes
