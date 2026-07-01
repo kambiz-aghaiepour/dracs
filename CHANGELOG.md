@@ -2,6 +2,31 @@
 
 <!-- version list -->
 
+## v2.16.4 (2026-07-01)
+
+### Bug Fixes
+
+- Black312 formatting
+  ([`2de5f35`](https://github.com/kambiz-aghaiepour/dracs/commit/2de5f35f50a430e144bdfdacfae4794bd3f74135))
+
+- Codacy and codecov shortage
+  ([`bc99e2c`](https://github.com/kambiz-aghaiepour/dracs/commit/bc99e2c5c1ba17f7c439721dd73afd286cf3bd7f))
+
+- Codecov and codacy
+  ([`1cbddbd`](https://github.com/kambiz-aghaiepour/dracs/commit/1cbddbd60cabeb55569a46364a4a21fa8cd59f1a))
+
+- Make sure vnc connections can be reset
+  ([`02a6f05`](https://github.com/kambiz-aghaiepour/dracs/commit/02a6f05bfa1bc36f245c4872aea36486e41f6263))
+
+- Make sure vnc connections can be reset
+  ([`3519b5c`](https://github.com/kambiz-aghaiepour/dracs/commit/3519b5c2019a0cc9377f7c2aa9607f27b075967e))
+
+### Chores
+
+- Sync spec file version to 2.16.3 [skip ci]
+  ([`446c0ad`](https://github.com/kambiz-aghaiepour/dracs/commit/446c0addcbc5d4ffd4b1049d4644257a6a7e8a6d))
+
+
 ## v2.16.3 (2026-07-01)
 
 ### Bug Fixes
