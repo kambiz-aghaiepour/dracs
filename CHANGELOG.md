@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.16.1 (2026-07-01)
+
+### Bug Fixes
+
+- Add a retry for the ssl cert and key uploads
+  ([`719d0c7`](https://github.com/kambiz-aghaiepour/dracs/commit/719d0c75bd3dc4230979f8e71742454b2d6cfba6))
+
+### Chores
+
+- Sync spec file version to 2.16.0 [skip ci]
+  ([`466898c`](https://github.com/kambiz-aghaiepour/dracs/commit/466898c312438c422c3140f38b8956eaf1a5a958))
+
+
 ## v2.16.0 (2026-06-30)
 
 ### Bug Fixes
