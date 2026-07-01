@@ -330,7 +330,13 @@
 
     <div id="dracs-hostname-bar">
         <button id="dracs-power-btn" onclick="pwrShowModal()" title="Power Action">Power</button>
-        <div id="dracs-hostname-line">{{ hostname }}</div>
+        <div id="dracs-hostname-line">
+            <span>{{ hostname }}</span>
+            <span id="dracs-viewers-badge" title="Active viewers"
+                  style="margin-left:10px;font-size:11px;color:#aaa;
+                         background:#222;border:1px solid #444;
+                         border-radius:10px;padding:1px 7px;display:none;"></span>
+        </div>
         <div id="dracs-remoteimage-row">
             <span id="dracs-ri-content"></span>
         </div>
@@ -407,6 +413,23 @@
                 method: 'PATCH'
             });
         }, 5 * 60 * 1000);
+
+        // Viewer count badge: poll every 30 seconds.
+        function refreshViewerCount() {
+            fetch('/api/vnc-session/' + encodeURIComponent(consoleToken) + '/viewers')
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    var badge = document.getElementById('dracs-viewers-badge');
+                    if (badge && data.viewers !== undefined) {
+                        var n = data.viewers;
+                        badge.textContent = n + (n === 1 ? ' viewer' : ' viewers');
+                        badge.style.display = '';
+                    }
+                })
+                .catch(function() {});
+        }
+        refreshViewerCount();
+        setInterval(refreshViewerCount, 30000);
         var riServerEnabled = false;
         var riServerUrl = '';
         var riUIEnabled = false;

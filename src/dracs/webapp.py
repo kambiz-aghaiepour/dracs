@@ -3841,6 +3841,19 @@ def api_vnc_session_touch(token):
     return jsonify({"success": False, "message": "Session not found"}), 404
 
 
+@app.route("/api/vnc-session/<token>/viewers", methods=["GET"])
+def api_vnc_session_viewers(token):
+    """Return the current viewer reference count for a VNC session."""
+    _, err = _require_auth()
+    if err:
+        return err
+
+    if vnc_manager is None:
+        return jsonify({"viewers": 0})
+
+    return jsonify({"viewers": vnc_manager.get_ref_count(token)})
+
+
 def _parse_remoteimage_status(output: str) -> dict:
     """Parse output of racadm remoteimage -s into {enabled, url}."""
     enabled = False
