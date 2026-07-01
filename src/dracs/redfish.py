@@ -100,17 +100,26 @@ def collect_sys_profile(idrac_fqdn: str, user: str, pw: str) -> str | None:
 
 
 def collect_ssl_info(idrac_fqdn: str) -> dict:
-    """Fetch the iDRAC TLS cert; return self_signed, valid_name, and expiry date."""
-    result: dict = {"self_signed": None, "valid_name": None, "expiry": None}
+    """Fetch the iDRAC TLS cert; return self_signed, valid_name, expiry, and fingerprint."""
+    result: dict = {
+        "self_signed": None,
+        "valid_name": None,
+        "expiry": None,
+        "fingerprint": None,
+    }
     try:
         pem = ssl.get_server_certificate((idrac_fqdn, 443))
         from cryptography import x509
+        from cryptography.hazmat.primitives import hashes
 
         cert = x509.load_pem_x509_certificate(pem.encode())
 
         issuer = cert.issuer.rfc4514_string()
         subject = cert.subject.rfc4514_string()
         result["self_signed"] = issuer == subject
+        result["fingerprint"] = ":".join(
+            f"{b:02X}" for b in cert.fingerprint(hashes.SHA256())
+        )
 
         names: list[str] = []
         try:
@@ -180,6 +189,7 @@ def collect_all_for_host(hostname: str, site_name: str, enabled_attrs: dict) -> 
         data["ssl_self_signed"] = 1 if ssl_info.get("self_signed") else 0
         data["ssl_valid_name"] = 1 if ssl_info.get("valid_name") else 0
         data["ssl_expiry"] = ssl_info.get("expiry")
+        data["ssl_fingerprint"] = ssl_info.get("fingerprint")
 
     from datetime import datetime
 

@@ -741,11 +741,26 @@ def execute_ssl_cert_upload_job(hostname: str, metadata: dict) -> None:
         raise RuntimeError("No SSL cert/key configured for this site")
 
     stored_expiry = ssl_cfg.get("cert_expiry")
+    stored_fingerprint = (host_override or {}).get("cert_fingerprint") or ssl_cfg.get(
+        "cert_fingerprint"
+    )
     host_rows = get_host_config_data(site_id, [hostname])
     idrac_expiry = host_rows[0].get("ssl_expiry") if host_rows else None
-
     idrac_self_signed = host_rows[0].get("ssl_self_signed") if host_rows else None
-    if stored_expiry and idrac_expiry and not idrac_self_signed:
+    idrac_fingerprint = host_rows[0].get("ssl_fingerprint") if host_rows else None
+
+    if idrac_self_signed:
+        if (
+            stored_fingerprint
+            and idrac_fingerprint
+            and stored_fingerprint == idrac_fingerprint
+        ):
+            logger.info(
+                "SSL cert for %s already deployed (fingerprint match on self-signed), skipping",
+                hostname,
+            )
+            return
+    elif stored_expiry and idrac_expiry:
         if stored_expiry <= idrac_expiry:
             logger.info(
                 "SSL cert for %s already current (stored=%s idrac=%s), skipping",
