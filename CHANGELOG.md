@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v2.16.5 (2026-07-01)
+
+### Bug Fixes
+
+- Black formatting
+  ([`7469c50`](https://github.com/kambiz-aghaiepour/dracs/commit/7469c50f49db0ed2bcb20905c91b5eea419bfff3))
+
+- Missed a flag for vnc options
+  ([`1f37a31`](https://github.com/kambiz-aghaiepour/dracs/commit/1f37a31021da4e1a6704e5732cbc4e87cb3b3dc7))
+
+### Chores
+
+- Sync spec file version to 2.16.4 [skip ci]
+  ([`4693fbb`](https://github.com/kambiz-aghaiepour/dracs/commit/4693fbb5732fc50d4afcc63dc8654e6c600b0928))
+
+
 ## v2.16.4 (2026-07-01)
 
 ### Bug Fixes
