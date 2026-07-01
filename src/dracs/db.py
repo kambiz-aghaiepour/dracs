@@ -189,6 +189,7 @@ class HostConfig(Base):
     ssl_self_signed: Mapped[int | None] = mapped_column(Integer, nullable=True)
     ssl_valid_name: Mapped[int | None] = mapped_column(Integer, nullable=True)
     ssl_expiry: Mapped[str | None] = mapped_column(String, nullable=True)
+    ssl_fingerprint: Mapped[str | None] = mapped_column(String, nullable=True)
     collected_at: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
@@ -284,6 +285,15 @@ def _migrate_schema(engine) -> None:
         if needs_rebuild:
             with engine.begin() as conn:
                 conn.execute(text("DROP TABLE host_config"))
+        else:
+            hc_cols = {c["name"] for c in inspector.get_columns("host_config")}
+            if "ssl_fingerprint" not in hc_cols:
+                with engine.begin() as conn:
+                    conn.execute(
+                        text(
+                            "ALTER TABLE host_config ADD COLUMN ssl_fingerprint VARCHAR"
+                        )
+                    )
 
     if "sites" in tables:
         site_cols = {c["name"] for c in inspector.get_columns("sites")}
@@ -627,6 +637,7 @@ def get_host_config_data(site_id: int, hostnames: list) -> list:
                 "ssl_self_signed": r.ssl_self_signed,
                 "ssl_valid_name": r.ssl_valid_name,
                 "ssl_expiry": r.ssl_expiry,
+                "ssl_fingerprint": r.ssl_fingerprint,
                 "collected_at": r.collected_at,
             }
             for r in rows

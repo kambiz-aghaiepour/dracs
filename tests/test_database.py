@@ -177,3 +177,52 @@ def test_migrate_noop_when_column_exists(temp_db):
     columns = {c["name"] for c in insp.get_columns("jobs")}
     assert "metadata_json" in columns
     engine.dispose()
+
+
+def test_migrate_adds_ssl_fingerprint_to_host_config(temp_db):
+    from sqlalchemy import text
+
+    # Create host_config without ssl_fingerprint, but with idrac_hostname_value
+    # so the rebuild path is NOT triggered — the ALTER TABLE path runs instead.
+    engine = create_engine(f"sqlite:///{temp_db}")
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "CREATE TABLE sites ("
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                "name VARCHAR NOT NULL UNIQUE, "
+                "is_primary BOOLEAN NOT NULL DEFAULT 0, "
+                "created_at VARCHAR NOT NULL"
+                ")"
+            )
+        )
+        conn.execute(
+            text(
+                "INSERT INTO sites (name, is_primary, created_at) "
+                "VALUES ('Default', 1, '2026-01-01')"
+            )
+        )
+        conn.execute(
+            text(
+                "CREATE TABLE host_config ("
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                "hostname VARCHAR NOT NULL, "
+                "site_id INTEGER NOT NULL, "
+                "idrac_hostname INTEGER, "
+                "idrac_hostname_value VARCHAR, "
+                "ssl_self_signed INTEGER, "
+                "ssl_valid_name INTEGER, "
+                "ssl_expiry VARCHAR, "
+                "collected_at VARCHAR"
+                ")"
+            )
+        )
+    engine.dispose()
+
+    db_initialize(temp_db)
+
+    engine2 = create_engine(f"sqlite:///{temp_db}")
+    insp = inspect(engine2)
+    columns = {c["name"] for c in insp.get_columns("host_config")}
+    assert "ssl_fingerprint" in columns
+    engine2.dispose()
