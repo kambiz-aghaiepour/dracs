@@ -408,7 +408,7 @@ async def main() -> None:
     )
 
     parser_vnc = subparsers.add_parser("vnc", help="VNC console operations")
-    parser_vnc.add_argument("-t", "--target", required=True, help="Target hostname")
+    parser_vnc.add_argument("-t", "--target", help="Target hostname")
     vnc_action = parser_vnc.add_mutually_exclusive_group(required=True)
     vnc_action.add_argument(
         "--connections",
@@ -419,6 +419,11 @@ async def main() -> None:
         "--reset",
         action="store_true",
         help="Reset VNC configuration on the iDRAC",
+    )
+    vnc_action.add_argument(
+        "--active",
+        action="store_true",
+        help="Show all hosts with active VNC viewers",
     )
     parser_vnc.add_argument(
         "--force",

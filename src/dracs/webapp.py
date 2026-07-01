@@ -3871,6 +3871,35 @@ def api_host_vnc_viewers(hostname):
     return jsonify({"hostname": hostname, "viewers": vnc_manager.get_ref_count(token)})
 
 
+@app.route("/api/vnc-viewers", methods=["GET"])
+def api_vnc_viewers():
+    """Return all active VNC sessions, optionally filtered by site."""
+    site_name = request.args.get("site")
+    site_id = None
+    if site_name:
+        from dracs.db import get_site_by_name
+
+        site_row = get_site_by_name(site_name)
+        site_id = site_row["id"] if site_row else None
+
+    _, err = _require_auth()
+    if err:
+        return err
+
+    from dracs.vnc import get_all_active_viewer_counts
+
+    counts = get_all_active_viewer_counts()
+
+    if site_id is not None:
+        from dracs.db import get_hosts_for_site
+
+        site_hostnames = {h["hostname"] for h in get_hosts_for_site(site_id)}
+        counts = {h: c for h, c in counts.items() if h in site_hostnames}
+
+    sessions = [{"hostname": h, "viewers": c} for h, c in sorted(counts.items())]
+    return jsonify({"sessions": sessions})
+
+
 @app.route("/api/host/<hostname>/vnc-reset", methods=["POST"])
 def api_host_vnc_reset(hostname):
     """Enqueue a VNC configuration reset for a host.
