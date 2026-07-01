@@ -562,6 +562,35 @@ def cmd_vnc(args, base_url, verify_ssl, server):
     """Handle the dracs-client vnc subcommand."""
     site = getattr(args, "site", None)
 
+    if args.active:
+        from rich.console import Console
+        from rich.table import Table
+
+        resp = _api_request(
+            "get",
+            _site_url(f"{base_url}/api/vnc-viewers", site),
+            server,
+            verify_ssl,
+        )
+        sessions = resp.json().get("sessions", [])
+        if not sessions:
+            print("No active VNC connections.")
+            return
+        table = Table(show_header=True, header_style="bold cyan", show_lines=True)
+        table.add_column("Hostname")
+        table.add_column("Viewers", justify="right")
+        for s in sessions:
+            table.add_row(s["hostname"], str(s["viewers"]))
+        Console().print(table)
+        return
+
+    if not args.target:
+        print(
+            "Error: -t/--target is required for --connections and --reset.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     if args.connections:
         resp = _api_request(
             "get",

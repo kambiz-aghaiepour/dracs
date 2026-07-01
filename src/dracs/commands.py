@@ -1203,6 +1203,37 @@ async def bios_apply(
 
 def cmd_vnc(args, site_name=None):
     """Handle the dracs vnc subcommand."""
+    if args.active:
+        from dracs.vnc import get_all_active_viewer_counts
+        from rich.console import Console
+        from rich.table import Table
+
+        counts = get_all_active_viewer_counts()
+        if site_name:
+            from dracs.db import get_hosts_for_site, get_site_by_name
+
+            site_row = get_site_by_name(site_name)
+            if site_row:
+                allowed = {h["hostname"] for h in get_hosts_for_site(site_row["id"])}
+                counts = {h: c for h, c in counts.items() if h in allowed}
+        if not counts:
+            print("No active VNC connections.")
+            return
+        table = Table(show_header=True, header_style="bold cyan", show_lines=True)
+        table.add_column("Hostname")
+        table.add_column("Viewers", justify="right")
+        for hostname, count in sorted(counts.items()):
+            table.add_row(hostname, str(count))
+        Console().print(table)
+        return
+
+    if not args.target:
+        print(
+            "Error: -t/--target is required for --connections and --reset.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     from dracs.vnc import get_hostname_viewer_count, get_vnc_credentials
 
     hostname = args.target

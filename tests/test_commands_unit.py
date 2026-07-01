@@ -597,11 +597,19 @@ class TestFilterListResultsExtended:
 
 
 class TestCmdVnc:
-    def _args(self, connections=False, reset=False, force=False, target="server01"):
+    def _args(
+        self,
+        connections=False,
+        reset=False,
+        force=False,
+        active=False,
+        target="server01",
+    ):
         return MagicMock(
             connections=connections,
             reset=reset,
             force=force,
+            active=active,
             target=target,
         )
 
@@ -695,3 +703,51 @@ class TestCmdVnc:
             with pytest.raises(SystemExit):
                 cmd_vnc(self._args(reset=True))
         assert "Cannot build iDRAC FQDN" in capsys.readouterr().err
+
+    def test_missing_target_exits(self, capsys):
+        from dracs.commands import cmd_vnc
+
+        with pytest.raises(SystemExit):
+            cmd_vnc(self._args(connections=True, target=None))
+        assert "-t/--target is required" in capsys.readouterr().err
+
+    @patch(
+        "dracs.vnc.get_all_active_viewer_counts",
+        return_value={"server01": 2, "server02": 1},
+    )
+    def test_active_prints_rich_table(self, mock_counts, capsys):
+        from dracs.commands import cmd_vnc
+
+        cmd_vnc(self._args(active=True, target=None))
+        out = capsys.readouterr().out
+        assert "server01" in out
+        assert "server02" in out
+        assert "2" in out
+
+    @patch("dracs.vnc.get_all_active_viewer_counts", return_value={})
+    def test_active_prints_no_connections_message(self, mock_counts, capsys):
+        from dracs.commands import cmd_vnc
+
+        cmd_vnc(self._args(active=True, target=None))
+        assert "No active VNC connections" in capsys.readouterr().out
+
+    @patch(
+        "dracs.vnc.get_all_active_viewer_counts",
+        return_value={"server01": 1, "other": 3},
+    )
+    def test_active_filters_by_site(self, mock_counts, capsys):
+        from dracs.commands import cmd_vnc
+
+        with (
+            patch(
+                "dracs.db.get_site_by_name", return_value={"id": 1, "name": "Default"}
+            ),
+            patch(
+                "dracs.db.get_hosts_for_site",
+                return_value=[{"hostname": "server01"}],
+            ),
+        ):
+            cmd_vnc(self._args(active=True, target=None), site_name="Default")
+        out = capsys.readouterr().out
+        assert "server01" in out
+        assert "other" not in out

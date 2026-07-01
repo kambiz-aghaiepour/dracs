@@ -8,7 +8,11 @@ from unittest.mock import MagicMock, call, patch
 import pytest
 
 from dracs.db import db_initialize, upsert_system
-from dracs.vnc import VncSessionManager, get_hostname_viewer_count
+from dracs.vnc import (
+    VncSessionManager,
+    get_all_active_viewer_counts,
+    get_hostname_viewer_count,
+)
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -90,6 +94,60 @@ class TestGetHostnameViewerCount:
         try:
             result = get_hostname_viewer_count("server01", token_dir=token_dir)
             assert result == 0
+        finally:
+            meta.chmod(0o644)
+
+
+# ── get_all_active_viewer_counts ──────────────────────────────────────────────
+
+
+class TestGetAllActiveViewerCounts:
+    def test_returns_empty_for_missing_token_dir(self, tmp_path):
+        absent = str(tmp_path / "no-such-dir")
+        assert get_all_active_viewer_counts(token_dir=absent) == {}
+
+    def test_returns_empty_when_no_sessions(self, token_dir):
+        assert get_all_active_viewer_counts(token_dir=token_dir) == {}
+
+    def test_returns_count_for_active_session(self, token_dir):
+        mgr = VncSessionManager(token_dir, timeout_minutes=30, max_sessions=0)
+        mgr.create_session("server01", "idrac-server01.example.com", 5901)
+        mgr.stop()
+        result = get_all_active_viewer_counts(token_dir=token_dir)
+        assert result == {"server01": 1}
+
+    def test_returns_multiple_hosts(self, token_dir):
+        mgr = VncSessionManager(token_dir, timeout_minutes=30, max_sessions=0)
+        mgr.create_session("server01", "idrac-server01.example.com", 5901)
+        mgr.create_session("server02", "idrac-server02.example.com", 5901)
+        mgr.stop()
+        result = get_all_active_viewer_counts(token_dir=token_dir)
+        assert result == {"server01": 1, "server02": 1}
+
+    def test_excludes_zero_count_sessions(self, token_dir):
+        td = Path(token_dir)
+        (td / "tok1.meta").write_text("server01\n")
+        (td / "tok1.refs").write_text("0")
+        assert get_all_active_viewer_counts(token_dir=token_dir) == {}
+
+    def test_falls_back_to_one_on_missing_refs(self, token_dir):
+        td = Path(token_dir)
+        (td / "tok1.meta").write_text("server01\n")
+        result = get_all_active_viewer_counts(token_dir=token_dir)
+        assert result == {"server01": 1}
+
+    def test_skips_empty_meta(self, token_dir):
+        td = Path(token_dir)
+        (td / "tok1.meta").write_text("")
+        assert get_all_active_viewer_counts(token_dir=token_dir) == {}
+
+    def test_skips_unreadable_meta(self, token_dir):
+        td = Path(token_dir)
+        meta = td / "tok1.meta"
+        meta.write_text("server01\n")
+        meta.chmod(0o000)
+        try:
+            assert get_all_active_viewer_counts(token_dir=token_dir) == {}
         finally:
             meta.chmod(0o644)
 

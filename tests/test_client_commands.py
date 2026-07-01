@@ -815,7 +815,12 @@ class TestCmdVnc:
     def test_connections_prints_count(self, capsys):
         resp = _mock_resp(200, {"hostname": "server01", "viewers": 3})
         args = MagicMock(
-            connections=True, reset=False, force=False, target="server01", site=None
+            connections=True,
+            reset=False,
+            active=False,
+            force=False,
+            target="server01",
+            site=None,
         )
         with patch("dracs_client.commands._api_request", return_value=resp):
             cmd_vnc(args, "https://s", True, "s")
@@ -826,7 +831,12 @@ class TestCmdVnc:
     def test_connections_singular(self, capsys):
         resp = _mock_resp(200, {"hostname": "server01", "viewers": 1})
         args = MagicMock(
-            connections=True, reset=False, force=False, target="server01", site=None
+            connections=True,
+            reset=False,
+            active=False,
+            force=False,
+            target="server01",
+            site=None,
         )
         with patch("dracs_client.commands._api_request", return_value=resp):
             cmd_vnc(args, "https://s", True, "s")
@@ -838,7 +848,12 @@ class TestCmdVnc:
             {"success": True, "message": "VNC reset queued for server01", "job_id": 42},
         )
         args = MagicMock(
-            connections=False, reset=True, force=False, target="server01", site=None
+            connections=False,
+            reset=True,
+            active=False,
+            force=False,
+            target="server01",
+            site=None,
         )
         with patch("dracs_client.commands._api_request", return_value=resp):
             with patch("dracs_client.commands._post_json", return_value=resp):
@@ -851,9 +866,57 @@ class TestCmdVnc:
             200, {"success": False, "message": "VNC connection count is currently 2"}
         )
         args = MagicMock(
-            connections=False, reset=True, force=False, target="server01", site=None
+            connections=False,
+            reset=True,
+            active=False,
+            force=False,
+            target="server01",
+            site=None,
         )
         with patch("dracs_client.commands._post_json", return_value=resp):
             with pytest.raises(SystemExit):
                 cmd_vnc(args, "https://s", True, "s")
         assert "2" in capsys.readouterr().err
+
+    def test_active_prints_table(self, capsys):
+        resp = _mock_resp(200, {"sessions": [{"hostname": "server01", "viewers": 3}]})
+        args = MagicMock(
+            connections=False,
+            reset=False,
+            active=True,
+            force=False,
+            target=None,
+            site=None,
+        )
+        with patch("dracs_client.commands._api_request", return_value=resp):
+            cmd_vnc(args, "https://s", True, "s")
+        out = capsys.readouterr().out
+        assert "server01" in out
+        assert "3" in out
+
+    def test_active_prints_no_connections_when_empty(self, capsys):
+        resp = _mock_resp(200, {"sessions": []})
+        args = MagicMock(
+            connections=False,
+            reset=False,
+            active=True,
+            force=False,
+            target=None,
+            site=None,
+        )
+        with patch("dracs_client.commands._api_request", return_value=resp):
+            cmd_vnc(args, "https://s", True, "s")
+        assert "No active VNC connections" in capsys.readouterr().out
+
+    def test_missing_target_exits(self, capsys):
+        args = MagicMock(
+            connections=True,
+            reset=False,
+            active=False,
+            force=False,
+            target=None,
+            site=None,
+        )
+        with pytest.raises(SystemExit):
+            cmd_vnc(args, "https://s", True, "s")
+        assert "-t/--target is required" in capsys.readouterr().err

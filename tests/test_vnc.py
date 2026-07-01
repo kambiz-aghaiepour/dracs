@@ -18,6 +18,7 @@ from dracs.vnc import (
     check_vnc_connectivity,
     start_websockify,
     stop_websockify,
+    get_all_active_viewer_counts,
 )
 
 
@@ -1664,3 +1665,44 @@ class TestHostVncResetEndpoint:
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["success"] is True
+
+
+class TestAllVncViewersEndpoint:
+    def test_requires_auth(self, vnc_disabled_client):
+        resp = vnc_disabled_client.get("/api/vnc-viewers")
+        assert resp.status_code == 401
+
+    def test_returns_empty_when_no_sessions(self, vnc_disabled_client):
+        _login(vnc_disabled_client)
+        with patch("dracs.vnc.get_all_active_viewer_counts", return_value={}):
+            resp = vnc_disabled_client.get("/api/vnc-viewers")
+        assert resp.status_code == 200
+        assert resp.get_json() == {"sessions": []}
+
+    def test_returns_sorted_sessions(self, vnc_disabled_client):
+        _login(vnc_disabled_client)
+        counts = {"server02": 1, "server01": 3}
+        with patch("dracs.vnc.get_all_active_viewer_counts", return_value=counts):
+            resp = vnc_disabled_client.get("/api/vnc-viewers")
+        data = resp.get_json()
+        assert data["sessions"] == [
+            {"hostname": "server01", "viewers": 3},
+            {"hostname": "server02", "viewers": 1},
+        ]
+
+    def test_filters_by_site(self, vnc_disabled_client):
+        _login(vnc_disabled_client)
+        counts = {"server01": 2, "server02": 1, "server03": 4}
+        with (
+            patch("dracs.vnc.get_all_active_viewer_counts", return_value=counts),
+            patch("dracs.db.get_site_by_name", return_value={"id": 5, "name": "RDU2"}),
+            patch(
+                "dracs.db.get_hosts_for_site",
+                return_value=[{"hostname": "server01"}, {"hostname": "server03"}],
+            ),
+        ):
+            resp = vnc_disabled_client.get("/api/vnc-viewers?site=RDU2")
+        data = resp.get_json()
+        hostnames = [s["hostname"] for s in data["sessions"]]
+        assert hostnames == ["server01", "server03"]
+        assert "server02" not in hostnames

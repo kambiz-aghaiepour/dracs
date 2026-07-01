@@ -342,6 +342,30 @@ def get_hostname_viewer_count(hostname: str, token_dir: str | None = None) -> in
     return 0
 
 
+def get_all_active_viewer_counts(token_dir: str | None = None) -> dict:
+    """Return {hostname: count} for every host with at least one active VNC viewer."""
+    td = Path(token_dir) if token_dir else Path(get_token_dir())
+    if not td.exists():
+        return {}
+    result = {}
+    for meta_file in td.glob("*.meta"):
+        try:
+            hostname = meta_file.read_text().strip()
+            if not hostname:
+                continue
+            token = meta_file.stem
+            refs_file = td / f"{token}.refs"
+            try:
+                count = int(refs_file.read_text().strip())
+            except (OSError, ValueError):
+                count = 1
+            if count > 0:
+                result[hostname] = count
+        except OSError:
+            continue
+    return result
+
+
 def get_vnc_credentials(hostname: str, site: str | None = None) -> tuple:
     config_file = Path("drac-passwords.ini")
 
