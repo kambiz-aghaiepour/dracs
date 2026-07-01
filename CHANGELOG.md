@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.16.3 (2026-07-01)
+
+### Bug Fixes
+
+- Tracking vnc connection count
+  ([`b118870`](https://github.com/kambiz-aghaiepour/dracs/commit/b118870546aebe3968beabd749b300cca8467734))
+
+### Chores
+
+- Sync spec file version to 2.16.2 [skip ci]
+  ([`f64e455`](https://github.com/kambiz-aghaiepour/dracs/commit/f64e455f8ab62f60a51326623a674c44e376136b))
+
+
 ## v2.16.2 (2026-07-01)
 
 ### Bug Fixes
