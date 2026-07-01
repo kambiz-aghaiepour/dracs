@@ -3854,6 +3854,23 @@ def api_vnc_session_viewers(token):
     return jsonify({"viewers": vnc_manager.get_ref_count(token)})
 
 
+@app.route("/api/host/<hostname>/vnc-viewers", methods=["GET"])
+def api_host_vnc_viewers(hostname):
+    """Return the current VNC viewer count for a host by name."""
+    _, err = _require_auth()
+    if err:
+        return err
+
+    if vnc_manager is None:
+        return jsonify({"hostname": hostname, "viewers": 0})
+
+    token = vnc_manager.find_session_by_hostname(hostname)
+    if token is None:
+        return jsonify({"hostname": hostname, "viewers": 0})
+
+    return jsonify({"hostname": hostname, "viewers": vnc_manager.get_ref_count(token)})
+
+
 def _parse_remoteimage_status(output: str) -> dict:
     """Parse output of racadm remoteimage -s into {enabled, url}."""
     enabled = False
