@@ -552,3 +552,28 @@ class TestMainRouting:
             mock_path.exists.return_value = False
             main()
         assert "completed" in capsys.readouterr().out
+
+    def test_admin_vnc_connections_dispatches(self, capsys):
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"hostname": "server01", "viewers": 2}
+        mock_resp.status_code = 200
+        with (
+            patch("dracs_client.config.DRACSRC_PATH") as mock_path,
+            patch("dracs_client.cli.get_current_role", return_value="admin"),
+            patch(
+                "sys.argv",
+                [
+                    "dracs-client",
+                    "-s",
+                    "server.example.com",
+                    "vnc",
+                    "-t",
+                    "server01",
+                    "--connections",
+                ],
+            ),
+            patch("dracs_client.commands._api_request", return_value=mock_resp),
+        ):
+            mock_path.exists.return_value = False
+            main()
+        assert "2 active viewers" in capsys.readouterr().out

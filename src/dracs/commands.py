@@ -1223,9 +1223,7 @@ def cmd_vnc(args, site_name=None):
         )
         sys.exit(1)
 
-    from dracs.exceptions import ValidationError
     from dracs.jobqueue import run_racadm_ssh
-    from dracs.snmp import build_idrac_hostname
     from dracs.webapp import get_idrac_credentials
 
     try:

@@ -711,13 +711,7 @@ def run_racadm_ssh(
 
 
 def execute_vnc_reset_job(hostname: str, metadata: dict) -> None:
-    """Disable then re-enable the iDRAC VNC server to clear transient unresponsiveness.
-
-    Skips the host if there are active VNC viewers so in-progress console
-    sessions are not interrupted.  Reads iDRAC and VNC credentials from
-    drac-passwords.ini using the same host-specific-then-site-default lookup
-    used by all other job types.
-    """
+    """Disable then re-enable the iDRAC VNC server, skipping hosts with active viewers."""
     from dracs.snmp import ValidationError, build_idrac_hostname
     from dracs.vnc import get_hostname_viewer_count, get_vnc_credentials
     from dracs.webapp import get_idrac_credentials

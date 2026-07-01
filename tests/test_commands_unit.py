@@ -634,7 +634,9 @@ class TestCmdVnc:
     )
     @patch("dracs.webapp.get_idrac_credentials", return_value=("root", "calvin"))
     @patch("dracs.vnc.get_vnc_credentials", return_value=(5901, "vncp"))
-    @patch("dracs.snmp.build_idrac_hostname", return_value="idrac-server01.example.com")
+    @patch(
+        "dracs.commands.build_idrac_hostname", return_value="idrac-server01.example.com"
+    )
     @patch("dracs.vnc.get_hostname_viewer_count", return_value=2)
     def test_reset_force_bypasses_viewer_check(
         self, mock_count, mock_fqdn, mock_vnc_creds, mock_idrac_creds, mock_ssh, capsys
@@ -650,7 +652,9 @@ class TestCmdVnc:
     )
     @patch("dracs.webapp.get_idrac_credentials", return_value=("root", "calvin"))
     @patch("dracs.vnc.get_vnc_credentials", return_value=(5901, "vncp"))
-    @patch("dracs.snmp.build_idrac_hostname", return_value="idrac-server01.example.com")
+    @patch(
+        "dracs.commands.build_idrac_hostname", return_value="idrac-server01.example.com"
+    )
     @patch("dracs.vnc.get_hostname_viewer_count", return_value=0)
     def test_reset_success_runs_four_steps(
         self, mock_count, mock_fqdn, mock_vnc_creds, mock_idrac_creds, mock_ssh, capsys
@@ -667,7 +671,9 @@ class TestCmdVnc:
     )
     @patch("dracs.webapp.get_idrac_credentials", return_value=("root", "calvin"))
     @patch("dracs.vnc.get_vnc_credentials", return_value=(5901, "vncp"))
-    @patch("dracs.snmp.build_idrac_hostname", return_value="idrac-server01.example.com")
+    @patch(
+        "dracs.commands.build_idrac_hostname", return_value="idrac-server01.example.com"
+    )
     @patch("dracs.vnc.get_hostname_viewer_count", return_value=0)
     def test_reset_exits_on_ssh_failure(
         self, mock_count, mock_fqdn, mock_vnc_creds, mock_idrac_creds, mock_ssh, capsys
@@ -684,7 +690,7 @@ class TestCmdVnc:
         from dracs.commands import cmd_vnc
 
         with patch(
-            "dracs.snmp.build_idrac_hostname", side_effect=ValidationError("no DNS")
+            "dracs.commands.build_idrac_hostname", side_effect=ValidationError("no DNS")
         ):
             with pytest.raises(SystemExit):
                 cmd_vnc(self._args(reset=True))
