@@ -594,3 +594,104 @@ class TestFilterListResultsExtended:
         )
         assert len(filtered) == 1
         assert filtered[0][0] == "TAG1"
+
+
+class TestCmdVnc:
+    def _args(self, connections=False, reset=False, force=False, target="server01"):
+        return MagicMock(
+            connections=connections,
+            reset=reset,
+            force=force,
+            target=target,
+        )
+
+    @patch("dracs.vnc.get_hostname_viewer_count", return_value=1)
+    def test_connections_prints_count(self, mock_count, capsys):
+        from dracs.commands import cmd_vnc
+
+        cmd_vnc(self._args(connections=True))
+        out = capsys.readouterr().out
+        assert "server01" in out
+        assert "1 active viewer" in out
+
+    @patch("dracs.vnc.get_hostname_viewer_count", return_value=3)
+    def test_connections_pluralises(self, mock_count, capsys):
+        from dracs.commands import cmd_vnc
+
+        cmd_vnc(self._args(connections=True))
+        assert "3 active viewers" in capsys.readouterr().out
+
+    @patch("dracs.vnc.get_hostname_viewer_count", return_value=2)
+    def test_reset_exits_when_viewers_active_and_no_force(self, mock_count, capsys):
+        from dracs.commands import cmd_vnc
+
+        with pytest.raises(SystemExit):
+            cmd_vnc(self._args(reset=True, force=False))
+        assert "2" in capsys.readouterr().err
+
+    @patch(
+        "dracs.jobqueue.run_racadm_ssh", return_value=MagicMock(returncode=0, stderr="")
+    )
+    @patch("dracs.webapp.get_idrac_credentials", return_value=("root", "calvin"))
+    @patch("dracs.vnc.get_vnc_credentials", return_value=(5901, "vncp"))
+    @patch(
+        "dracs.commands.build_idrac_hostname", return_value="idrac-server01.example.com"
+    )
+    @patch("dracs.vnc.get_hostname_viewer_count", return_value=2)
+    def test_reset_force_bypasses_viewer_check(
+        self, mock_count, mock_fqdn, mock_vnc_creds, mock_idrac_creds, mock_ssh, capsys
+    ):
+        from dracs.commands import cmd_vnc
+
+        cmd_vnc(self._args(reset=True, force=True))
+        assert mock_ssh.call_count == 4
+        assert "successfully" in capsys.readouterr().out
+
+    @patch(
+        "dracs.jobqueue.run_racadm_ssh", return_value=MagicMock(returncode=0, stderr="")
+    )
+    @patch("dracs.webapp.get_idrac_credentials", return_value=("root", "calvin"))
+    @patch("dracs.vnc.get_vnc_credentials", return_value=(5901, "vncp"))
+    @patch(
+        "dracs.commands.build_idrac_hostname", return_value="idrac-server01.example.com"
+    )
+    @patch("dracs.vnc.get_hostname_viewer_count", return_value=0)
+    def test_reset_success_runs_four_steps(
+        self, mock_count, mock_fqdn, mock_vnc_creds, mock_idrac_creds, mock_ssh, capsys
+    ):
+        from dracs.commands import cmd_vnc
+
+        cmd_vnc(self._args(reset=True))
+        assert mock_ssh.call_count == 4
+        assert "successfully" in capsys.readouterr().out
+
+    @patch(
+        "dracs.jobqueue.run_racadm_ssh",
+        return_value=MagicMock(returncode=1, stderr="SSH error"),
+    )
+    @patch("dracs.webapp.get_idrac_credentials", return_value=("root", "calvin"))
+    @patch("dracs.vnc.get_vnc_credentials", return_value=(5901, "vncp"))
+    @patch(
+        "dracs.commands.build_idrac_hostname", return_value="idrac-server01.example.com"
+    )
+    @patch("dracs.vnc.get_hostname_viewer_count", return_value=0)
+    def test_reset_exits_on_ssh_failure(
+        self, mock_count, mock_fqdn, mock_vnc_creds, mock_idrac_creds, mock_ssh, capsys
+    ):
+        from dracs.commands import cmd_vnc
+
+        with pytest.raises(SystemExit):
+            cmd_vnc(self._args(reset=True))
+        assert "FAILED" in capsys.readouterr().out
+
+    @patch("dracs.vnc.get_hostname_viewer_count", return_value=0)
+    def test_reset_exits_when_fqdn_build_fails(self, mock_count, capsys):
+        from dracs.exceptions import ValidationError
+        from dracs.commands import cmd_vnc
+
+        with patch(
+            "dracs.commands.build_idrac_hostname", side_effect=ValidationError("no DNS")
+        ):
+            with pytest.raises(SystemExit):
+                cmd_vnc(self._args(reset=True))
+        assert "Cannot build iDRAC FQDN" in capsys.readouterr().err

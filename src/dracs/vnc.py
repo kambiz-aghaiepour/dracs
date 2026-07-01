@@ -318,6 +318,30 @@ class MaxSessionsError(Exception):
     pass
 
 
+def get_hostname_viewer_count(hostname: str, token_dir: str | None = None) -> int:
+    """Return the active viewer count for hostname without requiring a VncSessionManager.
+
+    Reads .meta and .refs files directly from the token directory so the job
+    queue can call this without depending on the webapp's in-memory vnc_manager.
+    Returns 0 when no session exists or when the token directory is absent.
+    """
+    td = Path(token_dir) if token_dir else Path(get_token_dir())
+    if not td.exists():
+        return 0
+    for meta_file in td.glob("*.meta"):
+        try:
+            if meta_file.read_text().strip() == hostname:
+                token = meta_file.stem
+                refs_file = td / f"{token}.refs"
+                try:
+                    return int(refs_file.read_text().strip())
+                except (OSError, ValueError):
+                    return 1
+        except OSError:
+            continue
+    return 0
+
+
 def get_vnc_credentials(hostname: str, site: str | None = None) -> tuple:
     config_file = Path("drac-passwords.ini")
 

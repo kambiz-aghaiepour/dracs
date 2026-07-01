@@ -3854,6 +3854,75 @@ def api_vnc_session_viewers(token):
     return jsonify({"viewers": vnc_manager.get_ref_count(token)})
 
 
+@app.route("/api/host/<hostname>/vnc-viewers", methods=["GET"])
+def api_host_vnc_viewers(hostname):
+    """Return the current VNC viewer count for a host by name."""
+    _, err = _require_auth()
+    if err:
+        return err
+
+    if vnc_manager is None:
+        return jsonify({"hostname": hostname, "viewers": 0})
+
+    token = vnc_manager.find_session_by_hostname(hostname)
+    if token is None:
+        return jsonify({"hostname": hostname, "viewers": 0})
+
+    return jsonify({"hostname": hostname, "viewers": vnc_manager.get_ref_count(token)})
+
+
+@app.route("/api/host/<hostname>/vnc-reset", methods=["POST"])
+def api_host_vnc_reset(hostname):
+    """Enqueue a VNC configuration reset for a host.
+
+    Returns 409 if active viewers are connected unless force=true is passed.
+    Requires admin role.
+    """
+    site_name = request.args.get("site")
+    site_id = None
+    if site_name:
+        from dracs.db import get_site_by_name
+
+        site_row = get_site_by_name(site_name)
+        site_id = site_row["id"] if site_row else None
+
+    _, err = _require_auth(required_role="admin", site_id=site_id)
+    if err:
+        return err
+
+    data = request.get_json(silent=True) or {}
+    force = bool(data.get("force", False))
+
+    if vnc_manager is not None:
+        token = vnc_manager.find_session_by_hostname(hostname)
+        if token is not None:
+            count = vnc_manager.get_ref_count(token)
+            if count > 0 and not force:
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "message": (
+                                f"VNC connection count is currently {count} for "
+                                f"{hostname}. Use --force option to reset anyway."
+                            ),
+                        }
+                    ),
+                    409,
+                )
+
+    from dracs.jobqueue import enqueue_job
+
+    job_id = enqueue_job("vnc_reset", hostname, site_id=site_id)
+    return jsonify(
+        {
+            "success": True,
+            "message": f"VNC reset queued for {hostname}",
+            "job_id": job_id,
+        }
+    )
+
+
 def _parse_remoteimage_status(output: str) -> dict:
     """Parse output of racadm remoteimage -s into {enabled, url}."""
     enabled = False

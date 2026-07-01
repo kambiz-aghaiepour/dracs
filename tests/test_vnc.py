@@ -1507,3 +1507,160 @@ class TestVncSessionViewersEndpoint:
         webapp_mod.vnc_manager.add_reference(token)
         resp = vnc_client.get(f"/api/vnc-session/{token}/viewers")
         assert resp.get_json()["viewers"] == 2
+
+
+class TestHostVncViewersEndpoint:
+    def test_requires_auth(self, vnc_client):
+        resp = vnc_client.get("/api/host/server01/vnc-viewers")
+        assert resp.status_code == 401
+
+    def test_returns_zero_for_unknown_host(self, vnc_client):
+        _login(vnc_client)
+        resp = vnc_client.get("/api/host/no-such-host/vnc-viewers")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["viewers"] == 0
+        assert data["hostname"] == "no-such-host"
+
+    def test_returns_zero_when_vnc_disabled(self, vnc_disabled_client):
+        _login(vnc_disabled_client)
+        resp = vnc_disabled_client.get("/api/host/server01/vnc-viewers")
+        assert resp.status_code == 200
+        assert resp.get_json()["viewers"] == 0
+
+    @patch("dracs.webapp.check_vnc_connectivity", return_value=(True, ""))
+    @patch("dracs.webapp.get_vnc_credentials", return_value=(5901, "pass"))
+    def test_returns_count_for_active_session(self, mock_creds, mock_conn, vnc_client):
+        _login(vnc_client)
+        import dracs.webapp as webapp_mod
+
+        vnc_client.post(
+            "/api/vnc-session",
+            data=json.dumps({"hostname": "server01"}),
+            content_type="application/json",
+        )
+        resp = vnc_client.get("/api/host/server01/vnc-viewers")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["hostname"] == "server01"
+        assert data["viewers"] == 1
+
+        token = webapp_mod.vnc_manager.find_session_by_hostname("server01")
+        webapp_mod.vnc_manager.add_reference(token)
+        resp = vnc_client.get("/api/host/server01/vnc-viewers")
+        assert resp.get_json()["viewers"] == 2
+
+
+class TestHostVncResetEndpoint:
+    def test_requires_auth(self, vnc_client):
+        resp = vnc_client.post("/api/host/server01/vnc-reset")
+        assert resp.status_code == 401
+
+    def test_requires_admin_role(self, vnc_client):
+        # Login as non-admin user
+        import dracs.webapp as webapp_mod
+        from dracs.users import create_user
+
+        create_user("viewer", "pw", role="user")
+        vnc_client.post(
+            "/api/login",
+            data=json.dumps({"username": "viewer", "password": "pw"}),
+            content_type="application/json",
+        )
+        resp = vnc_client.post("/api/host/server01/vnc-reset")
+        assert resp.status_code in (401, 403)
+
+    def test_returns_409_when_viewers_active(self, vnc_client):
+        _login(vnc_client)
+        import dracs.webapp as webapp_mod
+
+        mock_mgr = MagicMock()
+        mock_mgr.find_session_by_hostname.return_value = "tok1"
+        mock_mgr.get_ref_count.return_value = 2
+
+        original = webapp_mod.vnc_manager
+        webapp_mod.vnc_manager = mock_mgr
+        try:
+            resp = vnc_client.post(
+                "/api/host/server01/vnc-reset",
+                data=json.dumps({}),
+                content_type="application/json",
+            )
+        finally:
+            webapp_mod.vnc_manager = original
+
+        assert resp.status_code == 409
+        data = resp.get_json()
+        assert data["success"] is False
+        assert "2" in data["message"]
+        assert "server01" in data["message"]
+
+    def test_force_bypasses_viewer_check(self, vnc_client):
+        _login(vnc_client)
+        import dracs.webapp as webapp_mod
+
+        mock_mgr = MagicMock()
+        mock_mgr.find_session_by_hostname.return_value = "tok1"
+        mock_mgr.get_ref_count.return_value = 2
+
+        original = webapp_mod.vnc_manager
+        webapp_mod.vnc_manager = mock_mgr
+        try:
+            resp = vnc_client.post(
+                "/api/host/server01/vnc-reset",
+                data=json.dumps({"force": True}),
+                content_type="application/json",
+            )
+        finally:
+            webapp_mod.vnc_manager = original
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["success"] is True
+        assert "job_id" in data
+
+    def test_enqueues_job_when_no_viewers(self, vnc_client):
+        _login(vnc_client)
+        import dracs.webapp as webapp_mod
+
+        mock_mgr = MagicMock()
+        mock_mgr.find_session_by_hostname.return_value = None
+
+        original = webapp_mod.vnc_manager
+        webapp_mod.vnc_manager = mock_mgr
+        try:
+            resp = vnc_client.post(
+                "/api/host/server01/vnc-reset",
+                data=json.dumps({}),
+                content_type="application/json",
+            )
+        finally:
+            webapp_mod.vnc_manager = original
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["success"] is True
+        assert data["job_id"] > 0
+
+    def test_enqueues_job_when_vnc_disabled(self, vnc_disabled_client):
+        _login(vnc_disabled_client)
+        resp = vnc_disabled_client.post(
+            "/api/host/server01/vnc-reset",
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["success"] is True
+
+    def test_site_param_resolves_site_id(self, vnc_disabled_client):
+        _login(vnc_disabled_client)
+        with patch("dracs.db.get_site_by_name", return_value={"id": 7, "name": "RDU2"}):
+            resp = vnc_disabled_client.post(
+                "/api/host/server01/vnc-reset?site=RDU2",
+                data=json.dumps({}),
+                content_type="application/json",
+            )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["success"] is True

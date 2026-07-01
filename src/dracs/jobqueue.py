@@ -338,6 +338,8 @@ class JobProcessor:
                 execute_config_collect_job(job["target"], meta)
             elif job["job_type"] == "ssl_cert_upload":
                 execute_ssl_cert_upload_job(job["target"], meta)
+            elif job["job_type"] == "vnc_reset":
+                execute_vnc_reset_job(job["target"], meta)
             else:
                 fail_job(job_id, error=f"Unknown job type: {job['job_type']}")
                 return
@@ -685,6 +687,67 @@ def execute_config_collect_job(hostname: str, metadata: dict) -> None:
         upsert_host_config(hostname, site_id, data)
 
 
+def run_racadm_ssh(
+    idrac_fqdn: str, username: str, password: str, racadm_args: list
+) -> subprocess.CompletedProcess:
+    """Run a single racadm command on an iDRAC over SSH using sshpass."""
+    cmd = [
+        "sshpass",
+        "-p",
+        password,
+        "ssh",
+        "-o",
+        "StrictHostKeyChecking=no",
+        "-o",
+        "ConnectTimeout=30",
+        "-o",
+        "BatchMode=no",
+        f"{username}@{idrac_fqdn}",
+        "racadm",
+    ] + racadm_args
+    return subprocess.run(  # nosec # nosemgrep
+        cmd, capture_output=True, text=True, timeout=60
+    )
+
+
+def execute_vnc_reset_job(hostname: str, metadata: dict) -> None:
+    """Disable then re-enable the iDRAC VNC server, skipping hosts with active viewers."""
+    from dracs.snmp import ValidationError, build_idrac_hostname
+    from dracs.vnc import get_hostname_viewer_count, get_vnc_credentials
+    from dracs.webapp import get_idrac_credentials
+
+    try:
+        idrac_fqdn = build_idrac_hostname(hostname)
+    except ValidationError as exc:
+        raise RuntimeError(f"Cannot build iDRAC FQDN for {hostname}: {exc}") from exc
+
+    viewers = get_hostname_viewer_count(hostname)
+    if viewers > 0:
+        logger.info("vnc_reset skipping %s: %d active viewer(s)", hostname, viewers)
+        return
+
+    site_name = metadata.get("site_name")
+    username, password = get_idrac_credentials(hostname, site=site_name)
+    vnc_port, vnc_password = get_vnc_credentials(hostname, site=site_name)
+
+    steps = [
+        (["set", "idrac.vncserver.enable", "Disabled"], "disable VNC"),
+        (["set", "idrac.vncserver.Password", vnc_password], "set VNC password"),
+        (["set", "idrac.vncserver.port", str(vnc_port)], "set VNC port"),
+        (["set", "idrac.vncserver.enable", "Enabled"], "enable VNC"),
+    ]
+
+    for args, description in steps:
+        result = run_racadm_ssh(idrac_fqdn, username, password, args)
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"vnc_reset {hostname}: {description} failed "
+                f"(rc={result.returncode}): {result.stderr.strip()}"
+            )
+
+    logger.info("vnc_reset completed for %s", hostname)
+
+
 def _run_idracadm7(cmd: list, *, retries: int = 1, retry_delay: int = 5):
     """Run an idracadm7 command, retrying once on transient iDRAC failures."""
     for attempt in range(retries + 1):
@@ -881,7 +944,7 @@ def parse_schedule_config(
             "keep_max": keep_max,
         }
         if (
-            task["type"] in ("tsr", "refresh", "clear_job_queue")
+            task["type"] in ("tsr", "refresh", "clear_job_queue", "vnc_reset")
             and task["schedule"]
             and task["time"]
         ):

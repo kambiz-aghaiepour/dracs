@@ -414,7 +414,7 @@
             });
         }, 5 * 60 * 1000);
 
-        // Viewer count badge: poll every 30 seconds.
+        // Viewer count badge: poll every 5 seconds so all viewers see updates promptly.
         function refreshViewerCount() {
             fetch('/api/vnc-session/' + encodeURIComponent(consoleToken) + '/viewers')
                 .then(function(r) { return r.json(); })
@@ -429,7 +429,7 @@
                 .catch(function() {});
         }
         refreshViewerCount();
-        setInterval(refreshViewerCount, 30000);
+        setInterval(refreshViewerCount, 5000);
         var riServerEnabled = false;
         var riServerUrl = '';
         var riUIEnabled = false;
