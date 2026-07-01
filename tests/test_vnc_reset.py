@@ -274,8 +274,9 @@ class TestExecuteJobDispatch:
             "target": "server01",
             "metadata": {"site_name": "Default"},
         }
-        with patch("dracs.jobqueue.execute_vnc_reset_job") as mock_exec, patch(
-            "dracs.jobqueue.complete_job"
+        with (
+            patch("dracs.jobqueue.execute_vnc_reset_job") as mock_exec,
+            patch("dracs.jobqueue.complete_job"),
         ):
             processor._execute_job(job)
         mock_exec.assert_called_once_with("server01", {"site_name": "Default"})
@@ -292,9 +293,14 @@ class TestRunRacadmSsh:
         from dracs.jobqueue import run_racadm_ssh
 
         fake_result = MagicMock(spec=subprocess.CompletedProcess)
-        with patch("dracs.jobqueue.subprocess.run", return_value=fake_result) as mock_run:
+        with patch(
+            "dracs.jobqueue.subprocess.run", return_value=fake_result
+        ) as mock_run:
             result = run_racadm_ssh(
-                "idrac-server01.example.com", "root", "calvin", ["get", "idrac.vncserver"]
+                "idrac-server01.example.com",
+                "root",
+                "calvin",
+                ["get", "idrac.vncserver"],
             )
 
         assert result is fake_result
@@ -305,4 +311,6 @@ class TestRunRacadmSsh:
         assert "racadm" in cmd
         assert "get" in cmd
         assert "idrac.vncserver" in cmd
-        mock_run.assert_called_once_with(cmd, capture_output=True, text=True, timeout=60)
+        mock_run.assert_called_once_with(
+            cmd, capture_output=True, text=True, timeout=60
+        )

@@ -629,7 +629,9 @@ class TestCmdVnc:
             cmd_vnc(self._args(reset=True, force=False))
         assert "2" in capsys.readouterr().err
 
-    @patch("dracs.jobqueue.run_racadm_ssh", return_value=MagicMock(returncode=0, stderr=""))
+    @patch(
+        "dracs.jobqueue.run_racadm_ssh", return_value=MagicMock(returncode=0, stderr="")
+    )
     @patch("dracs.webapp.get_idrac_credentials", return_value=("root", "calvin"))
     @patch("dracs.vnc.get_vnc_credentials", return_value=(5901, "vncp"))
     @patch("dracs.snmp.build_idrac_hostname", return_value="idrac-server01.example.com")
@@ -643,7 +645,9 @@ class TestCmdVnc:
         assert mock_ssh.call_count == 4
         assert "successfully" in capsys.readouterr().out
 
-    @patch("dracs.jobqueue.run_racadm_ssh", return_value=MagicMock(returncode=0, stderr=""))
+    @patch(
+        "dracs.jobqueue.run_racadm_ssh", return_value=MagicMock(returncode=0, stderr="")
+    )
     @patch("dracs.webapp.get_idrac_credentials", return_value=("root", "calvin"))
     @patch("dracs.vnc.get_vnc_credentials", return_value=(5901, "vncp"))
     @patch("dracs.snmp.build_idrac_hostname", return_value="idrac-server01.example.com")
@@ -679,7 +683,9 @@ class TestCmdVnc:
         from dracs.exceptions import ValidationError
         from dracs.commands import cmd_vnc
 
-        with patch("dracs.snmp.build_idrac_hostname", side_effect=ValidationError("no DNS")):
+        with patch(
+            "dracs.snmp.build_idrac_hostname", side_effect=ValidationError("no DNS")
+        ):
             with pytest.raises(SystemExit):
                 cmd_vnc(self._args(reset=True))
         assert "Cannot build iDRAC FQDN" in capsys.readouterr().err
