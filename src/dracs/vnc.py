@@ -265,6 +265,12 @@ class VncSessionManager:
         except (OSError, ValueError):
             return 1
 
+    def get_ref_count(self, token: str) -> int:
+        """Return the current viewer reference count, or 0 if the session does not exist."""
+        if not (self.token_dir / token).exists():
+            return 0
+        return self._get_refs(token)
+
     def active_count(self) -> int:
         return len(
             [

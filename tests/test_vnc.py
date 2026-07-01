@@ -1449,3 +1449,61 @@ class TestParseConsoleSize:
         from dracs.webapp import _parse_console_size
 
         assert _parse_console_size(None) == (800, 600)
+
+
+class TestGetRefCount:
+    def test_returns_zero_for_unknown_token(self, manager):
+        assert manager.get_ref_count("no-such-token") == 0
+
+    def test_returns_one_after_create(self, manager):
+        token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        assert manager.get_ref_count(token) == 1
+
+    def test_reflects_add_reference(self, manager):
+        token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        manager.add_reference(token)
+        assert manager.get_ref_count(token) == 2
+
+    def test_reflects_release_session(self, manager):
+        token = manager.create_session("host01", "mgmt-host01.example.com", 5901)
+        manager.add_reference(token)  # refs=2
+        manager.release_session(token)  # refs=1
+        assert manager.get_ref_count(token) == 1
+
+
+class TestVncSessionViewersEndpoint:
+    def test_requires_auth(self, vnc_client):
+        resp = vnc_client.get("/api/vnc-session/sometoken/viewers")
+        assert resp.status_code == 401
+
+    def test_returns_zero_for_unknown_token(self, vnc_client):
+        _login(vnc_client)
+        resp = vnc_client.get("/api/vnc-session/no-such-token/viewers")
+        assert resp.status_code == 200
+        assert resp.get_json()["viewers"] == 0
+
+    def test_returns_zero_when_vnc_disabled(self, vnc_disabled_client):
+        _login(vnc_disabled_client)
+        resp = vnc_disabled_client.get("/api/vnc-session/sometoken/viewers")
+        assert resp.status_code == 200
+        assert resp.get_json()["viewers"] == 0
+
+    @patch("dracs.webapp.check_vnc_connectivity", return_value=(True, ""))
+    @patch("dracs.webapp.get_vnc_credentials", return_value=(5901, "pass"))
+    def test_returns_count_for_active_session(self, mock_creds, mock_conn, vnc_client):
+        _login(vnc_client)
+        import dracs.webapp as webapp_mod
+
+        create_resp = vnc_client.post(
+            "/api/vnc-session",
+            data=json.dumps({"hostname": "server01"}),
+            content_type="application/json",
+        )
+        token = create_resp.get_json()["token"]
+        resp = vnc_client.get(f"/api/vnc-session/{token}/viewers")
+        assert resp.status_code == 200
+        assert resp.get_json()["viewers"] == 1
+
+        webapp_mod.vnc_manager.add_reference(token)
+        resp = vnc_client.get(f"/api/vnc-session/{token}/viewers")
+        assert resp.get_json()["viewers"] == 2
