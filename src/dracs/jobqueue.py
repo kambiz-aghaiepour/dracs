@@ -687,7 +687,7 @@ def execute_config_collect_job(hostname: str, metadata: dict) -> None:
         upsert_host_config(hostname, site_id, data)
 
 
-def _run_racadm_ssh(
+def run_racadm_ssh(
     idrac_fqdn: str, username: str, password: str, racadm_args: list
 ) -> subprocess.CompletedProcess:
     """Run a single racadm command on an iDRAC over SSH using sshpass."""
@@ -744,7 +744,7 @@ def execute_vnc_reset_job(hostname: str, metadata: dict) -> None:
     ]
 
     for args, description in steps:
-        result = _run_racadm_ssh(idrac_fqdn, username, password, args)
+        result = run_racadm_ssh(idrac_fqdn, username, password, args)
         if result.returncode != 0:
             raise RuntimeError(
                 f"vnc_reset {hostname}: {description} failed "

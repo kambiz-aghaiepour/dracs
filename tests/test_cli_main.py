@@ -520,3 +520,27 @@ class TestMainIdracJobs:
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
         assert "--target is required" in captured.err
+
+
+class TestMainVnc:
+    @patch("dracs.cli.db_initialize")
+    @patch("dracs.commands.cmd_vnc")
+    def test_vnc_connections_dispatches(self, mock_cmd, mock_db):
+        run_main_with_args(["vnc", "-t", "server01", "--connections"])
+        mock_cmd.assert_called_once()
+        call_args = mock_cmd.call_args
+        assert call_args[0][0].target == "server01"
+        assert call_args[0][0].connections is True
+
+    @patch("dracs.cli.db_initialize")
+    @patch("dracs.commands.cmd_vnc")
+    def test_vnc_reset_dispatches(self, mock_cmd, mock_db):
+        run_main_with_args(["vnc", "-t", "server01", "--reset"])
+        mock_cmd.assert_called_once()
+        assert mock_cmd.call_args[0][0].reset is True
+
+    @patch("dracs.cli.db_initialize")
+    @patch("dracs.commands.cmd_vnc")
+    def test_vnc_reset_force_dispatches(self, mock_cmd, mock_db):
+        run_main_with_args(["vnc", "-t", "server01", "--reset", "--force"])
+        assert mock_cmd.call_args[0][0].force is True

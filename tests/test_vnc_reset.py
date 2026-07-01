@@ -65,6 +65,34 @@ class TestGetHostnameViewerCount:
         mgr.stop()
         assert get_hostname_viewer_count("server01", token_dir=token_dir) == 0
 
+    def test_returns_one_when_refs_file_missing(self, token_dir):
+        """When .meta exists and matches but .refs is absent, fall back to 1."""
+        td = Path(token_dir)
+        (td / "tok1.meta").write_text("server01\n")
+        (td / "tok1").write_text("tok1: idrac:5901\n")
+        # No .refs file — _get_refs returns 1 by default
+        assert get_hostname_viewer_count("server01", token_dir=token_dir) == 1
+
+    def test_returns_one_when_refs_file_corrupt(self, token_dir):
+        """When .refs contains non-integer data, fall back to 1."""
+        td = Path(token_dir)
+        (td / "tok2.meta").write_text("server01\n")
+        (td / "tok2").write_text("tok2: idrac:5901\n")
+        (td / "tok2.refs").write_text("not-a-number")
+        assert get_hostname_viewer_count("server01", token_dir=token_dir) == 1
+
+    def test_skips_unreadable_meta_file(self, token_dir):
+        """OSError reading .meta skips that token and returns 0."""
+        td = Path(token_dir)
+        meta = td / "tok3.meta"
+        meta.write_text("server01\n")
+        meta.chmod(0o000)
+        try:
+            result = get_hostname_viewer_count("server01", token_dir=token_dir)
+            assert result == 0
+        finally:
+            meta.chmod(0o644)
+
 
 # ── execute_vnc_reset_job ─────────────────────────────────────────────────────
 
@@ -74,10 +102,10 @@ FAIL_RESULT = MagicMock(returncode=1, stdout="", stderr="ERROR: command failed")
 
 
 def _make_ssh_patch(side_effect=None, return_value=None):
-    """Return a patch for _run_racadm_ssh."""
+    """Return a patch for run_racadm_ssh."""
     if side_effect is not None:
-        return patch("dracs.jobqueue._run_racadm_ssh", side_effect=side_effect)
-    return patch("dracs.jobqueue._run_racadm_ssh", return_value=return_value)
+        return patch("dracs.jobqueue.run_racadm_ssh", side_effect=side_effect)
+    return patch("dracs.jobqueue.run_racadm_ssh", return_value=return_value)
 
 
 class TestExecuteVncResetJob:
@@ -229,3 +257,52 @@ class TestVncResetScheduleParsing:
         with patch("dracs.jobqueue.datetime") as mock_dt:
             mock_dt.now.return_value = datetime(2026, 7, 1, 0, 0, 30)
             assert _should_run_now(task, {}) is False
+
+
+# ── _execute_job dispatch ─────────────────────────────────────────────────────
+
+
+class TestExecuteJobDispatch:
+    def test_vnc_reset_dispatch_calls_execute(self):
+        """_execute_job routes vnc_reset job type to execute_vnc_reset_job."""
+        from dracs.jobqueue import JobProcessor
+
+        processor = JobProcessor.__new__(JobProcessor)
+        job = {
+            "id": 99,
+            "job_type": "vnc_reset",
+            "target": "server01",
+            "metadata": {"site_name": "Default"},
+        }
+        with patch("dracs.jobqueue.execute_vnc_reset_job") as mock_exec, patch(
+            "dracs.jobqueue.complete_job"
+        ):
+            processor._execute_job(job)
+        mock_exec.assert_called_once_with("server01", {"site_name": "Default"})
+
+
+# ── run_racadm_ssh function body ──────────────────────────────────────────────
+
+
+class TestRunRacadmSsh:
+    def test_builds_correct_command_and_returns_result(self):
+        """run_racadm_ssh assembles the sshpass command and delegates to subprocess.run."""
+        import subprocess
+
+        from dracs.jobqueue import run_racadm_ssh
+
+        fake_result = MagicMock(spec=subprocess.CompletedProcess)
+        with patch("dracs.jobqueue.subprocess.run", return_value=fake_result) as mock_run:
+            result = run_racadm_ssh(
+                "idrac-server01.example.com", "root", "calvin", ["get", "idrac.vncserver"]
+            )
+
+        assert result is fake_result
+        cmd = mock_run.call_args[0][0]
+        assert cmd[0] == "sshpass"
+        assert "calvin" in cmd
+        assert "root@idrac-server01.example.com" in cmd
+        assert "racadm" in cmd
+        assert "get" in cmd
+        assert "idrac.vncserver" in cmd
+        mock_run.assert_called_once_with(cmd, capture_output=True, text=True, timeout=60)

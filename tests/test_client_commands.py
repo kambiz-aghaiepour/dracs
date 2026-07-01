@@ -18,6 +18,7 @@ from dracs_client.commands import (
     cmd_tsr_generate,
     cmd_tsr_status,
     cmd_user,
+    cmd_vnc,
 )
 
 
@@ -808,3 +809,38 @@ class TestCmdDiscover:
         assert "failed DNS check" in out
         assert "mgmt-badhost.other.net" in out
         assert "Discovery queued" in out
+
+
+class TestCmdVnc:
+    def test_connections_prints_count(self, capsys):
+        resp = _mock_resp(200, {"hostname": "server01", "viewers": 3})
+        args = MagicMock(connections=True, reset=False, force=False, target="server01", site=None)
+        with patch("dracs_client.commands._api_request", return_value=resp):
+            cmd_vnc(args, "https://s", True, "s")
+        out = capsys.readouterr().out
+        assert "server01" in out
+        assert "3 active viewers" in out
+
+    def test_connections_singular(self, capsys):
+        resp = _mock_resp(200, {"hostname": "server01", "viewers": 1})
+        args = MagicMock(connections=True, reset=False, force=False, target="server01", site=None)
+        with patch("dracs_client.commands._api_request", return_value=resp):
+            cmd_vnc(args, "https://s", True, "s")
+        assert "1 active viewer" in capsys.readouterr().out
+
+    def test_reset_success_prints_job_id(self, capsys):
+        resp = _mock_resp(200, {"success": True, "message": "VNC reset queued for server01", "job_id": 42})
+        args = MagicMock(connections=False, reset=True, force=False, target="server01", site=None)
+        with patch("dracs_client.commands._api_request", return_value=resp):
+            with patch("dracs_client.commands._post_json", return_value=resp):
+                cmd_vnc(args, "https://s", True, "s")
+        out = capsys.readouterr().out
+        assert "job ID: 42" in out
+
+    def test_reset_failure_exits(self, capsys):
+        resp = _mock_resp(200, {"success": False, "message": "VNC connection count is currently 2"})
+        args = MagicMock(connections=False, reset=True, force=False, target="server01", site=None)
+        with patch("dracs_client.commands._post_json", return_value=resp):
+            with pytest.raises(SystemExit):
+                cmd_vnc(args, "https://s", True, "s")
+        assert "2" in capsys.readouterr().err

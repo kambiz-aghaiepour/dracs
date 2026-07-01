@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import sys
 import shutil
 import socket
 import time
@@ -1202,8 +1203,6 @@ async def bios_apply(
 
 def cmd_vnc(args, site_name=None):
     """Handle the dracs vnc subcommand."""
-    import sys
-
     from dracs.vnc import get_hostname_viewer_count, get_vnc_credentials
 
     hostname = args.target
@@ -1225,7 +1224,7 @@ def cmd_vnc(args, site_name=None):
         sys.exit(1)
 
     from dracs.exceptions import ValidationError
-    from dracs.jobqueue import _run_racadm_ssh
+    from dracs.jobqueue import run_racadm_ssh
     from dracs.snmp import build_idrac_hostname
     from dracs.webapp import get_idrac_credentials
 
@@ -1247,7 +1246,7 @@ def cmd_vnc(args, site_name=None):
 
     for racadm_args, description in steps:
         print(f"  {description}...", end="", flush=True)
-        result = _run_racadm_ssh(idrac_fqdn, username, password, racadm_args)
+        result = run_racadm_ssh(idrac_fqdn, username, password, racadm_args)
         if result.returncode != 0:
             print(" FAILED")
             print(f"Error: {result.stderr.strip()}", file=sys.stderr)

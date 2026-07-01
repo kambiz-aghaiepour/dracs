@@ -1652,3 +1652,15 @@ class TestHostVncResetEndpoint:
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["success"] is True
+
+    def test_site_param_resolves_site_id(self, vnc_disabled_client):
+        _login(vnc_disabled_client)
+        with patch("dracs.db.get_site_by_name", return_value={"id": 7, "name": "RDU2"}):
+            resp = vnc_disabled_client.post(
+                "/api/host/server01/vnc-reset?site=RDU2",
+                data=json.dumps({}),
+                content_type="application/json",
+            )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["success"] is True
