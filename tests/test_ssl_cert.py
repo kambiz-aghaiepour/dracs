@@ -924,15 +924,57 @@ class TestExecuteSslCertUploadJob:
                 "cert_expiry": expiry,
             },
         )
-        # idrac already has same or newer expiry
+        # idrac already has same or newer expiry and is CA-signed (not self-signed)
         from dracs.db import upsert_host_config
 
-        upsert_host_config("server01", site["id"], {"ssl_expiry": expiry})
+        upsert_host_config(
+            "server01", site["id"], {"ssl_expiry": expiry, "ssl_self_signed": 0}
+        )
 
         with patch("os.path.exists", return_value=True):
             with patch("subprocess.run") as mock_run:
                 execute_ssl_cert_upload_job("server01", self._make_metadata())
                 mock_run.assert_not_called()
+
+    def test_deploys_when_idrac_cert_is_self_signed(self, ssl_db_with_system):
+        from dracs.jobqueue import execute_ssl_cert_upload_job
+
+        site = get_site_by_name("Default")
+        cert_pem, key_pem = _make_cert_and_key_pem(days_until_expiry=90)
+        stored_expiry = "2027-06-01T00:00:00+00:00"
+        upsert_site_ssl_config(
+            site["id"],
+            {
+                "enabled": True,
+                "cert_pem": cert_pem,
+                "key_pem": key_pem,
+                "cert_expiry": stored_expiry,
+            },
+        )
+        from dracs.db import upsert_host_config
+
+        # iDRAC has a self-signed cert with a later expiry than what's stored
+        upsert_host_config(
+            "server01",
+            site["id"],
+            {"ssl_expiry": "2036-05-26T00:00:00+00:00", "ssl_self_signed": 1},
+        )
+
+        ok_result = MagicMock()
+        ok_result.returncode = 0
+
+        with patch("os.path.exists", return_value=True):
+            with patch("subprocess.run", return_value=ok_result) as mock_run:
+                with patch(
+                    "dracs.webapp.get_idrac_credentials",
+                    return_value=("root", "calvin"),
+                ):
+                    with patch(
+                        "dracs.snmp.build_idrac_hostname",
+                        return_value="mgmt-server01.example.com",
+                    ):
+                        execute_ssl_cert_upload_job("server01", self._make_metadata())
+                assert mock_run.called
 
     def test_uploads_cert_when_newer(self, ssl_db_with_system):
         from dracs.jobqueue import execute_ssl_cert_upload_job

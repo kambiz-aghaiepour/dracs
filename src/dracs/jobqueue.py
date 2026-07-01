@@ -744,7 +744,8 @@ def execute_ssl_cert_upload_job(hostname: str, metadata: dict) -> None:
     host_rows = get_host_config_data(site_id, [hostname])
     idrac_expiry = host_rows[0].get("ssl_expiry") if host_rows else None
 
-    if stored_expiry and idrac_expiry:
+    idrac_self_signed = host_rows[0].get("ssl_self_signed") if host_rows else None
+    if stored_expiry and idrac_expiry and not idrac_self_signed:
         if stored_expiry <= idrac_expiry:
             logger.info(
                 "SSL cert for %s already current (stored=%s idrac=%s), skipping",
