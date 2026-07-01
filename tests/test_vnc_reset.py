@@ -8,7 +8,11 @@ from unittest.mock import MagicMock, call, patch
 import pytest
 
 from dracs.db import db_initialize, upsert_system
-from dracs.vnc import VncSessionManager, get_all_active_viewer_counts, get_hostname_viewer_count
+from dracs.vnc import (
+    VncSessionManager,
+    get_all_active_viewer_counts,
+    get_hostname_viewer_count,
+)
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 

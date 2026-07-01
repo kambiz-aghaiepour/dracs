@@ -1228,7 +1228,10 @@ def cmd_vnc(args, site_name=None):
         return
 
     if not args.target:
-        print("Error: -t/--target is required for --connections and --reset.", file=sys.stderr)
+        print(
+            "Error: -t/--target is required for --connections and --reset.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     from dracs.vnc import get_hostname_viewer_count, get_vnc_credentials

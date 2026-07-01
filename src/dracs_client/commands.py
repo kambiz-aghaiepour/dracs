@@ -585,7 +585,10 @@ def cmd_vnc(args, base_url, verify_ssl, server):
         return
 
     if not args.target:
-        print("Error: -t/--target is required for --connections and --reset.", file=sys.stderr)
+        print(
+            "Error: -t/--target is required for --connections and --reset.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     if args.connections:
