@@ -1198,3 +1198,60 @@ async def bios_apply(
         "bios_update", hostname, metadata={"target_bios": version, "model": model}
     )
     print(f"BIOS update {version} queued for {hostname} (job {job_id})")
+
+
+def cmd_vnc(args, site_name=None):
+    """Handle the dracs vnc subcommand."""
+    import sys
+
+    from dracs.vnc import get_hostname_viewer_count, get_vnc_credentials
+
+    hostname = args.target
+
+    if args.connections:
+        count = get_hostname_viewer_count(hostname)
+        label = "viewer" if count == 1 else "viewers"
+        print(f"{hostname}: {count} active {label}")
+        return
+
+    # --reset path
+    count = get_hostname_viewer_count(hostname)
+    if count > 0 and not args.force:
+        print(
+            f"Error: VNC connection count is currently {count} for {hostname}. "
+            "Use --force option to reset anyway.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    from dracs.exceptions import ValidationError
+    from dracs.jobqueue import _run_racadm_ssh
+    from dracs.snmp import build_idrac_hostname
+    from dracs.webapp import get_idrac_credentials
+
+    try:
+        idrac_fqdn = build_idrac_hostname(hostname)
+    except ValidationError as exc:
+        print(f"Error: Cannot build iDRAC FQDN for {hostname}: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    username, password = get_idrac_credentials(hostname, site=site_name)
+    vnc_port, vnc_password = get_vnc_credentials(hostname, site=site_name)
+
+    steps = [
+        (["set", "idrac.vncserver.enable", "Disabled"], "Disabling VNC"),
+        (["set", "idrac.vncserver.Password", vnc_password], "Setting VNC password"),
+        (["set", "idrac.vncserver.port", str(vnc_port)], "Setting VNC port"),
+        (["set", "idrac.vncserver.enable", "Enabled"], "Enabling VNC"),
+    ]
+
+    for racadm_args, description in steps:
+        print(f"  {description}...", end="", flush=True)
+        result = _run_racadm_ssh(idrac_fqdn, username, password, racadm_args)
+        if result.returncode != 0:
+            print(" FAILED")
+            print(f"Error: {result.stderr.strip()}", file=sys.stderr)
+            sys.exit(1)
+        print(" OK")
+
+    print(f"VNC configuration reset successfully for {hostname}.")

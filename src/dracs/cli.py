@@ -407,6 +407,25 @@ async def main() -> None:
         help="Password (skips interactive prompt)",
     )
 
+    parser_vnc = subparsers.add_parser("vnc", help="VNC console operations")
+    parser_vnc.add_argument("-t", "--target", required=True, help="Target hostname")
+    vnc_action = parser_vnc.add_mutually_exclusive_group(required=True)
+    vnc_action.add_argument(
+        "--connections",
+        action="store_true",
+        help="Print active viewer count for the host",
+    )
+    vnc_action.add_argument(
+        "--reset",
+        action="store_true",
+        help="Reset VNC configuration on the iDRAC",
+    )
+    parser_vnc.add_argument(
+        "--force",
+        action="store_true",
+        help="Force --reset even when active viewers are connected",
+    )
+
     parser_sites = subparsers.add_parser("sites", help="Manage configured sites")
     sites_action = parser_sites.add_mutually_exclusive_group()
     sites_action.add_argument(
@@ -498,6 +517,12 @@ async def main() -> None:
         from dracs.db import get_default_site_id
 
         return get_default_site_id()
+
+    if args.command == "vnc":
+        from dracs.commands import cmd_vnc
+
+        cmd_vnc(args, site_name=getattr(args, "site", None))
+        return
 
     if args.command == "sites":
         from dracs.db import (

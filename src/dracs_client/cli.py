@@ -417,6 +417,26 @@ def _add_admin_subparsers(subparsers):
         "-f", "--host-list", dest="host_list", help="File of hostnames (one per line)"
     )
 
+    # --- VNC ---
+    p_vnc = subparsers.add_parser("vnc", help="VNC console operations")
+    p_vnc.add_argument("-t", "--target", required=True, help="Target hostname")
+    vnc_action = p_vnc.add_mutually_exclusive_group(required=True)
+    vnc_action.add_argument(
+        "--connections",
+        action="store_true",
+        help="Print active viewer count for the host",
+    )
+    vnc_action.add_argument(
+        "--reset",
+        action="store_true",
+        help="Reset VNC configuration on the iDRAC",
+    )
+    p_vnc.add_argument(
+        "--force",
+        action="store_true",
+        help="Force --reset even when active viewers are connected",
+    )
+
     # --- USER ---
     p_user = subparsers.add_parser("user", aliases=["u"], help="User management")
     user_action = p_user.add_mutually_exclusive_group(required=True)
@@ -676,3 +696,7 @@ def main() -> None:
         from dracs_client.commands import cmd_discover
 
         cmd_discover(args, base_url, verify_ssl, server)
+    elif args.command in ["vnc"]:
+        from dracs_client.commands import cmd_vnc
+
+        cmd_vnc(args, base_url, verify_ssl, server)

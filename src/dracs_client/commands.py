@@ -556,3 +556,37 @@ def cmd_discover(args, base_url, verify_ssl, server):
             tbl.add_row(f["hostname"], f["idrac_fqdn"], f["error"])
         console.print(tbl)
     _print_result(resp)
+
+
+def cmd_vnc(args, base_url, verify_ssl, server):
+    """Handle the dracs-client vnc subcommand."""
+    site = getattr(args, "site", None)
+
+    if args.connections:
+        resp = _api_request(
+            "get",
+            _site_url(f"{base_url}/api/host/{args.target}/vnc-viewers", site),
+            server,
+            verify_ssl,
+        )
+        data = resp.json()
+        count = data.get("viewers", 0)
+        label = "viewer" if count == 1 else "viewers"
+        print(f"{args.target}: {count} active {label}")
+        return
+
+    # --reset path
+    resp = _post_json(
+        _site_url(f"{base_url}/api/host/{args.target}/vnc-reset", site),
+        server,
+        verify_ssl,
+        {"force": args.force},
+    )
+    data = resp.json()
+    if data.get("success"):
+        job_id = data.get("job_id", "")
+        msg = data.get("message", "VNC reset queued")
+        print(f"{msg} (job ID: {job_id})" if job_id else msg)
+    else:
+        print(f"Error: {data.get('message', 'Unknown error')}", file=sys.stderr)
+        sys.exit(1)
