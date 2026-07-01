@@ -685,6 +685,27 @@ def execute_config_collect_job(hostname: str, metadata: dict) -> None:
         upsert_host_config(hostname, site_id, data)
 
 
+def _run_idracadm7(cmd: list, *, retries: int = 1, retry_delay: int = 5):
+    """Run an idracadm7 command, retrying once on transient iDRAC failures."""
+    for attempt in range(retries + 1):
+        result = subprocess.run(  # nosec # nosemgrep
+            cmd, capture_output=True, text=True, timeout=120  # nosemgrep
+        )
+        if result.returncode == 0:
+            return result
+        if attempt < retries:
+            logger.warning(
+                "idracadm7 attempt %d/%d failed (rc=%d), retrying in %ds: %s",
+                attempt + 1,
+                retries + 1,
+                result.returncode,
+                retry_delay,
+                (result.stderr or result.stdout)[:200],
+            )
+            time.sleep(retry_delay)
+    return result
+
+
 def execute_ssl_cert_upload_job(hostname: str, metadata: dict) -> None:
     """Upload site SSL cert/key to an iDRAC if the stored cert expires later than the current one."""
     import tempfile
@@ -745,7 +766,7 @@ def execute_ssl_cert_upload_job(hostname: str, metadata: dict) -> None:
             f.write(cert_pem)
             tmp_cert = f.name
 
-        result = subprocess.run(  # nosec # nosemgrep
+        result = _run_idracadm7(
             [
                 _IDRACADM7,
                 "-r",
@@ -759,17 +780,14 @@ def execute_ssl_cert_upload_job(hostname: str, metadata: dict) -> None:
                 "1",
                 "-f",
                 tmp_key,
-            ],
-            capture_output=True,
-            text=True,
-            timeout=120,  # nosemgrep
+            ]
         )
         if result.returncode != 0:
             raise RuntimeError(
                 f"sslkeyupload failed: {(result.stderr or result.stdout)[:200]}"
             )
 
-        result = subprocess.run(  # nosec # nosemgrep
+        result = _run_idracadm7(
             [
                 _IDRACADM7,
                 "-r",
@@ -783,10 +801,7 @@ def execute_ssl_cert_upload_job(hostname: str, metadata: dict) -> None:
                 "1",
                 "-f",
                 tmp_cert,
-            ],
-            capture_output=True,
-            text=True,
-            timeout=120,  # nosemgrep
+            ]
         )
         if result.returncode != 0:
             raise RuntimeError(
