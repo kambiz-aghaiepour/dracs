@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v2.16.2 (2026-07-01)
+
+### Bug Fixes
+
+- Add addition condition for ssl deployment
+  ([`7d7ef7d`](https://github.com/kambiz-aghaiepour/dracs/commit/7d7ef7df6ee08104e8742426a3dd49693357dab4))
+
+- Codecov/patch
+  ([`3a1de43`](https://github.com/kambiz-aghaiepour/dracs/commit/3a1de43f23d857f1560111d7124f3552e2ba53fe))
+
+- Ssl deployment for idrac if self signed cert
+  ([`40f58b8`](https://github.com/kambiz-aghaiepour/dracs/commit/40f58b8c5ae1a9fc56e07f99ceac8b3d0c2d8fd1))
+
+### Chores
+
+- Sync spec file version to 2.16.1 [skip ci]
+  ([`bfa447e`](https://github.com/kambiz-aghaiepour/dracs/commit/bfa447e41f680b791845b29031c60cae2764905d))
+
+
 ## v2.16.1 (2026-07-01)
 
 ### Bug Fixes
