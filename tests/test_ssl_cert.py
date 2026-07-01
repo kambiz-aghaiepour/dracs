@@ -1002,18 +1002,67 @@ class TestExecuteSslCertUploadJob:
 
         with patch("os.path.exists", return_value=True):
             with patch("subprocess.run", return_value=fail_result):
-                with patch(
-                    "dracs.webapp.get_idrac_credentials",
-                    return_value=("root", "calvin"),
-                ):
+                with patch("dracs.jobqueue.time.sleep"):
                     with patch(
-                        "dracs.snmp.build_idrac_hostname",
-                        return_value="mgmt-server01.example.com",
+                        "dracs.webapp.get_idrac_credentials",
+                        return_value=("root", "calvin"),
                     ):
-                        with pytest.raises(RuntimeError, match="sslkeyupload failed"):
+                        with patch(
+                            "dracs.snmp.build_idrac_hostname",
+                            return_value="mgmt-server01.example.com",
+                        ):
+                            with pytest.raises(
+                                RuntimeError, match="sslkeyupload failed"
+                            ):
+                                execute_ssl_cert_upload_job(
+                                    "server01", self._make_metadata()
+                                )
+
+    def test_keyupload_succeeds_on_retry(self, ssl_db_with_system):
+        from dracs.jobqueue import execute_ssl_cert_upload_job
+
+        site = get_site_by_name("Default")
+        cert_pem, key_pem = _make_cert_and_key_pem(days_until_expiry=180)
+        upsert_site_ssl_config(
+            site["id"],
+            {
+                "enabled": True,
+                "cert_pem": cert_pem,
+                "key_pem": key_pem,
+                "cert_expiry": "2027-06-01T00:00:00+00:00",
+            },
+        )
+        from dracs.db import upsert_host_config
+
+        upsert_host_config(
+            "server01", site["id"], {"ssl_expiry": "2026-01-01T00:00:00+00:00"}
+        )
+
+        fail_result = MagicMock()
+        fail_result.returncode = 1
+        fail_result.stderr = "Unable to transfer key to the RAC."
+        fail_result.stdout = ""
+
+        ok_result = MagicMock()
+        ok_result.returncode = 0
+
+        with patch("os.path.exists", return_value=True):
+            with patch(
+                "subprocess.run", side_effect=[fail_result, ok_result, ok_result]
+            ):
+                with patch("dracs.jobqueue.time.sleep") as mock_sleep:
+                    with patch(
+                        "dracs.webapp.get_idrac_credentials",
+                        return_value=("root", "calvin"),
+                    ):
+                        with patch(
+                            "dracs.snmp.build_idrac_hostname",
+                            return_value="mgmt-server01.example.com",
+                        ):
                             execute_ssl_cert_upload_job(
                                 "server01", self._make_metadata()
                             )
+                mock_sleep.assert_called_once_with(5)
 
     def test_cleans_up_temp_files_on_success(self, ssl_db_with_system):
         from dracs.jobqueue import execute_ssl_cert_upload_job
@@ -1164,19 +1213,71 @@ class TestExecuteSslCertUploadJob:
         fail_result.stdout = ""
 
         with patch("os.path.exists", return_value=True):
-            with patch("subprocess.run", side_effect=[ok_result, fail_result]):
-                with patch(
-                    "dracs.webapp.get_idrac_credentials",
-                    return_value=("root", "calvin"),
-                ):
+            with patch(
+                "subprocess.run", side_effect=[ok_result, fail_result, fail_result]
+            ):
+                with patch("dracs.jobqueue.time.sleep"):
                     with patch(
-                        "dracs.snmp.build_idrac_hostname",
-                        return_value="mgmt-server01.example.com",
+                        "dracs.webapp.get_idrac_credentials",
+                        return_value=("root", "calvin"),
                     ):
-                        with pytest.raises(RuntimeError, match="sslcertupload failed"):
+                        with patch(
+                            "dracs.snmp.build_idrac_hostname",
+                            return_value="mgmt-server01.example.com",
+                        ):
+                            with pytest.raises(
+                                RuntimeError, match="sslcertupload failed"
+                            ):
+                                execute_ssl_cert_upload_job(
+                                    "server01", self._make_metadata()
+                                )
+
+    def test_certupload_succeeds_on_retry(self, ssl_db_with_system):
+        from dracs.jobqueue import execute_ssl_cert_upload_job
+
+        site = get_site_by_name("Default")
+        cert_pem, key_pem = _make_cert_and_key_pem(days_until_expiry=180)
+        upsert_site_ssl_config(
+            site["id"],
+            {
+                "enabled": True,
+                "cert_pem": cert_pem,
+                "key_pem": key_pem,
+                "cert_expiry": "2027-06-01T00:00:00+00:00",
+            },
+        )
+        from dracs.db import upsert_host_config
+
+        upsert_host_config(
+            "server01", site["id"], {"ssl_expiry": "2026-01-01T00:00:00+00:00"}
+        )
+
+        ok_result = MagicMock()
+        ok_result.returncode = 0
+
+        fail_result = MagicMock()
+        fail_result.returncode = 1
+        fail_result.stderr = "Web server is restarting"
+        fail_result.stdout = ""
+
+        # key succeeds, cert fails first then succeeds on retry
+        with patch("os.path.exists", return_value=True):
+            with patch(
+                "subprocess.run", side_effect=[ok_result, fail_result, ok_result]
+            ):
+                with patch("dracs.jobqueue.time.sleep") as mock_sleep:
+                    with patch(
+                        "dracs.webapp.get_idrac_credentials",
+                        return_value=("root", "calvin"),
+                    ):
+                        with patch(
+                            "dracs.snmp.build_idrac_hostname",
+                            return_value="mgmt-server01.example.com",
+                        ):
                             execute_ssl_cert_upload_job(
                                 "server01", self._make_metadata()
                             )
+                mock_sleep.assert_called_once_with(5)
 
 
 # ── Dispatch through _execute_job ─────────────────────────────────────────────
