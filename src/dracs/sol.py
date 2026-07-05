@@ -180,9 +180,7 @@ class ConserverConfig:
         tmp.chmod(0o640)
         tmp.rename(self.cf_path)
 
-    def _format_default_block(
-        self, name: str, username: str, password: str
-    ) -> list:
+    def _format_default_block(self, name: str, username: str, password: str) -> list:
         return [
             f"default {name} {{\n",
             "    type exec;\n",
@@ -307,9 +305,7 @@ def startup(
             site_names = [s.name for s in sites]
             site_systems = {}
             for site in sites:
-                systems = (
-                    session.query(System).filter(System.site_id == site.id).all()
-                )
+                systems = session.query(System).filter(System.site_id == site.id).all()
                 site_systems[site.name] = [s.name for s in systems if s.name]
 
         site_passwords = {}

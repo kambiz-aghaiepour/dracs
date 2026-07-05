@@ -18,7 +18,6 @@ from dracs.sol import (
     stop_conserver,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -150,9 +149,7 @@ class TestConserverPasswdVerify:
     def test_correct_password(self, passwd_mgr, passwd_file):
         passwd_file.write_text("site1:ABhashvalue\n")
         with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(
-                stdout="ABhashvalue\n", returncode=0
-            )
+            mock_run.return_value = MagicMock(stdout="ABhashvalue\n", returncode=0)
             assert passwd_mgr.verify("site1", "correct") is True
         mock_run.assert_called_once_with(
             ["openssl", "passwd", "-crypt", "-salt", "AB", "correct"],
@@ -436,7 +433,9 @@ class TestStartup:
 
         db_initialize(temp_db)
         with get_session() as session:
-            site = Site(name="TestSite", is_primary=True, created_at=datetime.now().isoformat())
+            site = Site(
+                name="TestSite", is_primary=True, created_at=datetime.now().isoformat()
+            )
             session.add(site)
             session.flush()
             system = System(
@@ -476,7 +475,9 @@ class TestStartup:
 
         db_initialize(temp_db)
         with get_session() as session:
-            site = Site(name="NewSite", is_primary=True, created_at=datetime.now().isoformat())
+            site = Site(
+                name="NewSite", is_primary=True, created_at=datetime.now().isoformat()
+            )
             session.add(site)
             session.commit()
 
