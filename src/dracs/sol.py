@@ -17,6 +17,7 @@ _pid_file_path = Path("/var/run/dracs/conserver.pid")
 
 
 class ConserverPasswd:
+
     """Manages /etc/dracs/conserver.passwd - one entry per dracs site."""
 
     def __init__(self, passwd_path: Path):
@@ -96,6 +97,7 @@ class ConserverPasswd:
 
 
 class ConserverConfig:
+
     """Generates /etc/dracs/conserver.cf from dracs site and host data."""
 
     def __init__(self, cf_path: Path, passwd_path: Path, log_dir: Path):
