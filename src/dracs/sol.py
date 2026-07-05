@@ -7,7 +7,7 @@ import secrets
 import shutil
 import signal
 import string
-import subprocess
+import subprocess  # nosec B404
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -48,7 +48,7 @@ class ConserverPasswd:
         try:
             salt = stored[:2]
             openssl = shutil.which("openssl") or "openssl"
-            result = subprocess.run(
+            result = subprocess.run(  # nosec B603  # nosemgrep
                 [openssl, "passwd", "-crypt", "-salt", salt, "-stdin"],
                 input=plaintext,
                 capture_output=True,
@@ -90,7 +90,7 @@ class ConserverPasswd:
     def _hash_password(plaintext: str) -> str:
         """Hash a plaintext password using openssl passwd -crypt via stdin."""
         openssl = shutil.which("openssl") or "openssl"
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603  # nosemgrep
             [openssl, "passwd", "-crypt", "-stdin"],
             input=plaintext,
             capture_output=True,
@@ -234,7 +234,7 @@ def disable_systemd_service() -> None:
     """Ensure the conserver systemd service is disabled."""
     try:
         systemctl = shutil.which("systemctl") or "systemctl"
-        subprocess.run(
+        subprocess.run(  # nosec B603  # nosemgrep
             [systemctl, "disable", "--now", "conserver"],
             capture_output=True,
             check=False,
@@ -252,7 +252,7 @@ def start_conserver(cf_path: Path) -> subprocess.Popen | None:
         logger.warning("conserver not found in PATH; SOL feature disabled")
         return None
 
-    _conserver_process = subprocess.Popen(  # nosec B603
+    _conserver_process = subprocess.Popen(  # nosec B603  # nosemgrep
         [conserver_bin, "-c", str(cf_path)],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -297,8 +297,7 @@ def startup(
     passwd_path: Path,
     log_dir: Path,
 ) -> None:
-    """
-    Orchestrate conserver startup.
+    """Orchestrate conserver startup.
 
     Called from a daemon thread in gunicorn on_starting. Initializes the DB
     connection independently (master process, before worker forks).

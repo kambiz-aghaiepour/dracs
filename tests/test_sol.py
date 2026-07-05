@@ -394,6 +394,21 @@ class TestStartConserver:
             result = start_conserver(cf)
         assert result is None
 
+    def test_handles_pid_file_write_error(self, tmp_path):
+        cf = tmp_path / "conserver.cf"
+        mock_proc = MagicMock()
+        mock_proc.pid = 99999
+        pid_mock = MagicMock()
+        pid_mock.parent.mkdir.return_value = None
+        pid_mock.write_text.side_effect = OSError("permission denied")
+        with (
+            patch("shutil.which", return_value="/usr/sbin/conserver"),
+            patch("subprocess.Popen", return_value=mock_proc),
+            patch("dracs.sol._pid_file_path", pid_mock),
+        ):
+            result = start_conserver(cf)
+        assert result is mock_proc
+
 
 class TestStopConserver:
     def test_terminates_tracked_process(self, tmp_path):
@@ -438,6 +453,30 @@ class TestStopConserver:
         with patch("dracs.sol._pid_file_path", tmp_path / "nonexistent.pid"):
             stop_conserver()  # must not raise
 
+    def test_kill_raises_lookup_error(self, tmp_path):
+        import dracs.sol as sol_module
+
+        mock_proc = MagicMock()
+        mock_proc.wait.side_effect = subprocess.TimeoutExpired([], 5)
+        mock_proc.kill.side_effect = ProcessLookupError()
+        sol_module._conserver_process = mock_proc
+        with patch("dracs.sol._pid_file_path", tmp_path / "nonexistent.pid"):
+            stop_conserver()  # must not raise
+        assert sol_module._conserver_process is None
+
+    def test_handles_stale_pid_kill_error(self, tmp_path):
+        import dracs.sol as sol_module
+
+        sol_module._conserver_process = None
+        pid_file = tmp_path / "conserver.pid"
+        pid_file.write_text("55555")
+        with (
+            patch("dracs.sol._pid_file_path", pid_file),
+            patch("os.kill", side_effect=ProcessLookupError()),
+        ):
+            stop_conserver()  # must not raise
+        assert not pid_file.exists()
+
 
 # ---------------------------------------------------------------------------
 # startup() orchestration test
@@ -468,17 +507,18 @@ class TestStartup:
         logs = tmp_path / "logs"
 
         with (
-            patch.object(
-                ConserverPasswd,
-                "_hash_password",
-                return_value="ABhash",
-            ),
+            patch.object(ConserverPasswd, "_hash_password", return_value="ABhash"),
             patch(
                 "dracs.snmp.build_idrac_hostname",
                 return_value="mgmt-host01.example.com",
             ),
             patch("dracs.sol.disable_systemd_service") as mock_disable,
             patch("dracs.sol.start_conserver") as mock_start,
+            patch(
+                "dracs.sites.get_site_ini_config",
+                return_value={"defaults": {}, "hosts": {}},
+            ),
+            patch("dracs.sites.set_site_ini_config"),
         ):
             startup(temp_db, None, cf, pw, logs)
 
@@ -502,18 +542,27 @@ class TestStartup:
         pw = tmp_path / "conserver.passwd"
         logs = tmp_path / "logs"
 
+        ini_store = {}
+
+        def fake_get(site_name):
+            return ini_store.get(site_name, {"defaults": {}, "hosts": {}})
+
+        def fake_set(site_name, cfg):
+            ini_store[site_name] = cfg
+
         with (
             patch.object(ConserverPasswd, "_hash_password", return_value="ABhash"),
             patch("dracs.snmp.build_idrac_hostname", return_value="mgmt-host"),
             patch("dracs.sol.disable_systemd_service"),
             patch("dracs.sol.start_conserver"),
+            patch("dracs.sites.get_site_ini_config", side_effect=fake_get),
+            patch("dracs.sites.set_site_ini_config", side_effect=fake_set),
         ):
             startup(temp_db, None, cf, pw, logs)
 
-        from dracs.sites import get_site_ini_config
-
-        cfg = get_site_ini_config("NewSite")
-        assert cfg["defaults"].get("conserver_password")
+        assert (
+            ini_store.get("NewSite", {}).get("defaults", {}).get("conserver_password")
+        )
 
     def test_handles_startup_exception(self, tmp_path):
         with patch("dracs.db.db_initialize", side_effect=Exception("DB error")):
