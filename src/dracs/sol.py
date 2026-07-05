@@ -17,8 +17,11 @@ _pid_file_path = Path("/var/run/dracs/conserver.pid")
 
 
 class ConserverPasswd:
+    """Manages /etc/dracs/conserver.passwd - one entry per dracs site.
 
-    """Manages /etc/dracs/conserver.passwd - one entry per dracs site."""
+    Handles hashing, storage, and verification of per-site passwords
+    used by conserver to authenticate console clients.
+    """
 
     def __init__(self, passwd_path: Path):
         """Initialize with the path to the conserver passwd file."""
@@ -97,8 +100,11 @@ class ConserverPasswd:
 
 
 class ConserverConfig:
+    """Generates /etc/dracs/conserver.cf from dracs site and host data.
 
-    """Generates /etc/dracs/conserver.cf from dracs site and host data."""
+    Writes config, access, default, and console stanzas for each site
+    and host; sets file permissions to 0640.
+    """
 
     def __init__(self, cf_path: Path, passwd_path: Path, log_dir: Path):
         """Initialize with paths to the config file, passwd file, and log directory."""
