@@ -20,11 +20,11 @@ class ConserverPasswd:
     """Manages /etc/dracs/conserver.passwd - one entry per dracs site."""
 
     def __init__(self, passwd_path: Path):
+        """Initialize with the path to the conserver passwd file."""
         self.passwd_path = passwd_path
 
     def sync(self, site_passwords: dict) -> dict:
-        """
-        Ensure conserver.passwd has exactly one entry per site.
+        """Ensure conserver.passwd has exactly one entry per site.
 
         Accepts {site_name: plaintext_password or None}.
         Generates a random password for any None entry.
@@ -47,8 +47,10 @@ class ConserverPasswd:
             return False
         try:
             salt = stored[:2]
+            openssl = shutil.which("openssl") or "openssl"
             result = subprocess.run(
-                ["openssl", "passwd", "-crypt", "-salt", salt, plaintext],
+                [openssl, "passwd", "-crypt", "-salt", salt, "-stdin"],
+                input=plaintext,
                 capture_output=True,
                 text=True,
                 check=True,
@@ -86,8 +88,11 @@ class ConserverPasswd:
 
     @staticmethod
     def _hash_password(plaintext: str) -> str:
+        """Hash a plaintext password using openssl passwd -crypt via stdin."""
+        openssl = shutil.which("openssl") or "openssl"
         result = subprocess.run(
-            ["openssl", "passwd", "-crypt", plaintext],
+            [openssl, "passwd", "-crypt", "-stdin"],
+            input=plaintext,
             capture_output=True,
             text=True,
             check=True,
@@ -99,13 +104,13 @@ class ConserverConfig:
     """Generates /etc/dracs/conserver.cf from dracs site and host data."""
 
     def __init__(self, cf_path: Path, passwd_path: Path, log_dir: Path):
+        """Initialize with paths to the config file, passwd file, and log directory."""
         self.cf_path = cf_path
         self.passwd_path = passwd_path
         self.log_dir = log_dir
 
     def generate(self, sites_data: list) -> None:
-        """
-        Write conserver.cf.
+        """Write conserver.cf.
 
         sites_data: list of {
             name: str,
@@ -181,6 +186,7 @@ class ConserverConfig:
         tmp.rename(self.cf_path)
 
     def _format_default_block(self, name: str, username: str, password: str) -> list:
+        """Return conserver.cf lines for a named ipmi_sol default block."""
         return [
             f"default {name} {{\n",
             "    type exec;\n",
@@ -198,6 +204,7 @@ class ConserverConfig:
         default_name: str,
         site_name: str,
     ) -> list:
+        """Return conserver.cf lines for a console stanza."""
         return [
             f"console {console_name} {{\n",
             "    master localhost;\n",
@@ -209,10 +216,12 @@ class ConserverConfig:
 
     @staticmethod
     def _safe_name(name: str) -> str:
+        """Convert a name to a valid conserver identifier."""
         return re.sub(r"[^a-zA-Z0-9_]", "_", name)
 
     @staticmethod
     def _has_host_override(host_creds: dict, site_defaults: dict) -> bool:
+        """Return True if host credentials differ from the site defaults."""
         for key in ("username", "password"):
             host_val = host_creds.get(key) or ""
             site_val = site_defaults.get(key) or ""
@@ -224,8 +233,9 @@ class ConserverConfig:
 def disable_systemd_service() -> None:
     """Ensure the conserver systemd service is disabled."""
     try:
+        systemctl = shutil.which("systemctl") or "systemctl"
         subprocess.run(
-            ["systemctl", "disable", "--now", "conserver"],
+            [systemctl, "disable", "--now", "conserver"],
             capture_output=True,
             check=False,
         )
@@ -242,7 +252,7 @@ def start_conserver(cf_path: Path) -> subprocess.Popen | None:
         logger.warning("conserver not found in PATH; SOL feature disabled")
         return None
 
-    _conserver_process = subprocess.Popen(
+    _conserver_process = subprocess.Popen(  # nosec B603
         [conserver_bin, "-c", str(cf_path)],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -323,7 +333,7 @@ def startup(
                 cfg = get_site_ini_config(site_name)
                 cfg["defaults"]["conserver_password"] = plaintext
                 set_site_ini_config(site_name, cfg)
-                logger.info("Generated conserver password for site '%s'", site_name)
+                logger.info("Initialized conserver auth for site '%s'", site_name)
 
         sites_data = []
         for site_name in site_names:

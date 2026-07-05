@@ -72,11 +72,15 @@ class TestConserverPasswdGeneratePassword:
 class TestConserverPasswdHashPassword:
     def test_calls_openssl(self, passwd_mgr):
         fake_hash = "ABhashvalue"
-        with patch("subprocess.run") as mock_run:
+        with (
+            patch("shutil.which", return_value="/usr/bin/openssl"),
+            patch("subprocess.run") as mock_run,
+        ):
             mock_run.return_value = MagicMock(stdout=fake_hash + "\n", returncode=0)
             result = passwd_mgr._hash_password("secret")
         mock_run.assert_called_once_with(
-            ["openssl", "passwd", "-crypt", "secret"],
+            ["/usr/bin/openssl", "passwd", "-crypt", "-stdin"],
+            input="secret",
             capture_output=True,
             text=True,
             check=True,
@@ -84,7 +88,10 @@ class TestConserverPasswdHashPassword:
         assert result == fake_hash
 
     def test_strips_whitespace(self, passwd_mgr):
-        with patch("subprocess.run") as mock_run:
+        with (
+            patch("shutil.which", return_value="/usr/bin/openssl"),
+            patch("subprocess.run") as mock_run,
+        ):
             mock_run.return_value = MagicMock(stdout="  ABhash  \n", returncode=0)
             result = passwd_mgr._hash_password("pw")
         assert result == "ABhash"
@@ -148,11 +155,15 @@ class TestConserverPasswdRead:
 class TestConserverPasswdVerify:
     def test_correct_password(self, passwd_mgr, passwd_file):
         passwd_file.write_text("site1:ABhashvalue\n")
-        with patch("subprocess.run") as mock_run:
+        with (
+            patch("shutil.which", return_value="/usr/bin/openssl"),
+            patch("subprocess.run") as mock_run,
+        ):
             mock_run.return_value = MagicMock(stdout="ABhashvalue\n", returncode=0)
             assert passwd_mgr.verify("site1", "correct") is True
         mock_run.assert_called_once_with(
-            ["openssl", "passwd", "-crypt", "-salt", "AB", "correct"],
+            ["/usr/bin/openssl", "passwd", "-crypt", "-salt", "AB", "-stdin"],
+            input="correct",
             capture_output=True,
             text=True,
             check=True,
@@ -160,7 +171,10 @@ class TestConserverPasswdVerify:
 
     def test_wrong_password(self, passwd_mgr, passwd_file):
         passwd_file.write_text("site1:ABhashvalue\n")
-        with patch("subprocess.run") as mock_run:
+        with (
+            patch("shutil.which", return_value="/usr/bin/openssl"),
+            patch("subprocess.run") as mock_run,
+        ):
             mock_run.return_value = MagicMock(stdout="ABwronghash\n", returncode=0)
             assert passwd_mgr.verify("site1", "wrong") is False
 
@@ -326,11 +340,14 @@ class TestConserverConfigGenerate:
 
 class TestDisableSystemdService:
     def test_calls_systemctl(self):
-        with patch("subprocess.run") as mock_run:
+        with (
+            patch("shutil.which", return_value="/usr/bin/systemctl"),
+            patch("subprocess.run") as mock_run,
+        ):
             mock_run.return_value = MagicMock(returncode=0)
             disable_systemd_service()
         mock_run.assert_called_once_with(
-            ["systemctl", "disable", "--now", "conserver"],
+            ["/usr/bin/systemctl", "disable", "--now", "conserver"],
             capture_output=True,
             check=False,
         )
