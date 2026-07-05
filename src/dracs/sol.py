@@ -17,19 +17,18 @@ _pid_file_path = Path("/var/run/dracs/conserver.pid")
 
 
 class ConserverPasswd:
+    # fmt: off
+
     """Manages /etc/dracs/conserver.passwd - one entry per dracs site."""
+
+    # fmt: on
 
     def __init__(self, passwd_path: Path):
         """Initialize with the path to the conserver passwd file."""
         self.passwd_path = passwd_path
 
     def sync(self, site_passwords: dict) -> dict:
-        """Ensure conserver.passwd has exactly one entry per site.
-
-        Accepts {site_name: plaintext_password or None}.
-        Generates a random password for any None entry.
-        Returns {site_name: plaintext} with generated passwords filled in.
-        """
+        """Sync conserver.passwd; generate random passwords for any None entries."""
         result = {}
         entries = {}
         for site_name, plaintext in site_passwords.items():
@@ -101,7 +100,11 @@ class ConserverPasswd:
 
 
 class ConserverConfig:
+    # fmt: off
+
     """Generates /etc/dracs/conserver.cf from dracs site and host data."""
+
+    # fmt: on
 
     def __init__(self, cf_path: Path, passwd_path: Path, log_dir: Path):
         """Initialize with paths to the config file, passwd file, and log directory."""
@@ -110,16 +113,7 @@ class ConserverConfig:
         self.log_dir = log_dir
 
     def generate(self, sites_data: list) -> None:
-        """Write conserver.cf.
-
-        sites_data: list of {
-            name: str,
-            defaults: {username, password, ...},
-            hosts: {hostname: {username, password, ...}}
-        }
-        hosts contains ALL systems for the site; entries without credentials
-        (empty dict) fall back to the site-level default block.
-        """
+        """Write conserver.cf; creates per-site default blocks and console stanzas."""
         from dracs.snmp import ValidationError, build_idrac_hostname
 
         lines = [
@@ -297,11 +291,7 @@ def startup(
     passwd_path: Path,
     log_dir: Path,
 ) -> None:
-    """Orchestrate conserver startup.
-
-    Called from a daemon thread in gunicorn on_starting. Initializes the DB
-    connection independently (master process, before worker forks).
-    """
+    """Orchestrate conserver startup in a daemon thread during gunicorn on_starting."""
     try:
         from dracs.db import Site, System, db_initialize, get_session
         from dracs.sites import get_site_ini_config, set_site_ini_config
