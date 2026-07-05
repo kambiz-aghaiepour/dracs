@@ -105,5 +105,10 @@ class TestRequiredEnvVarsList:
             "VNC_WEBSOCKIFY_PORT",
             "VNC_CONSOLE_SIZE",
             "DRACS_TOKEN_EXPIRY",
+            "SOL_ENABLE",
+            "SOL_CONSERVER_CF",
+            "SOL_CONSERVER_PASSWD",
+            "SOL_CONSERVER_LOGDIR",
+            "SOL_CONSERVER_PORT",
         ]
         assert list(OPTIONAL_ENV_DEFAULTS.keys()) == expected_keys

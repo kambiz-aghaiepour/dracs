@@ -39,6 +39,8 @@ Requires:       python3-websockify
 Recommends:     x11vnc
 Requires:       tftp-server
 Requires:       tftp
+Requires:       conserver
+Requires:       ipmitool
 Provides:       user(dracs)
 Provides:       group(dracs)
 
@@ -48,6 +50,7 @@ Provides:       group(dracs)
 %package -n     dracs-client
 Summary:        DRACS remote client CLI
 Requires:       python3-dracs-libs = %{version}-%{release}
+Requires:       conserver-client
 
 %description -n dracs-client
 Remote CLI client for querying a DRACS server inventory.
@@ -173,11 +176,19 @@ if [ $1 -eq 1 ]; then
     setsebool -P tftp_anon_write 1 2>/dev/null || :
 fi
 
-# Open firewall ports 80, 443, and TFTP
+# Create conserver log directory
+mkdir -p /var/log/dracs/conserver
+chown dracs:dracs /var/log/dracs/conserver 2>/dev/null || :
+
+# Ensure conserver system service is disabled (dracs-webapp manages it)
+systemctl disable --now conserver 2>/dev/null || :
+
+# Open firewall ports 80, 443, TFTP, and conserver (3109/tcp)
 if command -v firewall-cmd &>/dev/null && systemctl is-enabled firewalld &>/dev/null; then
     firewall-cmd --permanent --add-port=80/tcp 2>/dev/null || :
     firewall-cmd --permanent --add-port=443/tcp 2>/dev/null || :
     firewall-cmd --permanent --add-service=tftp 2>/dev/null || :
+    firewall-cmd --permanent --add-port=3109/tcp 2>/dev/null || :
     firewall-cmd --reload 2>/dev/null || :
 elif systemctl is-enabled iptables &>/dev/null; then
     iptables -C INPUT -p tcp --dport 80 -j ACCEPT 2>/dev/null || \
@@ -189,6 +200,8 @@ elif systemctl is-enabled iptables &>/dev/null; then
         iptables -I INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || :
     iptables -C INPUT -p udp --dport 69 -j ACCEPT 2>/dev/null || \
         iptables -I INPUT -p udp --dport 69 -j ACCEPT 2>/dev/null || :
+    iptables -C INPUT -p tcp --dport 3109 -j ACCEPT 2>/dev/null || \
+        iptables -I INPUT -p tcp --dport 3109 -j ACCEPT 2>/dev/null || :
     service iptables save 2>/dev/null || :
 fi
 
