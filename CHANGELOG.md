@@ -2,6 +2,24 @@
 
 <!-- version list -->
 
+## v2.18.0 (2026-07-06)
+
+### Bug Fixes
+
+- Codecov/patch fell below 99%
+  ([`697619a`](https://github.com/kambiz-aghaiepour/dracs/commit/697619a5a429e72df2867f197ea32918fd1bec82))
+
+### Chores
+
+- Sync spec file version to 2.17.9 [skip ci]
+  ([`f181fa3`](https://github.com/kambiz-aghaiepour/dracs/commit/f181fa373d83c470259ed8fdf9eaf93d43bb0e12))
+
+### Features
+
+- Add IPMI SOL console access via conserver
+  ([`3b490bb`](https://github.com/kambiz-aghaiepour/dracs/commit/3b490bb9145f898cfa7b550d4a01a3ef80dd7f3f))
+
+
 ## v2.17.9 (2026-07-06)
 
 ### Bug Fixes
