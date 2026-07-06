@@ -265,6 +265,7 @@ def start_conserver(cf_path: Path) -> subprocess.Popen | None:
         slave_port = str(int(os.environ.get("SOL_CONSERVER_SLAVE_PORT", "3110")))
     except ValueError:
         slave_port = "3110"
+    _kill_conservers_on_port(port)
     _conserver_process = subprocess.Popen(  # nosec B603
         [conserver_bin, "-C", str(cf_path), "-p", port, "-b", slave_port],  # nosemgrep
         stdout=subprocess.DEVNULL,
@@ -278,6 +279,39 @@ def start_conserver(cf_path: Path) -> subprocess.Popen | None:
         pass
     logger.info("conserver started (PID %s)", _conserver_process.pid)
     return _conserver_process
+
+
+def _kill_conservers_on_port(
+    port: str, _proc_root: Path = Path("/proc")
+) -> None:
+    """Kill all conserver processes already bound to the given master port.
+
+    Scans /proc to find processes regardless of which parent started them,
+    so orphaned conservers from previous service runs are also cleaned up.
+    """
+    seen_pgids: set[int] = set()
+    try:
+        for proc in _proc_root.iterdir():
+            if not proc.name.isdigit():
+                continue
+            try:
+                raw = (proc / "cmdline").read_bytes().split(b"\x00")
+                args = [a.decode("utf-8", errors="replace") for a in raw if a]
+                if (
+                    args
+                    and Path(args[0]).name == "conserver"
+                    and "-p" in args
+                    and args[args.index("-p") + 1] == port
+                ):
+                    pid = int(proc.name)
+                    pgid = os.getpgid(pid)
+                    if pgid not in seen_pgids:
+                        seen_pgids.add(pgid)
+                        os.killpg(pgid, signal.SIGTERM)
+            except (OSError, ValueError, IndexError, ProcessLookupError):
+                pass
+    except OSError:
+        pass
 
 
 def stop_conserver() -> None:
@@ -294,7 +328,7 @@ def stop_conserver() -> None:
         pid = _conserver_process.pid
         _kill_pgroup(pid, signal.SIGTERM)
         try:
-            _conserver_process.wait(timeout=5)
+            _conserver_process.wait(timeout=2)
         except subprocess.TimeoutExpired:
             _kill_pgroup(pid, signal.SIGKILL)
         _conserver_process = None
@@ -306,6 +340,12 @@ def stop_conserver() -> None:
         except (ValueError, OSError):
             pass
         _pid_file_path.unlink(missing_ok=True)
+
+    try:
+        port = str(int(os.environ.get("SOL_CONSERVER_PORT", "3109")))
+    except ValueError:
+        port = "3109"
+    _kill_conservers_on_port(port)
 
 
 def startup(

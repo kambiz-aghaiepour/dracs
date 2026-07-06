@@ -11,10 +11,12 @@ WorkingDirectory=/etc/dracs
 Environment=DRACS_DB=/var/lib/dracs/warranty.db
 Environment=DRACS_LOG_DIR=/var/log/dracs
 EnvironmentFile=-/etc/dracs/dracs.conf
+RuntimeDirectory=dracs
 ExecStart=/usr/bin/dracs-webapp
+ExecStopPost=-/usr/bin/pkill -f "conserver -C /etc/dracs/conserver.cf"
 Restart=on-failure
 RestartSec=5
-TimeoutStopSec=10
+TimeoutStopSec=15
 SyslogIdentifier=dracs-webapp
 
 [Install]

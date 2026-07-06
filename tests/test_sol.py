@@ -12,6 +12,7 @@ import pytest
 from dracs.sol import (
     ConserverConfig,
     ConserverPasswd,
+    _kill_conservers_on_port,
     disable_systemd_service,
     start_conserver,
     startup,
@@ -490,6 +491,84 @@ class TestStartConserver:
         assert result is mock_proc
 
 
+class TestKillConserversOnPort:
+    def _make_proc(self, tmp_path, pid: int, cmdline_args: list[str]) -> Path:
+        """Create a fake /proc/<pid>/cmdline entry."""
+        proc_entry = tmp_path / str(pid)
+        proc_entry.mkdir()
+        raw = b"\x00".join(a.encode() for a in cmdline_args) + b"\x00"
+        (proc_entry / "cmdline").write_bytes(raw)
+        return proc_entry
+
+    def test_kills_matching_conserver(self, tmp_path):
+        self._make_proc(tmp_path, 11111, ["/usr/bin/conserver", "-C", "/etc/dracs/conserver.cf", "-p", "3109", "-b", "3110"])
+        with (
+            patch("os.getpgid", return_value=11111),
+            patch("os.killpg") as mock_killpg,
+        ):
+            _kill_conservers_on_port("3109", _proc_root=tmp_path)
+        mock_killpg.assert_called_once_with(11111, signal.SIGTERM)
+
+    def test_skips_nonmatching_port(self, tmp_path):
+        self._make_proc(tmp_path, 22222, ["/usr/bin/conserver", "-C", "/etc/dracs/conserver.cf", "-p", "3200", "-b", "3201"])
+        with patch("os.killpg") as mock_killpg:
+            _kill_conservers_on_port("3109", _proc_root=tmp_path)
+        mock_killpg.assert_not_called()
+
+    def test_skips_non_conserver_processes(self, tmp_path):
+        self._make_proc(tmp_path, 33333, ["/usr/bin/python3", "-p", "3109"])
+        with patch("os.killpg") as mock_killpg:
+            _kill_conservers_on_port("3109", _proc_root=tmp_path)
+        mock_killpg.assert_not_called()
+
+    def test_kills_each_process_group_once(self, tmp_path):
+        """Master and child share a PGID; killpg should be called only once."""
+        self._make_proc(tmp_path, 44444, ["/usr/bin/conserver", "-C", "/etc/dracs/conserver.cf", "-p", "3109"])
+        self._make_proc(tmp_path, 44445, ["/usr/bin/conserver", "-C", "/etc/dracs/conserver.cf", "-p", "3109"])
+        with (
+            patch("os.getpgid", return_value=44444),
+            patch("os.killpg") as mock_killpg,
+        ):
+            _kill_conservers_on_port("3109", _proc_root=tmp_path)
+        assert mock_killpg.call_count == 1
+
+    def test_ignores_unreadable_cmdline(self, tmp_path):
+        proc_entry = tmp_path / "55555"
+        proc_entry.mkdir()
+        # No cmdline file → OSError on read_bytes
+        with patch("os.killpg") as mock_killpg:
+            _kill_conservers_on_port("3109", _proc_root=tmp_path)
+        mock_killpg.assert_not_called()
+
+    def test_handles_proc_oserror(self, tmp_path):
+        nonexistent = tmp_path / "no_proc"
+        _kill_conservers_on_port("3109", _proc_root=nonexistent)  # must not raise
+
+    def test_tolerates_getpgid_error(self, tmp_path):
+        self._make_proc(tmp_path, 66666, ["/usr/bin/conserver", "-C", "/etc/dracs/conserver.cf", "-p", "3109"])
+        with (
+            patch("os.getpgid", side_effect=ProcessLookupError()),
+            patch("os.killpg") as mock_killpg,
+        ):
+            _kill_conservers_on_port("3109", _proc_root=tmp_path)  # must not raise
+        mock_killpg.assert_not_called()
+
+
+class TestStartConserverKillsOrphans:
+    def test_kills_existing_conserver_before_start(self, tmp_path):
+        cf = tmp_path / "conserver.cf"
+        mock_proc = MagicMock()
+        mock_proc.pid = 12345
+        with (
+            patch("shutil.which", return_value="/usr/sbin/conserver"),
+            patch("subprocess.Popen", return_value=mock_proc),
+            patch("dracs.sol._pid_file_path", tmp_path / "conserver.pid"),
+            patch("dracs.sol._kill_conservers_on_port") as mock_kill,
+        ):
+            start_conserver(cf)
+        mock_kill.assert_called_once_with("3109")
+
+
 class TestStopConserver:
     def test_terminates_tracked_process(self, tmp_path):
         import dracs.sol as sol_module
@@ -597,6 +676,29 @@ class TestStopConserver:
         ):
             stop_conserver()  # must not raise (OSError from read_text)
         assert not pid_file.exists()
+
+    def test_kills_orphaned_conserver_by_port(self, tmp_path):
+        import dracs.sol as sol_module
+
+        sol_module._conserver_process = None
+        with (
+            patch("dracs.sol._pid_file_path", tmp_path / "nonexistent.pid"),
+            patch("dracs.sol._kill_conservers_on_port") as mock_kill,
+        ):
+            stop_conserver()
+        mock_kill.assert_called_once_with("3109")
+
+    def test_kills_orphaned_conserver_invalid_port_falls_back(self, tmp_path):
+        import dracs.sol as sol_module
+
+        sol_module._conserver_process = None
+        with (
+            patch("dracs.sol._pid_file_path", tmp_path / "nonexistent.pid"),
+            patch("dracs.sol._kill_conservers_on_port") as mock_kill,
+            patch.dict("os.environ", {"SOL_CONSERVER_PORT": "bad"}),
+        ):
+            stop_conserver()
+        mock_kill.assert_called_once_with("3109")
 
 
 # ---------------------------------------------------------------------------
