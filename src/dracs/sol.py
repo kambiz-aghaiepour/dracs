@@ -281,6 +281,16 @@ def start_conserver(cf_path: Path) -> subprocess.Popen | None:
     return _conserver_process
 
 
+def _is_conserver_on_port(args: list[str], port: str) -> bool:
+    """Return True if the cmdline args represent a conserver master on the given port."""
+    if not args or Path(args[0]).name != "conserver":
+        return False
+    try:
+        return args[args.index("-p") + 1] == port
+    except (ValueError, IndexError):
+        return False
+
+
 def _kill_conservers_on_port(port: str, _proc_root: Path = Path("/proc")) -> None:
     """Kill all conserver processes already bound to the given master port.
 
@@ -295,18 +305,13 @@ def _kill_conservers_on_port(port: str, _proc_root: Path = Path("/proc")) -> Non
             try:
                 raw = (proc / "cmdline").read_bytes().split(b"\x00")
                 args = [a.decode("utf-8", errors="replace") for a in raw if a]
-                if (
-                    args
-                    and Path(args[0]).name == "conserver"
-                    and "-p" in args
-                    and args[args.index("-p") + 1] == port
-                ):
+                if _is_conserver_on_port(args, port):
                     pid = int(proc.name)
                     pgid = os.getpgid(pid)
                     if pgid not in seen_pgids:
                         seen_pgids.add(pgid)
                         os.killpg(pgid, signal.SIGTERM)
-            except (OSError, ValueError, IndexError, ProcessLookupError):
+            except (OSError, ValueError, ProcessLookupError):
                 pass
     except OSError:
         pass
