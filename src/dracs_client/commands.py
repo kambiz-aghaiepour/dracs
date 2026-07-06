@@ -705,6 +705,4 @@ def cmd_sol(args, base_url, verify_ssl, server):
         child.interact()
     finally:
         if tmp_dir:
-            import shutil as _shutil
-
-            _shutil.rmtree(tmp_dir, ignore_errors=True)
+            shutil.rmtree(tmp_dir, ignore_errors=True)

@@ -151,8 +151,6 @@ class ConserverConfig:
         ssl_creds_path: Path | None = None,
     ) -> None:
         """Write conserver.cf; creates per-site default blocks and console stanzas."""
-        from dracs.snmp import ValidationError, build_idrac_hostname
-
         master_hostname = socket.gethostname()
         config_block = [
             "config * {\n",
@@ -176,48 +174,8 @@ class ConserverConfig:
             "    allowed 0.0.0.0/0;\n",
             "}\n",
         ]
-
         for site in sites_data:
-            site_name = site["name"]
-            safe_site = self._safe_name(site_name)
-            site_defs = site.get("defaults", {})
-            site_user = site_defs.get("username") or "root"
-            site_pass = site_defs.get("password") or ""
-
-            lines.append("\n")
-            lines.extend(
-                self._format_default_block(
-                    f"ipmi_sol_{safe_site}", site_user, site_pass
-                )
-            )
-
-            for hostname, host_creds in site.get("hosts", {}).items():
-                if self._has_host_override(host_creds, site_defs):
-                    h_user = host_creds.get("username") or site_user
-                    h_pass = host_creds.get("password") or site_pass
-                    lines.append("\n")
-                    lines.extend(
-                        self._format_default_block(
-                            f"ipmi_sol_{self._safe_name(hostname)}", h_user, h_pass
-                        )
-                    )
-
-            for hostname, host_creds in site.get("hosts", {}).items():
-                try:
-                    mgmt_host = build_idrac_hostname(hostname)
-                except ValidationError as exc:
-                    logger.warning("Skipping host %s: %s", hostname, exc)
-                    continue
-                if self._has_host_override(host_creds, site_defs):
-                    default_name = f"ipmi_sol_{self._safe_name(hostname)}"
-                else:
-                    default_name = f"ipmi_sol_{safe_site}"
-                lines.append("\n")
-                lines.extend(
-                    self._format_console_block(
-                        hostname, mgmt_host, default_name, site_name, master_hostname
-                    )
-                )
+            lines.extend(self._generate_site_lines(site, master_hostname))
 
         self.cf_path.parent.mkdir(parents=True, exist_ok=True)
         content = "".join(lines)
@@ -225,6 +183,49 @@ class ConserverConfig:
         tmp.write_text(content)
         tmp.chmod(0o640)
         tmp.rename(self.cf_path)
+
+    def _generate_site_lines(self, site: dict, master_hostname: str) -> list:
+        """Return conserver.cf lines for one site: default blocks + console stanzas."""
+        from dracs.snmp import ValidationError, build_idrac_hostname
+
+        site_name = site["name"]
+        safe_site = self._safe_name(site_name)
+        site_defs = site.get("defaults", {})
+        site_user = site_defs.get("username") or "root"
+        site_pass = site_defs.get("password") or ""
+
+        lines = ["\n"]
+        lines.extend(self._format_default_block(f"ipmi_sol_{safe_site}", site_user, site_pass))
+
+        for hostname, host_creds in site.get("hosts", {}).items():
+            if self._has_host_override(host_creds, site_defs):
+                h_user = host_creds.get("username") or site_user
+                h_pass = host_creds.get("password") or site_pass
+                lines.append("\n")
+                lines.extend(
+                    self._format_default_block(
+                        f"ipmi_sol_{self._safe_name(hostname)}", h_user, h_pass
+                    )
+                )
+
+        for hostname, host_creds in site.get("hosts", {}).items():
+            try:
+                mgmt_host = build_idrac_hostname(hostname)
+            except ValidationError as exc:
+                logger.warning("Skipping host %s: %s", hostname, exc)
+                continue
+            if self._has_host_override(host_creds, site_defs):
+                default_name = f"ipmi_sol_{self._safe_name(hostname)}"
+            else:
+                default_name = f"ipmi_sol_{safe_site}"
+            lines.append("\n")
+            lines.extend(
+                self._format_console_block(
+                    hostname, mgmt_host, default_name, site_name, master_hostname
+                )
+            )
+
+        return lines
 
     def _format_default_block(self, name: str, username: str, password: str) -> list:
         """Return conserver.cf lines for a named ipmi_sol default block."""
