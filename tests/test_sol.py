@@ -663,6 +663,13 @@ class TestKillConserversWithConfig:
             _kill_conservers_with_config(Path(self.CF), _proc_root=tmp_path)
         mock_killpg.assert_not_called()
 
+    def test_skips_non_digit_proc_entries(self, tmp_path):
+        (tmp_path / "self").mkdir()
+        (tmp_path / "net").mkdir()
+        with patch("os.killpg") as mock_killpg:
+            _kill_conservers_with_config(Path(self.CF), _proc_root=tmp_path)
+        mock_killpg.assert_not_called()
+
 
 class TestStartConserverKillsOrphans:
     def test_kills_existing_conserver_before_start(self, tmp_path):
@@ -896,6 +903,50 @@ class TestStartup:
         assert (
             ini_store.get("NewSite", {}).get("defaults", {}).get("conserver_password")
         )
+
+    def _minimal_startup(self, tmp_path, temp_db, env_overrides=None):
+        """Run startup() with minimal DB and all side-effectful calls mocked."""
+        from dracs.db import Site, db_initialize, get_session
+
+        db_initialize(temp_db)
+        with get_session() as session:
+            site = Site(
+                name="S", is_primary=True, created_at=datetime.now().isoformat()
+            )
+            session.add(site)
+            session.commit()
+
+        cf = tmp_path / "conserver.cf"
+        pw = tmp_path / "conserver.passwd"
+        logs = tmp_path / "logs"
+
+        patches = [
+            patch.object(ConserverPasswd, "_hash_password", return_value="ABhash"),
+            patch("dracs.sol.disable_systemd_service"),
+            patch("dracs.sol.start_conserver"),
+            patch("dracs.sites.get_site_ini_config", return_value={"defaults": {}, "hosts": {}}),
+            patch("dracs.sites.set_site_ini_config"),
+        ]
+        env = env_overrides or {}
+        with patch.dict("os.environ", env):
+            ctx = __import__("contextlib").ExitStack()
+            for p in patches:
+                ctx.enter_context(p)
+            with ctx:
+                startup(temp_db, None, cf, pw, logs)
+        return cf
+
+    def test_invalid_primary_port_falls_back(self, tmp_path, temp_db):
+        cf = self._minimal_startup(
+            tmp_path, temp_db, {"SOL_CONSERVER_PORT": "notanumber"}
+        )
+        assert "primaryport 3109;" in cf.read_text()
+
+    def test_invalid_secondary_port_falls_back(self, tmp_path, temp_db):
+        cf = self._minimal_startup(
+            tmp_path, temp_db, {"SOL_CONSERVER_SLAVE_PORT": "notanumber"}
+        )
+        assert "secondaryport 3110;" in cf.read_text()
 
     def test_handles_startup_exception(self, tmp_path):
         with patch("dracs.db.db_initialize", side_effect=Exception("DB error")):
