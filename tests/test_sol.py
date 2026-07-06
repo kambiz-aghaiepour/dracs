@@ -71,7 +71,7 @@ class TestConserverPasswdGeneratePassword:
 
 class TestConserverPasswdHashPassword:
     def test_calls_openssl(self, passwd_mgr):
-        fake_hash = "ABhashvalue"
+        fake_hash = "$6$somesalt$hashvalue"
         with (
             patch("shutil.which", return_value="/usr/bin/openssl"),
             patch("subprocess.run") as mock_run,
@@ -79,7 +79,7 @@ class TestConserverPasswdHashPassword:
             mock_run.return_value = MagicMock(stdout=fake_hash + "\n", returncode=0)
             result = passwd_mgr._hash_password("secret")
         mock_run.assert_called_once_with(
-            ["/usr/bin/openssl", "passwd", "-crypt", "-stdin"],
+            ["/usr/bin/openssl", "passwd", "-6", "-stdin"],
             input="secret",
             capture_output=True,
             text=True,
@@ -154,15 +154,16 @@ class TestConserverPasswdRead:
 
 class TestConserverPasswdVerify:
     def test_correct_password(self, passwd_mgr, passwd_file):
-        passwd_file.write_text("site1:ABhashvalue\n")
+        stored = "$6$somesalt$hashvalue"
+        passwd_file.write_text(f"site1:{stored}\n")
         with (
             patch("shutil.which", return_value="/usr/bin/openssl"),
             patch("subprocess.run") as mock_run,
         ):
-            mock_run.return_value = MagicMock(stdout="ABhashvalue\n", returncode=0)
+            mock_run.return_value = MagicMock(stdout=stored + "\n", returncode=0)
             assert passwd_mgr.verify("site1", "correct") is True
         mock_run.assert_called_once_with(
-            ["/usr/bin/openssl", "passwd", "-crypt", "-salt", "AB", "-stdin"],
+            ["/usr/bin/openssl", "passwd", "-6", "-salt", "somesalt", "-stdin"],
             input="correct",
             capture_output=True,
             text=True,
@@ -170,7 +171,7 @@ class TestConserverPasswdVerify:
         )
 
     def test_wrong_password(self, passwd_mgr, passwd_file):
-        passwd_file.write_text("site1:ABhashvalue\n")
+        passwd_file.write_text("site1:$6$somesalt$hashvalue\n")
         with (
             patch("shutil.which", return_value="/usr/bin/openssl"),
             patch("subprocess.run") as mock_run,

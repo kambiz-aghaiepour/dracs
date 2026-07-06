@@ -41,15 +41,21 @@ class ConserverPasswd:
         return result
 
     def verify(self, site_name: str, plaintext: str) -> bool:
-        """Verify a plaintext password against the stored crypt hash."""
+        """Verify a plaintext password against the stored hash."""
         stored = self._read().get(site_name)
         if not stored:
             return False
         try:
-            salt = stored[:2]
             openssl = shutil.which("openssl") or "openssl"
+            parts = stored.split("$")
+            if stored.startswith("$") and len(parts) >= 4:
+                algo_flag = f"-{parts[1]}"
+                salt = parts[2]
+            else:
+                algo_flag = "-crypt"
+                salt = stored[:2]
             result = subprocess.run(  # nosec B603  # nosemgrep
-                [openssl, "passwd", "-crypt", "-salt", salt, "-stdin"],
+                [openssl, "passwd", algo_flag, "-salt", salt, "-stdin"],
                 input=plaintext,
                 capture_output=True,
                 text=True,
@@ -88,10 +94,10 @@ class ConserverPasswd:
 
     @staticmethod
     def _hash_password(plaintext: str) -> str:
-        """Hash a plaintext password using openssl passwd -crypt via stdin."""
+        """Hash a plaintext password using openssl passwd -6 (SHA-512) via stdin."""
         openssl = shutil.which("openssl") or "openssl"
         result = subprocess.run(  # nosec B603  # nosemgrep
-            [openssl, "passwd", "-crypt", "-stdin"],
+            [openssl, "passwd", "-6", "-stdin"],
             input=plaintext,
             capture_output=True,
             text=True,
