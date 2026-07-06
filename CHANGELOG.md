@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v2.17.2 (2026-07-06)
+
+### Bug Fixes
+
+- Add the SOL related configs to example
+  ([`e689346`](https://github.com/kambiz-aghaiepour/dracs/commit/e6893466b277eac01e3b92c0194b3c8583b9b19f))
+
+- Ensure modern crypt algo used
+  ([`a7c957e`](https://github.com/kambiz-aghaiepour/dracs/commit/a7c957eefdcb8f5d49eb56ba11ebc097e13dfa28))
+
+- Ensure SOL related options in example
+  ([`42c4c8c`](https://github.com/kambiz-aghaiepour/dracs/commit/42c4c8c0085283030bcdead01324a5be7b331d26))
+
+### Chores
+
+- Sync spec file version to 2.17.1 [skip ci]
+  ([`e16aecf`](https://github.com/kambiz-aghaiepour/dracs/commit/e16aecf3797e462e6064878612636ab4559916a9))
+
+
 ## v2.17.1 (2026-07-06)
 
 ### Bug Fixes
