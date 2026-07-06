@@ -131,10 +131,11 @@ class ConserverConfig:
             f"    passwdfile {self.passwd_path};\n",
             f"    logfile {self.log_dir}/conserver.log;\n",
             "    daemonmode no;\n",
+            "    master localhost;\n",
             "}\n",
             "\n",
             "access * {\n",
-            "    allowed *;\n",
+            "    allowed 0.0.0.0/0;\n",
             "}\n",
         ]
 
