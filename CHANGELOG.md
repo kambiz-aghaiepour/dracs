@@ -2,6 +2,49 @@
 
 <!-- version list -->
 
+## v2.18.1 (2026-07-06)
+
+### Bug Fixes
+
+- Black formatting
+  ([`15e81ec`](https://github.com/kambiz-aghaiepour/dracs/commit/15e81ec814ec53d0cbed3565cb70a3d2c8180526))
+
+- Black formatting
+  ([`2197c3f`](https://github.com/kambiz-aghaiepour/dracs/commit/2197c3f555cba51d15697f584bf38d5ec3cbbe01))
+
+- Black formatting
+  ([`812e04c`](https://github.com/kambiz-aghaiepour/dracs/commit/812e04c352c9ba4895c20e92b325adbbe7468d62))
+
+- Black formatting
+  ([`f608c4e`](https://github.com/kambiz-aghaiepour/dracs/commit/f608c4ec47fa6adeeb6765e17b9584d8de26fbba))
+
+- Black formatting
+  ([`d604e8b`](https://github.com/kambiz-aghaiepour/dracs/commit/d604e8beaf63e0867369451175bec8921297f8cb))
+
+- Codacy
+  ([`4b29511`](https://github.com/kambiz-aghaiepour/dracs/commit/4b2951184ae377de6405b062d27253a09c83f098))
+
+- Codacy
+  ([`44e063c`](https://github.com/kambiz-aghaiepour/dracs/commit/44e063caf0c7950acd57da8f50ed17a3849deb2e))
+
+- Codacy
+  ([`54a6062`](https://github.com/kambiz-aghaiepour/dracs/commit/54a6062e493530bea3afa543023233b3d352dad5))
+
+- Codecov/patch
+  ([`76f8d67`](https://github.com/kambiz-aghaiepour/dracs/commit/76f8d678d9a453b54e2c0821f326cfc19f1a3cab))
+
+- Enable ssl for conserver
+  ([`38a14d6`](https://github.com/kambiz-aghaiepour/dracs/commit/38a14d6634f87bfb501e9f6fd88e8ab3f603965a))
+
+- Ensure all console connections are grouped
+  ([`50cc88c`](https://github.com/kambiz-aghaiepour/dracs/commit/50cc88c6858c49fde415debb56b6ea14ee7c968d))
+
+### Chores
+
+- Sync spec file version to 2.18.0 [skip ci]
+  ([`19ff5dd`](https://github.com/kambiz-aghaiepour/dracs/commit/19ff5ddb77261b55de19abc06de11dde0da834ca))
+
+
 ## v2.18.0 (2026-07-06)
 
 ### Bug Fixes
