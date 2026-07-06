@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v2.17.7 (2026-07-06)
+
+### Bug Fixes
+
+- Ensure data port is also defined conserver
+  ([`ee63714`](https://github.com/kambiz-aghaiepour/dracs/commit/ee63714f2ca7263d1498421a2994c055d9009ec0))
+
+- Failed test missing new port
+  ([`b1a415a`](https://github.com/kambiz-aghaiepour/dracs/commit/b1a415aa038661ba7f3be645899e78d06802f5a1))
+
+### Chores
+
+- Sync spec file version to 2.17.6 [skip ci]
+  ([`004d380`](https://github.com/kambiz-aghaiepour/dracs/commit/004d38053b9937b40e98277ac23162c2b52151dc))
+
+
 ## v2.17.6 (2026-07-06)
 
 ### Bug Fixes
