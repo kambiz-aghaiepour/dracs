@@ -486,6 +486,15 @@ def build_parser(role: Optional[str] = None) -> argparse.ArgumentParser:
     _add_tsr_subparser(subparsers, role)
     subparsers.add_parser("sites", help="List configured sites")
 
+    p_sol = subparsers.add_parser("sol", help="Connect to IPMI serial console (SOL)")
+    p_sol.add_argument(
+        "-t",
+        "--target",
+        required=True,
+        metavar="HOSTNAME",
+        help="Hostname of the target system",
+    )
+
     if role == "admin":
         _add_admin_subparsers(subparsers)
 
@@ -705,3 +714,7 @@ def main() -> None:
         from dracs_client.commands import cmd_vnc
 
         cmd_vnc(args, base_url, verify_ssl, server)
+    elif args.command == "sol":
+        from dracs_client.commands import cmd_sol
+
+        cmd_sol(args, base_url, verify_ssl, server)

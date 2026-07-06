@@ -619,3 +619,58 @@ def cmd_vnc(args, base_url, verify_ssl, server):
     else:
         print(f"Error: {data.get('message', 'Unknown error')}", file=sys.stderr)
         sys.exit(1)
+
+
+def cmd_sol(args, base_url, verify_ssl, server):
+    """Connect to the IPMI serial console of a host via conserver."""
+    import shutil
+
+    import pexpect
+
+    site = getattr(args, "site", None)
+    hostname = args.target
+
+    resp = _api_request(
+        "get",
+        _site_url(f"{base_url}/api/sol/connect-info", site),
+        server,
+        verify_ssl,
+    )
+    data = resp.json()
+    conn_server = data["server"]
+    conn_port = data["port"]
+    username = data["username"]
+    password = data["password"]
+
+    console_bin = shutil.which("console")
+    if not console_bin:
+        print(
+            "Error: 'console' command not found. Install the conserver-client package.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    child = pexpect.spawn(
+        console_bin,
+        ["-M", conn_server, "-l", username, hostname, "-p", conn_port],
+        timeout=10,
+        encoding="utf-8",
+        codec_errors="replace",
+    )
+    try:
+        child.expect("password:", timeout=10)
+    except pexpect.TIMEOUT:
+        print(
+            f"Error: timed out waiting for conserver at {conn_server}:{conn_port}.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    except pexpect.EOF:
+        print(
+            f"Error: connection to {conn_server}:{conn_port} failed.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    child.sendline(password)
+    print(f"[Connected to {hostname} SOL. Press Ctrl-E c . to disconnect]")
+    child.interact()

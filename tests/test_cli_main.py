@@ -544,3 +544,12 @@ class TestMainVnc:
     def test_vnc_reset_force_dispatches(self, mock_cmd, mock_db):
         run_main_with_args(["vnc", "-t", "server01", "--reset", "--force"])
         assert mock_cmd.call_args[0][0].force is True
+
+
+class TestMainSol:
+    @patch("dracs.cli.db_initialize")
+    @patch("dracs.commands.cmd_sol")
+    def test_sol_dispatches(self, mock_cmd, mock_db):
+        run_main_with_args(["sol", "-t", "server01"])
+        mock_cmd.assert_called_once()
+        assert mock_cmd.call_args[0][0].target == "server01"

@@ -431,6 +431,17 @@ async def main() -> None:
         help="Force --reset even when active viewers are connected",
     )
 
+    parser_sol = subparsers.add_parser(
+        "sol", help="Connect to IPMI serial console (SOL)"
+    )
+    parser_sol.add_argument(
+        "-t",
+        "--target",
+        required=True,
+        metavar="HOSTNAME",
+        help="Hostname of the target system",
+    )
+
     parser_sites = subparsers.add_parser("sites", help="Manage configured sites")
     sites_action = parser_sites.add_mutually_exclusive_group()
     sites_action.add_argument(
@@ -527,6 +538,12 @@ async def main() -> None:
         from dracs.commands import cmd_vnc
 
         cmd_vnc(args, site_name=getattr(args, "site", None))
+        return
+
+    if args.command == "sol":
+        from dracs.commands import cmd_sol
+
+        cmd_sol(args, site_name=getattr(args, "site", None))
         return
 
     if args.command == "sites":

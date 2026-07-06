@@ -1283,3 +1283,63 @@ def cmd_vnc(args, site_name=None):
         print(" OK")
 
     print(f"VNC configuration reset successfully for {hostname}.")
+
+
+def cmd_sol(args, site_name=None):
+    """Connect to the IPMI serial console of a host via conserver."""
+    import pexpect
+
+    from dracs.sites import get_site_ini_config
+
+    if not site_name:
+        from dracs.db import get_primary_site_name
+
+        site_name = get_primary_site_name()
+
+    cfg = get_site_ini_config(site_name)
+    password = cfg.get("defaults", {}).get("conserver_password")
+    if not password:
+        print(
+            f"Error: no conserver password configured for site '{site_name}'. "
+            "Ensure SOL is enabled and dracs-webapp has started conserver.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    server = socket.gethostname()
+    port = os.environ.get("SOL_CONSERVER_PORT", "3109")
+    hostname = args.target
+
+    console_bin = shutil.which("console")
+    if not console_bin:
+        print(
+            "Error: 'console' command not found. Install the conserver-client package.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    child = pexpect.spawn(
+        console_bin,
+        ["-M", server, "-l", site_name, hostname, "-p", port],
+        timeout=10,
+        encoding="utf-8",
+        codec_errors="replace",
+    )
+    try:
+        child.expect("password:", timeout=10)
+    except pexpect.TIMEOUT:
+        print(
+            f"Error: timed out waiting for conserver at {server}:{port}. "
+            "Ensure dracs-webapp is running with SOL_ENABLE=true.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    except pexpect.EOF:
+        print(
+            f"Error: connection to {server}:{port} failed.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    child.sendline(password)
+    print(f"[Connected to {hostname} SOL. Press Ctrl-E c . to disconnect]")
+    child.interact()

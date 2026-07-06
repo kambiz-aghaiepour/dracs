@@ -41,6 +41,7 @@ Requires:       tftp-server
 Requires:       tftp
 Requires:       conserver
 Requires:       ipmitool
+Requires:       python3-pexpect
 Provides:       user(dracs)
 Provides:       group(dracs)
 
@@ -51,6 +52,7 @@ Provides:       group(dracs)
 Summary:        DRACS remote client CLI
 Requires:       python3-dracs-libs = %{version}-%{release}
 Requires:       conserver-client
+Requires:       python3-pexpect
 
 %description -n dracs-client
 Remote CLI client for querying a DRACS server inventory.

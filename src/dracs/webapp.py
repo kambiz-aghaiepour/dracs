@@ -121,6 +121,7 @@ VNC_ENABLE = os.environ.get("VNC_ENABLE", "false").lower() in (
     "1",
     "yes",
 )
+SOL_ENABLE = os.environ.get("SOL_ENABLE", "false").lower() in ("true", "1", "yes")
 VNC_TIMEOUT = int(os.environ.get("VNC_TIMEOUT", "30"))
 VNC_MAX_SESSIONS = int(os.environ.get("VNC_MAX_SESSIONS", "20"))
 VNC_WEBSOCKIFY_PORT = int(os.environ.get("VNC_WEBSOCKIFY_PORT", "6080"))
@@ -3948,6 +3949,53 @@ def api_host_vnc_reset(hostname):
             "success": True,
             "message": f"VNC reset queued for {hostname}",
             "job_id": job_id,
+        }
+    )
+
+
+@app.route("/api/sol/connect-info", methods=["GET"])
+def api_sol_connect_info():
+    """Return conserver connection info for a site (server, port, username, password).
+
+    Requires site-admin role for the requested site. The plaintext password is
+    used by the dracs / dracs-client sol subcommand to authenticate via pexpect.
+    """
+    if not SOL_ENABLE:
+        return jsonify({"success": False, "message": "SOL feature is not enabled"}), 404
+
+    site_id, site_name = _get_requested_site()
+    if site_id is None:
+        return (
+            jsonify({"success": False, "message": f"Site '{site_name}' not found"}),
+            404,
+        )
+
+    _, err = _require_auth(required_role="admin", site_id=site_id)
+    if err:
+        return err
+
+    from dracs.sites import get_site_ini_config
+
+    cfg = get_site_ini_config(site_name)
+    password = cfg.get("defaults", {}).get("conserver_password")
+    if not password:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "message": "Conserver password not configured for this site",
+                }
+            ),
+            500,
+        )
+
+    return jsonify(
+        {
+            "success": True,
+            "server": socket.getfqdn(),
+            "port": os.environ.get("SOL_CONSERVER_PORT", "3109"),
+            "username": site_name,
+            "password": password,
         }
     )
 
