@@ -281,9 +281,7 @@ def start_conserver(cf_path: Path) -> subprocess.Popen | None:
     return _conserver_process
 
 
-def _kill_conservers_on_port(
-    port: str, _proc_root: Path = Path("/proc")
-) -> None:
+def _kill_conservers_on_port(port: str, _proc_root: Path = Path("/proc")) -> None:
     """Kill all conserver processes already bound to the given master port.
 
     Scans /proc to find processes regardless of which parent started them,

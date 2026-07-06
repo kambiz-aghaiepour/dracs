@@ -501,7 +501,19 @@ class TestKillConserversOnPort:
         return proc_entry
 
     def test_kills_matching_conserver(self, tmp_path):
-        self._make_proc(tmp_path, 11111, ["/usr/bin/conserver", "-C", "/etc/dracs/conserver.cf", "-p", "3109", "-b", "3110"])
+        self._make_proc(
+            tmp_path,
+            11111,
+            [
+                "/usr/bin/conserver",
+                "-C",
+                "/etc/dracs/conserver.cf",
+                "-p",
+                "3109",
+                "-b",
+                "3110",
+            ],
+        )
         with (
             patch("os.getpgid", return_value=11111),
             patch("os.killpg") as mock_killpg,
@@ -510,7 +522,19 @@ class TestKillConserversOnPort:
         mock_killpg.assert_called_once_with(11111, signal.SIGTERM)
 
     def test_skips_nonmatching_port(self, tmp_path):
-        self._make_proc(tmp_path, 22222, ["/usr/bin/conserver", "-C", "/etc/dracs/conserver.cf", "-p", "3200", "-b", "3201"])
+        self._make_proc(
+            tmp_path,
+            22222,
+            [
+                "/usr/bin/conserver",
+                "-C",
+                "/etc/dracs/conserver.cf",
+                "-p",
+                "3200",
+                "-b",
+                "3201",
+            ],
+        )
         with patch("os.killpg") as mock_killpg:
             _kill_conservers_on_port("3109", _proc_root=tmp_path)
         mock_killpg.assert_not_called()
@@ -523,8 +547,16 @@ class TestKillConserversOnPort:
 
     def test_kills_each_process_group_once(self, tmp_path):
         """Master and child share a PGID; killpg should be called only once."""
-        self._make_proc(tmp_path, 44444, ["/usr/bin/conserver", "-C", "/etc/dracs/conserver.cf", "-p", "3109"])
-        self._make_proc(tmp_path, 44445, ["/usr/bin/conserver", "-C", "/etc/dracs/conserver.cf", "-p", "3109"])
+        self._make_proc(
+            tmp_path,
+            44444,
+            ["/usr/bin/conserver", "-C", "/etc/dracs/conserver.cf", "-p", "3109"],
+        )
+        self._make_proc(
+            tmp_path,
+            44445,
+            ["/usr/bin/conserver", "-C", "/etc/dracs/conserver.cf", "-p", "3109"],
+        )
         with (
             patch("os.getpgid", return_value=44444),
             patch("os.killpg") as mock_killpg,
@@ -545,7 +577,11 @@ class TestKillConserversOnPort:
         _kill_conservers_on_port("3109", _proc_root=nonexistent)  # must not raise
 
     def test_tolerates_getpgid_error(self, tmp_path):
-        self._make_proc(tmp_path, 66666, ["/usr/bin/conserver", "-C", "/etc/dracs/conserver.cf", "-p", "3109"])
+        self._make_proc(
+            tmp_path,
+            66666,
+            ["/usr/bin/conserver", "-C", "/etc/dracs/conserver.cf", "-p", "3109"],
+        )
         with (
             patch("os.getpgid", side_effect=ProcessLookupError()),
             patch("os.killpg") as mock_killpg,
