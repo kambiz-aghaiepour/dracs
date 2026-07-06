@@ -193,7 +193,7 @@ class ConserverConfig:
             f"default {name} {{\n",
             "    type exec;\n",
             f"    exec /usr/bin/ipmitool -I lanplus -H & -U {username} -P {password} sol activate;\n",
-            "    execsubst & = hs;\n",
+            "    execsubst &=hs;\n",
             "    options ondemand;\n",
             f"    logfile {self.log_dir}/&.log;\n",
             "}\n",
@@ -254,8 +254,12 @@ def start_conserver(cf_path: Path) -> subprocess.Popen | None:
         logger.warning("conserver not found in PATH; SOL feature disabled")
         return None
 
-    _conserver_process = subprocess.Popen(  # nosec B603  # nosemgrep
-        [conserver_bin, "-c", str(cf_path)],
+    try:
+        port = str(int(os.environ.get("SOL_CONSERVER_PORT", "3109")))
+    except ValueError:
+        port = "3109"
+    _conserver_process = subprocess.Popen(  # nosec B603
+        [conserver_bin, "-C", str(cf_path), "-p", port],  # nosemgrep
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
