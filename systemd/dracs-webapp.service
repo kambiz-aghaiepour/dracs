@@ -10,6 +10,7 @@ Group=dracs
 WorkingDirectory=/etc/dracs
 Environment=DRACS_DB=/var/lib/dracs/warranty.db
 Environment=DRACS_LOG_DIR=/var/log/dracs
+EnvironmentFile=-/etc/dracs/dracs.conf
 ExecStart=/usr/bin/dracs-webapp
 Restart=on-failure
 RestartSec=5
