@@ -1073,6 +1073,23 @@ class TestSslCertKeyPaths:
         assert c is None
         assert k is None
 
+    def test_raises_permission_error_when_key_unreadable(self, tmp_path):
+        hostname = "locked-server"
+        cert = tmp_path / f"{hostname}.pem"
+        key = tmp_path / f"{hostname}.key"
+        cert.write_text("CERT")
+        key.write_text("KEY")
+        with (
+            patch.dict(os.environ, {"SOL_SSL_CERT": "", "SOL_SSL_KEY": ""}),
+            patch("dracs.sol.socket.gethostname", return_value=hostname),
+            patch("dracs.sol._SSL_CERT_DIR", tmp_path),
+            patch("dracs.sol.os.access", return_value=False),
+            pytest.raises(PermissionError) as exc_info,
+        ):
+            _ssl_cert_key_paths()
+        assert "chgrp dracs" in str(exc_info.value)
+        assert "chmod 640" in str(exc_info.value)
+
 
 # ---------------------------------------------------------------------------
 # _build_ssl_credentials

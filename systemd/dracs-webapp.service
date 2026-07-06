@@ -12,6 +12,7 @@ Environment=DRACS_DB=/var/lib/dracs/warranty.db
 Environment=DRACS_LOG_DIR=/var/log/dracs
 EnvironmentFile=-/etc/dracs/dracs.conf
 RuntimeDirectory=dracs
+ExecStartPre=+/bin/sh -c 'h=$(hostname); d=/etc/pki/tls/certs; for f in "$d/$h.pem" "$d/$h.key"; do [ -f "$f" ] && { chgrp dracs "$f"; chmod 640 "$f"; }; done'
 ExecStart=/usr/bin/dracs-webapp
 ExecStopPost=-/usr/bin/pkill -f "conserver -C /etc/dracs/conserver.cf"
 Restart=on-failure

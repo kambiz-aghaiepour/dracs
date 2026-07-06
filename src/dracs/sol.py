@@ -26,6 +26,9 @@ def _ssl_cert_key_paths() -> tuple[Path, Path] | tuple[None, None]:
 
     Checks SOL_SSL_CERT / SOL_SSL_KEY env vars first; if unset, auto-detects from
     the standard DRACS nginx cert location: /etc/pki/tls/certs/<hostname>.{pem,key}.
+
+    If the files exist but are not readable by the current process, raises PermissionError
+    with an actionable message (conserver cannot start without the key material).
     """
     cert_str = os.environ.get("SOL_SSL_CERT", "")
     key_str = os.environ.get("SOL_SSL_KEY", "")
@@ -35,6 +38,13 @@ def _ssl_cert_key_paths() -> tuple[Path, Path] | tuple[None, None]:
     cert = _SSL_CERT_DIR / f"{hostname}.pem"
     key = _SSL_CERT_DIR / f"{hostname}.key"
     if cert.exists() and key.exists():
+        unreadable = [p for p in (cert, key) if not os.access(p, os.R_OK)]
+        if unreadable:
+            paths = " ".join(str(p) for p in unreadable)
+            raise PermissionError(
+                f"SSL cert/key files exist but are not readable by this process: {paths}. "
+                f"Fix with: chgrp dracs {paths} && chmod 640 {paths}"
+            )
         return cert, key
     return None, None
 
