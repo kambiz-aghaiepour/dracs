@@ -267,7 +267,7 @@ def start_conserver(cf_path: Path) -> subprocess.Popen | None:
         slave_port = "3110"
     _kill_conservers_on_port(port)
     _conserver_process = subprocess.Popen(  # nosec B603
-        [conserver_bin, "-C", str(cf_path), "-p", port, "-b", slave_port],  # nosemgrep
+        [conserver_bin, "-C", str(cf_path), "-p", port, "-b", slave_port, "-m", "10000"],  # nosemgrep
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         start_new_session=True,
