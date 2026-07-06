@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v2.17.8 (2026-07-06)
+
+### Bug Fixes
+
+- Codecov/patch
+  ([`e2c2097`](https://github.com/kambiz-aghaiepour/dracs/commit/e2c209772cc6e82a2ea5b116cbac3a95fca474d0))
+
+- Speedup stop and restart
+  ([`602269d`](https://github.com/kambiz-aghaiepour/dracs/commit/602269ddad018de4130ed836d3f5c367bd94539b))
+
+### Chores
+
+- Sync spec file version to 2.17.7 [skip ci]
+  ([`81037da`](https://github.com/kambiz-aghaiepour/dracs/commit/81037dad68cf547178e0c980eb4241d09072ba2c))
+
+
 ## v2.17.7 (2026-07-06)
 
 ### Bug Fixes
