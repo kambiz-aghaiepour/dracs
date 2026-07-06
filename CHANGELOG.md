@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.17.5 (2026-07-06)
+
+### Bug Fixes
+
+- Load dracs.conf env vars in systemd service
+  ([`3cd05f5`](https://github.com/kambiz-aghaiepour/dracs/commit/3cd05f568d5c901193326e005634947d99f2ceb8))
+
+### Chores
+
+- Sync spec file version to 2.17.4 [skip ci]
+  ([`83b0a76`](https://github.com/kambiz-aghaiepour/dracs/commit/83b0a765cb646db560a2d1d6ed91c55bb0251e35))
+
+
 ## v2.17.4 (2026-07-06)
 
 ### Bug Fixes
