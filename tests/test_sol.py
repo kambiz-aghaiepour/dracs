@@ -370,7 +370,7 @@ class TestStartConserver:
         ):
             result = start_conserver(cf)
         mock_popen.assert_called_once_with(
-            ["/usr/sbin/conserver", "-c", str(cf)],
+            ["/usr/sbin/conserver", "-C", str(cf), "-p", "3109"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )

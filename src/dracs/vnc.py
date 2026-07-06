@@ -472,7 +472,7 @@ def start_websockify(
         stderr=subprocess.DEVNULL,
     )
     _pid_file.write_text(str(_websockify_process.pid))
-    print(f"websockify started on 127.0.0.1:{port} (PID {_websockify_process.pid})")
+    print(f"websockify started on 127.0.0.1:{port} (PID {_websockify_process.pid})", flush=True)
     return _websockify_process
 
 
