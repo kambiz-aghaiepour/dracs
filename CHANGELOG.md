@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.17.6 (2026-07-06)
+
+### Bug Fixes
+
+- Conserver configs incorrect
+  ([`daf96a0`](https://github.com/kambiz-aghaiepour/dracs/commit/daf96a08cfb1860367a320f98498cf9ea77344e7))
+
+### Chores
+
+- Sync spec file version to 2.17.5 [skip ci]
+  ([`dea208e`](https://github.com/kambiz-aghaiepour/dracs/commit/dea208e2215243cfe6b719ef59bbc0c9c1ebb94c))
+
+
 ## v2.17.5 (2026-07-06)
 
 ### Bug Fixes
