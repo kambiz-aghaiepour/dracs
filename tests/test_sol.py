@@ -12,7 +12,9 @@ import pytest
 from dracs.sol import (
     ConserverConfig,
     ConserverPasswd,
+    _is_conserver_with_config,
     _kill_conservers_on_port,
+    _kill_conservers_with_config,
     disable_systemd_service,
     start_conserver,
     startup,
@@ -274,9 +276,17 @@ class TestConserverConfigGenerate:
     def test_config_block_present(self, config_gen, passwd_file, log_dir):
         content = self._generate(config_gen)
         assert "config * {" in content
+        assert "primaryport 3109;" in content
+        assert "secondaryport 3110;" in content
         assert f"passwdfile {passwd_file};" in content
         assert f"logfile {log_dir}/conserver.log;" in content
         assert "daemonmode no;" in content
+
+    def test_config_block_custom_ports(self, config_gen, passwd_file, log_dir):
+        config_gen.generate(self.SITE_DATA, primary_port="4242", secondary_port="5555")
+        content = config_gen.cf_path.read_text()
+        assert "primaryport 4242;" in content
+        assert "secondaryport 5555;" in content
 
     def test_access_block_present(self, config_gen):
         content = self._generate(config_gen)
@@ -366,6 +376,18 @@ class TestDisableSystemdService:
 
 
 class TestStartConserver:
+    def _start(self, cf, pid_file=None, *, extra_patches=()):
+        mock_proc = MagicMock()
+        mock_proc.pid = 12345
+        pid_path = pid_file or (cf.parent / "conserver.pid")
+        patches = [
+            patch("shutil.which", return_value="/usr/sbin/conserver"),
+            patch("subprocess.Popen", return_value=mock_proc),
+            patch("dracs.sol._pid_file_path", pid_path),
+            patch("dracs.sol._kill_conservers_with_config"),
+        ] + list(extra_patches)
+        return mock_proc, patches
+
     def test_starts_process(self, tmp_path):
         cf = tmp_path / "conserver.cf"
         mock_proc = MagicMock()
@@ -374,25 +396,29 @@ class TestStartConserver:
             patch("shutil.which", return_value="/usr/sbin/conserver"),
             patch("subprocess.Popen", return_value=mock_proc) as mock_popen,
             patch("dracs.sol._pid_file_path", tmp_path / "conserver.pid"),
+            patch("dracs.sol._kill_conservers_with_config"),
         ):
             result = start_conserver(cf)
         mock_popen.assert_called_once_with(
-            [
-                "/usr/sbin/conserver",
-                "-C",
-                str(cf),
-                "-p",
-                "3109",
-                "-b",
-                "3110",
-                "-m",
-                "10000",
-            ],
+            ["/usr/sbin/conserver", "-C", str(cf), "-m", "10000"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             start_new_session=True,
         )
         assert result is mock_proc
+
+    def test_kills_orphans_before_starting(self, tmp_path):
+        cf = tmp_path / "conserver.cf"
+        mock_proc = MagicMock()
+        mock_proc.pid = 12345
+        with (
+            patch("shutil.which", return_value="/usr/sbin/conserver"),
+            patch("subprocess.Popen", return_value=mock_proc),
+            patch("dracs.sol._pid_file_path", tmp_path / "conserver.pid"),
+            patch("dracs.sol._kill_conservers_with_config") as mock_kill,
+        ):
+            start_conserver(cf)
+        mock_kill.assert_called_once_with(cf)
 
     def test_writes_pid_file(self, tmp_path):
         cf = tmp_path / "conserver.cf"
@@ -403,121 +429,10 @@ class TestStartConserver:
             patch("shutil.which", return_value="/usr/sbin/conserver"),
             patch("subprocess.Popen", return_value=mock_proc),
             patch("dracs.sol._pid_file_path", pid_file),
+            patch("dracs.sol._kill_conservers_with_config"),
         ):
             start_conserver(cf)
         assert pid_file.read_text() == "99999"
-
-    def test_uses_custom_port(self, tmp_path):
-        cf = tmp_path / "conserver.cf"
-        mock_proc = MagicMock()
-        mock_proc.pid = 12345
-        with (
-            patch("shutil.which", return_value="/usr/sbin/conserver"),
-            patch("subprocess.Popen", return_value=mock_proc) as mock_popen,
-            patch("dracs.sol._pid_file_path", tmp_path / "conserver.pid"),
-            patch.dict("os.environ", {"SOL_CONSERVER_PORT": "4242"}),
-        ):
-            start_conserver(cf)
-        mock_popen.assert_called_once_with(
-            [
-                "/usr/sbin/conserver",
-                "-C",
-                str(cf),
-                "-p",
-                "4242",
-                "-b",
-                "3110",
-                "-m",
-                "10000",
-            ],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-        )
-
-    def test_uses_custom_slave_port(self, tmp_path):
-        cf = tmp_path / "conserver.cf"
-        mock_proc = MagicMock()
-        mock_proc.pid = 12345
-        with (
-            patch("shutil.which", return_value="/usr/sbin/conserver"),
-            patch("subprocess.Popen", return_value=mock_proc) as mock_popen,
-            patch("dracs.sol._pid_file_path", tmp_path / "conserver.pid"),
-            patch.dict("os.environ", {"SOL_CONSERVER_SLAVE_PORT": "5555"}),
-        ):
-            start_conserver(cf)
-        mock_popen.assert_called_once_with(
-            [
-                "/usr/sbin/conserver",
-                "-C",
-                str(cf),
-                "-p",
-                "3109",
-                "-b",
-                "5555",
-                "-m",
-                "10000",
-            ],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-        )
-
-    def test_invalid_slave_port_falls_back_to_default(self, tmp_path):
-        cf = tmp_path / "conserver.cf"
-        mock_proc = MagicMock()
-        mock_proc.pid = 12345
-        with (
-            patch("shutil.which", return_value="/usr/sbin/conserver"),
-            patch("subprocess.Popen", return_value=mock_proc) as mock_popen,
-            patch("dracs.sol._pid_file_path", tmp_path / "conserver.pid"),
-            patch.dict("os.environ", {"SOL_CONSERVER_SLAVE_PORT": "bad"}),
-        ):
-            start_conserver(cf)
-        mock_popen.assert_called_once_with(
-            [
-                "/usr/sbin/conserver",
-                "-C",
-                str(cf),
-                "-p",
-                "3109",
-                "-b",
-                "3110",
-                "-m",
-                "10000",
-            ],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-        )
-
-    def test_invalid_port_falls_back_to_default(self, tmp_path):
-        cf = tmp_path / "conserver.cf"
-        mock_proc = MagicMock()
-        mock_proc.pid = 12345
-        with (
-            patch("shutil.which", return_value="/usr/sbin/conserver"),
-            patch("subprocess.Popen", return_value=mock_proc) as mock_popen,
-            patch("dracs.sol._pid_file_path", tmp_path / "conserver.pid"),
-            patch.dict("os.environ", {"SOL_CONSERVER_PORT": "not-a-number"}),
-        ):
-            start_conserver(cf)
-        mock_popen.assert_called_once_with(
-            [
-                "/usr/sbin/conserver",
-                "-C",
-                str(cf),
-                "-p",
-                "3109",
-                "-b",
-                "3110",
-                "-m",
-                "10000",
-            ],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-        )
 
     def test_returns_none_when_not_found(self, tmp_path):
         cf = tmp_path / "conserver.cf"
@@ -536,6 +451,7 @@ class TestStartConserver:
             patch("shutil.which", return_value="/usr/sbin/conserver"),
             patch("subprocess.Popen", return_value=mock_proc),
             patch("dracs.sol._pid_file_path", pid_mock),
+            patch("dracs.sol._kill_conservers_with_config"),
         ):
             result = start_conserver(cf)
         assert result is mock_proc
@@ -659,6 +575,95 @@ class TestKillConserversOnPort:
         mock_killpg.assert_not_called()
 
 
+class TestIsConserverWithConfig:
+    def test_matches_conserver_with_config(self):
+        args = ["/usr/bin/conserver", "-C", "/etc/dracs/conserver.cf", "-m", "10000"]
+        assert _is_conserver_with_config(args, "/etc/dracs/conserver.cf") is True
+
+    def test_no_match_wrong_config(self):
+        args = ["/usr/bin/conserver", "-C", "/other/conserver.cf"]
+        assert _is_conserver_with_config(args, "/etc/dracs/conserver.cf") is False
+
+    def test_no_match_not_conserver(self):
+        args = ["/usr/bin/python3", "-C", "/etc/dracs/conserver.cf"]
+        assert _is_conserver_with_config(args, "/etc/dracs/conserver.cf") is False
+
+    def test_no_match_empty_args(self):
+        assert _is_conserver_with_config([], "/etc/dracs/conserver.cf") is False
+
+    def test_no_match_flag_at_end(self):
+        args = ["/usr/bin/conserver", "-C"]
+        assert _is_conserver_with_config(args, "/etc/dracs/conserver.cf") is False
+
+    def test_no_match_no_c_flag(self):
+        args = ["/usr/bin/conserver", "-m", "10000"]
+        assert _is_conserver_with_config(args, "/etc/dracs/conserver.cf") is False
+
+
+class TestKillConserversWithConfig:
+    def _make_proc(self, tmp_path, pid: int, cmdline_args: list[str]) -> Path:
+        proc_dir = tmp_path / str(pid)
+        proc_dir.mkdir()
+        cmdline = b"\x00".join(a.encode() for a in cmdline_args) + b"\x00"
+        (proc_dir / "cmdline").write_bytes(cmdline)
+        return proc_dir
+
+    CF = "/etc/dracs/conserver.cf"
+
+    def test_kills_matching_conserver(self, tmp_path):
+        self._make_proc(
+            tmp_path, 11111, ["/usr/bin/conserver", "-C", self.CF, "-m", "10000"]
+        )
+        with (
+            patch("os.getpgid", return_value=11111),
+            patch("os.killpg") as mock_killpg,
+        ):
+            _kill_conservers_with_config(Path(self.CF), _proc_root=tmp_path)
+        mock_killpg.assert_called_once_with(11111, signal.SIGTERM)
+
+    def test_skips_different_config(self, tmp_path):
+        self._make_proc(
+            tmp_path, 22222, ["/usr/bin/conserver", "-C", "/other/conserver.cf"]
+        )
+        with patch("os.killpg") as mock_killpg:
+            _kill_conservers_with_config(Path(self.CF), _proc_root=tmp_path)
+        mock_killpg.assert_not_called()
+
+    def test_skips_non_conserver(self, tmp_path):
+        self._make_proc(tmp_path, 33333, ["/usr/bin/python3", "-C", self.CF])
+        with patch("os.killpg") as mock_killpg:
+            _kill_conservers_with_config(Path(self.CF), _proc_root=tmp_path)
+        mock_killpg.assert_not_called()
+
+    def test_kills_each_pgid_once(self, tmp_path):
+        for pid in (44444, 44445):
+            self._make_proc(
+                tmp_path, pid, ["/usr/bin/conserver", "-C", self.CF, "-m", "10000"]
+            )
+        with (
+            patch("os.getpgid", return_value=44444),
+            patch("os.killpg") as mock_killpg,
+        ):
+            _kill_conservers_with_config(Path(self.CF), _proc_root=tmp_path)
+        assert mock_killpg.call_count == 1
+
+    def test_handles_proc_oserror(self, tmp_path):
+        _kill_conservers_with_config(
+            Path(self.CF), _proc_root=tmp_path / "nonexistent"
+        )  # must not raise
+
+    def test_tolerates_getpgid_error(self, tmp_path):
+        self._make_proc(
+            tmp_path, 55555, ["/usr/bin/conserver", "-C", self.CF, "-m", "10000"]
+        )
+        with (
+            patch("os.getpgid", side_effect=ProcessLookupError()),
+            patch("os.killpg") as mock_killpg,
+        ):
+            _kill_conservers_with_config(Path(self.CF), _proc_root=tmp_path)
+        mock_killpg.assert_not_called()
+
+
 class TestStartConserverKillsOrphans:
     def test_kills_existing_conserver_before_start(self, tmp_path):
         cf = tmp_path / "conserver.cf"
@@ -668,10 +673,10 @@ class TestStartConserverKillsOrphans:
             patch("shutil.which", return_value="/usr/sbin/conserver"),
             patch("subprocess.Popen", return_value=mock_proc),
             patch("dracs.sol._pid_file_path", tmp_path / "conserver.pid"),
-            patch("dracs.sol._kill_conservers_on_port") as mock_kill,
+            patch("dracs.sol._kill_conservers_with_config") as mock_kill,
         ):
             start_conserver(cf)
-        mock_kill.assert_called_once_with("3109")
+        mock_kill.assert_called_once_with(cf)
 
 
 class TestStopConserver:

@@ -121,7 +121,12 @@ class ConserverConfig:
         self.passwd_path = passwd_path
         self.log_dir = log_dir
 
-    def generate(self, sites_data: list) -> None:
+    def generate(
+        self,
+        sites_data: list,
+        primary_port: str = "3109",
+        secondary_port: str = "3110",
+    ) -> None:
         """Write conserver.cf; creates per-site default blocks and console stanzas."""
         from dracs.snmp import ValidationError, build_idrac_hostname
 
@@ -130,6 +135,8 @@ class ConserverConfig:
             "# Managed by dracs-webapp. Do not edit manually.\n",
             "\n",
             "config * {\n",
+            f"    primaryport {primary_port};\n",
+            f"    secondaryport {secondary_port};\n",
             f"    passwdfile {self.passwd_path};\n",
             f"    logfile {self.log_dir}/conserver.log;\n",
             "    daemonmode no;\n",
@@ -257,27 +264,12 @@ def start_conserver(cf_path: Path) -> subprocess.Popen | None:
         logger.warning("conserver not found in PATH; SOL feature disabled")
         return None
 
-    try:
-        port = str(int(os.environ.get("SOL_CONSERVER_PORT", "3109")))
-    except ValueError:
-        port = "3109"
-    try:
-        slave_port = str(int(os.environ.get("SOL_CONSERVER_SLAVE_PORT", "3110")))
-    except ValueError:
-        slave_port = "3110"
-    _kill_conservers_on_port(port)
-    _conserver_process = subprocess.Popen(  # nosec B603  # nosemgrep
-        [
-            conserver_bin,
-            "-C",
-            str(cf_path),
-            "-p",
-            port,
-            "-b",
-            slave_port,
-            "-m",
-            "10000",
-        ],
+    # Kill any orphaned conserver using this config file before starting a new one.
+    # Ports are in conserver.cf (primaryport/secondaryport), not on the command line,
+    # so orphans are identified by config-file path rather than -p flag.
+    _kill_conservers_with_config(cf_path)
+    _conserver_process = subprocess.Popen(  # nosec B603
+        [conserver_bin, "-C", str(cf_path), "-m", "10000"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         start_new_session=True,
@@ -291,6 +283,45 @@ def start_conserver(cf_path: Path) -> subprocess.Popen | None:
     return _conserver_process
 
 
+def _is_conserver_with_config(args: list[str], cf_path_str: str) -> bool:
+    """Return True if the cmdline args represent a conserver using the given config."""
+    if not args or Path(args[0]).name != "conserver":
+        return False
+    try:
+        return args[args.index("-C") + 1] == cf_path_str
+    except (ValueError, IndexError):
+        return False
+
+
+def _kill_conservers_with_config(
+    cf_path: Path, _proc_root: Path = Path("/proc")
+) -> None:
+    """Kill all conserver processes using the given config file.
+
+    Scans /proc to find processes regardless of which parent started them,
+    so orphaned conservers from previous service runs are also cleaned up.
+    """
+    cf_path_str = str(cf_path)
+    seen_pgids: set[int] = set()
+    try:
+        for proc in _proc_root.iterdir():
+            if not proc.name.isdigit():
+                continue
+            try:
+                raw = (proc / "cmdline").read_bytes().split(b"\x00")
+                args = [a.decode("utf-8", errors="replace") for a in raw if a]
+                if _is_conserver_with_config(args, cf_path_str):
+                    pid = int(proc.name)
+                    pgid = os.getpgid(pid)
+                    if pgid not in seen_pgids:
+                        seen_pgids.add(pgid)
+                        os.killpg(pgid, signal.SIGTERM)
+            except (OSError, ValueError, ProcessLookupError):
+                pass
+    except OSError:
+        pass
+
+
 def _is_conserver_on_port(args: list[str], port: str) -> bool:
     """Return True if the cmdline args represent a conserver master on the given port."""
     if not args or Path(args[0]).name != "conserver":
@@ -302,10 +333,10 @@ def _is_conserver_on_port(args: list[str], port: str) -> bool:
 
 
 def _kill_conservers_on_port(port: str, _proc_root: Path = Path("/proc")) -> None:
-    """Kill all conserver processes already bound to the given master port.
+    """Kill all conserver processes bound to the given master port.
 
-    Scans /proc to find processes regardless of which parent started them,
-    so orphaned conservers from previous service runs are also cleaned up.
+    Used by stop_conserver() as a belt-and-suspenders cleanup for any conservers
+    that still carry -p <port> in their command line (older deployments).
     """
     seen_pgids: set[int] = set()
     try:
@@ -417,8 +448,17 @@ def startup(
                 }
             )
 
+        try:
+            primary_port = str(int(os.environ.get("SOL_CONSERVER_PORT", "3109")))
+        except ValueError:
+            primary_port = "3109"
+        try:
+            secondary_port = str(int(os.environ.get("SOL_CONSERVER_SLAVE_PORT", "3110")))
+        except ValueError:
+            secondary_port = "3110"
+
         config_gen = ConserverConfig(cf_path, passwd_path, log_dir)
-        config_gen.generate(sites_data)
+        config_gen.generate(sites_data, primary_port=primary_port, secondary_port=secondary_port)
 
         disable_systemd_service()
         start_conserver(cf_path)
