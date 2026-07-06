@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.17.1 (2026-07-06)
+
+### Bug Fixes
+
+- Testing codacy
+  ([`82a9cfa`](https://github.com/kambiz-aghaiepour/dracs/commit/82a9cfaa681ea3f5ff7f58eeb43d55acdfe73c84))
+
+### Chores
+
+- Sync spec file version to 2.17.0 [skip ci]
+  ([`a19607a`](https://github.com/kambiz-aghaiepour/dracs/commit/a19607a02f3ea32ee5a8cfe462c0ceeb014b4b31))
+
+
 ## v2.17.0 (2026-07-06)
 
 ### Bug Fixes
