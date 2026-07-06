@@ -389,6 +389,40 @@ class TestStartConserver:
             start_conserver(cf)
         assert pid_file.read_text() == "99999"
 
+    def test_uses_custom_port(self, tmp_path):
+        cf = tmp_path / "conserver.cf"
+        mock_proc = MagicMock()
+        mock_proc.pid = 12345
+        with (
+            patch("shutil.which", return_value="/usr/sbin/conserver"),
+            patch("subprocess.Popen", return_value=mock_proc) as mock_popen,
+            patch("dracs.sol._pid_file_path", tmp_path / "conserver.pid"),
+            patch.dict("os.environ", {"SOL_CONSERVER_PORT": "4242"}),
+        ):
+            start_conserver(cf)
+        mock_popen.assert_called_once_with(
+            ["/usr/sbin/conserver", "-C", str(cf), "-p", "4242"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+    def test_invalid_port_falls_back_to_default(self, tmp_path):
+        cf = tmp_path / "conserver.cf"
+        mock_proc = MagicMock()
+        mock_proc.pid = 12345
+        with (
+            patch("shutil.which", return_value="/usr/sbin/conserver"),
+            patch("subprocess.Popen", return_value=mock_proc) as mock_popen,
+            patch("dracs.sol._pid_file_path", tmp_path / "conserver.pid"),
+            patch.dict("os.environ", {"SOL_CONSERVER_PORT": "not-a-number"}),
+        ):
+            start_conserver(cf)
+        mock_popen.assert_called_once_with(
+            ["/usr/sbin/conserver", "-C", str(cf), "-p", "3109"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
     def test_returns_none_when_not_found(self, tmp_path):
         cf = tmp_path / "conserver.cf"
         with patch("shutil.which", return_value=None):

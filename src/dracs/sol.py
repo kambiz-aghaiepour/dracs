@@ -258,8 +258,8 @@ def start_conserver(cf_path: Path) -> subprocess.Popen | None:
         port = str(int(os.environ.get("SOL_CONSERVER_PORT", "3109")))
     except ValueError:
         port = "3109"
-    _conserver_process = subprocess.Popen(  # nosec B603  # nosemgrep
-        [conserver_bin, "-C", str(cf_path), "-p", port],
+    _conserver_process = subprocess.Popen(  # nosec B603
+        [conserver_bin, "-C", str(cf_path), "-p", port],  # nosemgrep
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
