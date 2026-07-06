@@ -3989,6 +3989,17 @@ def api_sol_connect_info():
             500,
         )
 
+    from dracs.sol import _ssl_cert_key_paths
+
+    ssl_cert_path, _ = _ssl_cert_key_paths()
+    ssl_ca_path = os.environ.get("SOL_SSL_CA", "")
+    ssl_ca_content = None
+    if ssl_cert_path and ssl_ca_path:
+        try:
+            ssl_ca_content = Path(ssl_ca_path).read_text()
+        except OSError:
+            app.logger.warning("Could not read SOL_SSL_CA file: %s", ssl_ca_path)
+
     return jsonify(
         {
             "success": True,
@@ -3996,6 +4007,8 @@ def api_sol_connect_info():
             "port": os.environ.get("SOL_CONSERVER_PORT", "3109"),
             "username": site_name,
             "password": password,
+            "ssl": bool(ssl_cert_path),
+            "ssl_ca": ssl_ca_content,
         }
     )
 

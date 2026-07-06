@@ -12,7 +12,13 @@ import pytest
 from dracs.sol import (
     ConserverConfig,
     ConserverPasswd,
+    _SSL_CERT_DIR,
+    _build_ssl_credentials,
+    _is_conserver_with_config,
     _kill_conservers_on_port,
+    _kill_conservers_with_config,
+    _ssl_cert_key_paths,
+    _write_console_cf,
     disable_systemd_service,
     start_conserver,
     startup,
@@ -274,9 +280,17 @@ class TestConserverConfigGenerate:
     def test_config_block_present(self, config_gen, passwd_file, log_dir):
         content = self._generate(config_gen)
         assert "config * {" in content
+        assert "primaryport 3109;" in content
+        assert "secondaryport 3110;" in content
         assert f"passwdfile {passwd_file};" in content
         assert f"logfile {log_dir}/conserver.log;" in content
         assert "daemonmode no;" in content
+
+    def test_config_block_custom_ports(self, config_gen, passwd_file, log_dir):
+        config_gen.generate(self.SITE_DATA, primary_port="4242", secondary_port="5555")
+        content = config_gen.cf_path.read_text()
+        assert "primaryport 4242;" in content
+        assert "secondaryport 5555;" in content
 
     def test_access_block_present(self, config_gen):
         content = self._generate(config_gen)
@@ -366,6 +380,18 @@ class TestDisableSystemdService:
 
 
 class TestStartConserver:
+    def _start(self, cf, pid_file=None, *, extra_patches=()):
+        mock_proc = MagicMock()
+        mock_proc.pid = 12345
+        pid_path = pid_file or (cf.parent / "conserver.pid")
+        patches = [
+            patch("shutil.which", return_value="/usr/sbin/conserver"),
+            patch("subprocess.Popen", return_value=mock_proc),
+            patch("dracs.sol._pid_file_path", pid_path),
+            patch("dracs.sol._kill_conservers_with_config"),
+        ] + list(extra_patches)
+        return mock_proc, patches
+
     def test_starts_process(self, tmp_path):
         cf = tmp_path / "conserver.cf"
         mock_proc = MagicMock()
@@ -374,15 +400,29 @@ class TestStartConserver:
             patch("shutil.which", return_value="/usr/sbin/conserver"),
             patch("subprocess.Popen", return_value=mock_proc) as mock_popen,
             patch("dracs.sol._pid_file_path", tmp_path / "conserver.pid"),
+            patch("dracs.sol._kill_conservers_with_config"),
         ):
             result = start_conserver(cf)
         mock_popen.assert_called_once_with(
-            ["/usr/sbin/conserver", "-C", str(cf), "-p", "3109", "-b", "3110"],
+            ["/usr/sbin/conserver", "-C", str(cf), "-m", "10000"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             start_new_session=True,
         )
         assert result is mock_proc
+
+    def test_kills_orphans_before_starting(self, tmp_path):
+        cf = tmp_path / "conserver.cf"
+        mock_proc = MagicMock()
+        mock_proc.pid = 12345
+        with (
+            patch("shutil.which", return_value="/usr/sbin/conserver"),
+            patch("subprocess.Popen", return_value=mock_proc),
+            patch("dracs.sol._pid_file_path", tmp_path / "conserver.pid"),
+            patch("dracs.sol._kill_conservers_with_config") as mock_kill,
+        ):
+            start_conserver(cf)
+        mock_kill.assert_called_once_with(cf)
 
     def test_writes_pid_file(self, tmp_path):
         cf = tmp_path / "conserver.cf"
@@ -393,81 +433,10 @@ class TestStartConserver:
             patch("shutil.which", return_value="/usr/sbin/conserver"),
             patch("subprocess.Popen", return_value=mock_proc),
             patch("dracs.sol._pid_file_path", pid_file),
+            patch("dracs.sol._kill_conservers_with_config"),
         ):
             start_conserver(cf)
         assert pid_file.read_text() == "99999"
-
-    def test_uses_custom_port(self, tmp_path):
-        cf = tmp_path / "conserver.cf"
-        mock_proc = MagicMock()
-        mock_proc.pid = 12345
-        with (
-            patch("shutil.which", return_value="/usr/sbin/conserver"),
-            patch("subprocess.Popen", return_value=mock_proc) as mock_popen,
-            patch("dracs.sol._pid_file_path", tmp_path / "conserver.pid"),
-            patch.dict("os.environ", {"SOL_CONSERVER_PORT": "4242"}),
-        ):
-            start_conserver(cf)
-        mock_popen.assert_called_once_with(
-            ["/usr/sbin/conserver", "-C", str(cf), "-p", "4242", "-b", "3110"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-        )
-
-    def test_uses_custom_slave_port(self, tmp_path):
-        cf = tmp_path / "conserver.cf"
-        mock_proc = MagicMock()
-        mock_proc.pid = 12345
-        with (
-            patch("shutil.which", return_value="/usr/sbin/conserver"),
-            patch("subprocess.Popen", return_value=mock_proc) as mock_popen,
-            patch("dracs.sol._pid_file_path", tmp_path / "conserver.pid"),
-            patch.dict("os.environ", {"SOL_CONSERVER_SLAVE_PORT": "5555"}),
-        ):
-            start_conserver(cf)
-        mock_popen.assert_called_once_with(
-            ["/usr/sbin/conserver", "-C", str(cf), "-p", "3109", "-b", "5555"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-        )
-
-    def test_invalid_slave_port_falls_back_to_default(self, tmp_path):
-        cf = tmp_path / "conserver.cf"
-        mock_proc = MagicMock()
-        mock_proc.pid = 12345
-        with (
-            patch("shutil.which", return_value="/usr/sbin/conserver"),
-            patch("subprocess.Popen", return_value=mock_proc) as mock_popen,
-            patch("dracs.sol._pid_file_path", tmp_path / "conserver.pid"),
-            patch.dict("os.environ", {"SOL_CONSERVER_SLAVE_PORT": "bad"}),
-        ):
-            start_conserver(cf)
-        mock_popen.assert_called_once_with(
-            ["/usr/sbin/conserver", "-C", str(cf), "-p", "3109", "-b", "3110"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-        )
-
-    def test_invalid_port_falls_back_to_default(self, tmp_path):
-        cf = tmp_path / "conserver.cf"
-        mock_proc = MagicMock()
-        mock_proc.pid = 12345
-        with (
-            patch("shutil.which", return_value="/usr/sbin/conserver"),
-            patch("subprocess.Popen", return_value=mock_proc) as mock_popen,
-            patch("dracs.sol._pid_file_path", tmp_path / "conserver.pid"),
-            patch.dict("os.environ", {"SOL_CONSERVER_PORT": "not-a-number"}),
-        ):
-            start_conserver(cf)
-        mock_popen.assert_called_once_with(
-            ["/usr/sbin/conserver", "-C", str(cf), "-p", "3109", "-b", "3110"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-        )
 
     def test_returns_none_when_not_found(self, tmp_path):
         cf = tmp_path / "conserver.cf"
@@ -486,6 +455,7 @@ class TestStartConserver:
             patch("shutil.which", return_value="/usr/sbin/conserver"),
             patch("subprocess.Popen", return_value=mock_proc),
             patch("dracs.sol._pid_file_path", pid_mock),
+            patch("dracs.sol._kill_conservers_with_config"),
         ):
             result = start_conserver(cf)
         assert result is mock_proc
@@ -609,6 +579,102 @@ class TestKillConserversOnPort:
         mock_killpg.assert_not_called()
 
 
+class TestIsConserverWithConfig:
+    def test_matches_conserver_with_config(self):
+        args = ["/usr/bin/conserver", "-C", "/etc/dracs/conserver.cf", "-m", "10000"]
+        assert _is_conserver_with_config(args, "/etc/dracs/conserver.cf") is True
+
+    def test_no_match_wrong_config(self):
+        args = ["/usr/bin/conserver", "-C", "/other/conserver.cf"]
+        assert _is_conserver_with_config(args, "/etc/dracs/conserver.cf") is False
+
+    def test_no_match_not_conserver(self):
+        args = ["/usr/bin/python3", "-C", "/etc/dracs/conserver.cf"]
+        assert _is_conserver_with_config(args, "/etc/dracs/conserver.cf") is False
+
+    def test_no_match_empty_args(self):
+        assert _is_conserver_with_config([], "/etc/dracs/conserver.cf") is False
+
+    def test_no_match_flag_at_end(self):
+        args = ["/usr/bin/conserver", "-C"]
+        assert _is_conserver_with_config(args, "/etc/dracs/conserver.cf") is False
+
+    def test_no_match_no_c_flag(self):
+        args = ["/usr/bin/conserver", "-m", "10000"]
+        assert _is_conserver_with_config(args, "/etc/dracs/conserver.cf") is False
+
+
+class TestKillConserversWithConfig:
+    def _make_proc(self, tmp_path, pid: int, cmdline_args: list[str]) -> Path:
+        proc_dir = tmp_path / str(pid)
+        proc_dir.mkdir()
+        cmdline = b"\x00".join(a.encode() for a in cmdline_args) + b"\x00"
+        (proc_dir / "cmdline").write_bytes(cmdline)
+        return proc_dir
+
+    CF = "/etc/dracs/conserver.cf"
+
+    def test_kills_matching_conserver(self, tmp_path):
+        self._make_proc(
+            tmp_path, 11111, ["/usr/bin/conserver", "-C", self.CF, "-m", "10000"]
+        )
+        with (
+            patch("os.getpgid", return_value=11111),
+            patch("os.killpg") as mock_killpg,
+        ):
+            _kill_conservers_with_config(Path(self.CF), _proc_root=tmp_path)
+        mock_killpg.assert_called_once_with(11111, signal.SIGTERM)
+
+    def test_skips_different_config(self, tmp_path):
+        self._make_proc(
+            tmp_path, 22222, ["/usr/bin/conserver", "-C", "/other/conserver.cf"]
+        )
+        with patch("os.killpg") as mock_killpg:
+            _kill_conservers_with_config(Path(self.CF), _proc_root=tmp_path)
+        mock_killpg.assert_not_called()
+
+    def test_skips_non_conserver(self, tmp_path):
+        self._make_proc(tmp_path, 33333, ["/usr/bin/python3", "-C", self.CF])
+        with patch("os.killpg") as mock_killpg:
+            _kill_conservers_with_config(Path(self.CF), _proc_root=tmp_path)
+        mock_killpg.assert_not_called()
+
+    def test_kills_each_pgid_once(self, tmp_path):
+        for pid in (44444, 44445):
+            self._make_proc(
+                tmp_path, pid, ["/usr/bin/conserver", "-C", self.CF, "-m", "10000"]
+            )
+        with (
+            patch("os.getpgid", return_value=44444),
+            patch("os.killpg") as mock_killpg,
+        ):
+            _kill_conservers_with_config(Path(self.CF), _proc_root=tmp_path)
+        assert mock_killpg.call_count == 1
+
+    def test_handles_proc_oserror(self, tmp_path):
+        _kill_conservers_with_config(
+            Path(self.CF), _proc_root=tmp_path / "nonexistent"
+        )  # must not raise
+
+    def test_tolerates_getpgid_error(self, tmp_path):
+        self._make_proc(
+            tmp_path, 55555, ["/usr/bin/conserver", "-C", self.CF, "-m", "10000"]
+        )
+        with (
+            patch("os.getpgid", side_effect=ProcessLookupError()),
+            patch("os.killpg") as mock_killpg,
+        ):
+            _kill_conservers_with_config(Path(self.CF), _proc_root=tmp_path)
+        mock_killpg.assert_not_called()
+
+    def test_skips_non_digit_proc_entries(self, tmp_path):
+        (tmp_path / "self").mkdir()
+        (tmp_path / "net").mkdir()
+        with patch("os.killpg") as mock_killpg:
+            _kill_conservers_with_config(Path(self.CF), _proc_root=tmp_path)
+        mock_killpg.assert_not_called()
+
+
 class TestStartConserverKillsOrphans:
     def test_kills_existing_conserver_before_start(self, tmp_path):
         cf = tmp_path / "conserver.cf"
@@ -618,10 +684,10 @@ class TestStartConserverKillsOrphans:
             patch("shutil.which", return_value="/usr/sbin/conserver"),
             patch("subprocess.Popen", return_value=mock_proc),
             patch("dracs.sol._pid_file_path", tmp_path / "conserver.pid"),
-            patch("dracs.sol._kill_conservers_on_port") as mock_kill,
+            patch("dracs.sol._kill_conservers_with_config") as mock_kill,
         ):
             start_conserver(cf)
-        mock_kill.assert_called_once_with("3109")
+        mock_kill.assert_called_once_with(cf)
 
 
 class TestStopConserver:
@@ -842,6 +908,274 @@ class TestStartup:
             ini_store.get("NewSite", {}).get("defaults", {}).get("conserver_password")
         )
 
+    def _minimal_startup(self, tmp_path, temp_db, env_overrides=None):
+        """Run startup() with minimal DB and all side-effectful calls mocked."""
+        from dracs.db import Site, db_initialize, get_session
+
+        db_initialize(temp_db)
+        with get_session() as session:
+            site = Site(
+                name="S", is_primary=True, created_at=datetime.now().isoformat()
+            )
+            session.add(site)
+            session.commit()
+
+        cf = tmp_path / "conserver.cf"
+        pw = tmp_path / "conserver.passwd"
+        logs = tmp_path / "logs"
+
+        patches = [
+            patch.object(ConserverPasswd, "_hash_password", return_value="ABhash"),
+            patch("dracs.sol.disable_systemd_service"),
+            patch("dracs.sol.start_conserver"),
+            patch(
+                "dracs.sites.get_site_ini_config",
+                return_value={"defaults": {}, "hosts": {}},
+            ),
+            patch("dracs.sites.set_site_ini_config"),
+        ]
+        env = env_overrides or {}
+        with patch.dict("os.environ", env):
+            ctx = __import__("contextlib").ExitStack()
+            for p in patches:
+                ctx.enter_context(p)
+            with ctx:
+                startup(temp_db, None, cf, pw, logs)
+        return cf
+
+    def test_invalid_primary_port_falls_back(self, tmp_path, temp_db):
+        cf = self._minimal_startup(
+            tmp_path, temp_db, {"SOL_CONSERVER_PORT": "notanumber"}
+        )
+        assert "primaryport 3109;" in cf.read_text()
+
+    def test_invalid_secondary_port_falls_back(self, tmp_path, temp_db):
+        cf = self._minimal_startup(
+            tmp_path, temp_db, {"SOL_CONSERVER_SLAVE_PORT": "notanumber"}
+        )
+        assert "secondaryport 3110;" in cf.read_text()
+
     def test_handles_startup_exception(self, tmp_path):
         with patch("dracs.db.db_initialize", side_effect=Exception("DB error")):
             startup("bad_path", None, tmp_path / "cf", tmp_path / "pw", tmp_path)
+
+    def test_ssl_creds_built_when_ssl_paths_available(self, tmp_path, temp_db):
+        cert = tmp_path / "cert.pem"
+        key = tmp_path / "key.pem"
+        cert.write_text(
+            "-----BEGIN CERTIFICATE-----\nCERT\n-----END CERTIFICATE-----\n"
+        )
+        key.write_text(
+            "-----BEGIN RSA PRIVATE KEY-----\nKEY\n-----END RSA PRIVATE KEY-----\n"
+        )
+
+        with patch("dracs.sol._ssl_cert_key_paths", return_value=(cert, key)):
+            cf = self._minimal_startup(tmp_path, temp_db)
+        combined = tmp_path / "conserver-ssl.pem"
+        assert combined.exists()
+        assert oct(combined.stat().st_mode)[-3:] == "600"
+        content = combined.read_text()
+        assert "KEY" in content
+        assert "CERT" in content
+        assert "sslcredentials" in cf.read_text()
+        assert "sslrequired yes;" in cf.read_text()
+
+    def test_ssl_creds_not_built_when_no_ssl_paths(self, tmp_path, temp_db):
+        with patch("dracs.sol._ssl_cert_key_paths", return_value=(None, None)):
+            cf = self._minimal_startup(tmp_path, temp_db)
+        assert not (tmp_path / "conserver-ssl.pem").exists()
+        assert "sslcredentials" not in cf.read_text()
+        assert "sslrequired" not in cf.read_text()
+
+    def test_ssl_console_cf_written_with_ca(self, tmp_path, temp_db):
+        cert = tmp_path / "cert.pem"
+        key = tmp_path / "key.pem"
+        ca = tmp_path / "ca.pem"
+        cert.write_text("CERT")
+        key.write_text("KEY")
+        ca.write_text("CA")
+
+        with patch("dracs.sol._ssl_cert_key_paths", return_value=(cert, key)):
+            self._minimal_startup(tmp_path, temp_db, {"SOL_SSL_CA": str(ca)})
+        console_cf = tmp_path / "console.cf"
+        assert console_cf.exists()
+        content = console_cf.read_text()
+        assert "sslrequired yes;" in content
+        assert str(ca) in content
+
+    def test_ssl_console_cf_written_without_ca(self, tmp_path, temp_db):
+        cert = tmp_path / "cert.pem"
+        key = tmp_path / "key.pem"
+        cert.write_text("CERT")
+        key.write_text("KEY")
+
+        with patch("dracs.sol._ssl_cert_key_paths", return_value=(cert, key)):
+            self._minimal_startup(tmp_path, temp_db, {"SOL_SSL_CA": ""})
+        console_cf = tmp_path / "console.cf"
+        assert console_cf.exists()
+        content = console_cf.read_text()
+        assert "sslrequired yes;" in content
+        assert "sslcacertificatefile" not in content
+
+
+# ---------------------------------------------------------------------------
+# _ssl_cert_key_paths
+# ---------------------------------------------------------------------------
+
+
+class TestSslCertKeyPaths:
+    def test_returns_explicit_env_paths(self, tmp_path):
+        cert = tmp_path / "cert.pem"
+        key = tmp_path / "key.pem"
+        cert.write_text("C")
+        key.write_text("K")
+        with patch.dict(
+            os.environ, {"SOL_SSL_CERT": str(cert), "SOL_SSL_KEY": str(key)}
+        ):
+            c, k = _ssl_cert_key_paths()
+        assert c == cert
+        assert k == key
+
+    def test_auto_detects_standard_paths_when_files_exist(self, tmp_path):
+        hostname = "testserver.example.com"
+        cert = tmp_path / f"{hostname}.pem"
+        key = tmp_path / f"{hostname}.key"
+        cert.write_text("CERT")
+        key.write_text("KEY")
+        with (
+            patch.dict(os.environ, {"SOL_SSL_CERT": "", "SOL_SSL_KEY": ""}),
+            patch("dracs.sol.socket.gethostname", return_value=hostname),
+            patch("dracs.sol._SSL_CERT_DIR", tmp_path),
+        ):
+            c, k = _ssl_cert_key_paths()
+        assert c == tmp_path / f"{hostname}.pem"
+        assert k == tmp_path / f"{hostname}.key"
+
+    def test_returns_none_when_no_env_and_no_standard_files(self):
+        with (
+            patch.dict(os.environ, {"SOL_SSL_CERT": "", "SOL_SSL_KEY": ""}),
+            patch("dracs.sol.socket.gethostname", return_value="no-such-host"),
+        ):
+            c, k = _ssl_cert_key_paths()
+        assert c is None
+        assert k is None
+
+    def test_returns_none_when_only_cert_file_exists(self, tmp_path):
+        hostname = "partialserver"
+        (tmp_path / f"{hostname}.pem").write_text("C")
+        # key file missing
+        with (
+            patch.dict(os.environ, {"SOL_SSL_CERT": "", "SOL_SSL_KEY": ""}),
+            patch("dracs.sol.socket.gethostname", return_value=hostname),
+            patch("dracs.sol._SSL_CERT_DIR", tmp_path),
+        ):
+            c, k = _ssl_cert_key_paths()
+        assert c is None
+        assert k is None
+
+
+# ---------------------------------------------------------------------------
+# _build_ssl_credentials
+# ---------------------------------------------------------------------------
+
+
+class TestBuildSslCredentials:
+    def test_combines_key_and_cert(self, tmp_path):
+        cert = tmp_path / "cert.pem"
+        key = tmp_path / "key.pem"
+        out = tmp_path / "combined.pem"
+        cert.write_text("CERT_CONTENT\n")
+        key.write_text("KEY_CONTENT\n")
+
+        _build_ssl_credentials(cert, key, out)
+
+        content = out.read_text()
+        assert "KEY_CONTENT" in content
+        assert "CERT_CONTENT" in content
+
+    def test_key_precedes_cert(self, tmp_path):
+        cert = tmp_path / "cert.pem"
+        key = tmp_path / "key.pem"
+        out = tmp_path / "combined.pem"
+        cert.write_text("CERT\n")
+        key.write_text("KEY\n")
+
+        _build_ssl_credentials(cert, key, out)
+
+        content = out.read_text()
+        assert content.index("KEY") < content.index("CERT")
+
+    def test_output_permissions_are_0600(self, tmp_path):
+        cert = tmp_path / "cert.pem"
+        key = tmp_path / "key.pem"
+        out = tmp_path / "combined.pem"
+        cert.write_text("C")
+        key.write_text("K")
+
+        _build_ssl_credentials(cert, key, out)
+
+        assert oct(out.stat().st_mode)[-3:] == "600"
+
+    def test_creates_parent_directory(self, tmp_path):
+        cert = tmp_path / "cert.pem"
+        key = tmp_path / "key.pem"
+        out = tmp_path / "subdir" / "combined.pem"
+        cert.write_text("C")
+        key.write_text("K")
+
+        _build_ssl_credentials(cert, key, out)
+
+        assert out.exists()
+
+
+# ---------------------------------------------------------------------------
+# _write_console_cf
+# ---------------------------------------------------------------------------
+
+
+class TestWriteConsoleCf:
+    def test_no_ca_writes_sslrequired_only(self, tmp_path):
+        out = tmp_path / "console.cf"
+        _write_console_cf(out, ssl_ca_path=None)
+        content = out.read_text()
+        assert "sslrequired yes;" in content
+        assert "sslcacertificatefile" not in content
+
+    def test_with_ca_includes_sslcacertificatefile(self, tmp_path):
+        out = tmp_path / "console.cf"
+        ca = Path("/etc/pki/ca-trust/my-ca.pem")
+        _write_console_cf(out, ssl_ca_path=ca)
+        content = out.read_text()
+        assert "sslrequired yes;" in content
+        assert f"sslcacertificatefile {ca};" in content
+
+    def test_file_permissions_are_0644(self, tmp_path):
+        out = tmp_path / "console.cf"
+        _write_console_cf(out)
+        assert oct(out.stat().st_mode)[-3:] == "644"
+
+    def test_creates_parent_directory(self, tmp_path):
+        out = tmp_path / "subdir" / "console.cf"
+        _write_console_cf(out)
+        assert out.exists()
+
+
+# ---------------------------------------------------------------------------
+# ConserverConfig.generate — SSL directives
+# ---------------------------------------------------------------------------
+
+
+class TestConserverConfigGenerateSsl:
+    def test_ssl_directives_present_when_creds_path_set(self, config_gen, tmp_path):
+        creds = tmp_path / "conserver-ssl.pem"
+        creds.write_text("FAKE")
+        config_gen.generate([], ssl_creds_path=creds)
+        content = config_gen.cf_path.read_text()
+        assert f"sslcredentials {creds};" in content
+        assert "sslrequired yes;" in content
+
+    def test_ssl_directives_absent_when_no_creds_path(self, config_gen):
+        config_gen.generate([])
+        content = config_gen.cf_path.read_text()
+        assert "sslcredentials" not in content
+        assert "sslrequired" not in content

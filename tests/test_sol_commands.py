@@ -4,6 +4,7 @@ import os
 import sys
 import tempfile
 from argparse import Namespace
+from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
 import pexpect
@@ -112,20 +113,83 @@ class TestDracsCmdSol:
             patch("dracs.db.get_primary_site_name", return_value="mysite"),
             patch("dracs.commands.shutil.which", return_value="/usr/bin/console"),
             patch("dracs.commands.socket.gethostname", return_value="myserver"),
-            patch.dict(os.environ, {"SOL_CONSERVER_PORT": "3109"}),
+            patch.dict(os.environ, {"SOL_CONSERVER_PORT": "3109", "SOL_SSL_CA": ""}),
+            patch("dracs.sol._ssl_cert_key_paths", return_value=(None, None)),
             patch("pexpect.spawn", return_value=mock_child) as mock_spawn,
         ):
             cmd_sol(self._args(target="myhost"), site_name="mysite")
 
         mock_spawn.assert_called_once_with(
             "/usr/bin/console",
-            ["-M", "myserver", "-l", "mysite", "myhost", "-p", "3109"],
+            ["-E", "-M", "myserver", "-l", "mysite", "myhost", "-p", "3109"],
             timeout=10,
             encoding="utf-8",
             codec_errors="replace",
         )
         mock_child.sendline.assert_called_once_with("mypass")
         mock_child.interact.assert_called_once()
+
+    def test_no_ssl_prepends_E_flag(self, capsys):
+        from dracs.commands import cmd_sol
+
+        mock_child = MagicMock()
+
+        with (
+            patch("dracs.sites.get_site_ini_config", return_value=self._make_cfg()),
+            patch("dracs.db.get_primary_site_name", return_value="site1"),
+            patch("dracs.commands.shutil.which", return_value="/usr/bin/console"),
+            patch("dracs.commands.socket.gethostname", return_value="srv"),
+            patch("dracs.sol._ssl_cert_key_paths", return_value=(None, None)),
+            patch("pexpect.spawn", return_value=mock_child) as mock_spawn,
+        ):
+            cmd_sol(self._args(), site_name="site1")
+
+        args_passed = mock_spawn.call_args[0][1]
+        assert args_passed[0] == "-E"
+
+    def test_ssl_enabled_no_ca_omits_E_flag(self, capsys, tmp_path):
+        from dracs.commands import cmd_sol
+
+        mock_child = MagicMock()
+        fake_cert = tmp_path / "cert.pem"
+
+        with (
+            patch("dracs.sites.get_site_ini_config", return_value=self._make_cfg()),
+            patch("dracs.db.get_primary_site_name", return_value="site1"),
+            patch("dracs.commands.shutil.which", return_value="/usr/bin/console"),
+            patch("dracs.commands.socket.gethostname", return_value="srv"),
+            patch.dict(os.environ, {"SOL_SSL_CA": ""}),
+            patch("dracs.sol._ssl_cert_key_paths", return_value=(fake_cert, fake_cert)),
+            patch("pexpect.spawn", return_value=mock_child) as mock_spawn,
+        ):
+            cmd_sol(self._args(), site_name="site1")
+
+        args_passed = mock_spawn.call_args[0][1]
+        assert "-E" not in args_passed
+        assert "-n" not in args_passed
+
+    def test_ssl_enabled_with_ca_adds_n_C_flags(self, capsys, tmp_path):
+        from dracs.commands import cmd_sol
+
+        mock_child = MagicMock()
+        fake_cert = tmp_path / "cert.pem"
+
+        with (
+            patch("dracs.sites.get_site_ini_config", return_value=self._make_cfg()),
+            patch("dracs.db.get_primary_site_name", return_value="site1"),
+            patch("dracs.commands.shutil.which", return_value="/usr/bin/console"),
+            patch("dracs.commands.socket.gethostname", return_value="srv"),
+            patch.dict(os.environ, {"SOL_SSL_CA": "/etc/pki/ca-trust/my-ca.pem"}),
+            patch("dracs.sol._ssl_cert_key_paths", return_value=(fake_cert, fake_cert)),
+            patch("pexpect.spawn", return_value=mock_child) as mock_spawn,
+        ):
+            cmd_sol(self._args(), site_name="site1")
+
+        args_passed = mock_spawn.call_args[0][1]
+        assert "-n" in args_passed
+        assert "-C" in args_passed
+        assert "/etc/dracs/console.cf" in args_passed
+        assert "-E" not in args_passed
 
     def test_uses_site_name_argument(self, capsys):
         from dracs.commands import cmd_sol
@@ -157,13 +221,15 @@ class TestDracsClientCmdSol:
     def _args(self, target="clienthost", site=None):
         return Namespace(target=target, site=site)
 
-    def _api_data(self):
+    def _api_data(self, ssl=False, ssl_ca=None):
         return {
             "success": True,
             "server": "dracs.example.com",
             "port": "3109",
             "username": "Default",
             "password": "apipass",
+            "ssl": ssl,
+            "ssl_ca": ssl_ca,
         }
 
     def _mock_api_response(self, data=None):
@@ -295,10 +361,109 @@ class TestDracsClientCmdSol:
 
         mock_spawn.assert_called_once_with(
             "/usr/bin/console",
-            ["-M", "dracs.example.com", "-l", "Default", "targethost", "-p", "3109"],
+            [
+                "-E",
+                "-M",
+                "dracs.example.com",
+                "-l",
+                "Default",
+                "targethost",
+                "-p",
+                "3109",
+            ],
             timeout=10,
             encoding="utf-8",
             codec_errors="replace",
         )
         mock_child.sendline.assert_called_once_with("apipass")
         mock_child.interact.assert_called_once()
+
+    def test_ssl_false_prepends_E_flag(self):
+        from dracs_client.commands import cmd_sol
+
+        mock_child = MagicMock()
+
+        with (
+            patch(
+                "dracs_client.commands._api_request",
+                return_value=self._mock_api_response(self._api_data(ssl=False)),
+            ),
+            patch("shutil.which", return_value="/usr/bin/console"),
+            patch("pexpect.spawn", return_value=mock_child) as mock_spawn,
+        ):
+            cmd_sol(self._args(), "https://dracs.local", True, "dracs.local")
+
+        args_passed = mock_spawn.call_args[0][1]
+        assert args_passed[0] == "-E"
+
+    def test_ssl_true_no_ca_omits_E_flag(self):
+        from dracs_client.commands import cmd_sol
+
+        mock_child = MagicMock()
+
+        with (
+            patch(
+                "dracs_client.commands._api_request",
+                return_value=self._mock_api_response(
+                    self._api_data(ssl=True, ssl_ca=None)
+                ),
+            ),
+            patch("shutil.which", return_value="/usr/bin/console"),
+            patch("pexpect.spawn", return_value=mock_child) as mock_spawn,
+        ):
+            cmd_sol(self._args(), "https://dracs.local", True, "dracs.local")
+
+        args_passed = mock_spawn.call_args[0][1]
+        assert "-E" not in args_passed
+        assert "-n" not in args_passed
+
+    def test_ssl_true_with_ca_tempfile_oserror_falls_back_gracefully(self, capsys):
+        from dracs_client.commands import cmd_sol
+
+        mock_child = MagicMock()
+        ca_content = "-----BEGIN CERTIFICATE-----\nFAKECA\n-----END CERTIFICATE-----\n"
+
+        with (
+            patch(
+                "dracs_client.commands._api_request",
+                return_value=self._mock_api_response(
+                    self._api_data(ssl=True, ssl_ca=ca_content)
+                ),
+            ),
+            patch("shutil.which", return_value="/usr/bin/console"),
+            patch("tempfile.mkdtemp", side_effect=OSError("no space")),
+            patch("pexpect.spawn", return_value=mock_child) as mock_spawn,
+        ):
+            cmd_sol(self._args(), "https://dracs.local", True, "dracs.local")
+
+        args_passed = mock_spawn.call_args[0][1]
+        # Fell back: no -E (ssl is true) and no -C (temp file failed)
+        assert "-E" not in args_passed
+        assert "-C" not in args_passed
+        assert "Warning" in capsys.readouterr().err
+
+    def test_ssl_true_with_ca_writes_temp_files_and_uses_n_C(self):
+        from dracs_client.commands import cmd_sol
+
+        mock_child = MagicMock()
+        ca_content = "-----BEGIN CERTIFICATE-----\nFAKECA\n-----END CERTIFICATE-----\n"
+
+        with (
+            patch(
+                "dracs_client.commands._api_request",
+                return_value=self._mock_api_response(
+                    self._api_data(ssl=True, ssl_ca=ca_content)
+                ),
+            ),
+            patch("shutil.which", return_value="/usr/bin/console"),
+            patch("pexpect.spawn", return_value=mock_child) as mock_spawn,
+        ):
+            cmd_sol(self._args(), "https://dracs.local", True, "dracs.local")
+
+        args_passed = mock_spawn.call_args[0][1]
+        assert "-n" in args_passed
+        assert "-C" in args_passed
+        assert "-E" not in args_passed
+        cf_path = args_passed[args_passed.index("-C") + 1]
+        # The temp dir should be cleaned up after interact()
+        assert not Path(cf_path).exists()
