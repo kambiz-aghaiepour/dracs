@@ -21,7 +21,7 @@ class ConserverPasswd:
     Manages /etc/dracs/conserver.passwd - one entry per dracs site.
 
     Handles hashing, storage, and verification of per-site passwords
-    used by conserver to authenticate console clients.
+    used by conserver to authenticate all console clients.
     """
 
     def __init__(self, passwd_path: Path):
