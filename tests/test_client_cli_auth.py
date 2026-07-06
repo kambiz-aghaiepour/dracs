@@ -577,3 +577,29 @@ class TestMainRouting:
             mock_path.exists.return_value = False
             main()
         assert "2 active viewers" in capsys.readouterr().out
+
+    def test_sol_dispatches(self, capsys):
+        api_resp = MagicMock()
+        api_resp.json.return_value = {
+            "success": True,
+            "server": "dracs.example.com",
+            "port": "3109",
+            "username": "Default",
+            "password": "secret",
+        }
+        api_resp.status_code = 200
+        mock_child = MagicMock()
+        with (
+            patch("dracs_client.config.DRACSRC_PATH") as mock_path,
+            patch("dracs_client.cli.get_current_role", return_value="admin"),
+            patch(
+                "sys.argv",
+                ["dracs-client", "-s", "server.example.com", "sol", "-t", "host01"],
+            ),
+            patch("dracs_client.commands._api_request", return_value=api_resp),
+            patch("shutil.which", return_value="/usr/bin/console"),
+            patch("pexpect.spawn", return_value=mock_child),
+        ):
+            mock_path.exists.return_value = False
+            main()
+        mock_child.interact.assert_called_once()
