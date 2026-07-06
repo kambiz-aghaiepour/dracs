@@ -254,7 +254,10 @@ def start_conserver(cf_path: Path) -> subprocess.Popen | None:
         logger.warning("conserver not found in PATH; SOL feature disabled")
         return None
 
-    port = os.environ.get("SOL_CONSERVER_PORT", "3109")
+    try:
+        port = str(int(os.environ.get("SOL_CONSERVER_PORT", "3109")))
+    except ValueError:
+        port = "3109"
     _conserver_process = subprocess.Popen(  # nosec B603  # nosemgrep
         [conserver_bin, "-C", str(cf_path), "-p", port],
         stdout=subprocess.DEVNULL,
