@@ -453,12 +453,16 @@ def startup(
         except ValueError:
             primary_port = "3109"
         try:
-            secondary_port = str(int(os.environ.get("SOL_CONSERVER_SLAVE_PORT", "3110")))
+            secondary_port = str(
+                int(os.environ.get("SOL_CONSERVER_SLAVE_PORT", "3110"))
+            )
         except ValueError:
             secondary_port = "3110"
 
         config_gen = ConserverConfig(cf_path, passwd_path, log_dir)
-        config_gen.generate(sites_data, primary_port=primary_port, secondary_port=secondary_port)
+        config_gen.generate(
+            sites_data, primary_port=primary_port, secondary_port=secondary_port
+        )
 
         disable_systemd_service()
         start_conserver(cf_path)
