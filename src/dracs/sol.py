@@ -134,7 +134,7 @@ class ConserverConfig:
             "}\n",
             "\n",
             "access * {\n",
-            "    allowed *.*;\n",
+            "    allowed *;\n",
             "}\n",
         ]
 
