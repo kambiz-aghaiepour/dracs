@@ -575,6 +575,29 @@ class TestStopConserver:
             stop_conserver()  # must not raise
         assert not pid_file.exists()
 
+    def test_handles_corrupt_pid_file(self, tmp_path):
+        import dracs.sol as sol_module
+
+        sol_module._conserver_process = None
+        pid_file = tmp_path / "conserver.pid"
+        pid_file.write_text("not-a-number")
+        with patch("dracs.sol._pid_file_path", pid_file):
+            stop_conserver()  # must not raise (ValueError from int())
+        assert not pid_file.exists()
+
+    def test_handles_pid_file_read_error(self, tmp_path):
+        import dracs.sol as sol_module
+
+        sol_module._conserver_process = None
+        pid_file = tmp_path / "conserver.pid"
+        pid_file.write_text("55555")
+        with (
+            patch("dracs.sol._pid_file_path", pid_file),
+            patch("pathlib.Path.read_text", side_effect=OSError("unreadable")),
+        ):
+            stop_conserver()  # must not raise (OSError from read_text)
+        assert not pid_file.exists()
+
 
 # ---------------------------------------------------------------------------
 # startup() orchestration test
