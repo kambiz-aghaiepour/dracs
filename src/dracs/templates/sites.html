@@ -229,6 +229,17 @@
                         </button>
                     </div>
                 </div>
+                <div class="form-group">
+                    <label>Conserver Password</label>
+                    <div class="pw-field-wrap">
+                        <input type="password" id="manage-conserver-password" autocomplete="off">
+                        <button type="button" class="btn-eye" id="manage-conserver-password-eye"
+                                title="Show/hide Conserver password"
+                                onclick="togglePasswordVisibility('manage-conserver-password', this)">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                    </div>
+                </div>
             </div>
             <h4 style="margin: 16px 0 4px;">SSL Certificate Management</h4>
             <div class="ssl-section">
@@ -704,6 +715,10 @@
             vncPwInput.value = cfg.defaults.vnc_password || '';
             vncPwInput.type = 'password';
             document.getElementById('manage-vnc-password-eye').innerHTML = EYE_OPEN;
+            const conserverPwInput = document.getElementById('manage-conserver-password');
+            conserverPwInput.value = cfg.defaults.conserver_password || '';
+            conserverPwInput.type = 'password';
+            document.getElementById('manage-conserver-password-eye').innerHTML = EYE_OPEN;
             document.getElementById('manage-quads-enabled').checked = cfg.defaults.quads_enabled === 'true';
             document.getElementById('manage-quads-url').value = cfg.defaults.quads_url || '';
             updateQuadsUrlState();
@@ -956,6 +971,7 @@
                 password: document.getElementById('manage-password').value,
                 vnc_port: document.getElementById('manage-vnc-port').value,
                 vnc_password: document.getElementById('manage-vnc-password').value,
+                conserver_password: document.getElementById('manage-conserver-password').value,
                 quads_enabled: document.getElementById('manage-quads-enabled').checked ? 'true' : 'false',
                 quads_url: document.getElementById('manage-quads-url').value,
             };

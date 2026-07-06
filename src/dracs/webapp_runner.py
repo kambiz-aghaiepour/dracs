@@ -37,6 +37,11 @@ OPTIONAL_ENV_DEFAULTS = {
     "VNC_WEBSOCKIFY_PORT": "6080",
     "VNC_CONSOLE_SIZE": "800x600",
     "DRACS_TOKEN_EXPIRY": "36000",
+    "SOL_ENABLE": "false",
+    "SOL_CONSERVER_CF": "/etc/dracs/conserver.cf",
+    "SOL_CONSERVER_PASSWD": "/etc/dracs/conserver.passwd",
+    "SOL_CONSERVER_LOGDIR": "/var/log/dracs/conserver",
+    "SOL_CONSERVER_PORT": "3109",
 }
 
 

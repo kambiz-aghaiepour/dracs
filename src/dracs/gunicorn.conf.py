@@ -29,12 +29,36 @@ daemon = False
 
 
 def on_starting(server):
-    """Start websockify for VNC console support."""
+    """Start websockify for VNC console support and conserver for IPMI SOL."""
     if os.environ.get("VNC_ENABLE", "false").lower() in ("true", "1", "yes"):
         from dracs.vnc import get_token_dir, start_websockify
 
         port = int(os.environ.get("VNC_WEBSOCKIFY_PORT", "6080"))
         start_websockify(port, get_token_dir())
+
+    if os.environ.get("SOL_ENABLE", "false").lower() in ("true", "1", "yes"):
+        import threading
+        from pathlib import Path
+
+        from dracs.sol import startup as sol_startup
+
+        threading.Thread(
+            target=sol_startup,
+            args=(
+                os.environ.get("DRACS_DB", "./warranty.db"),
+                None,
+                Path(os.environ.get("SOL_CONSERVER_CF", "/etc/dracs/conserver.cf")),
+                Path(
+                    os.environ.get(
+                        "SOL_CONSERVER_PASSWD", "/etc/dracs/conserver.passwd"
+                    )
+                ),
+                Path(
+                    os.environ.get("SOL_CONSERVER_LOGDIR", "/var/log/dracs/conserver")
+                ),
+            ),
+            daemon=True,
+        ).start()
 
 
 def post_worker_init(worker):
@@ -80,7 +104,12 @@ def post_worker_init(worker):
 
 
 def on_exit(server):
-    """Stop websockify on shutdown."""
+    """Stop websockify and conserver on shutdown."""
     from dracs.vnc import stop_websockify
 
     stop_websockify()
+
+    if os.environ.get("SOL_ENABLE", "false").lower() in ("true", "1", "yes"):
+        from dracs.sol import stop_conserver
+
+        stop_conserver()
