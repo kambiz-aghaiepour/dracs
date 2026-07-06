@@ -42,6 +42,7 @@ OPTIONAL_ENV_DEFAULTS = {
     "SOL_CONSERVER_PASSWD": "/etc/dracs/conserver.passwd",
     "SOL_CONSERVER_LOGDIR": "/var/log/dracs/conserver",
     "SOL_CONSERVER_PORT": "3109",
+    "SOL_CONSERVER_SLAVE_PORT": "3110",
 }
 
 

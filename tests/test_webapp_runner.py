@@ -110,5 +110,6 @@ class TestRequiredEnvVarsList:
             "SOL_CONSERVER_PASSWD",
             "SOL_CONSERVER_LOGDIR",
             "SOL_CONSERVER_PORT",
+            "SOL_CONSERVER_SLAVE_PORT",
         ]
         assert list(OPTIONAL_ENV_DEFAULTS.keys()) == expected_keys
