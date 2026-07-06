@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.17.4 (2026-07-06)
+
+### Bug Fixes
+
+- Conserver access misconfigured
+  ([`3ab6b12`](https://github.com/kambiz-aghaiepour/dracs/commit/3ab6b12182d4deabe8affa68d180ae6a6630e4a2))
+
+### Chores
+
+- Sync spec file version to 2.17.3 [skip ci]
+  ([`fc7d333`](https://github.com/kambiz-aghaiepour/dracs/commit/fc7d3336966612c98a3f48020dd810ce09c620ae))
+
+
 ## v2.17.3 (2026-07-06)
 
 ### Bug Fixes
