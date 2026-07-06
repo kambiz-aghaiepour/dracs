@@ -14,6 +14,7 @@ EnvironmentFile=-/etc/dracs/dracs.conf
 ExecStart=/usr/bin/dracs-webapp
 Restart=on-failure
 RestartSec=5
+TimeoutStopSec=10
 SyslogIdentifier=dracs-webapp
 
 [Install]
