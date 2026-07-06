@@ -280,7 +280,7 @@ class TestConserverConfigGenerate:
     def test_access_block_present(self, config_gen):
         content = self._generate(config_gen)
         assert "access * {" in content
-        assert "allowed *.*;" in content
+        assert "allowed *;" in content
 
     def test_site_default_block(self, config_gen):
         content = self._generate(config_gen)
