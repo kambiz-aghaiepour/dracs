@@ -195,7 +195,9 @@ class ConserverConfig:
         site_pass = site_defs.get("password") or ""
 
         lines = ["\n"]
-        lines.extend(self._format_default_block(f"ipmi_sol_{safe_site}", site_user, site_pass))
+        lines.extend(
+            self._format_default_block(f"ipmi_sol_{safe_site}", site_user, site_pass)
+        )
 
         for hostname, host_creds in site.get("hosts", {}).items():
             if self._has_host_override(host_creds, site_defs):
