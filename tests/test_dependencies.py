@@ -85,5 +85,9 @@ def test_google_auth_oauthlib(deps):
     _assert_dependency(deps, "google-auth-oauthlib>=1.2.0")
 
 
+def test_pexpect(deps):
+    _assert_dependency(deps, "pexpect>=4.9.0")
+
+
 def test_dependency_count(deps):
-    assert len(deps) == 15
+    assert len(deps) == 16
