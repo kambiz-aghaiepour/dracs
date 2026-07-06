@@ -16,6 +16,28 @@ logger = logging.getLogger(__name__)
 _conserver_process = None
 _pid_file_path = Path("/var/run/dracs/conserver.pid")
 
+# Standard directory for DRACS TLS certificates (matches nginx dracs_ssl.conf.example).
+# Override in tests via patch("dracs.sol._SSL_CERT_DIR", tmp_path).
+_SSL_CERT_DIR = Path("/etc/pki/tls/certs")
+
+
+def _ssl_cert_key_paths() -> tuple[Path, Path] | tuple[None, None]:
+    """Return (cert_path, key_path) for conserver SSL, or (None, None) if unavailable.
+
+    Checks SOL_SSL_CERT / SOL_SSL_KEY env vars first; if unset, auto-detects from
+    the standard DRACS nginx cert location: /etc/pki/tls/certs/<hostname>.{pem,key}.
+    """
+    cert_str = os.environ.get("SOL_SSL_CERT", "")
+    key_str = os.environ.get("SOL_SSL_KEY", "")
+    if cert_str and key_str:
+        return Path(cert_str), Path(key_str)
+    hostname = socket.gethostname()
+    cert = _SSL_CERT_DIR / f"{hostname}.pem"
+    key = _SSL_CERT_DIR / f"{hostname}.key"
+    if cert.exists() and key.exists():
+        return cert, key
+    return None, None
+
 
 class ConserverPasswd:
     """
@@ -126,21 +148,29 @@ class ConserverConfig:
         sites_data: list,
         primary_port: str = "3109",
         secondary_port: str = "3110",
+        ssl_creds_path: Path | None = None,
     ) -> None:
         """Write conserver.cf; creates per-site default blocks and console stanzas."""
         from dracs.snmp import ValidationError, build_idrac_hostname
 
         master_hostname = socket.gethostname()
-        lines = [
-            "# Managed by dracs-webapp. Do not edit manually.\n",
-            "\n",
+        config_block = [
             "config * {\n",
             f"    primaryport {primary_port};\n",
             f"    secondaryport {secondary_port};\n",
             f"    passwdfile {self.passwd_path};\n",
             f"    logfile {self.log_dir}/conserver.log;\n",
             "    daemonmode no;\n",
-            "}\n",
+        ]
+        if ssl_creds_path is not None:
+            config_block.append(f"    sslcredentials {ssl_creds_path};\n")
+            config_block.append("    sslrequired yes;\n")
+        config_block.append("}\n")
+
+        lines = [
+            "# Managed by dracs-webapp. Do not edit manually.\n",
+            "\n",
+            *config_block,
             "\n",
             "access * {\n",
             "    allowed 0.0.0.0/0;\n",
@@ -240,6 +270,40 @@ class ConserverConfig:
             if host_val and host_val != site_val:
                 return True
         return False
+
+
+def _build_ssl_credentials(cert_path: Path, key_path: Path, out_path: Path) -> None:
+    """Combine key + cert into a single PEM file for conserver sslcredentials.
+
+    Conserver expects a single file containing both the private key and certificate.
+    File is written 0600 since it contains the private key.
+    """
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    content = key_path.read_text() + cert_path.read_text()
+    tmp = out_path.with_suffix(".tmp")
+    tmp.write_text(content)
+    tmp.chmod(0o600)
+    tmp.rename(out_path)
+
+
+def _write_console_cf(console_cf_path: Path, ssl_ca_path: Path | None = None) -> None:
+    """Write a console client config file for dracs-managed SSL connections.
+
+    When ssl_ca_path is provided (self-signed / private CA), the CA cert is
+    set so the console client can verify the conserver certificate. Without it
+    the client falls back to the system CA bundle.
+    Pass '-n -C <console_cf_path>' to the console command to use this file.
+    """
+    lines = ["config * {\n", "    sslrequired yes;\n"]
+    if ssl_ca_path is not None:
+        lines.append(f"    sslcacertificatefile {ssl_ca_path};\n")
+    lines.append("}\n")
+    console_cf_path.parent.mkdir(parents=True, exist_ok=True)
+    content = "".join(lines)
+    tmp = console_cf_path.with_suffix(".tmp")
+    tmp.write_text(content)
+    tmp.chmod(0o644)
+    tmp.rename(console_cf_path)
 
 
 def disable_systemd_service() -> None:
@@ -459,9 +523,22 @@ def startup(
         except ValueError:
             secondary_port = "3110"
 
+        ssl_cert_path, ssl_key_path = _ssl_cert_key_paths()
+        ssl_ca = os.environ.get("SOL_SSL_CA", "")
+        ssl_creds_path = None
+        if ssl_cert_path and ssl_key_path:
+            ssl_creds_path = cf_path.parent / "conserver-ssl.pem"
+            _build_ssl_credentials(ssl_cert_path, ssl_key_path, ssl_creds_path)
+            console_cf_path = cf_path.parent / "console.cf"
+            _write_console_cf(console_cf_path, Path(ssl_ca) if ssl_ca else None)
+            logger.info("Conserver SSL enabled (cert: %s)", ssl_cert_path)
+
         config_gen = ConserverConfig(cf_path, passwd_path, log_dir)
         config_gen.generate(
-            sites_data, primary_port=primary_port, secondary_port=secondary_port
+            sites_data,
+            primary_port=primary_port,
+            secondary_port=secondary_port,
+            ssl_creds_path=ssl_creds_path,
         )
 
         disable_systemd_service()

@@ -2,6 +2,7 @@
 
 import getpass
 import sys
+from pathlib import Path
 
 import requests
 
@@ -624,6 +625,7 @@ def cmd_vnc(args, base_url, verify_ssl, server):
 def cmd_sol(args, base_url, verify_ssl, server):
     """Connect to the IPMI serial console of a host via conserver."""
     import shutil
+    import tempfile
 
     import pexpect
 
@@ -641,6 +643,8 @@ def cmd_sol(args, base_url, verify_ssl, server):
     conn_port = data["port"]
     username = data["username"]
     password = data["password"]
+    ssl_enabled = data.get("ssl", False)
+    ssl_ca_content = data.get("ssl_ca")
 
     console_bin = shutil.which("console")
     if not console_bin:
@@ -650,27 +654,57 @@ def cmd_sol(args, base_url, verify_ssl, server):
         )
         sys.exit(1)
 
-    child = pexpect.spawn(
-        console_bin,
-        ["-M", conn_server, "-l", username, hostname, "-p", conn_port],
-        timeout=10,
-        encoding="utf-8",
-        codec_errors="replace",
-    )
+    # Build SSL prefix args and manage any temp files needed for self-signed CA certs.
+    ssl_prefix = []
+    tmp_dir = None
+    if not ssl_enabled:
+        ssl_prefix = ["-E"]
+    elif ssl_ca_content:
+        # Server uses a private/self-signed CA: write a temp console config so the
+        # console client can verify the conserver certificate.
+        try:
+            tmp_dir = tempfile.mkdtemp(prefix="dracs-sol-")
+            ca_path = Path(tmp_dir) / "ca.pem"
+            ca_path.write_text(ssl_ca_content)
+            cf_path = Path(tmp_dir) / "console.cf"
+            cf_path.write_text(
+                f"config * {{\n    sslcacertificatefile {ca_path};\n    sslrequired yes;\n}}\n"
+            )
+            ssl_prefix = ["-n", "-C", str(cf_path)]
+        except OSError as exc:
+            print(
+                f"Warning: could not write SSL config ({exc}); relying on system CA trust.",
+                file=sys.stderr,
+            )
+            tmp_dir = None
+
     try:
-        child.expect("password:", timeout=10)
-    except pexpect.TIMEOUT:
-        print(
-            f"Error: timed out waiting for conserver at {conn_server}:{conn_port}.",
-            file=sys.stderr,
+        child = pexpect.spawn(
+            console_bin,
+            ssl_prefix + ["-M", conn_server, "-l", username, hostname, "-p", conn_port],
+            timeout=10,
+            encoding="utf-8",
+            codec_errors="replace",
         )
-        sys.exit(1)
-    except pexpect.EOF:
-        print(
-            f"Error: connection to {conn_server}:{conn_port} failed.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-    child.sendline(password)
-    print(f"[Connected to {hostname} SOL. Press Ctrl-E c . to disconnect]")
-    child.interact()
+        try:
+            child.expect("password:", timeout=10)
+        except pexpect.TIMEOUT:
+            print(
+                f"Error: timed out waiting for conserver at {conn_server}:{conn_port}.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        except pexpect.EOF:
+            print(
+                f"Error: connection to {conn_server}:{conn_port} failed.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        child.sendline(password)
+        print(f"[Connected to {hostname} SOL. Press Ctrl-E c . to disconnect]")
+        child.interact()
+    finally:
+        if tmp_dir:
+            import shutil as _shutil
+
+            _shutil.rmtree(tmp_dir, ignore_errors=True)

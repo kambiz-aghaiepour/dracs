@@ -167,3 +167,62 @@ class TestSolConnectInfoDisabled:
         resp = client_sol_disabled.get("/api/sol/connect-info")
         assert resp.status_code == 404
         assert "not enabled" in resp.get_json()["message"]
+
+
+class TestSolConnectInfoSslFields:
+    def test_ssl_false_when_no_cert_available(self, client, webapp_db):
+        _set_conserver_password()
+        _login_admin(client)
+        with (
+            patch("socket.getfqdn", return_value="dracs.example.com"),
+            patch("dracs.sol._ssl_cert_key_paths", return_value=(None, None)),
+            patch.dict(os.environ, {"SOL_SSL_CA": ""}),
+        ):
+            resp = client.get("/api/sol/connect-info")
+        data = resp.get_json()
+        assert data["ssl"] is False
+        assert data["ssl_ca"] is None
+
+    def test_ssl_true_when_cert_available(self, client, webapp_db, tmp_path):
+        _set_conserver_password()
+        _login_admin(client)
+        fake_cert = tmp_path / "cert.pem"
+        with (
+            patch("socket.getfqdn", return_value="dracs.example.com"),
+            patch("dracs.sol._ssl_cert_key_paths", return_value=(fake_cert, fake_cert)),
+            patch.dict(os.environ, {"SOL_SSL_CA": ""}),
+        ):
+            resp = client.get("/api/sol/connect-info")
+        data = resp.get_json()
+        assert data["ssl"] is True
+        assert data["ssl_ca"] is None
+
+    def test_ssl_ca_content_included_when_ca_env_set(self, client, webapp_db, tmp_path):
+        _set_conserver_password()
+        _login_admin(client)
+        fake_cert = tmp_path / "cert.pem"
+        ca_file = tmp_path / "ca.pem"
+        ca_file.write_text("-----BEGIN CERTIFICATE-----\nFAKECA\n-----END CERTIFICATE-----\n")
+        with (
+            patch("socket.getfqdn", return_value="dracs.example.com"),
+            patch("dracs.sol._ssl_cert_key_paths", return_value=(fake_cert, fake_cert)),
+            patch.dict(os.environ, {"SOL_SSL_CA": str(ca_file)}),
+        ):
+            resp = client.get("/api/sol/connect-info")
+        data = resp.get_json()
+        assert data["ssl"] is True
+        assert "FAKECA" in data["ssl_ca"]
+
+    def test_ssl_ca_none_when_ca_file_unreadable(self, client, webapp_db, tmp_path):
+        _set_conserver_password()
+        _login_admin(client)
+        fake_cert = tmp_path / "cert.pem"
+        with (
+            patch("socket.getfqdn", return_value="dracs.example.com"),
+            patch("dracs.sol._ssl_cert_key_paths", return_value=(fake_cert, fake_cert)),
+            patch.dict(os.environ, {"SOL_SSL_CA": "/nonexistent/path/ca.pem"}),
+        ):
+            resp = client.get("/api/sol/connect-info")
+        data = resp.get_json()
+        assert data["ssl"] is True
+        assert data["ssl_ca"] is None

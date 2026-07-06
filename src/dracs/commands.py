@@ -1318,9 +1318,18 @@ def cmd_sol(args, site_name=None):
         )
         sys.exit(1)
 
+    from dracs.sol import _ssl_cert_key_paths
+
+    ssl_cert_path, _ = _ssl_cert_key_paths()
+    ssl_ca = os.environ.get("SOL_SSL_CA", "")
+    if ssl_cert_path:
+        ssl_prefix = ["-n", "-C", "/etc/dracs/console.cf"] if ssl_ca else []
+    else:
+        ssl_prefix = ["-E"]
+
     child = pexpect.spawn(
         console_bin,
-        ["-M", server, "-l", site_name, hostname, "-p", port],
+        ssl_prefix + ["-M", server, "-l", site_name, hostname, "-p", port],
         timeout=10,
         encoding="utf-8",
         codec_errors="replace",
