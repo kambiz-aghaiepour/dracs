@@ -962,8 +962,12 @@ class TestStartup:
     def test_ssl_creds_built_when_ssl_paths_available(self, tmp_path, temp_db):
         cert = tmp_path / "cert.pem"
         key = tmp_path / "key.pem"
-        cert.write_text("-----BEGIN CERTIFICATE-----\nCERT\n-----END CERTIFICATE-----\n")
-        key.write_text("-----BEGIN RSA PRIVATE KEY-----\nKEY\n-----END RSA PRIVATE KEY-----\n")
+        cert.write_text(
+            "-----BEGIN CERTIFICATE-----\nCERT\n-----END CERTIFICATE-----\n"
+        )
+        key.write_text(
+            "-----BEGIN RSA PRIVATE KEY-----\nKEY\n-----END RSA PRIVATE KEY-----\n"
+        )
 
         with patch("dracs.sol._ssl_cert_key_paths", return_value=(cert, key)):
             cf = self._minimal_startup(tmp_path, temp_db)
@@ -1025,7 +1029,9 @@ class TestSslCertKeyPaths:
         key = tmp_path / "key.pem"
         cert.write_text("C")
         key.write_text("K")
-        with patch.dict(os.environ, {"SOL_SSL_CERT": str(cert), "SOL_SSL_KEY": str(key)}):
+        with patch.dict(
+            os.environ, {"SOL_SSL_CERT": str(cert), "SOL_SSL_KEY": str(key)}
+        ):
             c, k = _ssl_cert_key_paths()
         assert c == cert
         assert k == key

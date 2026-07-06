@@ -202,7 +202,9 @@ class TestSolConnectInfoSslFields:
         _login_admin(client)
         fake_cert = tmp_path / "cert.pem"
         ca_file = tmp_path / "ca.pem"
-        ca_file.write_text("-----BEGIN CERTIFICATE-----\nFAKECA\n-----END CERTIFICATE-----\n")
+        ca_file.write_text(
+            "-----BEGIN CERTIFICATE-----\nFAKECA\n-----END CERTIFICATE-----\n"
+        )
         with (
             patch("socket.getfqdn", return_value="dracs.example.com"),
             patch("dracs.sol._ssl_cert_key_paths", return_value=(fake_cert, fake_cert)),

@@ -361,7 +361,16 @@ class TestDracsClientCmdSol:
 
         mock_spawn.assert_called_once_with(
             "/usr/bin/console",
-            ["-E", "-M", "dracs.example.com", "-l", "Default", "targethost", "-p", "3109"],
+            [
+                "-E",
+                "-M",
+                "dracs.example.com",
+                "-l",
+                "Default",
+                "targethost",
+                "-p",
+                "3109",
+            ],
             timeout=10,
             encoding="utf-8",
             codec_errors="replace",
@@ -395,7 +404,9 @@ class TestDracsClientCmdSol:
         with (
             patch(
                 "dracs_client.commands._api_request",
-                return_value=self._mock_api_response(self._api_data(ssl=True, ssl_ca=None)),
+                return_value=self._mock_api_response(
+                    self._api_data(ssl=True, ssl_ca=None)
+                ),
             ),
             patch("shutil.which", return_value="/usr/bin/console"),
             patch("pexpect.spawn", return_value=mock_child) as mock_spawn,
