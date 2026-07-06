@@ -2,6 +2,28 @@
 
 <!-- version list -->
 
+## v2.17.3 (2026-07-06)
+
+### Bug Fixes
+
+- Black formatting
+  ([`55ba85c`](https://github.com/kambiz-aghaiepour/dracs/commit/55ba85cc92be52d8aa651cc339fd80c6e87ea259))
+
+- Codacy
+  ([`60ffe35`](https://github.com/kambiz-aghaiepour/dracs/commit/60ffe35f070b0491efeccf3762306b6b9629c04b))
+
+- Codacy
+  ([`bbd01b1`](https://github.com/kambiz-aghaiepour/dracs/commit/bbd01b1a35486846c97f3dac2d62e81682b22fb8))
+
+- Starting of conserver not working
+  ([`83037b8`](https://github.com/kambiz-aghaiepour/dracs/commit/83037b8fbe4042e47c151bf559139994153006e3))
+
+### Chores
+
+- Sync spec file version to 2.17.2 [skip ci]
+  ([`7e37a1f`](https://github.com/kambiz-aghaiepour/dracs/commit/7e37a1f712c436e88503f504667258d7739eae4e))
+
+
 ## v2.17.2 (2026-07-06)
 
 ### Bug Fixes
