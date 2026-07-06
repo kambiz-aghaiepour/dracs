@@ -924,7 +924,10 @@ class TestStartup:
             patch.object(ConserverPasswd, "_hash_password", return_value="ABhash"),
             patch("dracs.sol.disable_systemd_service"),
             patch("dracs.sol.start_conserver"),
-            patch("dracs.sites.get_site_ini_config", return_value={"defaults": {}, "hosts": {}}),
+            patch(
+                "dracs.sites.get_site_ini_config",
+                return_value={"defaults": {}, "hosts": {}},
+            ),
             patch("dracs.sites.set_site_ini_config"),
         ]
         env = env_overrides or {}
