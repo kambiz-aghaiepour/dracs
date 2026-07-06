@@ -2,6 +2,45 @@
 
 <!-- version list -->
 
+## v2.17.0 (2026-07-06)
+
+### Bug Fixes
+
+- Address codacy issues
+  ([`117eaa9`](https://github.com/kambiz-aghaiepour/dracs/commit/117eaa90bb6dd0b50450447ee9f08d367125d333))
+
+- Address codacy issues in report
+  ([`0cbe105`](https://github.com/kambiz-aghaiepour/dracs/commit/0cbe105e79fab3e899635511a73e3f002199af91))
+
+- Address various codacy issues
+  ([`dee78c3`](https://github.com/kambiz-aghaiepour/dracs/commit/dee78c33e06d3ca233f614afe9bbfb4200709de1))
+
+- Black formatting
+  ([`9e77537`](https://github.com/kambiz-aghaiepour/dracs/commit/9e77537d02557d17f9b87a9909b480dcc5d39748))
+
+- Codacy
+  ([`1ffcb62`](https://github.com/kambiz-aghaiepour/dracs/commit/1ffcb6269f94f43d8177a57a9d1c80bc0fd69d11))
+
+- Codacy
+  ([`190875a`](https://github.com/kambiz-aghaiepour/dracs/commit/190875aee465e455a2293f70c3914e175f0507ff))
+
+- Codacy
+  ([`4f0640b`](https://github.com/kambiz-aghaiepour/dracs/commit/4f0640b8a7f255a43d39a8e8489389e1a3a2044a))
+
+- Codecov/patch and codacy issues
+  ([`6ce9c54`](https://github.com/kambiz-aghaiepour/dracs/commit/6ce9c5485f2f05d4d20bceb92b306cb351109792))
+
+### Chores
+
+- Sync spec file version to 2.16.5 [skip ci]
+  ([`89dafea`](https://github.com/kambiz-aghaiepour/dracs/commit/89dafea6f03661d0d3e3d46651b1777a59d6391a))
+
+### Features
+
+- Add IPMI Serial over LAN (SOL) support
+  ([`57a543e`](https://github.com/kambiz-aghaiepour/dracs/commit/57a543eeaab14a8f4d92de88c717b6e1cc513153))
+
+
 ## v2.16.5 (2026-07-01)
 
 ### Bug Fixes
