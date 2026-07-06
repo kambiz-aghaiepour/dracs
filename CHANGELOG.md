@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.18.2 (2026-07-06)
+
+### Bug Fixes
+
+- Ensure conserver can read ssl certs
+  ([`36547d2`](https://github.com/kambiz-aghaiepour/dracs/commit/36547d2c6ad80642efa8bd353d6c743d7f8bbc8c))
+
+### Chores
+
+- Sync spec file version to 2.18.1 [skip ci]
+  ([`787fc8d`](https://github.com/kambiz-aghaiepour/dracs/commit/787fc8d22a7d683094f1bce3f2ac3603fa055e8a))
+
+
 ## v2.18.1 (2026-07-06)
 
 ### Bug Fixes
