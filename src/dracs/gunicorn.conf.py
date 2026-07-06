@@ -24,6 +24,9 @@ proc_name = "dracs-webapp"
 # Timeout (increased for refresh operations which involve SNMP + API calls)
 timeout = 120
 
+# Graceful shutdown: force-kill workers after this many seconds on SIGTERM.
+graceful_timeout = 3
+
 # Daemon mode (set to False to run in foreground)
 daemon = False
 

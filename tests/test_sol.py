@@ -379,6 +379,7 @@ class TestStartConserver:
             ["/usr/sbin/conserver", "-C", str(cf), "-p", "3109", "-b", "3110"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
+            start_new_session=True,
         )
         assert result is mock_proc
 
@@ -410,6 +411,7 @@ class TestStartConserver:
             ["/usr/sbin/conserver", "-C", str(cf), "-p", "4242", "-b", "3110"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
+            start_new_session=True,
         )
 
     def test_uses_custom_slave_port(self, tmp_path):
@@ -427,6 +429,7 @@ class TestStartConserver:
             ["/usr/sbin/conserver", "-C", str(cf), "-p", "3109", "-b", "5555"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
+            start_new_session=True,
         )
 
     def test_invalid_slave_port_falls_back_to_default(self, tmp_path):
@@ -444,6 +447,7 @@ class TestStartConserver:
             ["/usr/sbin/conserver", "-C", str(cf), "-p", "3109", "-b", "3110"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
+            start_new_session=True,
         )
 
     def test_invalid_port_falls_back_to_default(self, tmp_path):
@@ -461,6 +465,7 @@ class TestStartConserver:
             ["/usr/sbin/conserver", "-C", str(cf), "-p", "3109", "-b", "3110"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
+            start_new_session=True,
         )
 
     def test_returns_none_when_not_found(self, tmp_path):
@@ -490,22 +495,34 @@ class TestStopConserver:
         import dracs.sol as sol_module
 
         mock_proc = MagicMock()
+        mock_proc.pid = 12345
         mock_proc.wait.return_value = 0
         sol_module._conserver_process = mock_proc
-        with patch("dracs.sol._pid_file_path", tmp_path / "conserver.pid"):
+        with (
+            patch("dracs.sol._pid_file_path", tmp_path / "conserver.pid"),
+            patch("os.getpgid", return_value=12345),
+            patch("os.killpg") as mock_killpg,
+        ):
             stop_conserver()
-        mock_proc.terminate.assert_called_once()
+        mock_killpg.assert_called_once_with(12345, signal.SIGTERM)
         assert sol_module._conserver_process is None
 
-    def test_kills_on_timeout(self, tmp_path):
+    def test_kills_group_on_timeout(self, tmp_path):
         import dracs.sol as sol_module
 
         mock_proc = MagicMock()
+        mock_proc.pid = 12345
         mock_proc.wait.side_effect = subprocess.TimeoutExpired([], 5)
         sol_module._conserver_process = mock_proc
-        with patch("dracs.sol._pid_file_path", tmp_path / "conserver.pid"):
+        with (
+            patch("dracs.sol._pid_file_path", tmp_path / "conserver.pid"),
+            patch("os.getpgid", return_value=12345),
+            patch("os.killpg") as mock_killpg,
+        ):
             stop_conserver()
-        mock_proc.kill.assert_called_once()
+        assert mock_killpg.call_count == 2
+        mock_killpg.assert_any_call(12345, signal.SIGTERM)
+        mock_killpg.assert_any_call(12345, signal.SIGKILL)
 
     def test_uses_pid_file_fallback(self, tmp_path):
         import dracs.sol as sol_module
@@ -515,10 +532,11 @@ class TestStopConserver:
         pid_file.write_text("55555")
         with (
             patch("dracs.sol._pid_file_path", pid_file),
-            patch("os.kill") as mock_kill,
+            patch("os.getpgid", return_value=55555),
+            patch("os.killpg") as mock_killpg,
         ):
             stop_conserver()
-        mock_kill.assert_called_once_with(55555, signal.SIGTERM)
+        mock_killpg.assert_called_once_with(55555, signal.SIGTERM)
         assert not pid_file.exists()
 
     def test_handles_missing_pid_file(self, tmp_path):
@@ -528,14 +546,18 @@ class TestStopConserver:
         with patch("dracs.sol._pid_file_path", tmp_path / "nonexistent.pid"):
             stop_conserver()  # must not raise
 
-    def test_kill_raises_lookup_error(self, tmp_path):
+    def test_killpg_raises_lookup_error(self, tmp_path):
         import dracs.sol as sol_module
 
         mock_proc = MagicMock()
+        mock_proc.pid = 12345
         mock_proc.wait.side_effect = subprocess.TimeoutExpired([], 5)
-        mock_proc.kill.side_effect = ProcessLookupError()
         sol_module._conserver_process = mock_proc
-        with patch("dracs.sol._pid_file_path", tmp_path / "nonexistent.pid"):
+        with (
+            patch("dracs.sol._pid_file_path", tmp_path / "nonexistent.pid"),
+            patch("os.getpgid", return_value=12345),
+            patch("os.killpg", side_effect=ProcessLookupError()),
+        ):
             stop_conserver()  # must not raise
         assert sol_module._conserver_process is None
 
@@ -547,9 +569,33 @@ class TestStopConserver:
         pid_file.write_text("55555")
         with (
             patch("dracs.sol._pid_file_path", pid_file),
-            patch("os.kill", side_effect=ProcessLookupError()),
+            patch("os.getpgid", return_value=55555),
+            patch("os.killpg", side_effect=ProcessLookupError()),
         ):
             stop_conserver()  # must not raise
+        assert not pid_file.exists()
+
+    def test_handles_corrupt_pid_file(self, tmp_path):
+        import dracs.sol as sol_module
+
+        sol_module._conserver_process = None
+        pid_file = tmp_path / "conserver.pid"
+        pid_file.write_text("not-a-number")
+        with patch("dracs.sol._pid_file_path", pid_file):
+            stop_conserver()  # must not raise (ValueError from int())
+        assert not pid_file.exists()
+
+    def test_handles_pid_file_read_error(self, tmp_path):
+        import dracs.sol as sol_module
+
+        sol_module._conserver_process = None
+        pid_file = tmp_path / "conserver.pid"
+        pid_file.write_text("55555")
+        with (
+            patch("dracs.sol._pid_file_path", pid_file),
+            patch("pathlib.Path.read_text", side_effect=OSError("unreadable")),
+        ):
+            stop_conserver()  # must not raise (OSError from read_text)
         assert not pid_file.exists()
 
 

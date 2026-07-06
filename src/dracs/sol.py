@@ -269,6 +269,7 @@ def start_conserver(cf_path: Path) -> subprocess.Popen | None:
         [conserver_bin, "-C", str(cf_path), "-p", port, "-b", slave_port],  # nosemgrep
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
+        start_new_session=True,
     )
     try:
         _pid_file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -280,25 +281,29 @@ def start_conserver(cf_path: Path) -> subprocess.Popen | None:
 
 
 def stop_conserver() -> None:
-    """Stop the conserver process."""
+    """Stop conserver and its child process by killing the whole process group."""
     global _conserver_process
 
-    if _conserver_process:
+    def _kill_pgroup(pid: int, sig: int) -> None:
         try:
-            _conserver_process.terminate()
+            os.killpg(os.getpgid(pid), sig)
+        except (ProcessLookupError, OSError):
+            pass
+
+    if _conserver_process:
+        pid = _conserver_process.pid
+        _kill_pgroup(pid, signal.SIGTERM)
+        try:
             _conserver_process.wait(timeout=5)
-        except (ProcessLookupError, subprocess.TimeoutExpired):
-            try:
-                _conserver_process.kill()
-            except ProcessLookupError:
-                pass
+        except subprocess.TimeoutExpired:
+            _kill_pgroup(pid, signal.SIGKILL)
         _conserver_process = None
 
     if _pid_file_path.exists():
         try:
             pid = int(_pid_file_path.read_text().strip())
-            os.kill(pid, signal.SIGTERM)
-        except (ProcessLookupError, ValueError, OSError):
+            _kill_pgroup(pid, signal.SIGTERM)
+        except (ValueError, OSError):
             pass
         _pid_file_path.unlink(missing_ok=True)
 
