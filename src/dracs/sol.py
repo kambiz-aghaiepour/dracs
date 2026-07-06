@@ -6,6 +6,7 @@ import re
 import secrets
 import shutil
 import signal
+import socket
 import string
 import subprocess  # nosec B404
 from pathlib import Path
@@ -124,6 +125,7 @@ class ConserverConfig:
         """Write conserver.cf; creates per-site default blocks and console stanzas."""
         from dracs.snmp import ValidationError, build_idrac_hostname
 
+        master_hostname = socket.gethostname()
         lines = [
             "# Managed by dracs-webapp. Do not edit manually.\n",
             "\n",
@@ -131,7 +133,6 @@ class ConserverConfig:
             f"    passwdfile {self.passwd_path};\n",
             f"    logfile {self.log_dir}/conserver.log;\n",
             "    daemonmode no;\n",
-            "    master localhost;\n",
             "}\n",
             "\n",
             "access * {\n",
@@ -177,7 +178,7 @@ class ConserverConfig:
                 lines.append("\n")
                 lines.extend(
                     self._format_console_block(
-                        hostname, mgmt_host, default_name, site_name
+                        hostname, mgmt_host, default_name, site_name, master_hostname
                     )
                 )
 
@@ -206,11 +207,12 @@ class ConserverConfig:
         mgmt_host: str,
         default_name: str,
         site_name: str,
+        master_hostname: str,
     ) -> list:
         """Return conserver.cf lines for a console stanza."""
         return [
             f"console {console_name} {{\n",
-            "    master localhost;\n",
+            f"    master {master_hostname};\n",
             f"    include {default_name};\n",
             f"    host {mgmt_host};\n",
             f"    rw {site_name};\n",
@@ -259,8 +261,12 @@ def start_conserver(cf_path: Path) -> subprocess.Popen | None:
         port = str(int(os.environ.get("SOL_CONSERVER_PORT", "3109")))
     except ValueError:
         port = "3109"
+    try:
+        slave_port = str(int(os.environ.get("SOL_CONSERVER_SLAVE_PORT", "3110")))
+    except ValueError:
+        slave_port = "3110"
     _conserver_process = subprocess.Popen(  # nosec B603
-        [conserver_bin, "-C", str(cf_path), "-p", port],  # nosemgrep
+        [conserver_bin, "-C", str(cf_path), "-p", port, "-b", slave_port],  # nosemgrep
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )

@@ -183,12 +183,13 @@ chown dracs:dracs /var/log/dracs/conserver 2>/dev/null || :
 # Ensure conserver system service is disabled (dracs-webapp manages it)
 systemctl disable --now conserver 2>/dev/null || :
 
-# Open firewall ports 80, 443, TFTP, and conserver (3109/tcp)
+# Open firewall ports 80, 443, TFTP, and conserver (3109+3110/tcp)
 if command -v firewall-cmd &>/dev/null && systemctl is-enabled firewalld &>/dev/null; then
     firewall-cmd --permanent --add-port=80/tcp 2>/dev/null || :
     firewall-cmd --permanent --add-port=443/tcp 2>/dev/null || :
     firewall-cmd --permanent --add-service=tftp 2>/dev/null || :
     firewall-cmd --permanent --add-port=3109/tcp 2>/dev/null || :
+    firewall-cmd --permanent --add-port=3110/tcp 2>/dev/null || :
     firewall-cmd --reload 2>/dev/null || :
 elif systemctl is-enabled iptables &>/dev/null; then
     iptables -C INPUT -p tcp --dport 80 -j ACCEPT 2>/dev/null || \
@@ -202,6 +203,8 @@ elif systemctl is-enabled iptables &>/dev/null; then
         iptables -I INPUT -p udp --dport 69 -j ACCEPT 2>/dev/null || :
     iptables -C INPUT -p tcp --dport 3109 -j ACCEPT 2>/dev/null || \
         iptables -I INPUT -p tcp --dport 3109 -j ACCEPT 2>/dev/null || :
+    iptables -C INPUT -p tcp --dport 3110 -j ACCEPT 2>/dev/null || \
+        iptables -I INPUT -p tcp --dport 3110 -j ACCEPT 2>/dev/null || :
     service iptables save 2>/dev/null || :
 fi
 

@@ -282,9 +282,11 @@ class TestConserverConfigGenerate:
         assert "access * {" in content
         assert "allowed 0.0.0.0/0;" in content
 
-    def test_config_block_master_localhost(self, config_gen):
-        content = self._generate(config_gen)
-        assert "master localhost;" in content
+    def test_console_stanza_master_is_fqdn(self, config_gen):
+        with patch("dracs.sol.socket.gethostname", return_value="myserver.example.com"):
+            content = self._generate(config_gen)
+        assert "master myserver.example.com;" in content
+        assert "master localhost;" not in content
 
     def test_site_default_block(self, config_gen):
         content = self._generate(config_gen)
@@ -374,7 +376,7 @@ class TestStartConserver:
         ):
             result = start_conserver(cf)
         mock_popen.assert_called_once_with(
-            ["/usr/sbin/conserver", "-C", str(cf), "-p", "3109"],
+            ["/usr/sbin/conserver", "-C", str(cf), "-p", "3109", "-b", "3110"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
@@ -405,7 +407,41 @@ class TestStartConserver:
         ):
             start_conserver(cf)
         mock_popen.assert_called_once_with(
-            ["/usr/sbin/conserver", "-C", str(cf), "-p", "4242"],
+            ["/usr/sbin/conserver", "-C", str(cf), "-p", "4242", "-b", "3110"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+    def test_uses_custom_slave_port(self, tmp_path):
+        cf = tmp_path / "conserver.cf"
+        mock_proc = MagicMock()
+        mock_proc.pid = 12345
+        with (
+            patch("shutil.which", return_value="/usr/sbin/conserver"),
+            patch("subprocess.Popen", return_value=mock_proc) as mock_popen,
+            patch("dracs.sol._pid_file_path", tmp_path / "conserver.pid"),
+            patch.dict("os.environ", {"SOL_CONSERVER_SLAVE_PORT": "5555"}),
+        ):
+            start_conserver(cf)
+        mock_popen.assert_called_once_with(
+            ["/usr/sbin/conserver", "-C", str(cf), "-p", "3109", "-b", "5555"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+    def test_invalid_slave_port_falls_back_to_default(self, tmp_path):
+        cf = tmp_path / "conserver.cf"
+        mock_proc = MagicMock()
+        mock_proc.pid = 12345
+        with (
+            patch("shutil.which", return_value="/usr/sbin/conserver"),
+            patch("subprocess.Popen", return_value=mock_proc) as mock_popen,
+            patch("dracs.sol._pid_file_path", tmp_path / "conserver.pid"),
+            patch.dict("os.environ", {"SOL_CONSERVER_SLAVE_PORT": "bad"}),
+        ):
+            start_conserver(cf)
+        mock_popen.assert_called_once_with(
+            ["/usr/sbin/conserver", "-C", str(cf), "-p", "3109", "-b", "3110"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
@@ -422,7 +458,7 @@ class TestStartConserver:
         ):
             start_conserver(cf)
         mock_popen.assert_called_once_with(
-            ["/usr/sbin/conserver", "-C", str(cf), "-p", "3109"],
+            ["/usr/sbin/conserver", "-C", str(cf), "-p", "3109", "-b", "3110"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
