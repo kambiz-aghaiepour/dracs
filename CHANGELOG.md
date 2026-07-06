@@ -2,6 +2,28 @@
 
 <!-- version list -->
 
+## v2.17.9 (2026-07-06)
+
+### Bug Fixes
+
+- Black formatting
+  ([`a6c09c3`](https://github.com/kambiz-aghaiepour/dracs/commit/a6c09c3956e47da66f44f3d391af8840ecb3d7c0))
+
+- Black formatting
+  ([`d36a83b`](https://github.com/kambiz-aghaiepour/dracs/commit/d36a83bd8fa2520c3e1d82bd8e31aa92b545c0f0))
+
+- Cleanup conserver
+  ([`205b294`](https://github.com/kambiz-aghaiepour/dracs/commit/205b294665e4b2c2026203e24de9666db15f51bb))
+
+- Codacy flagged complexity
+  ([`a36d86b`](https://github.com/kambiz-aghaiepour/dracs/commit/a36d86b77e6e7a1dd52ba096cc48976a760b74a2))
+
+### Chores
+
+- Sync spec file version to 2.17.8 [skip ci]
+  ([`dcfd934`](https://github.com/kambiz-aghaiepour/dracs/commit/dcfd9349b80a14b415bfe50bc0c961220ccdc163))
+
+
 ## v2.17.8 (2026-07-06)
 
 ### Bug Fixes
