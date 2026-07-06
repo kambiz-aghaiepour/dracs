@@ -546,14 +546,20 @@ class TestKillConserversOnPort:
         mock_killpg.assert_not_called()
 
     def test_skips_conserver_without_port_flag(self, tmp_path):
-        self._make_proc(tmp_path, 77777, ["/usr/bin/conserver", "-C", "/etc/dracs/conserver.cf"])
+        self._make_proc(
+            tmp_path, 77777, ["/usr/bin/conserver", "-C", "/etc/dracs/conserver.cf"]
+        )
         with patch("os.killpg") as mock_killpg:
             _kill_conservers_on_port("3109", _proc_root=tmp_path)
         mock_killpg.assert_not_called()
 
     def test_skips_conserver_with_port_flag_at_end(self, tmp_path):
         # -p with no following value: args.index("-p") + 1 is out of bounds
-        self._make_proc(tmp_path, 88888, ["/usr/bin/conserver", "-C", "/etc/dracs/conserver.cf", "-p"])
+        self._make_proc(
+            tmp_path,
+            88888,
+            ["/usr/bin/conserver", "-C", "/etc/dracs/conserver.cf", "-p"],
+        )
         with patch("os.killpg") as mock_killpg:
             _kill_conservers_on_port("3109", _proc_root=tmp_path)
         mock_killpg.assert_not_called()
