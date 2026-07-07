@@ -2,6 +2,28 @@
 
 <!-- version list -->
 
+## v2.18.4 (2026-07-07)
+
+### Bug Fixes
+
+- Codacy
+  ([`2c0250d`](https://github.com/kambiz-aghaiepour/dracs/commit/2c0250d7e01ba424240a54e77022098e9cf9ccbe))
+
+- Codacy
+  ([`432cc69`](https://github.com/kambiz-aghaiepour/dracs/commit/432cc69cae1b567988ada8d75497a0ff2e1953a5))
+
+- Codacy
+  ([`627ddaa`](https://github.com/kambiz-aghaiepour/dracs/commit/627ddaad695a3501c5f1f2af370b6647ca25dd7e))
+
+- Update docs
+  ([`2bec94e`](https://github.com/kambiz-aghaiepour/dracs/commit/2bec94e677ac6b7dd3c4020e26c82b87f99f8076))
+
+### Chores
+
+- Sync spec file version to 2.18.3 [skip ci]
+  ([`bfec4fa`](https://github.com/kambiz-aghaiepour/dracs/commit/bfec4fabb19b8d286877d59d3d5a925773c711e3))
+
+
 ## v2.18.3 (2026-07-07)
 
 ### Bug Fixes
