@@ -4,7 +4,7 @@
 [![Semantic Release](https://github.com/kambiz-aghaiepour/dracs/actions/workflows/semantic-release.yml/badge.svg)](https://github.com/kambiz-aghaiepour/dracs/actions/workflows/semantic-release.yml)
 [![Dev Sync](https://github.com/kambiz-aghaiepour/dracs/actions/workflows/sync-back.yml/badge.svg)](https://github.com/kambiz-aghaiepour/dracs/actions/workflows/sync-back.yml)
 [![codecov](https://codecov.io/gh/kambiz-aghaiepour/dracs/branch/main/graph/badge.svg)](https://codecov.io/gh/kambiz-aghaiepour/dracs)
-[![Codacy Badge](https://app.codacy.com/project/badge/Grade/726407b5e43d4c6aba1c66bfddd0f323)](https://app.codacy.com/gh/kambiz-aghaiepour/dracs/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
+[![Codacy Badge](https://app.codacy.com/project/badge/Grade/9df200eadcfa4d9798b0030a39146408)](https://app.codacy.com/gh/kambiz-aghaiepour/dracs/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
 
 [![PyPI version](https://img.shields.io/github/v/release/kambiz-aghaiepour/dracs?label=PyPI)](https://pypi.org/project/dracs/)
 [![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
