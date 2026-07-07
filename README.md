@@ -54,28 +54,28 @@ DRACS is a self-contained web application and CLI toolkit for managing fleets of
 
 ## 🚀 Features
 
-#### Inventory & Warranty
+### Inventory & Warranty
 
 - Warranty tracking via Dell TechDirect API — automatic expiration date retrieval by Service Tag
 - Hardware discovery via SNMP — polls iDRAC for BIOS version, iDRAC firmware version, and model
 - Version comparison filters: find all hosts with BIOS less than X, iDRAC greater than or equal to Y, etc.
 - JSON output for automation and scripting
 
-#### Multi-Site
+### Multi-Site
 
 - Single DRACS instance manages multiple independent sites (data centers, environments, labs)
 - Per-site iDRAC credentials, VNC configuration, and QUADS integration
 - Per-site role-based access: a user can be a regular user globally but an admin for one site
 - Site selector in the web UI header; `?site=` URL parameter for bookmarking and API calls
 
-#### Web Interface
+### Web Interface
 
 - Full-featured inventory dashboard with sortable columns, pagination, search, and multi-select
 - Light and dark themes
 - Color-coded firmware and BIOS versions (green = latest in fleet, yellow = one behind, red = two or more behind)
 - Color-coded warranty status (red = expired, yellow = expiring within configured threshold)
 
-#### iDRAC Operations
+### iDRAC Operations
 
 - Firmware and BIOS updates via HTTP delivery to iDRAC (racadm)
 - One-click download of latest firmware/BIOS from Dell catalog with SHA-256 verification
@@ -87,13 +87,13 @@ DRACS is a self-contained web application and CLI toolkit for managing fleets of
 - SSL certificate upload to iDRAC with per-site scheduling and per-host overrides
 - Virtual media: mount and unmount ISO images to iDRAC virtual media via racadm
 
-#### Console Access
+### Console Access
 
 - Browser-based VNC console via websockify — single host, multi-host grid, and QUADS-filtered views
 - Optional x11vnc sharing proxy for multi-user read-write sessions on the same iDRAC VNC server
 - IPMI Serial Over LAN (SOL) via conserver with TLS-encrypted authentication — `dracs-client sol -t HOST` connects from any machine
 
-#### Authentication & Access Control
+### Authentication & Access Control
 
 - Superadmin bootstrap account via config file (cannot be deleted or locked out)
 - Database users with bcrypt-hashed passwords
@@ -102,14 +102,14 @@ DRACS is a self-contained web application and CLI toolkit for managing fleets of
 - Five access tiers: superadmin, admin, user, quads, unauthenticated
 - QUADS integration: `quads`-role users see only their allocated hosts and can only power/VNC those hosts
 
-#### Automation
+### Automation
 
 - SQLite-backed async job queue with bounded worker pool
 - Cron-like scheduler: daily/weekly tasks for TSR collection, refresh, iDRAC job queue cleanup, VNC reset, SSL cert deployment
 - `dracs-client` remote CLI for scripting against a DRACS server over HTTPS
 - Structured audit log of all admin actions with user attribution and source IP
 
-#### Deployment
+### Deployment
 
 - RPM packages for Fedora/RHEL via COPR (`kambiz/dracs`)
 - Systemd service, nginx config, logrotate — all included
