@@ -389,7 +389,7 @@ The site selector in the header switches context. All pages and API calls accept
 - conserver password
 - Per-host credential overrides
 
-One site is designated the **primary** site and is shown by default when no `?site=` parameter is present. Site creation, deletion, renaming, and reordering require the superadmin role. See [Sites Management](#sites-management) for the web UI and [dracs sites](#sites-command) for the CLI.
+One site is designated the **primary** site and is shown by default when no `?site=` parameter is present. Site creation, deletion, renaming, and reordering require the superadmin role. See [Sites Management](#sites-management) for the web UI and [dracs sites](#sites) for the CLI.
 
 ---
 
