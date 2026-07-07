@@ -54,25 +54,29 @@ DRACS is a self-contained web application and CLI toolkit for managing fleets of
 
 ## 🚀 Features
 
-**Inventory & Warranty**
+#### Inventory & Warranty
+
 - Warranty tracking via Dell TechDirect API — automatic expiration date retrieval by Service Tag
 - Hardware discovery via SNMP — polls iDRAC for BIOS version, iDRAC firmware version, and model
 - Version comparison filters: find all hosts with BIOS less than X, iDRAC greater than or equal to Y, etc.
 - JSON output for automation and scripting
 
-**Multi-Site**
+#### Multi-Site
+
 - Single DRACS instance manages multiple independent sites (data centers, environments, labs)
 - Per-site iDRAC credentials, VNC configuration, and QUADS integration
 - Per-site role-based access: a user can be a regular user globally but an admin for one site
 - Site selector in the web UI header; `?site=` URL parameter for bookmarking and API calls
 
-**Web Interface**
+#### Web Interface
+
 - Full-featured inventory dashboard with sortable columns, pagination, search, and multi-select
 - Light and dark themes
 - Color-coded firmware and BIOS versions (green = latest in fleet, yellow = one behind, red = two or more behind)
 - Color-coded warranty status (red = expired, yellow = expiring within configured threshold)
 
-**iDRAC Operations**
+#### iDRAC Operations
+
 - Firmware and BIOS updates via HTTP delivery to iDRAC (racadm)
 - One-click download of latest firmware/BIOS from Dell catalog with SHA-256 verification
 - Power control: power on/off, graceful/hard shutdown, graceful/hard reboot
@@ -83,12 +87,14 @@ DRACS is a self-contained web application and CLI toolkit for managing fleets of
 - SSL certificate upload to iDRAC with per-site scheduling and per-host overrides
 - Virtual media: mount and unmount ISO images to iDRAC virtual media via racadm
 
-**Console Access**
+#### Console Access
+
 - Browser-based VNC console via websockify — single host, multi-host grid, and QUADS-filtered views
 - Optional x11vnc sharing proxy for multi-user read-write sessions on the same iDRAC VNC server
 - IPMI Serial Over LAN (SOL) via conserver with TLS-encrypted authentication — `dracs-client sol -t HOST` connects from any machine
 
-**Authentication & Access Control**
+#### Authentication & Access Control
+
 - Superadmin bootstrap account via config file (cannot be deleted or locked out)
 - Database users with bcrypt-hashed passwords
 - Google OAuth2 / SSO with auto-provisioning
@@ -96,13 +102,15 @@ DRACS is a self-contained web application and CLI toolkit for managing fleets of
 - Five access tiers: superadmin, admin, user, quads, unauthenticated
 - QUADS integration: `quads`-role users see only their allocated hosts and can only power/VNC those hosts
 
-**Automation**
+#### Automation
+
 - SQLite-backed async job queue with bounded worker pool
 - Cron-like scheduler: daily/weekly tasks for TSR collection, refresh, iDRAC job queue cleanup, VNC reset, SSL cert deployment
 - `dracs-client` remote CLI for scripting against a DRACS server over HTTPS
 - Structured audit log of all admin actions with user attribution and source IP
 
-**Deployment**
+#### Deployment
+
 - RPM packages for Fedora/RHEL via COPR (`kambiz/dracs`)
 - Systemd service, nginx config, logrotate — all included
 - No external database required; SQLite handles everything
@@ -113,6 +121,7 @@ DRACS is a self-contained web application and CLI toolkit for managing fleets of
 ## 🛠️ Prerequisites
 
 **Server (python3-dracs RPM or manual install):**
+
 - Python 3.12+
 - Dell TechDirect API credentials (Client ID + Secret from [techdirect.dell.com](https://techdirect.dell.com))
 - SNMP enabled on target iDRAC interfaces (default community: `public`, port 161)
@@ -126,6 +135,7 @@ DRACS is a self-contained web application and CLI toolkit for managing fleets of
 - TFTP server — for TSR export from iDRAC (configured automatically by RPM)
 
 **Remote client (dracs-client RPM or manual install):**
+
 - `console` binary from `conserver-client` package — required for `dracs-client sol`
 
 ---
@@ -145,6 +155,7 @@ sudo systemctl enable --now dracs-webapp
 ```
 
 The RPM post-install script automatically:
+
 - Creates the `dracs` system user and group
 - Copies example config files to `/etc/dracs/`
 - Generates a random `FLASK_SECRET_KEY` in `/etc/dracs/dracs.conf`
@@ -267,7 +278,7 @@ Suffix: "host01" + "-mm" + ".example.com" → "host01-mm.example.com"
 | `VNC_CONSOLE_SIZE` | `800x600` | Browser console dimensions (WxH) |
 | `VNC_PROXY_ENABLE` | `false` | Launch x11vnc sharing proxy per session (requires `x11vnc`) |
 
-#### IPMI Serial Over LAN (SOL)
+#### SOL (conserver)
 
 | Variable | Default | Description |
 |---|---|---|
@@ -356,6 +367,7 @@ The main inventory page is accessible without authentication and shows all syste
 The inventory table shows: hostname, service tag, model, iDRAC firmware version, BIOS version, and warranty expiration date. Columns are sortable; the table supports pagination and hostname search. The dark/light theme toggle is in the header.
 
 **Warranty highlighting:**
+
 - Red background — warranty has expired
 - Yellow background — warranty expires within the configured threshold (default: 30 days)
 
@@ -370,6 +382,7 @@ A single DRACS instance manages multiple independent sites — separate data cen
 The site selector in the header switches context. All pages and API calls accept a `?site=<name>` parameter, making site-specific views bookmarkable and scriptable.
 
 **Site configuration** (managed per-site in `drac-passwords.ini` and the Sites UI):
+
 - Default iDRAC username/password
 - VNC port and password
 - QUADS API URL and enable/disable toggle
@@ -456,6 +469,7 @@ DRACS tracks installed iDRAC firmware and BIOS versions across the entire fleet 
 ![BIOS version color coding](image/bios-versions-colors.png)
 
 **Version color coding in the inventory table:**
+
 - No highlight — latest version observed in the fleet for that model
 - Yellow — one version behind the fleet-latest
 - Red — two or more versions behind the fleet-latest
@@ -463,11 +477,13 @@ DRACS tracks installed iDRAC firmware and BIOS versions across the entire fleet 
 Note: "fleet-latest" means the most recent version installed on any host of that model in DRACS, not necessarily the latest version available from Dell.
 
 **Updating firmware and BIOS via the web UI:**
+
 1. Select one or more hosts in the inventory table
 2. Click **Update Firmware** or **Update BIOS** — a dropdown shows versions newer than the host's current version
 3. Select the target version and confirm — DRACS enqueues an `racadm update` job for each host
 
 **Downloading the latest version from Dell:**
+
 1. Select a host of the relevant model
 2. Click **Latest Firmware** or **Latest BIOS** — DRACS fetches the Dell catalog, downloads the image with SHA-256 verification, archives any existing version, and stores the new file
 3. The BIOS filename map (`BIOS-filename.ini`) is updated automatically
@@ -496,6 +512,7 @@ VNC_CONSOLE_SIZE=1024x768  # browser console dimensions
 ![Multi-host VNC console grid](image/multi-host-console-grid.png)
 
 Three console views are available:
+
 - **Single host** — launched from the admin toolbar for a selected host
 - **Multi-host grid** (`/console-multi`) — select multiple hosts; each appears in a tiled grid
 - **QUADS-filtered grid** (`/console-quads`) — shows only hosts allocated to the logged-in QUADS user
@@ -543,12 +560,14 @@ The Configuration page (`/config`) collects and displays Redfish-based configura
 ![iDRAC Configuration page](image/idrac-configuration.png)
 
 **Data collected per host (via Redfish):**
+
 - SSL certificate status, issuer, and expiry
 - BIOS settings (selected attributes — configurable per site)
 - IPMI-over-LAN status
 - iDRAC hostname
 
 **Bulk configuration apply:** Select hosts in the configuration table and choose settings to apply. DRACS enqueues `racadm_config` jobs which SSH into each iDRAC and apply:
+
 - DNS-from-DHCP setting
 - IPMI LAN enable/disable
 - Host header check
@@ -569,6 +588,7 @@ DRACS can manage SSL certificates on iDRAC interfaces across the fleet — uploa
 **Requirements:** `idracadm7` must be installed on the DRACS server.
 
 **Setup (via web UI — superadmin):**
+
 1. Navigate to the **Sites** management page
 2. Select a site and open its SSL configuration
 3. Upload a PEM-encoded certificate and private key
@@ -589,6 +609,7 @@ DRACS can mount and unmount ISO images to iDRAC virtual media via racadm over SS
 **Setup:** Place ISO files in `/var/lib/dracs/web/iso/` on the DRACS server. They will be served by nginx and listed in the **Mount ISO** dialog.
 
 **Usage:**
+
 1. Select a host in the inventory table
 2. Click **Mount ISO** in the toolbar
 3. Select an ISO from the list (or view the currently mounted image) and confirm
@@ -604,6 +625,7 @@ All long-running operations (firmware updates, TSR collection, refresh, config a
 ![Job queue](image/job-queue-example.png)
 
 **Viewing jobs:**
+
 - Web UI: click the **Job Queue** button in the admin toolbar (after selecting a host — shows iDRAC job queue) or navigate to the DRACS internal job queue via the **Jobs** section
 - CLI: `dracs jobs --list` or `dracs-client jobs --list`
 
@@ -677,11 +699,13 @@ site = LabSite
 **Schedule options:** `daily` (with `time = HH:MM`) or `weekly` (with `day = <weekday>` and `time = HH:MM`)
 
 **Target options:**
+
 - `all` — all hosts in the site
 - `model:<MODEL>` — all hosts matching a model (e.g. `model:R660`)
 - A specific hostname
 
 **Optional keys:**
+
 - `site = <name>` — target a specific site (default: all sites)
 - `keep_max = <N>` — for `tsr` tasks: prune older TSRs, retaining only the N most recent per host
 
@@ -694,6 +718,7 @@ site = LabSite
 DRACS supports Google OAuth2 for single sign-on. SSO users are auto-provisioned on first login with no initial role — an admin must assign roles after first login.
 
 **Setup:**
+
 1. Create an OAuth2 web application in [Google Cloud Console](https://console.cloud.google.com/)
 2. Add your DRACS URL as an authorized redirect URI: `https://dracs.example.com/auth/google/callback`
 3. Download the client secret JSON file
@@ -714,6 +739,7 @@ SSO users cannot change their password within DRACS (the password field is repla
 Admin users can manage accounts via the **Users** panel in the web UI (header link) or via the `dracs user` / `dracs-client user` CLI commands.
 
 **From the web UI, admins can:**
+
 - View all users, their global role, and per-site roles
 - Add users with a username, password, and optional role
 - Delete users
@@ -993,7 +1019,7 @@ dracs user --update --username jsmith --role quads --site LabSite
 
 ### sites
 
-Manage site configuration from the CLI. <a name="sites-command"></a>
+Manage site configuration from the CLI.
 
 ```bash
 dracs sites --list
@@ -1132,6 +1158,7 @@ dracs-client user --remove --username olduser
 DRACS logs all administrative actions to an audit log for accountability and compliance.
 
 **Log location:**
+
 - RPM: `/var/log/dracs/audit.log`
 - Manual: `logs/audit.log` (relative to working directory, or `$DRACS_LOG_DIR/audit.log`)
 
@@ -1167,6 +1194,7 @@ DRACS logs all administrative actions to an audit log for accountability and com
 **Log rotation:**
 
 The RPM installs `/etc/logrotate.d/dracs`:
+
 - Weekly rotation, 52 weeks retention, compressed, `copytruncate` (no service restart needed)
 
 For non-RPM installs, a built-in `RotatingFileHandler` rotates at 10 MB with 5 backup files.
@@ -1249,6 +1277,7 @@ Alternatively, use the **Latest BIOS** button in the web UI to download and stag
 DRACS binds to `127.0.0.1:1888` by default. Use nginx for TLS termination and to serve static files.
 
 Sample nginx configurations are in the `nginx/` directory:
+
 - `dracs.conf.example` — HTTP → HTTPS redirect
 - `dracs_ssl.conf.example` — HTTPS reverse proxy to `127.0.0.1:1888`; also proxies websockify at `127.0.0.1:6080` for VNC; serves `/firmware`, `/bios`, `/tsr`, and `/iso` as static file aliases
 
@@ -1279,32 +1308,38 @@ dracs -v add -s ABC1234 -t server01 -m R660
 ```
 
 **SNMP connectivity:**
+
 - Verify the iDRAC interface is reachable via `DRACS_DNS_STRING` / `DRACS_DNS_MODE` naming
 - Default community is `public` — configure via `SNMP_COMMUNITY`
 - Port 161 must be accessible from the DRACS host
 
 **Dell API issues:**
+
 - Verify `CLIENT_ID` and `CLIENT_SECRET` in `dracs.conf`
 - Service tags must be 5–7 alphanumeric characters
 - Systems must have an active Dell warranty or support contract
 
 **SSH / racadm failures:**
+
 - Verify iDRAC SSH is enabled and the credentials in `drac-passwords.ini` are correct
 - Test with: `dracs -d refresh -t host01.example.com` to see SSH details
 - Ensure `sshpass` is installed: `which sshpass`
 
 **VNC console not loading:**
+
 - Confirm `VNC_ENABLE=true` in `dracs.conf` and `dracs-webapp` was restarted
 - Check nginx proxies `/websockify` to `127.0.0.1:6080` (see `dracs_ssl.conf.example`)
 - Port 6080 must be reachable from nginx (loopback only)
 
 **SOL connection failing:**
+
 - Confirm `SOL_ENABLE=true` and port 3109 is reachable from client
 - Check that cert permissions are correct: `ls -la /etc/pki/tls/certs/<hostname>.{pem,key}` — both should be `root:dracs 640` (fixed automatically on `systemctl restart dracs-webapp`)
 - Verify `conserver` and `ipmitool` are installed on the server
 - Verify `console` (conserver-client) is installed on the client
 
 **Database location:**
+
 - RPM default: `/var/lib/dracs/warranty.db`
 - Custom: `-w /path/to/custom.db` flag or `DRACS_DB` env var
 - Database is created automatically on first use
