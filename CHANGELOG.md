@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.18.3 (2026-07-07)
+
+### Bug Fixes
+
+- Updated codacy badge link
+  ([`6b5e557`](https://github.com/kambiz-aghaiepour/dracs/commit/6b5e557f94ba36137b146b1513035593b251f327))
+
+### Chores
+
+- Sync spec file version to 2.18.2 [skip ci]
+  ([`7c93566`](https://github.com/kambiz-aghaiepour/dracs/commit/7c93566be31f9dbab0e8f3335a50048005e19d07))
+
+
 ## v2.18.2 (2026-07-06)
 
 ### Bug Fixes
