@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "dracs"
 version = "2.18.5"
-description = "Dell Rack & Asset Control System - CLI inventory tool for managing Dell bare-metal systems"
+description = "Dell Rack & Asset Control System - web application and CLI for managing Dell bare-metal fleets"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "GPL-3.0-or-later"
