@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.18.6 (2026-07-07)
+
+### Bug Fixes
+
+- Pyproject.toml description
+  ([`201b320`](https://github.com/kambiz-aghaiepour/dracs/commit/201b3209ac6bc855c7d99f9df69a2bbbfe492a03))
+
+### Chores
+
+- Sync spec file version to 2.18.5 [skip ci]
+  ([`7a45cd7`](https://github.com/kambiz-aghaiepour/dracs/commit/7a45cd7092f0a78c151759ade930f1592f9e2926))
+
+
 ## v2.18.5 (2026-07-07)
 
 ### Bug Fixes
