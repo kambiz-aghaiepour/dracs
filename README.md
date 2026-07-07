@@ -358,11 +358,11 @@ The main inventory page is accessible without authentication and shows all syste
 
 **Light theme, anonymous user:**
 
-![Inventory — light theme, anonymous](image/anon-page-light.png)
+![Inventory — light theme, anonymous](https://raw.githubusercontent.com/kambiz-aghaiepour/dracs/main/image/anon-page-light.png)
 
 **Dark theme, anonymous user:**
 
-![Inventory — dark theme, anonymous](image/anon-page-dark.png)
+![Inventory — dark theme, anonymous](https://raw.githubusercontent.com/kambiz-aghaiepour/dracs/main/image/anon-page-dark.png)
 
 The inventory table shows: hostname, service tag, model, iDRAC firmware version, BIOS version, and warranty expiration date. Columns are sortable; the table supports pagination and hostname search. The dark/light theme toggle is in the header.
 
@@ -377,7 +377,7 @@ The inventory table shows: hostname, service tag, model, iDRAC firmware version,
 
 A single DRACS instance manages multiple independent sites — separate data centers, environments, or host groupings — each with its own inventory, credentials, and access controls.
 
-![Multi-site selector](image/multi-site-selector.png)
+![Multi-site selector](https://raw.githubusercontent.com/kambiz-aghaiepour/dracs/main/image/multi-site-selector.png)
 
 The site selector in the header switches context. All pages and API calls accept a `?site=<name>` parameter, making site-specific views bookmarkable and scriptable.
 
@@ -432,9 +432,9 @@ DRACS has five access tiers. Roles can be assigned globally (applying to all sit
 
 When logged in as an admin with one or more hosts selected, an action toolbar appears above the inventory table.
 
-![Admin view with host selected](image/admin-page-light-selection.png)
+![Admin view with host selected](https://raw.githubusercontent.com/kambiz-aghaiepour/dracs/main/image/admin-page-light-selection.png)
 
-![Action buttons — single host selected](image/action-buttons-when-single-selection.png)
+![Action buttons — single host selected](https://raw.githubusercontent.com/kambiz-aghaiepour/dracs/main/image/action-buttons-when-single-selection.png)
 
 | Button | Description |
 |---|---|
@@ -466,7 +466,7 @@ When logged in as an admin with one or more hosts selected, an action toolbar ap
 
 DRACS tracks installed iDRAC firmware and BIOS versions across the entire fleet and compares them against versions available on disk.
 
-![BIOS version color coding](image/bios-versions-colors.png)
+![BIOS version color coding](https://raw.githubusercontent.com/kambiz-aghaiepour/dracs/main/image/bios-versions-colors.png)
 
 **Version color coding in the inventory table:**
 
@@ -509,7 +509,7 @@ VNC_CONSOLE_SIZE=1024x768  # browser console dimensions
 
 **Multi-host console grid:**
 
-![Multi-host VNC console grid](image/multi-host-console-grid.png)
+![Multi-host VNC console grid](https://raw.githubusercontent.com/kambiz-aghaiepour/dracs/main/image/multi-host-console-grid.png)
 
 Three console views are available:
 
@@ -547,7 +547,7 @@ dracs-client sol -t host01.example.com
 dracs sol -t host01.example.com
 ```
 
-![dracs-client SOL session](image/dracs-client-sol.png)
+![dracs-client SOL session](https://raw.githubusercontent.com/kambiz-aghaiepour/dracs/main/image/dracs-client-sol.png)
 
 Press `Ctrl-E c .` to disconnect from a SOL session.
 
@@ -557,7 +557,7 @@ Press `Ctrl-E c .` to disconnect from a SOL session.
 
 The Configuration page (`/config`) collects and displays Redfish-based configuration data for all managed hosts in a site, and allows bulk-applying iDRAC settings across a selection of hosts.
 
-![iDRAC Configuration page](image/idrac-configuration.png)
+![iDRAC Configuration page](https://raw.githubusercontent.com/kambiz-aghaiepour/dracs/main/image/idrac-configuration.png)
 
 **Data collected per host (via Redfish):**
 
@@ -622,7 +622,7 @@ The ISO URL delivered to iDRAC uses the DRACS server's FQDN: `http://<dracs-serv
 
 All long-running operations (firmware updates, TSR collection, refresh, config apply, SSL cert upload) are executed asynchronously via a SQLite-backed job queue. One gunicorn worker holds a file lock and runs the job processor thread pool.
 
-![Job queue](image/job-queue-example.png)
+![Job queue](https://raw.githubusercontent.com/kambiz-aghaiepour/dracs/main/image/job-queue-example.png)
 
 **Viewing jobs:**
 
@@ -734,7 +734,7 @@ SSO users cannot change their password within DRACS (the password field is repla
 
 ### User Management
 
-![User management panel](image/user-management.png)
+![User management panel](https://raw.githubusercontent.com/kambiz-aghaiepour/dracs/main/image/user-management.png)
 
 Admin users can manage accounts via the **Users** panel in the web UI (header link) or via the `dracs user` / `dracs-client user` CLI commands.
 
@@ -753,7 +753,7 @@ Admin users can manage accounts via the **Users** panel in the web UI (header li
 
 ### Sites Management
 
-![Sites management — superadmin view](image/multi-site-admin.png)
+![Sites management — superadmin view](https://raw.githubusercontent.com/kambiz-aghaiepour/dracs/main/image/multi-site-admin.png)
 
 Superadmins can create, delete, rename, and reorder sites via the **Sites** page (`/sites`). Each site's configuration (iDRAC credentials, VNC settings, QUADS integration, SSL certificates) is managed from this page.
 
