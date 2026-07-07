@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.18.5 (2026-07-07)
+
+### Bug Fixes
+
+- Image references to render on pypi
+  ([`0a55c0b`](https://github.com/kambiz-aghaiepour/dracs/commit/0a55c0b3badf8d4bf7790c94ab884f10d3c5e6a5))
+
+### Chores
+
+- Sync spec file version to 2.18.4 [skip ci]
+  ([`dd9255d`](https://github.com/kambiz-aghaiepour/dracs/commit/dd9255d6d4f871f8c77bbe5ce0a930b4421f1523))
+
+
 ## v2.18.4 (2026-07-07)
 
 ### Bug Fixes
