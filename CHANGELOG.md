@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.18.7 (2026-07-08)
+
+### Bug Fixes
+
+- Auto-fix console connection issues
+  ([`a3eb77e`](https://github.com/kambiz-aghaiepour/dracs/commit/a3eb77e0e74032c586d1786c60f7a5510f0485ab))
+
+### Chores
+
+- Sync spec file version to 2.18.6 [skip ci]
+  ([`1789e9b`](https://github.com/kambiz-aghaiepour/dracs/commit/1789e9bb4ee32494da2c7d178a6a49b2fd76f243))
+
+
 ## v2.18.6 (2026-07-07)
 
 ### Bug Fixes
