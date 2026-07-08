@@ -54,6 +54,7 @@ from dracs.users import (
     update_user_role,
 )
 from dracs.validation import validate_hostname, validate_version
+from dracs.racadm import run_racadm_ssh
 from dracs.vnc import (
     VncSessionManager,
     MaxSessionsError,
@@ -3625,6 +3626,26 @@ def api_vnc_session_create():
             return jsonify({"success": True, "token": existing})
 
         reachable, error_msg = check_vnc_connectivity(idrac_fqdn, int(vnc_port))
+        if not reachable and "refused" in error_msg:
+            app.logger.warning(
+                "vnc: %s VNC port refused, attempting auto-remediation", hostname
+            )
+            username, password = get_idrac_credentials(hostname)
+            run_racadm_ssh(
+                idrac_fqdn,
+                username,
+                password,
+                ["set", "idrac.vncserver.enable", "Disabled"],
+            )
+            time.sleep(2)
+            run_racadm_ssh(
+                idrac_fqdn,
+                username,
+                password,
+                ["set", "idrac.vncserver.enable", "Enabled"],
+            )
+            time.sleep(5)
+            reachable, error_msg = check_vnc_connectivity(idrac_fqdn, int(vnc_port))
         if not reachable:
             return (
                 jsonify({"success": False, "message": error_msg}),

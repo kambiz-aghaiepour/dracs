@@ -967,7 +967,7 @@ class TestVncSessionCreateEndpoint:
 
     @patch(
         "dracs.webapp.check_vnc_connectivity",
-        return_value=(False, "Connection refused"),
+        return_value=(False, "Connection to server01:5901 timed out"),
     )
     @patch("dracs.webapp.get_vnc_credentials", return_value=(5901, "pass"))
     def test_vnc_unreachable(self, mock_creds, mock_conn, vnc_client):
@@ -980,10 +980,61 @@ class TestVncSessionCreateEndpoint:
         assert resp.status_code == 503
         data = resp.get_json()
         assert data["success"] is False
-        assert (
-            "refused" in data["message"].lower()
-            or "Connection refused" in data["message"]
-        )
+        assert "timed out" in data["message"]
+
+    @patch("dracs.webapp.get_idrac_credentials", return_value=("root", "calvin"))
+    @patch(
+        "dracs.webapp.run_racadm_ssh", return_value=MagicMock(returncode=0, stderr="")
+    )
+    @patch(
+        "dracs.webapp.check_vnc_connectivity",
+        side_effect=[
+            (False, "Connection to idrac-server01:5901 refused"),
+            (False, "Connection to idrac-server01:5901 refused"),
+        ],
+    )
+    @patch("dracs.webapp.get_vnc_credentials", return_value=(5901, "pass"))
+    def test_vnc_refused_remediation_fails(
+        self, mock_creds, mock_conn, mock_ssh, mock_idrac_creds, vnc_client
+    ):
+        _login(vnc_client)
+        with patch("dracs.webapp.time.sleep"):
+            resp = vnc_client.post(
+                "/api/vnc-session",
+                data=json.dumps({"hostname": "server01"}),
+                content_type="application/json",
+            )
+        assert resp.status_code == 503
+        assert resp.get_json()["success"] is False
+        assert mock_ssh.call_count == 2
+
+    @patch("dracs.webapp.get_idrac_credentials", return_value=("root", "calvin"))
+    @patch(
+        "dracs.webapp.run_racadm_ssh", return_value=MagicMock(returncode=0, stderr="")
+    )
+    @patch(
+        "dracs.webapp.check_vnc_connectivity",
+        side_effect=[
+            (False, "Connection to idrac-server01:5901 refused"),
+            (True, ""),
+        ],
+    )
+    @patch("dracs.webapp.get_vnc_credentials", return_value=(5901, "pass"))
+    def test_vnc_refused_remediation_succeeds(
+        self, mock_creds, mock_conn, mock_ssh, mock_idrac_creds, vnc_client
+    ):
+        _login(vnc_client)
+        with patch("dracs.webapp.time.sleep"):
+            resp = vnc_client.post(
+                "/api/vnc-session",
+                data=json.dumps({"hostname": "server01"}),
+                content_type="application/json",
+            )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["success"] is True
+        assert "token" in data
+        assert mock_ssh.call_count == 2
 
     @patch("dracs.webapp.check_vnc_connectivity", return_value=(True, ""))
     @patch("dracs.webapp.get_vnc_credentials", return_value=(5901, "pass"))

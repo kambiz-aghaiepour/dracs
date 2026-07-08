@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Optional
 
 from dracs.db import Job, System, get_session
+from dracs.racadm import run_racadm_ssh
 
 logger = logging.getLogger(__name__)
 
@@ -687,29 +688,6 @@ def execute_config_collect_job(hostname: str, metadata: dict) -> None:
         upsert_host_config(hostname, site_id, data)
 
 
-def run_racadm_ssh(
-    idrac_fqdn: str, username: str, password: str, racadm_args: list
-) -> subprocess.CompletedProcess:
-    """Run a single racadm command on an iDRAC over SSH using sshpass."""
-    cmd = [
-        "sshpass",
-        "-p",
-        password,
-        "ssh",
-        "-o",
-        "StrictHostKeyChecking=no",
-        "-o",
-        "ConnectTimeout=30",
-        "-o",
-        "BatchMode=no",
-        f"{username}@{idrac_fqdn}",
-        "racadm",
-    ] + racadm_args
-    return subprocess.run(  # nosec # nosemgrep
-        cmd, capture_output=True, text=True, timeout=60
-    )
-
-
 def execute_vnc_reset_job(hostname: str, metadata: dict) -> None:
     """Disable then re-enable the iDRAC VNC server, skipping hosts with active viewers."""
     from dracs.snmp import ValidationError, build_idrac_hostname
@@ -737,7 +715,9 @@ def execute_vnc_reset_job(hostname: str, metadata: dict) -> None:
         (["set", "idrac.vncserver.enable", "Enabled"], "enable VNC"),
     ]
 
-    for args, description in steps:
+    for i, (args, description) in enumerate(steps):
+        if i > 0:
+            time.sleep(2)
         result = run_racadm_ssh(idrac_fqdn, username, password, args)
         if result.returncode != 0:
             raise RuntimeError(

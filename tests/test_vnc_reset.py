@@ -348,12 +348,10 @@ class TestRunRacadmSsh:
         """run_racadm_ssh assembles the sshpass command and delegates to subprocess.run."""
         import subprocess
 
-        from dracs.jobqueue import run_racadm_ssh
+        from dracs.racadm import run_racadm_ssh
 
         fake_result = MagicMock(spec=subprocess.CompletedProcess)
-        with patch(
-            "dracs.jobqueue.subprocess.run", return_value=fake_result
-        ) as mock_run:
+        with patch("dracs.racadm.subprocess.run", return_value=fake_result) as mock_run:
             result = run_racadm_ssh(
                 "idrac-server01.example.com",
                 "root",
