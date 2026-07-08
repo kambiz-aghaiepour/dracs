@@ -638,7 +638,7 @@ class TestCmdVnc:
         assert "2" in capsys.readouterr().err
 
     @patch(
-        "dracs.jobqueue.run_racadm_ssh", return_value=MagicMock(returncode=0, stderr="")
+        "dracs.racadm.run_racadm_ssh", return_value=MagicMock(returncode=0, stderr="")
     )
     @patch("dracs.webapp.get_idrac_credentials", return_value=("root", "calvin"))
     @patch("dracs.vnc.get_vnc_credentials", return_value=(5901, "vncp"))
@@ -656,7 +656,7 @@ class TestCmdVnc:
         assert "successfully" in capsys.readouterr().out
 
     @patch(
-        "dracs.jobqueue.run_racadm_ssh", return_value=MagicMock(returncode=0, stderr="")
+        "dracs.racadm.run_racadm_ssh", return_value=MagicMock(returncode=0, stderr="")
     )
     @patch("dracs.webapp.get_idrac_credentials", return_value=("root", "calvin"))
     @patch("dracs.vnc.get_vnc_credentials", return_value=(5901, "vncp"))
@@ -674,7 +674,7 @@ class TestCmdVnc:
         assert "successfully" in capsys.readouterr().out
 
     @patch(
-        "dracs.jobqueue.run_racadm_ssh",
+        "dracs.racadm.run_racadm_ssh",
         return_value=MagicMock(returncode=1, stderr="SSH error"),
     )
     @patch("dracs.webapp.get_idrac_credentials", return_value=("root", "calvin"))

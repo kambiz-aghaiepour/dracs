@@ -1254,7 +1254,7 @@ def cmd_vnc(args, site_name=None):
         )
         sys.exit(1)
 
-    from dracs.jobqueue import run_racadm_ssh
+    from dracs.racadm import run_racadm_ssh
     from dracs.webapp import get_idrac_credentials
 
     try:
