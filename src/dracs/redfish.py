@@ -94,6 +94,82 @@ def collect_ssl_info(idrac_fqdn: str) -> dict:
     return result
 
 
+def _ssl_flag_to_str(flag) -> str | None:
+    if flag is None:
+        return None
+    return "1" if flag else "0"
+
+
+def _collect_ssl_endpoint(attrs: list, idrac_fqdn: str, collected_at: str) -> dict:
+    ssl_info = collect_ssl_info(idrac_fqdn)
+    value_map = {
+        "ssl_self_signed": _ssl_flag_to_str(ssl_info.get("self_signed")),
+        "ssl_valid_name": _ssl_flag_to_str(ssl_info.get("valid_name")),
+        "ssl_expiry": ssl_info.get("expiry"),
+        "ssl_fingerprint": ssl_info.get("fingerprint"),
+    }
+    return {
+        attr["name"]: {
+            "value": value_map.get(attr["name"]),
+            "collected_at": collected_at,
+        }
+        for attr in attrs
+    }
+
+
+def _resolve_attr_value(attr_name: str, raw, idrac_fqdn: str) -> str | None:
+    if raw is None:
+        return None
+    if attr_name == "idrac_hostname":
+        # Store match indicator: "1" if hostname matches the iDRAC FQDN.
+        return "1" if str(raw).lower() == idrac_fqdn.lower() else "0"
+    return str(raw)
+
+
+def _collect_redfish_endpoint(
+    attrs: list,
+    endpoint_type: str,
+    idrac_fqdn: str,
+    user: str,
+    pw: str,
+    collected_at: str,
+) -> dict:
+    null_result = {
+        attr["name"]: {"value": None, "collected_at": collected_at} for attr in attrs
+    }
+    url_template = _ENDPOINT_URLS.get(endpoint_type)
+    if url_template is None:
+        logger.warning(
+            "collect_for_host_dynamic: unknown endpoint_type %r", endpoint_type
+        )
+        return null_result
+
+    url = url_template.format(host=idrac_fqdn)
+    try:
+        resp = requests.get(  # nosec # nosemgrep
+            url, auth=(user, pw), verify=_VERIFY, timeout=_TIMEOUT
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as exc:
+        logger.debug(
+            "collect_for_host_dynamic %s [%s]: %s", idrac_fqdn, endpoint_type, exc
+        )
+        return null_result
+
+    return {
+        attr["name"]: {
+            "value": _resolve_attr_value(
+                attr["name"],
+                _extract_by_path(data, attr.get("attribute_path")),
+                idrac_fqdn,
+            ),
+            "collected_at": collected_at,
+        }
+        for attr in attrs
+    }
+
+
 def collect_for_host_dynamic(hostname: str, site_name: str, attr_defs: list) -> dict:
     """Collect config attributes for one host using the DB-driven attr catalog.
 
@@ -110,75 +186,18 @@ def collect_for_host_dynamic(hostname: str, site_name: str, attr_defs: list) -> 
     user, pw = _get_credentials(site_name, hostname)
     collected_at = datetime.now().isoformat()
 
-    # Group attr_defs by endpoint_type so we make one HTTP call per endpoint.
     by_endpoint: dict[str, list] = {}
     for attr in attr_defs:
-        ep = attr["endpoint_type"]
-        by_endpoint.setdefault(ep, []).append(attr)
+        by_endpoint.setdefault(attr["endpoint_type"], []).append(attr)
 
     results: dict = {}
-
     for endpoint_type, attrs in by_endpoint.items():
         if endpoint_type == "ssl":
-            ssl_info = collect_ssl_info(idrac_fqdn)
-
-            def _ssl_int(flag) -> str | None:
-                if flag is None:
-                    return None
-                return "1" if flag else "0"
-
-            attr_value_map = {
-                "ssl_self_signed": _ssl_int(ssl_info.get("self_signed")),
-                "ssl_valid_name": _ssl_int(ssl_info.get("valid_name")),
-                "ssl_expiry": ssl_info.get("expiry"),
-                "ssl_fingerprint": ssl_info.get("fingerprint"),
-            }
-            for attr in attrs:
-                results[attr["name"]] = {
-                    "value": attr_value_map.get(attr["name"]),
-                    "collected_at": collected_at,
-                }
-            continue
-
-        url_template = _ENDPOINT_URLS.get(endpoint_type)
-        if url_template is None:
-            logger.warning(
-                "collect_for_host_dynamic: unknown endpoint_type %r", endpoint_type
+            results.update(_collect_ssl_endpoint(attrs, idrac_fqdn, collected_at))
+        else:
+            results.update(
+                _collect_redfish_endpoint(
+                    attrs, endpoint_type, idrac_fqdn, user, pw, collected_at
+                )
             )
-            for attr in attrs:
-                results[attr["name"]] = {"value": None, "collected_at": collected_at}
-            continue
-
-        url = url_template.format(host=idrac_fqdn)
-        try:
-            resp = requests.get(  # nosec # nosemgrep
-                url, auth=(user, pw), verify=_VERIFY, timeout=_TIMEOUT
-            )
-            resp.raise_for_status()
-            data = resp.json()
-        except Exception as exc:
-            logger.debug(
-                "collect_for_host_dynamic %s [%s]: %s", idrac_fqdn, endpoint_type, exc
-            )
-            for attr in attrs:
-                results[attr["name"]] = {"value": None, "collected_at": collected_at}
-            continue
-
-        for attr in attrs:
-            attr_path = attr.get("attribute_path")
-            if attr_path:
-                raw = _extract_by_path(data, attr_path)
-            else:
-                raw = None
-
-            if attr["name"] == "idrac_hostname" and raw is not None:
-                # Store match indicator: "1" if hostname matches the iDRAC FQDN.
-                val = "1" if str(raw).lower() == idrac_fqdn.lower() else "0"
-            elif raw is not None:
-                val = str(raw)
-            else:
-                val = None
-
-            results[attr["name"]] = {"value": val, "collected_at": collected_at}
-
     return results

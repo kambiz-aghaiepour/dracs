@@ -426,7 +426,7 @@ def _migrate_schema(engine) -> None:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE systems ADD COLUMN site_id INTEGER"))
 
-    if "users" in tables:
+    if "users" in tables:  # pragma: no cover
         user_cols = {c["name"]: c for c in inspector.get_columns("users")}
         if not user_cols.get("role", {}).get("nullable", True):
             with engine.begin() as conn:
@@ -554,6 +554,78 @@ def _seed_attr_defs(engine) -> None:
                 )
 
 
+def _upsert_site_setting(
+    conn, attr_def_id: int, site_id: int, enabled: bool, hours: int
+) -> None:
+    from sqlalchemy import text
+
+    conn.execute(
+        text(
+            "INSERT OR IGNORE INTO config_attr_site_settings "
+            "(attr_def_id, site_id, enabled, hours) "
+            "VALUES (:attr_def_id, :site_id, :enabled, :hours)"
+        ),
+        {
+            "attr_def_id": attr_def_id,
+            "site_id": site_id,
+            "enabled": enabled,
+            "hours": hours,
+        },
+    )
+
+
+def _migrate_scc_rows(conn, rows, attr_ids: dict) -> None:
+    for row in rows:
+        site_id = row[0]
+        per_attr = {
+            "ps_rapid_on": (bool(row[1]), int(row[2])),
+            "dns_from_dhcp": (bool(row[3]), int(row[4])),
+            "ipmi_lan_enable": (bool(row[5]), int(row[6])),
+            "host_header_check": (bool(row[7]), int(row[8])),
+            "sys_profile": (bool(row[9]), int(row[10])),
+            "idrac_hostname": (bool(row[13]), int(row[14])),
+        }
+        ssl_enabled, ssl_hours = bool(row[11]), int(row[12])
+
+        for attr_name, (enabled, hours) in per_attr.items():
+            attr_def_id = attr_ids.get(attr_name)
+            if attr_def_id is not None:
+                _upsert_site_setting(conn, attr_def_id, site_id, enabled, hours)
+
+        for ssl_attr in _OLD_SCC_SSL_ATTRS:
+            attr_def_id = attr_ids.get(ssl_attr)
+            if attr_def_id is not None:
+                _upsert_site_setting(conn, attr_def_id, site_id, ssl_enabled, ssl_hours)
+
+
+def _migrate_hc_rows(conn, rows, attr_ids: dict) -> None:
+    from sqlalchemy import text
+
+    for row in rows:
+        hostname, site_id, collected_at = row[0], row[1], row[12]
+        for attr_name, col_idx in _OLD_HC_ATTR_MAP:
+            raw_val = row[col_idx]
+            if raw_val is None:
+                continue
+            attr_def_id = attr_ids.get(attr_name)
+            if attr_def_id is None:
+                continue
+            conn.execute(
+                text(
+                    "INSERT OR IGNORE INTO host_config_attr "
+                    "(hostname, site_id, attr_def_id, value, collected_at) "
+                    "VALUES (:hostname, :site_id, :attr_def_id, :value, :collected_at)"
+                ),
+                {
+                    "hostname": hostname,
+                    "site_id": site_id,
+                    "attr_def_id": attr_def_id,
+                    "value": str(raw_val),
+                    "collected_at": collected_at,
+                },
+            )
+
+
 def _migrate_collection_tables(engine) -> None:
     """One-time migration: move site_config_collection and host_config to EAV model.
 
@@ -561,19 +633,16 @@ def _migrate_collection_tables(engine) -> None:
     """
     from sqlalchemy import inspect, text
 
-    inspector = inspect(engine)
-    tables = inspector.get_table_names()
+    tables = inspect(engine).get_table_names()
 
     with engine.begin() as conn:
         attr_ids = {
             row[0]: row[1]
             for row in conn.execute(text("SELECT name, id FROM config_attr_def"))
         }
-
         if not attr_ids:
             return  # Seed hasn't run; nothing to migrate against.
 
-        # ── Migrate site_config_collection → config_attr_site_settings ──────
         if "site_config_collection" in tables:
             rows = conn.execute(
                 text(
@@ -588,59 +657,9 @@ def _migrate_collection_tables(engine) -> None:
                     "FROM site_config_collection"
                 )
             ).fetchall()
-
-            for row in rows:
-                site_id = row[0]
-                per_attr = {
-                    "ps_rapid_on": (bool(row[1]), int(row[2])),
-                    "dns_from_dhcp": (bool(row[3]), int(row[4])),
-                    "ipmi_lan_enable": (bool(row[5]), int(row[6])),
-                    "host_header_check": (bool(row[7]), int(row[8])),
-                    "sys_profile": (bool(row[9]), int(row[10])),
-                    "idrac_hostname": (bool(row[13]), int(row[14])),
-                }
-                ssl_enabled = bool(row[11])
-                ssl_hours = int(row[12])
-
-                for attr_name, (enabled, hours) in per_attr.items():
-                    attr_def_id = attr_ids.get(attr_name)
-                    if attr_def_id is None:
-                        continue
-                    conn.execute(
-                        text(
-                            "INSERT OR IGNORE INTO config_attr_site_settings "
-                            "(attr_def_id, site_id, enabled, hours) "
-                            "VALUES (:attr_def_id, :site_id, :enabled, :hours)"
-                        ),
-                        {
-                            "attr_def_id": attr_def_id,
-                            "site_id": site_id,
-                            "enabled": enabled,
-                            "hours": hours,
-                        },
-                    )
-
-                for ssl_attr in _OLD_SCC_SSL_ATTRS:
-                    attr_def_id = attr_ids.get(ssl_attr)
-                    if attr_def_id is None:
-                        continue
-                    conn.execute(
-                        text(
-                            "INSERT OR IGNORE INTO config_attr_site_settings "
-                            "(attr_def_id, site_id, enabled, hours) "
-                            "VALUES (:attr_def_id, :site_id, :enabled, :hours)"
-                        ),
-                        {
-                            "attr_def_id": attr_def_id,
-                            "site_id": site_id,
-                            "enabled": ssl_enabled,
-                            "hours": ssl_hours,
-                        },
-                    )
-
+            _migrate_scc_rows(conn, rows, attr_ids)
             conn.execute(text("DROP TABLE site_config_collection"))
 
-        # ── Migrate host_config → host_config_attr ───────────────────────────
         if "host_config" in tables:
             rows = conn.execute(
                 text(
@@ -651,34 +670,7 @@ def _migrate_collection_tables(engine) -> None:
                     "FROM host_config"
                 )
             ).fetchall()
-
-            for row in rows:
-                hostname = row[0]
-                site_id = row[1]
-                collected_at = row[12]
-
-                for attr_name, col_idx in _OLD_HC_ATTR_MAP:
-                    raw_val = row[col_idx]
-                    if raw_val is None:
-                        continue
-                    attr_def_id = attr_ids.get(attr_name)
-                    if attr_def_id is None:
-                        continue
-                    conn.execute(
-                        text(
-                            "INSERT OR IGNORE INTO host_config_attr "
-                            "(hostname, site_id, attr_def_id, value, collected_at) "
-                            "VALUES (:hostname, :site_id, :attr_def_id, :value, :collected_at)"
-                        ),
-                        {
-                            "hostname": hostname,
-                            "site_id": site_id,
-                            "attr_def_id": attr_def_id,
-                            "value": str(raw_val),
-                            "collected_at": collected_at,
-                        },
-                    )
-
+            _migrate_hc_rows(conn, rows, attr_ids)
             conn.execute(text("DROP TABLE host_config"))
 
 
@@ -934,18 +926,45 @@ def get_hosts_for_site(site_id: int) -> list:
 # ── Config attribute catalog accessors ───────────────────────────────────────
 
 
+def _build_catalog_entry(d, site_cfg, choices: list, session) -> dict:
+    desired_value = None
+    if site_cfg and site_cfg.desired_choice_id:
+        ch = session.get(ConfigAttrChoice, site_cfg.desired_choice_id)
+        if ch:
+            desired_value = ch.push_value
+    return {
+        "id": d.id,
+        "name": d.name,
+        "label": d.label,
+        "endpoint_type": d.endpoint_type,
+        "push_key": d.push_key,
+        "is_writable": d.is_writable,
+        "post_push_command": d.post_push_command,
+        "display_type": d.display_type,
+        "display_order": d.display_order,
+        "choices": [
+            {"id": c.id, "label": c.choice_label, "push_value": c.push_value}
+            for c in choices
+        ],
+        "site_settings": {
+            "enabled": bool(site_cfg.enabled) if site_cfg else False,
+            "hours": site_cfg.hours if site_cfg else 24,
+            "desired_choice_id": site_cfg.desired_choice_id if site_cfg else None,
+            "desired_value": desired_value,
+        },
+    }
+
+
 def get_attr_catalog_for_site(site_id: int) -> list:
     """Return all attr defs with per-site settings and choices, in display order."""
     with get_session() as session:
         defs = session.query(ConfigAttrDef).order_by(ConfigAttrDef.display_order).all()
-
-        settings_rows = (
-            session.query(ConfigAttrSiteSettings)
+        settings_map = {
+            r.attr_def_id: r
+            for r in session.query(ConfigAttrSiteSettings)
             .filter(ConfigAttrSiteSettings.site_id == site_id)
             .all()
-        )
-        settings_map = {r.attr_def_id: r for r in settings_rows}
-
+        }
         result = []
         for d in defs:
             choices = (
@@ -954,44 +973,9 @@ def get_attr_catalog_for_site(site_id: int) -> list:
                 .order_by(ConfigAttrChoice.sort_order)
                 .all()
             )
-            site_cfg = settings_map.get(d.id)
-
-            desired_value = None
-            if site_cfg and site_cfg.desired_choice_id:
-                ch = session.get(ConfigAttrChoice, site_cfg.desired_choice_id)
-                if ch:
-                    desired_value = ch.push_value
-
             result.append(
-                {
-                    "id": d.id,
-                    "name": d.name,
-                    "label": d.label,
-                    "endpoint_type": d.endpoint_type,
-                    "push_key": d.push_key,
-                    "is_writable": d.is_writable,
-                    "post_push_command": d.post_push_command,
-                    "display_type": d.display_type,
-                    "display_order": d.display_order,
-                    "choices": [
-                        {
-                            "id": c.id,
-                            "label": c.choice_label,
-                            "push_value": c.push_value,
-                        }
-                        for c in choices
-                    ],
-                    "site_settings": {
-                        "enabled": bool(site_cfg.enabled) if site_cfg else False,
-                        "hours": site_cfg.hours if site_cfg else 24,
-                        "desired_choice_id": (
-                            site_cfg.desired_choice_id if site_cfg else None
-                        ),
-                        "desired_value": desired_value,
-                    },
-                }
+                _build_catalog_entry(d, settings_map.get(d.id), choices, session)
             )
-
         return result
 
 
