@@ -450,6 +450,7 @@
         const fromSite = '{{ from_site|default("", true) }}';
         let sites = [];
         let selectedSite = null;
+        let _attrCatalog = [];
 
         function toggleTheme() {
             const body = document.body;
@@ -1012,23 +1013,39 @@
             const resp = await fetch('/api/sites/' + encodeURIComponent(siteName) + '/config-collection');
             const data = await resp.json();
             if (!data.success) return;
-            const settings = data.settings;
+            _attrCatalog = data.catalog || [];
+            // Build name → site_settings map; aggregate the four SSL attrs into one 'ssl' entry.
+            const byName = {};
+            for (const entry of _attrCatalog) {
+                byName[entry.name] = entry.site_settings;
+            }
+            byName['ssl'] = byName['ssl_self_signed'] || {enabled: false, hours: 24};
             document.querySelectorAll('#collection-settings-tbody tr[data-attr]').forEach(row => {
-                const attr = row.dataset.attr;
-                const enabledKey = attr + '_enabled';
-                const hoursKey = attr + '_hours';
-                row.querySelector('.coll-enabled').checked = !!settings[enabledKey];
-                row.querySelector('.coll-hours').value = settings[hoursKey] || 24;
+                const s = byName[row.dataset.attr] || {enabled: false, hours: 24};
+                row.querySelector('.coll-enabled').checked = !!s.enabled;
+                row.querySelector('.coll-hours').value = s.hours || 24;
             });
         }
 
         async function saveCollectionSettings() {
             if (!selectedSite) return;
-            const payload = {};
+            const _SSL_ATTRS = ['ssl_self_signed', 'ssl_valid_name', 'ssl_expiry', 'ssl_fingerprint'];
+            const rowSettings = {};
             document.querySelectorAll('#collection-settings-tbody tr[data-attr]').forEach(row => {
-                const attr = row.dataset.attr;
-                payload[attr + '_enabled'] = row.querySelector('.coll-enabled').checked;
-                payload[attr + '_hours'] = parseInt(row.querySelector('.coll-hours').value) || 24;
+                rowSettings[row.dataset.attr] = {
+                    enabled: row.querySelector('.coll-enabled').checked,
+                    hours: parseInt(row.querySelector('.coll-hours').value) || 24,
+                };
+            });
+            const payload = _attrCatalog.map(entry => {
+                const key = _SSL_ATTRS.includes(entry.name) ? 'ssl' : entry.name;
+                const s = rowSettings[key] || {enabled: false, hours: 24};
+                return {
+                    attr_def_id: entry.id,
+                    enabled: s.enabled,
+                    hours: s.hours,
+                    desired_choice_id: entry.site_settings.desired_choice_id || null,
+                };
             });
             const resp = await fetch('/api/sites/' + encodeURIComponent(selectedSite.name) + '/config-collection', {
                 method: 'PUT',
