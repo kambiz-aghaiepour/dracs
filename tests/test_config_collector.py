@@ -103,7 +103,9 @@ class TestNeedsCollection:
         # Naive datetime (no timezone) should be treated as UTC.
         naive_stale = (datetime.now() - timedelta(hours=25)).isoformat()
         attr = get_attr_def_by_name("ps_rapid_on")
-        upsert_host_config_attr("host01.example.com", site_id, attr["id"], "Disabled", naive_stale)
+        upsert_host_config_attr(
+            "host01.example.com", site_id, attr["id"], "Disabled", naive_stale
+        )
         enabled = [_make_attr_def("ps_rapid_on", 24)]
         assert _needs_collection("host01.example.com", site_id, enabled) is True
 
@@ -145,7 +147,9 @@ class TestCollectAndStore:
     def test_skips_attr_not_in_collect_result(self, coll_db, site_id):
         attr_id = get_attr_def_by_name("ps_rapid_on")["id"]
         enabled_attrs = [{"id": attr_id, "name": "ps_rapid_on"}]
-        with patch("dracs.db.get_enabled_attr_defs_for_site", return_value=enabled_attrs):
+        with patch(
+            "dracs.db.get_enabled_attr_defs_for_site", return_value=enabled_attrs
+        ):
             with patch("dracs.redfish.collect_for_host_dynamic", return_value={}):
                 with patch("dracs.db.upsert_host_config_attr") as mock_upsert:
                     _collect_and_store("server01.example.com", "Default", site_id)
