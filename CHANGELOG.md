@@ -2,6 +2,33 @@
 
 <!-- version list -->
 
+## v2.19.0 (2026-07-09)
+
+### Bug Fixes
+
+- Black formatting
+  ([`89a3ffc`](https://github.com/kambiz-aghaiepour/dracs/commit/89a3ffc3b1245ccb4c7a40bc6e13784f3e698ed8))
+
+- Black formatting
+  ([`3b008d4`](https://github.com/kambiz-aghaiepour/dracs/commit/3b008d4c59bd5dedf08e73ec95cac49410ed569a))
+
+- Codacy / codecov
+  ([`f5299b7`](https://github.com/kambiz-aghaiepour/dracs/commit/f5299b7934e55873bc149b8340c8e1681719f18e))
+
+- Codacy and codecov
+  ([`5c08e60`](https://github.com/kambiz-aghaiepour/dracs/commit/5c08e605538d5288fad47366511b4678598514fd))
+
+### Chores
+
+- Sync spec file version to 2.18.8 [skip ci]
+  ([`4d70767`](https://github.com/kambiz-aghaiepour/dracs/commit/4d707671c183173b85fde2d42cfa5e6e3a392ff6))
+
+### Features
+
+- EAV-driven config collection (Phase 1)
+  ([`a78c13c`](https://github.com/kambiz-aghaiepour/dracs/commit/a78c13c1387e56dd532deee667d5958802376c3e))
+
+
 ## v2.18.8 (2026-07-09)
 
 ### Bug Fixes
