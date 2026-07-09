@@ -186,32 +186,47 @@
         .config-table-wrapper {
             flex: 1;
             overflow-y: auto;
+            overflow-x: auto;
             min-height: 0;
             border: 1px solid #ddd;
             border-radius: 4px;
         }
         table.config-table {
-            border-collapse: collapse;
+            border-collapse: separate;
+            border-spacing: 0;
             min-width: 100%;
         }
         table.config-table td, table.config-table th {
-            border: 1px solid #ddd;
+            border-right: 1px solid #ddd;
+            border-bottom: 1px solid #ddd;
             padding: 6px 10px;
             white-space: nowrap;
             font-size: 13px;
             vertical-align: middle;
             text-align: center;
         }
+        table.config-table td:first-child,
+        table.config-table thead th:first-child { border-left: 1px solid #ddd; }
         table.config-table td:first-child { text-align: left; }
         table.config-table td:last-child  { text-align: left; }
+        table.config-table tbody tr { background: white; user-select: none; }
         table.config-table tr:nth-child(even) { background: #f9f9f9; }
         table.config-table tr:hover { background: #f1f4ff; }
-        table.config-table tbody tr { user-select: none; }
         table.config-table thead th {
             position: sticky;
             top: 0; z-index: 2;
             background-color: white;
+            border-top: 1px solid #ddd;
         }
+        /* Sticky left (Hostname) and right (Collected At) columns */
+        table.config-table td:first-child,
+        table.config-table td:last-child {
+            position: sticky;
+            background: inherit;
+            z-index: 1;
+        }
+        table.config-table td:first-child { left: 0; box-shadow: 2px 0 4px rgba(0,0,0,0.08); }
+        table.config-table td:last-child  { right: 0; box-shadow: -2px 0 4px rgba(0,0,0,0.08); }
         th.attr-header {
             text-align: center;
             font-size: 12px; font-weight: 600;
@@ -219,6 +234,14 @@
         }
         th.hostname-header { text-align: left; min-width: 220px; font-weight: 600; }
         th.collected-header { min-width: 160px; font-weight: 600; }
+        table.config-table thead th.hostname-header {
+            left: 0; z-index: 3;
+            box-shadow: 2px 0 4px rgba(0,0,0,0.08);
+        }
+        table.config-table thead th.collected-header {
+            right: 0; z-index: 3;
+            box-shadow: -2px 0 4px rgba(0,0,0,0.08);
+        }
 
         /* Status indicators */
         .ok   { color: #28a745; font-weight: bold; cursor: default; }
@@ -256,9 +279,12 @@
         body.dark-theme .theme-toggle label { color: #aaa; }
         body.dark-theme table.config-table td,
         body.dark-theme table.config-table th { border-color: #444; color: #ddd; }
+        body.dark-theme table.config-table tbody tr { background: #16213e; }
         body.dark-theme table.config-table tr:nth-child(even) { background: #1f2d4a; }
         body.dark-theme table.config-table tr:hover { background: #253555; }
         body.dark-theme table.config-table thead th { background-color: #16213e; }
+        body.dark-theme table.config-table td:first-child,
+        body.dark-theme table.config-table td:last-child { box-shadow: none; }
         body.dark-theme th.attr-header { color: #ccc; }
         body.dark-theme .page-size-label,
         body.dark-theme .results-info,
