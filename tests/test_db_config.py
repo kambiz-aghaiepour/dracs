@@ -1,3 +1,5 @@
+"""Tests for EAV config DB functions in src/dracs/db.py."""
+
 import os
 import sqlite3
 import tempfile
@@ -5,13 +7,17 @@ import tempfile
 import pytest
 
 from dracs.db import (
+    create_site,
     db_initialize,
+    get_all_attr_defs,
+    get_attr_catalog_for_site,
+    get_attr_def_by_name,
     get_default_site_id,
-    get_host_config_data,
+    get_enabled_attr_defs_for_site,
+    get_host_config_attrs,
     get_hosts_for_site,
-    get_site_config_collection,
-    upsert_host_config,
-    upsert_site_config_collection,
+    upsert_attr_site_settings,
+    upsert_host_config_attr,
     upsert_system,
 )
 
@@ -31,90 +37,227 @@ def site_id(config_db):
     return get_default_site_id()
 
 
-class TestGetSiteConfigCollection:
-    def test_returns_defaults_for_new_site(self, config_db, site_id):
-        result = get_site_config_collection(site_id)
-        for attr in [
+class TestSeedAttrDefs:
+    def test_seed_data_present_after_init(self, config_db, site_id):
+        defs = get_all_attr_defs()
+        names = [d["name"] for d in defs]
+        for expected in [
             "ps_rapid_on",
             "dns_from_dhcp",
             "ipmi_lan_enable",
             "host_header_check",
             "sys_profile",
-            "ssl",
             "idrac_hostname",
+            "ssl_self_signed",
+            "ssl_valid_name",
+            "ssl_expiry",
+            "ssl_fingerprint",
         ]:
-            assert result[f"{attr}_enabled"] is False
-            assert result[f"{attr}_hours"] == 24
+            assert expected in names, f"Missing seed attr: {expected}"
 
-    def test_returns_saved_values(self, config_db, site_id):
-        upsert_site_config_collection(
-            site_id, {"ps_rapid_on_enabled": True, "ps_rapid_on_hours": 12}
+    def test_each_def_has_required_fields(self, config_db, site_id):
+        for d in get_all_attr_defs():
+            assert "id" in d
+            assert "name" in d
+            assert "label" in d
+            assert "endpoint_type" in d
+            assert "display_type" in d
+
+
+class TestGetAttrDefByName:
+    def test_returns_def_for_known_name(self, config_db, site_id):
+        d = get_attr_def_by_name("ps_rapid_on")
+        assert d is not None
+        assert d["name"] == "ps_rapid_on"
+        assert "endpoint_type" in d
+
+    def test_returns_none_for_unknown_name(self, config_db, site_id):
+        assert get_attr_def_by_name("no_such_attr") is None
+
+    def test_returns_choices_if_any(self, config_db, site_id):
+        d = get_attr_def_by_name("sys_profile")
+        assert "choices" in d
+
+
+class TestAttrCatalog:
+    def test_returns_all_defs_for_site(self, config_db, site_id):
+        catalog = get_attr_catalog_for_site(site_id)
+        assert len(catalog) >= 10
+        names = [d["name"] for d in catalog]
+        assert "ps_rapid_on" in names
+
+    def test_each_entry_has_site_settings(self, config_db, site_id):
+        catalog = get_attr_catalog_for_site(site_id)
+        for entry in catalog:
+            ss = entry["site_settings"]
+            assert "enabled" in ss
+            assert "hours" in ss
+            assert "desired_choice_id" in ss
+
+    def test_defaults_to_disabled(self, config_db, site_id):
+        catalog = get_attr_catalog_for_site(site_id)
+        for entry in catalog:
+            assert entry["site_settings"]["enabled"] is False
+
+    def test_enabled_attr_returned_correctly_after_upsert(self, config_db, site_id):
+        attr = get_attr_def_by_name("ps_rapid_on")
+        upsert_attr_site_settings(
+            attr["id"], site_id, enabled=True, hours=6, desired_choice_id=None
         )
-        result = get_site_config_collection(site_id)
-        assert result["ps_rapid_on_enabled"] is True
-        assert result["ps_rapid_on_hours"] == 12
-        assert result["dns_from_dhcp_enabled"] is False
+        catalog = get_attr_catalog_for_site(site_id)
+        ps = next(d for d in catalog if d["name"] == "ps_rapid_on")
+        assert ps["site_settings"]["enabled"] is True
+        assert ps["site_settings"]["hours"] == 6
 
-    def test_upsert_updates_existing(self, config_db, site_id):
-        upsert_site_config_collection(site_id, {"ssl_enabled": True, "ssl_hours": 6})
-        upsert_site_config_collection(site_id, {"ssl_hours": 48})
-        result = get_site_config_collection(site_id)
-        assert result["ssl_enabled"] is True
-        assert result["ssl_hours"] == 48
-
-    def test_upsert_ignores_unknown_keys(self, config_db, site_id):
-        upsert_site_config_collection(site_id, {"nonexistent_field": True})
-        result = get_site_config_collection(site_id)
-        assert result["ssl_enabled"] is False
+    def test_contains_post_push_command(self, config_db, site_id):
+        catalog = get_attr_catalog_for_site(site_id)
+        # post_push_command field must be present (may be None for most attrs)
+        for entry in catalog:
+            assert "post_push_command" in entry
 
 
-class TestUpsertHostConfig:
-    def test_insert_then_retrieve(self, config_db, site_id):
-        data = {
-            "ps_rapid_on": "Disabled",
-            "dns_from_dhcp": "Enabled",
-            "ipmi_lan_enable": "Enabled",
-            "host_header_check": "Disabled",
-            "sys_profile": "PerfPerWattOptimizedOs",
-            "idrac_hostname": 1,
-            "idrac_hostname_value": "mgmt-server01.example.com",
-            "ssl_self_signed": 1,
-            "ssl_valid_name": 0,
-            "ssl_expiry": "2025-12-31",
-            "collected_at": "2026-01-01T00:00:00",
-        }
-        upsert_host_config("server01.example.com", site_id, data)
-        rows = get_host_config_data(site_id, ["server01.example.com"])
+class TestGetEnabledAttrDefsForSite:
+    def test_returns_empty_when_nothing_enabled(self, config_db, site_id):
+        enabled = get_enabled_attr_defs_for_site(site_id)
+        assert enabled == []
+
+    def test_returns_only_enabled_attrs(self, config_db, site_id):
+        ps = get_attr_def_by_name("ps_rapid_on")
+        dns = get_attr_def_by_name("dns_from_dhcp")
+        upsert_attr_site_settings(
+            ps["id"], site_id, enabled=True, hours=24, desired_choice_id=None
+        )
+        upsert_attr_site_settings(
+            dns["id"], site_id, enabled=False, hours=24, desired_choice_id=None
+        )
+        enabled = get_enabled_attr_defs_for_site(site_id)
+        names = [d["name"] for d in enabled]
+        assert "ps_rapid_on" in names
+        assert "dns_from_dhcp" not in names
+
+
+class TestUpsertAttrSiteSettings:
+    def test_sets_enabled_and_hours(self, config_db, site_id):
+        attr = get_attr_def_by_name("dns_from_dhcp")
+        upsert_attr_site_settings(
+            attr["id"], site_id, enabled=True, hours=12, desired_choice_id=None
+        )
+        catalog = get_attr_catalog_for_site(site_id)
+        d = next(x for x in catalog if x["name"] == "dns_from_dhcp")
+        assert d["site_settings"]["enabled"] is True
+        assert d["site_settings"]["hours"] == 12
+
+    def test_updates_existing(self, config_db, site_id):
+        attr = get_attr_def_by_name("dns_from_dhcp")
+        upsert_attr_site_settings(
+            attr["id"], site_id, enabled=True, hours=12, desired_choice_id=None
+        )
+        upsert_attr_site_settings(
+            attr["id"], site_id, enabled=False, hours=48, desired_choice_id=None
+        )
+        catalog = get_attr_catalog_for_site(site_id)
+        d = next(x for x in catalog if x["name"] == "dns_from_dhcp")
+        assert d["site_settings"]["enabled"] is False
+        assert d["site_settings"]["hours"] == 48
+
+    def test_desired_choice_id_stored(self, config_db, site_id):
+        attr = get_attr_def_by_name("sys_profile")
+        choices = attr.get("choices", [])
+        if choices:
+            choice_id = choices[0]["id"]
+            upsert_attr_site_settings(
+                attr["id"], site_id, enabled=True, hours=24, desired_choice_id=choice_id
+            )
+            catalog = get_attr_catalog_for_site(site_id)
+            d = next(x for x in catalog if x["name"] == "sys_profile")
+            assert d["site_settings"]["desired_choice_id"] == choice_id
+
+
+class TestHostConfigAttrs:
+    def test_insert_and_retrieve(self, config_db, site_id):
+        attr = get_attr_def_by_name("ps_rapid_on")
+        upsert_host_config_attr(
+            "server01.example.com",
+            site_id,
+            attr["id"],
+            "Disabled",
+            "2026-01-01T00:00:00",
+        )
+        rows = get_host_config_attrs(site_id, ["server01.example.com"])
         assert len(rows) == 1
         row = rows[0]
         assert row["hostname"] == "server01.example.com"
-        assert row["ps_rapid_on"] == "Disabled"
-        assert row["idrac_hostname"] == 1
-        assert row["idrac_hostname_value"] == "mgmt-server01.example.com"
-        assert row["ssl_self_signed"] == 1
-        assert row["ssl_expiry"] == "2025-12-31"
+        assert row["attrs"]["ps_rapid_on"]["value"] == "Disabled"
+        assert row["attrs"]["ps_rapid_on"]["collected_at"] == "2026-01-01T00:00:00"
 
     def test_update_existing(self, config_db, site_id):
-        upsert_host_config("server01.example.com", site_id, {"ps_rapid_on": "Enabled"})
-        upsert_host_config("server01.example.com", site_id, {"ps_rapid_on": "Disabled"})
-        rows = get_host_config_data(site_id, ["server01.example.com"])
-        assert rows[0]["ps_rapid_on"] == "Disabled"
+        attr = get_attr_def_by_name("ps_rapid_on")
+        upsert_host_config_attr(
+            "server01.example.com",
+            site_id,
+            attr["id"],
+            "Enabled",
+            "2026-01-01T00:00:00",
+        )
+        upsert_host_config_attr(
+            "server01.example.com",
+            site_id,
+            attr["id"],
+            "Disabled",
+            "2026-01-02T00:00:00",
+        )
+        rows = get_host_config_attrs(site_id, ["server01.example.com"])
+        assert rows[0]["attrs"]["ps_rapid_on"]["value"] == "Disabled"
+
+    def test_multiple_attrs_same_host(self, config_db, site_id):
+        ps = get_attr_def_by_name("ps_rapid_on")
+        dns = get_attr_def_by_name("dns_from_dhcp")
+        upsert_host_config_attr(
+            "server01.example.com", site_id, ps["id"], "Disabled", "2026-01-01T00:00:00"
+        )
+        upsert_host_config_attr(
+            "server01.example.com", site_id, dns["id"], "Enabled", "2026-01-01T00:00:00"
+        )
+        rows = get_host_config_attrs(site_id, ["server01.example.com"])
+        assert rows[0]["attrs"]["ps_rapid_on"]["value"] == "Disabled"
+        assert rows[0]["attrs"]["dns_from_dhcp"]["value"] == "Enabled"
 
     def test_multiple_hosts(self, config_db, site_id):
-        upsert_host_config("host01.example.com", site_id, {"sys_profile": "Perf"})
-        upsert_host_config("host02.example.com", site_id, {"sys_profile": "MaxPerf"})
-        rows = get_host_config_data(site_id, [])
-        assert len(rows) == 2
+        attr = get_attr_def_by_name("ps_rapid_on")
+        upsert_host_config_attr(
+            "host01.example.com", site_id, attr["id"], "Disabled", "2026-01-01T00:00:00"
+        )
+        upsert_host_config_attr(
+            "host02.example.com", site_id, attr["id"], "Enabled", "2026-01-01T00:00:00"
+        )
+        rows = get_host_config_attrs(site_id, [])
         hostnames = [r["hostname"] for r in rows]
         assert "host01.example.com" in hostnames
         assert "host02.example.com" in hostnames
 
     def test_filter_by_hostnames(self, config_db, site_id):
-        upsert_host_config("host01.example.com", site_id, {"sys_profile": "Perf"})
-        upsert_host_config("host02.example.com", site_id, {"sys_profile": "MaxPerf"})
-        rows = get_host_config_data(site_id, ["host01.example.com"])
+        attr = get_attr_def_by_name("ps_rapid_on")
+        upsert_host_config_attr(
+            "host01.example.com", site_id, attr["id"], "Disabled", "2026-01-01T00:00:00"
+        )
+        upsert_host_config_attr(
+            "host02.example.com", site_id, attr["id"], "Enabled", "2026-01-01T00:00:00"
+        )
+        rows = get_host_config_attrs(site_id, ["host01.example.com"])
         assert len(rows) == 1
         assert rows[0]["hostname"] == "host01.example.com"
+
+    def test_none_value_stored_and_retrieved(self, config_db, site_id):
+        attr = get_attr_def_by_name("ssl_self_signed")
+        upsert_host_config_attr(
+            "server01.example.com", site_id, attr["id"], None, "2026-01-01T00:00:00"
+        )
+        rows = get_host_config_attrs(site_id, ["server01.example.com"])
+        assert rows[0]["attrs"]["ssl_self_signed"]["value"] is None
+
+    def test_returns_empty_for_unknown_host(self, config_db, site_id):
+        rows = get_host_config_attrs(site_id, ["nosuchhost.example.com"])
+        assert rows == []
 
 
 class TestGetHostsForSite:
@@ -147,89 +290,124 @@ class TestGetHostsForSite:
         assert "server02.example.com" in hostnames
 
     def test_returns_empty_for_site_with_no_hosts(self, config_db):
-        from dracs.db import create_site
-
         new_site = create_site("empty-site")
         hosts = get_hosts_for_site(new_site["id"])
         assert hosts == []
 
 
-class TestMigrateHostConfigIdracHostname:
-    def test_drops_and_recreates_when_idrac_hostname_is_text(self):
+class TestMigrateCollectionTables:
+    def test_seeds_on_fresh_db(self, config_db, site_id):
+        """Seed runs automatically on fresh DB."""
+        defs = get_all_attr_defs()
+        assert len(defs) >= 10
+
+    def test_migration_no_op_when_old_tables_absent(self, config_db, site_id):
+        """Re-initializing a DB that already has EAV tables is safe."""
+        db_initialize(config_db)
+        defs = get_all_attr_defs()
+        assert len(defs) >= 10
+
+    def test_migrates_old_site_config_collection(self):
+        """Old site_config_collection rows are migrated to config_attr_site_settings."""
         fd, path = tempfile.mkstemp(suffix=".db")
         os.close(fd)
         try:
-            # Bootstrap a DB then replace host_config with the old TEXT schema
             db_initialize(path)
+            # Simulate an old-style site_config_collection table (full schema)
             with sqlite3.connect(path) as con:
-                con.execute("DROP TABLE IF EXISTS host_config")
+                default_site_id = con.execute(
+                    "SELECT id FROM sites WHERE name='Default'"
+                ).fetchone()[0]
                 con.execute("""
-                    CREATE TABLE host_config (
+                    CREATE TABLE IF NOT EXISTS site_config_collection (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        hostname VARCHAR NOT NULL,
-                        site_id INTEGER NOT NULL,
-                        ps_rapid_on TEXT,
-                        idrac_hostname TEXT,
-                        dns_from_dhcp TEXT,
-                        ipmi_lan_enable TEXT,
-                        host_header_check TEXT,
-                        sys_profile TEXT,
-                        ssl_self_signed INTEGER,
-                        ssl_valid_name INTEGER,
-                        ssl_expiry TEXT,
-                        collected_at TEXT,
-                        UNIQUE (hostname, site_id)
+                        site_id INTEGER NOT NULL UNIQUE,
+                        ps_rapid_on_enabled INTEGER NOT NULL DEFAULT 0,
+                        ps_rapid_on_hours INTEGER NOT NULL DEFAULT 24,
+                        dns_from_dhcp_enabled INTEGER NOT NULL DEFAULT 0,
+                        dns_from_dhcp_hours INTEGER NOT NULL DEFAULT 24,
+                        ipmi_lan_enable_enabled INTEGER NOT NULL DEFAULT 0,
+                        ipmi_lan_enable_hours INTEGER NOT NULL DEFAULT 24,
+                        host_header_check_enabled INTEGER NOT NULL DEFAULT 0,
+                        host_header_check_hours INTEGER NOT NULL DEFAULT 24,
+                        sys_profile_enabled INTEGER NOT NULL DEFAULT 0,
+                        sys_profile_hours INTEGER NOT NULL DEFAULT 24,
+                        ssl_enabled INTEGER NOT NULL DEFAULT 0,
+                        ssl_hours INTEGER NOT NULL DEFAULT 24,
+                        idrac_hostname_enabled INTEGER NOT NULL DEFAULT 0,
+                        idrac_hostname_hours INTEGER NOT NULL DEFAULT 24
                     )
-                    """)
+                """)
+                con.execute(
+                    "INSERT OR IGNORE INTO site_config_collection "
+                    "(site_id, ps_rapid_on_enabled, ps_rapid_on_hours, ssl_enabled, ssl_hours) "
+                    "VALUES (?, 1, 12, 1, 6)",
+                    (default_site_id,),
+                )
                 con.commit()
-            # Re-initialize — migration should drop and recreate with INTEGER column
             db_initialize(path)
-            with sqlite3.connect(path) as con:
-                col_types = {
-                    row[1]: row[2]
-                    for row in con.execute("PRAGMA table_info(host_config)")
-                }
-            assert col_types["idrac_hostname"].upper() == "INTEGER"
-            assert "idrac_hostname_value" in col_types
+            # After migration: ps_rapid_on should be enabled with hours=12
+            catalog = get_attr_catalog_for_site(default_site_id)
+            ps = next((d for d in catalog if d["name"] == "ps_rapid_on"), None)
+            assert ps is not None
+            assert ps["site_settings"]["enabled"] is True
+            assert ps["site_settings"]["hours"] == 12
+            # ssl attrs: ssl_self_signed, ssl_valid_name, ssl_expiry, ssl_fingerprint
+            # should all be enabled with hours=6
+            for ssl_name in (
+                "ssl_self_signed",
+                "ssl_valid_name",
+                "ssl_expiry",
+                "ssl_fingerprint",
+            ):
+                ssl_entry = next((d for d in catalog if d["name"] == ssl_name), None)
+                assert ssl_entry is not None, f"Missing SSL attr: {ssl_name}"
+                assert ssl_entry["site_settings"]["enabled"] is True
+                assert ssl_entry["site_settings"]["hours"] == 6
         finally:
             if os.path.exists(path):
                 os.unlink(path)
 
-    def test_drops_and_recreates_when_idrac_hostname_value_missing(self):
+    def test_migrates_old_host_config_rows(self):
+        """Old host_config rows are migrated to host_config_attr EAV rows."""
         fd, path = tempfile.mkstemp(suffix=".db")
         os.close(fd)
         try:
             db_initialize(path)
-            # Replace host_config with a schema that has INTEGER idrac_hostname
-            # but is missing the idrac_hostname_value column
             with sqlite3.connect(path) as con:
-                con.execute("DROP TABLE IF EXISTS host_config")
+                default_site_id = con.execute(
+                    "SELECT id FROM sites WHERE name='Default'"
+                ).fetchone()[0]
                 con.execute("""
-                    CREATE TABLE host_config (
+                    CREATE TABLE IF NOT EXISTS host_config (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         hostname VARCHAR NOT NULL,
                         site_id INTEGER NOT NULL,
                         ps_rapid_on TEXT,
-                        idrac_hostname INTEGER,
                         dns_from_dhcp TEXT,
                         ipmi_lan_enable TEXT,
                         host_header_check TEXT,
                         sys_profile TEXT,
+                        idrac_hostname INTEGER,
+                        idrac_hostname_value TEXT,
                         ssl_self_signed INTEGER,
                         ssl_valid_name INTEGER,
                         ssl_expiry TEXT,
+                        ssl_fingerprint TEXT,
                         collected_at TEXT,
                         UNIQUE (hostname, site_id)
                     )
-                    """)
+                """)
+                con.execute(
+                    "INSERT INTO host_config (hostname, site_id, ps_rapid_on, collected_at) "
+                    "VALUES ('server01.example.com', ?, 'Disabled', '2026-01-01T00:00:00')",
+                    (default_site_id,),
+                )
                 con.commit()
             db_initialize(path)
-            with sqlite3.connect(path) as con:
-                col_types = {
-                    row[1]: row[2]
-                    for row in con.execute("PRAGMA table_info(host_config)")
-                }
-            assert "idrac_hostname_value" in col_types
+            rows = get_host_config_attrs(default_site_id, ["server01.example.com"])
+            assert len(rows) == 1
+            assert rows[0]["attrs"].get("ps_rapid_on", {}).get("value") == "Disabled"
         finally:
             if os.path.exists(path):
                 os.unlink(path)

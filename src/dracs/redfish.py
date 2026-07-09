@@ -2,22 +2,26 @@
 
 import fnmatch
 import logging
-import ssl
+import ssl as _ssl
 
 import requests
 
 logger = logging.getLogger(__name__)
 
-DESIRED = {
-    "ps_rapid_on": "Disabled",
-    "dns_from_dhcp": "Enabled",
-    "ipmi_lan_enable": "Enabled",
-    "host_header_check": "Disabled",
-    "sys_profile": "PerfPerWattOptimizedOs",
-}
-
 _TIMEOUT = 15
 _VERIFY = False
+
+_ENDPOINT_URLS = {
+    "system_oem_dell": (
+        "https://{host}/redfish/v1/Managers/iDRAC.Embedded.1"
+        "/Oem/Dell/DellAttributes/System.Embedded.1"
+    ),
+    "idrac_attributes": (
+        "https://{host}/redfish/v1/Managers/iDRAC.Embedded.1/Attributes"
+    ),
+    "bios": "https://{host}/redfish/v1/Systems/System.Embedded.1/Bios",
+    "system": "https://{host}/redfish/v1/Systems/System.Embedded.1",
+}
 
 
 def _get_credentials(site_name: str, hostname: str) -> tuple[str, str]:
@@ -31,76 +35,21 @@ def _get_credentials(site_name: str, hostname: str) -> tuple[str, str]:
     return username, password
 
 
-def collect_ps_rapid_on(idrac_fqdn: str, user: str, pw: str) -> str | None:
-    url = (
-        f"https://{idrac_fqdn}/redfish/v1/Managers/iDRAC.Embedded.1"
-        "/Oem/Dell/DellAttributes/System.Embedded.1"
-    )
-    try:
-        resp = requests.get(  # nosec # nosemgrep
-            url, auth=(user, pw), verify=_VERIFY, timeout=_TIMEOUT
-        )
-        resp.raise_for_status()
-        attrs = resp.json().get("Attributes", {})
-        return attrs.get("ServerPwr.1.PSRapidOn")
-    except Exception as exc:
-        logger.debug("collect_ps_rapid_on %s: %s", idrac_fqdn, exc)
-        return None
+def _extract_by_path(data: dict, path: str):
+    """Extract a value from a Redfish response using a dot-notation path.
 
-
-def collect_idrac_hostname(idrac_fqdn: str, user: str, pw: str) -> str | None:
-    url = f"https://{idrac_fqdn}/redfish/v1/Systems/System.Embedded.1"
-    try:
-        resp = requests.get(  # nosec # nosemgrep
-            url, auth=(user, pw), verify=_VERIFY, timeout=_TIMEOUT
-        )
-        resp.raise_for_status()
-        return resp.json().get("HostName")
-    except Exception as exc:
-        logger.debug("collect_idrac_hostname %s: %s", idrac_fqdn, exc)
-        return None
-
-
-def collect_idrac_attributes(idrac_fqdn: str, user: str, pw: str) -> dict:
-    """Return dns_from_dhcp, ipmi_lan_enable, host_header_check in one call."""
-    url = f"https://{idrac_fqdn}/redfish/v1/Managers/iDRAC.Embedded.1/Attributes"
-    result: dict = {}
-    try:
-        resp = requests.get(  # nosec # nosemgrep
-            url, auth=(user, pw), verify=_VERIFY, timeout=_TIMEOUT
-        )
-        resp.raise_for_status()
-        attrs = resp.json().get("Attributes", {})
-        val = attrs.get("IPv4.1.DNSFromDHCP")
-        if val is not None:
-            result["dns_from_dhcp"] = val
-        val = attrs.get("IPMILan.1.Enable")
-        if val is not None:
-            result["ipmi_lan_enable"] = val
-        val = attrs.get("WebServer.1.HostHeaderCheck")
-        if val is not None:
-            result["host_header_check"] = val
-    except Exception as exc:
-        logger.debug("collect_idrac_attributes %s: %s", idrac_fqdn, exc)
-    return result
-
-
-def collect_sys_profile(idrac_fqdn: str, user: str, pw: str) -> str | None:
-    url = f"https://{idrac_fqdn}/redfish/v1/Systems/System.Embedded.1/Bios"
-    try:
-        resp = requests.get(  # nosec # nosemgrep
-            url, auth=(user, pw), verify=_VERIFY, timeout=_TIMEOUT
-        )
-        resp.raise_for_status()
-        attrs = resp.json().get("Attributes", {})
-        return attrs.get("SysProfile")
-    except Exception as exc:
-        logger.debug("collect_sys_profile %s: %s", idrac_fqdn, exc)
-        return None
+    Paths starting with 'Attributes.' index into data['Attributes'] using the
+    remainder as the literal key (which may itself contain dots, e.g.
+    'IPv4.1.DNSFromDHCP').  All other paths are treated as top-level keys.
+    """
+    if path.startswith("Attributes."):
+        attr_key = path[len("Attributes.") :]
+        return data.get("Attributes", {}).get(attr_key)
+    return data.get(path)
 
 
 def collect_ssl_info(idrac_fqdn: str) -> dict:
-    """Fetch the iDRAC TLS cert; return self_signed, valid_name, expiry, and fingerprint."""
+    """Fetch the iDRAC TLS cert; return self_signed, valid_name, expiry, fingerprint."""
     result: dict = {
         "self_signed": None,
         "valid_name": None,
@@ -108,7 +57,7 @@ def collect_ssl_info(idrac_fqdn: str) -> dict:
         "fingerprint": None,
     }
     try:
-        pem = ssl.get_server_certificate((idrac_fqdn, 443))
+        pem = _ssl.get_server_certificate((idrac_fqdn, 443))
         from cryptography import x509
         from cryptography.hazmat.primitives import hashes
 
@@ -145,53 +94,110 @@ def collect_ssl_info(idrac_fqdn: str) -> dict:
     return result
 
 
-def collect_all_for_host(hostname: str, site_name: str, enabled_attrs: dict) -> dict:
-    """Collect enabled iDRAC config attributes for one host; return HostConfig fields."""
+def _ssl_flag_to_str(flag) -> str | None:
+    if flag is None:
+        return None
+    return "1" if flag else "0"
+
+
+def _collect_ssl_endpoint(attrs: list, idrac_fqdn: str, collected_at: str) -> dict:
+    ssl_info = collect_ssl_info(idrac_fqdn)
+    value_map = {
+        "ssl_self_signed": _ssl_flag_to_str(ssl_info.get("self_signed")),
+        "ssl_valid_name": _ssl_flag_to_str(ssl_info.get("valid_name")),
+        "ssl_expiry": ssl_info.get("expiry"),
+        "ssl_fingerprint": ssl_info.get("fingerprint"),
+    }
+    return {
+        attr["name"]: {
+            "value": value_map.get(attr["name"]),
+            "collected_at": collected_at,
+        }
+        for attr in attrs
+    }
+
+
+def _resolve_attr_value(attr_name: str, raw, idrac_fqdn: str) -> str | None:
+    if raw is None:
+        return None
+    if attr_name == "idrac_hostname":
+        # Store match indicator: "1" if hostname matches the iDRAC FQDN.
+        return "1" if str(raw).lower() == idrac_fqdn.lower() else "0"
+    return str(raw)
+
+
+def _collect_redfish_endpoint(
+    attrs: list,
+    endpoint_type: str,
+    idrac_fqdn: str,
+    user: str,
+    pw: str,
+    collected_at: str,
+) -> dict:
+    null_result = {
+        attr["name"]: {"value": None, "collected_at": collected_at} for attr in attrs
+    }
+    url_template = _ENDPOINT_URLS.get(endpoint_type)
+    if url_template is None:
+        logger.warning(
+            "collect_for_host_dynamic: unknown endpoint_type %r", endpoint_type
+        )
+        return null_result
+
+    url = url_template.format(host=idrac_fqdn)
+    try:
+        resp = requests.get(  # nosec # nosemgrep
+            url, auth=(user, pw), verify=_VERIFY, timeout=_TIMEOUT
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as exc:
+        logger.debug(
+            "collect_for_host_dynamic %s [%s]: %s", idrac_fqdn, endpoint_type, exc
+        )
+        return null_result
+
+    return {
+        attr["name"]: {
+            "value": _resolve_attr_value(
+                attr["name"],
+                _extract_by_path(data, attr.get("attribute_path")),
+                idrac_fqdn,
+            ),
+            "collected_at": collected_at,
+        }
+        for attr in attrs
+    }
+
+
+def collect_for_host_dynamic(hostname: str, site_name: str, attr_defs: list) -> dict:
+    """Collect config attributes for one host using the DB-driven attr catalog.
+
+    attr_defs: list of dicts from get_enabled_attr_defs_for_site() — each has
+    at minimum: name, endpoint_type, attribute_path.
+
+    Returns {attr_name: {"value": str|None, "collected_at": str}}
+    """
+    from datetime import datetime
+
     from dracs.snmp import build_idrac_hostname
 
     idrac_fqdn = build_idrac_hostname(hostname)
     user, pw = _get_credentials(site_name, hostname)
+    collected_at = datetime.now().isoformat()
 
-    data: dict = {}
+    by_endpoint: dict[str, list] = {}
+    for attr in attr_defs:
+        by_endpoint.setdefault(attr["endpoint_type"], []).append(attr)
 
-    needs_idrac_attrs = (
-        enabled_attrs.get("dns_from_dhcp_enabled")
-        or enabled_attrs.get("ipmi_lan_enable_enabled")
-        or enabled_attrs.get("host_header_check_enabled")
-    )
-
-    if enabled_attrs.get("ps_rapid_on_enabled"):
-        data["ps_rapid_on"] = collect_ps_rapid_on(idrac_fqdn, user, pw)
-
-    if needs_idrac_attrs:
-        attrs = collect_idrac_attributes(idrac_fqdn, user, pw)
-        if enabled_attrs.get("dns_from_dhcp_enabled"):
-            data["dns_from_dhcp"] = attrs.get("dns_from_dhcp")
-        if enabled_attrs.get("ipmi_lan_enable_enabled"):
-            data["ipmi_lan_enable"] = attrs.get("ipmi_lan_enable")
-        if enabled_attrs.get("host_header_check_enabled"):
-            data["host_header_check"] = attrs.get("host_header_check")
-
-    if enabled_attrs.get("sys_profile_enabled"):
-        data["sys_profile"] = collect_sys_profile(idrac_fqdn, user, pw)
-
-    if enabled_attrs.get("idrac_hostname_enabled"):
-        fetched = collect_idrac_hostname(idrac_fqdn, user, pw)
-        if fetched is None:
-            data["idrac_hostname"] = None
-            data["idrac_hostname_value"] = None
+    results: dict = {}
+    for endpoint_type, attrs in by_endpoint.items():
+        if endpoint_type == "ssl":
+            results.update(_collect_ssl_endpoint(attrs, idrac_fqdn, collected_at))
         else:
-            data["idrac_hostname"] = 1 if fetched.lower() == idrac_fqdn.lower() else 0
-            data["idrac_hostname_value"] = fetched
-
-    if enabled_attrs.get("ssl_enabled"):
-        ssl_info = collect_ssl_info(idrac_fqdn)
-        data["ssl_self_signed"] = 1 if ssl_info.get("self_signed") else 0
-        data["ssl_valid_name"] = 1 if ssl_info.get("valid_name") else 0
-        data["ssl_expiry"] = ssl_info.get("expiry")
-        data["ssl_fingerprint"] = ssl_info.get("fingerprint")
-
-    from datetime import datetime
-
-    data["collected_at"] = datetime.now().isoformat()
-    return data
+            results.update(
+                _collect_redfish_endpoint(
+                    attrs, endpoint_type, idrac_fqdn, user, pw, collected_at
+                )
+            )
+    return results

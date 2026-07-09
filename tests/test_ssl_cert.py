@@ -883,6 +883,22 @@ class TestApiSslSweep:
 # ── Job executor: execute_ssl_cert_upload_job ─────────────────────────────────
 
 
+def _upsert_host_ssl_attrs(hostname, site_id, **kwargs):
+    """Write SSL-related attrs to host_config_attr in the new EAV format.
+
+    Accepts: ssl_expiry (str), ssl_self_signed (int 0/1), ssl_fingerprint (str).
+    """
+    from dracs.db import get_attr_def_by_name, upsert_host_config_attr
+
+    ts = "2026-01-01T00:00:00"
+    for attr_name, value in kwargs.items():
+        if value is None:
+            continue
+        stored = str(int(value)) if attr_name == "ssl_self_signed" else str(value)
+        attr = get_attr_def_by_name(attr_name)
+        upsert_host_config_attr(hostname, site_id, attr["id"], stored, ts)
+
+
 class TestExecuteSslCertUploadJob:
     def _make_metadata(self, site_name="Default"):
         return {"site_name": site_name}
@@ -925,10 +941,8 @@ class TestExecuteSslCertUploadJob:
             },
         )
         # idrac already has same or newer expiry and is CA-signed (not self-signed)
-        from dracs.db import upsert_host_config
-
-        upsert_host_config(
-            "server01", site["id"], {"ssl_expiry": expiry, "ssl_self_signed": 0}
+        _upsert_host_ssl_attrs(
+            "server01", site["id"], ssl_expiry=expiry, ssl_self_signed=0
         )
 
         with patch("os.path.exists", return_value=True):
@@ -951,13 +965,12 @@ class TestExecuteSslCertUploadJob:
                 "cert_expiry": stored_expiry,
             },
         )
-        from dracs.db import upsert_host_config
-
         # iDRAC has a self-signed cert with a later expiry than what's stored
-        upsert_host_config(
+        _upsert_host_ssl_attrs(
             "server01",
             site["id"],
-            {"ssl_expiry": "2036-05-26T00:00:00+00:00", "ssl_self_signed": 1},
+            ssl_expiry="2036-05-26T00:00:00+00:00",
+            ssl_self_signed=1,
         )
 
         ok_result = MagicMock()
@@ -992,17 +1005,13 @@ class TestExecuteSslCertUploadJob:
                 "cert_fingerprint": fingerprint,
             },
         )
-        from dracs.db import upsert_host_config
-
         # iDRAC is self-signed and already has the same cert
-        upsert_host_config(
+        _upsert_host_ssl_attrs(
             "server01",
             site["id"],
-            {
-                "ssl_expiry": "2036-05-26T00:00:00+00:00",
-                "ssl_self_signed": 1,
-                "ssl_fingerprint": fingerprint,
-            },
+            ssl_expiry="2036-05-26T00:00:00+00:00",
+            ssl_self_signed=1,
+            ssl_fingerprint=fingerprint,
         )
 
         with patch("os.path.exists", return_value=True):
@@ -1025,17 +1034,13 @@ class TestExecuteSslCertUploadJob:
                 "cert_fingerprint": "AA:BB:CC:DD:EE:FF",
             },
         )
-        from dracs.db import upsert_host_config
-
         # iDRAC is self-signed but has a different cert
-        upsert_host_config(
+        _upsert_host_ssl_attrs(
             "server01",
             site["id"],
-            {
-                "ssl_expiry": "2036-05-26T00:00:00+00:00",
-                "ssl_self_signed": 1,
-                "ssl_fingerprint": "11:22:33:44:55:66",
-            },
+            ssl_expiry="2036-05-26T00:00:00+00:00",
+            ssl_self_signed=1,
+            ssl_fingerprint="11:22:33:44:55:66",
         )
 
         ok_result = MagicMock()
@@ -1068,10 +1073,8 @@ class TestExecuteSslCertUploadJob:
                 "cert_expiry": "2027-06-01T00:00:00+00:00",
             },
         )
-        from dracs.db import upsert_host_config
-
-        upsert_host_config(
-            "server01", site["id"], {"ssl_expiry": "2026-01-01T00:00:00+00:00"}
+        _upsert_host_ssl_attrs(
+            "server01", site["id"], ssl_expiry="2026-01-01T00:00:00+00:00"
         )
 
         mock_result = MagicMock()
@@ -1109,10 +1112,8 @@ class TestExecuteSslCertUploadJob:
                 "cert_expiry": "2027-06-01T00:00:00+00:00",
             },
         )
-        from dracs.db import upsert_host_config
-
-        upsert_host_config(
-            "server01", site["id"], {"ssl_expiry": "2026-01-01T00:00:00+00:00"}
+        _upsert_host_ssl_attrs(
+            "server01", site["id"], ssl_expiry="2026-01-01T00:00:00+00:00"
         )
 
         fail_result = MagicMock()
@@ -1152,10 +1153,8 @@ class TestExecuteSslCertUploadJob:
                 "cert_expiry": "2027-06-01T00:00:00+00:00",
             },
         )
-        from dracs.db import upsert_host_config
-
-        upsert_host_config(
-            "server01", site["id"], {"ssl_expiry": "2026-01-01T00:00:00+00:00"}
+        _upsert_host_ssl_attrs(
+            "server01", site["id"], ssl_expiry="2026-01-01T00:00:00+00:00"
         )
 
         fail_result = MagicMock()
@@ -1198,10 +1197,8 @@ class TestExecuteSslCertUploadJob:
                 "cert_expiry": "2027-06-01T00:00:00+00:00",
             },
         )
-        from dracs.db import upsert_host_config
-
-        upsert_host_config(
-            "server01", site["id"], {"ssl_expiry": "2026-01-01T00:00:00+00:00"}
+        _upsert_host_ssl_attrs(
+            "server01", site["id"], ssl_expiry="2026-01-01T00:00:00+00:00"
         )
 
         mock_result = MagicMock()
@@ -1252,10 +1249,8 @@ class TestExecuteSslCertUploadJob:
                 "cert_expiry": "2027-06-01T00:00:00+00:00",
             },
         )
-        from dracs.db import upsert_host_config
-
-        upsert_host_config(
-            "server01", site["id"], {"ssl_expiry": "2026-01-01T00:00:00+00:00"}
+        _upsert_host_ssl_attrs(
+            "server01", site["id"], ssl_expiry="2026-01-01T00:00:00+00:00"
         )
 
         fail_result = MagicMock()
@@ -1316,10 +1311,8 @@ class TestExecuteSslCertUploadJob:
                 "cert_expiry": "2027-06-01T00:00:00+00:00",
             },
         )
-        from dracs.db import upsert_host_config
-
-        upsert_host_config(
-            "server01", site["id"], {"ssl_expiry": "2026-01-01T00:00:00+00:00"}
+        _upsert_host_ssl_attrs(
+            "server01", site["id"], ssl_expiry="2026-01-01T00:00:00+00:00"
         )
 
         ok_result = MagicMock()
@@ -1366,10 +1359,8 @@ class TestExecuteSslCertUploadJob:
                 "cert_expiry": "2027-06-01T00:00:00+00:00",
             },
         )
-        from dracs.db import upsert_host_config
-
-        upsert_host_config(
-            "server01", site["id"], {"ssl_expiry": "2026-01-01T00:00:00+00:00"}
+        _upsert_host_ssl_attrs(
+            "server01", site["id"], ssl_expiry="2026-01-01T00:00:00+00:00"
         )
 
         ok_result = MagicMock()

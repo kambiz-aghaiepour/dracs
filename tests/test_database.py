@@ -179,11 +179,12 @@ def test_migrate_noop_when_column_exists(temp_db):
     engine.dispose()
 
 
-def test_migrate_adds_ssl_fingerprint_to_host_config(temp_db):
+def test_migrate_host_config_to_eav(temp_db):
     from sqlalchemy import text
 
-    # Create host_config without ssl_fingerprint, but with idrac_hostname_value
-    # so the rebuild path is NOT triggered — the ALTER TABLE path runs instead.
+    # Create a pre-EAV host_config table (with idrac_hostname_value so it
+    # survives _migrate_schema's rebuild check) and verify it gets fully
+    # migrated to host_config_attr and dropped.
     engine = create_engine(f"sqlite:///{temp_db}")
     with engine.begin() as conn:
         conn.execute(
@@ -208,13 +209,26 @@ def test_migrate_adds_ssl_fingerprint_to_host_config(temp_db):
                 "id INTEGER PRIMARY KEY AUTOINCREMENT, "
                 "hostname VARCHAR NOT NULL, "
                 "site_id INTEGER NOT NULL, "
+                "ps_rapid_on TEXT, "
+                "dns_from_dhcp TEXT, "
+                "ipmi_lan_enable TEXT, "
+                "host_header_check TEXT, "
+                "sys_profile TEXT, "
                 "idrac_hostname INTEGER, "
                 "idrac_hostname_value VARCHAR, "
                 "ssl_self_signed INTEGER, "
                 "ssl_valid_name INTEGER, "
                 "ssl_expiry VARCHAR, "
+                "ssl_fingerprint VARCHAR, "
                 "collected_at VARCHAR"
                 ")"
+            )
+        )
+        conn.execute(
+            text(
+                "INSERT INTO host_config "
+                "(hostname, site_id, ps_rapid_on, collected_at) "
+                "VALUES ('server01.example.com', 1, 'Disabled', '2026-01-01T00:00:00')"
             )
         )
     engine.dispose()
@@ -223,6 +237,9 @@ def test_migrate_adds_ssl_fingerprint_to_host_config(temp_db):
 
     engine2 = create_engine(f"sqlite:///{temp_db}")
     insp = inspect(engine2)
-    columns = {c["name"] for c in insp.get_columns("host_config")}
-    assert "ssl_fingerprint" in columns
+    table_names = insp.get_table_names()
+    # Old table must be gone
+    assert "host_config" not in table_names
+    # EAV table must exist
+    assert "host_config_attr" in table_names
     engine2.dispose()

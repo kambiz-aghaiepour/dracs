@@ -522,36 +522,63 @@ class TestExecuteClearJobQueue:
 class TestExecuteRacadmConfigJob:
     _MOCK_SITE = {"id": 1, "name": "Default"}
 
+    def _ps(self, attr_name, push_key, push_value, post_push_command=None):
+        return {
+            "attr_name": attr_name,
+            "push_key": push_key,
+            "push_value": push_value,
+            "post_push_command": post_push_command,
+        }
+
     def test_unknown_site_raises(self):
         with patch("dracs.db.get_site_by_name", return_value=None):
             with pytest.raises(RuntimeError, match="Unknown site"):
                 execute_racadm_config_job(
                     "host01.example.com",
-                    {"site_name": "nosuchsite", "settings": {"ps_rapid_on": True}},
+                    {"site_name": "nosuchsite", "push_settings": []},
                 )
 
     def test_basic_setting_applied(self):
         mock_build_cmd = MagicMock(return_value=["echo", "test"])
         mock_result = MagicMock(returncode=0)
         mock_upsert = MagicMock()
+        mock_attr_def = {
+            "id": 1,
+            "name": "ps_rapid_on",
+            "endpoint_type": "system_oem_dell",
+            "attribute_path": "Attributes.ServerPwr.1.PSRapidOn",
+        }
+        collect_ret = {
+            "ps_rapid_on": {"value": "Disabled", "collected_at": "2026-01-01T00:00:00"}
+        }
         with patch("dracs.jobqueue.subprocess.run", return_value=mock_result):
             with patch("dracs.webapp._build_ssh_racadm_cmd", mock_build_cmd):
                 with patch("dracs.db.get_site_by_name", return_value=self._MOCK_SITE):
                     with patch(
-                        "dracs.redfish.collect_all_for_host",
-                        return_value={"ps_rapid_on": "Disabled"},
+                        "dracs.db.get_attr_def_by_name", return_value=mock_attr_def
                     ):
-                        with patch("dracs.db.upsert_host_config", mock_upsert):
-                            execute_racadm_config_job(
-                                "host01.example.com",
-                                {
-                                    "site_name": "Default",
-                                    "settings": {
-                                        "ps_rapid_on": True,
-                                        "dns_from_dhcp": False,
-                                    },
-                                },
-                            )
+                        with patch(
+                            "dracs.redfish.collect_for_host_dynamic",
+                            return_value=collect_ret,
+                        ):
+                            with patch("dracs.db.upsert_host_config_attr", mock_upsert):
+                                with patch(
+                                    "dracs.snmp.build_idrac_hostname",
+                                    return_value="mgmt-host01.example.com",
+                                ):
+                                    execute_racadm_config_job(
+                                        "host01.example.com",
+                                        {
+                                            "site_name": "Default",
+                                            "push_settings": [
+                                                self._ps(
+                                                    "ps_rapid_on",
+                                                    "System.ServerPwr.PSRapidOn",
+                                                    "Disabled",
+                                                ),
+                                            ],
+                                        },
+                                    )
         mock_build_cmd.assert_called_once_with(
             "host01.example.com",
             "set",
@@ -561,59 +588,43 @@ class TestExecuteRacadmConfigJob:
         )
         mock_upsert.assert_called_once()
 
-    def test_disabled_setting_skipped(self):
+    def test_empty_push_settings_sends_no_command(self):
         mock_build_cmd = MagicMock(return_value=["echo", "test"])
-        mock_result = MagicMock(returncode=0)
-        with patch("dracs.jobqueue.subprocess.run", return_value=mock_result):
-            with patch("dracs.webapp._build_ssh_racadm_cmd", mock_build_cmd):
-                with patch("dracs.db.get_site_by_name", return_value=self._MOCK_SITE):
-                    with patch("dracs.redfish.collect_all_for_host", return_value={}):
-                        with patch("dracs.db.upsert_host_config"):
-                            execute_racadm_config_job(
-                                "host01.example.com",
-                                {
-                                    "site_name": "Default",
-                                    "settings": {"ps_rapid_on": False},
-                                },
-                            )
+        with patch("dracs.db.get_site_by_name", return_value=self._MOCK_SITE):
+            with patch(
+                "dracs.snmp.build_idrac_hostname",
+                return_value="mgmt-host01.example.com",
+            ):
+                execute_racadm_config_job(
+                    "host01.example.com",
+                    {"site_name": "Default", "push_settings": []},
+                )
         mock_build_cmd.assert_not_called()
 
-    def test_unknown_key_skipped(self):
+    def test_idrac_fqdn_token_substituted(self):
         mock_build_cmd = MagicMock(return_value=["echo", "test"])
         mock_result = MagicMock(returncode=0)
         with patch("dracs.jobqueue.subprocess.run", return_value=mock_result):
             with patch("dracs.webapp._build_ssh_racadm_cmd", mock_build_cmd):
                 with patch("dracs.db.get_site_by_name", return_value=self._MOCK_SITE):
-                    with patch("dracs.redfish.collect_all_for_host", return_value={}):
-                        with patch("dracs.db.upsert_host_config"):
-                            execute_racadm_config_job(
-                                "host01.example.com",
-                                {
-                                    "site_name": "Default",
-                                    "settings": {"nonexistent_key": True},
-                                },
-                            )
-        mock_build_cmd.assert_not_called()
-
-    def test_idrac_hostname_setting(self):
-        mock_build_cmd = MagicMock(return_value=["echo", "test"])
-        mock_result = MagicMock(returncode=0)
-        mock_fqdn = MagicMock(return_value="mgmt-host01.example.com")
-        with patch("dracs.jobqueue.subprocess.run", return_value=mock_result):
-            with patch("dracs.webapp._build_ssh_racadm_cmd", mock_build_cmd):
-                with patch("dracs.db.get_site_by_name", return_value=self._MOCK_SITE):
-                    with patch("dracs.snmp.build_idrac_hostname", mock_fqdn):
+                    with patch("dracs.db.get_attr_def_by_name", return_value=None):
                         with patch(
-                            "dracs.redfish.collect_all_for_host", return_value={}
+                            "dracs.snmp.build_idrac_hostname",
+                            return_value="mgmt-host01.example.com",
                         ):
-                            with patch("dracs.db.upsert_host_config"):
-                                execute_racadm_config_job(
-                                    "host01.example.com",
-                                    {
-                                        "site_name": "Default",
-                                        "settings": {"idrac_hostname": True},
-                                    },
-                                )
+                            execute_racadm_config_job(
+                                "host01.example.com",
+                                {
+                                    "site_name": "Default",
+                                    "push_settings": [
+                                        self._ps(
+                                            "idrac_hostname",
+                                            "System.ServerOS.Hostname",
+                                            "{idrac_fqdn}",
+                                        ),
+                                    ],
+                                },
+                            )
         mock_build_cmd.assert_called_once_with(
             "host01.example.com",
             "set",
@@ -622,19 +633,29 @@ class TestExecuteRacadmConfigJob:
             site="Default",
         )
 
-    def test_sys_profile_creates_bios_jobqueue(self):
+    def test_post_push_command_is_run(self):
         mock_build_cmd = MagicMock(return_value=["echo", "test"])
         mock_result = MagicMock(returncode=0)
         with patch("dracs.jobqueue.subprocess.run", return_value=mock_result):
             with patch("dracs.webapp._build_ssh_racadm_cmd", mock_build_cmd):
                 with patch("dracs.db.get_site_by_name", return_value=self._MOCK_SITE):
-                    with patch("dracs.redfish.collect_all_for_host", return_value={}):
-                        with patch("dracs.db.upsert_host_config"):
+                    with patch("dracs.db.get_attr_def_by_name", return_value=None):
+                        with patch(
+                            "dracs.snmp.build_idrac_hostname",
+                            return_value="mgmt-host01.example.com",
+                        ):
                             execute_racadm_config_job(
                                 "host01.example.com",
                                 {
                                     "site_name": "Default",
-                                    "settings": {"sys_profile": True},
+                                    "push_settings": [
+                                        self._ps(
+                                            "sys_profile",
+                                            "BIOS.Setup.1-1.SysProfile",
+                                            "PerfPerWattOptimizedOs",
+                                            "jobqueue create BIOS.Setup.1-1",
+                                        ),
+                                    ],
                                 },
                             )
         assert mock_build_cmd.call_count == 2
@@ -647,35 +668,62 @@ class TestExecuteRacadmConfigJob:
         with patch("dracs.jobqueue.subprocess.run", return_value=mock_result):
             with patch("dracs.webapp._build_ssh_racadm_cmd", mock_build_cmd):
                 with patch("dracs.db.get_site_by_name", return_value=self._MOCK_SITE):
-                    with patch("dracs.redfish.collect_all_for_host", return_value={}):
-                        with patch("dracs.db.upsert_host_config"):
-                            with pytest.raises(RuntimeError, match="ps_rapid_on"):
-                                execute_racadm_config_job(
-                                    "host01.example.com",
-                                    {
-                                        "site_name": "Default",
-                                        "settings": {"ps_rapid_on": True},
-                                    },
-                                )
-
-    def test_verification_failure_is_logged_not_raised(self):
-        mock_build_cmd = MagicMock(return_value=["echo", "test"])
-        mock_result = MagicMock(returncode=0)
-        with patch("dracs.jobqueue.subprocess.run", return_value=mock_result):
-            with patch("dracs.webapp._build_ssh_racadm_cmd", mock_build_cmd):
-                with patch("dracs.db.get_site_by_name", return_value=self._MOCK_SITE):
                     with patch(
-                        "dracs.redfish.collect_all_for_host",
-                        side_effect=RuntimeError("Redfish timeout"),
+                        "dracs.snmp.build_idrac_hostname",
+                        return_value="mgmt-host01.example.com",
                     ):
-                        with patch("dracs.db.upsert_host_config"):
+                        with pytest.raises(RuntimeError, match="ps_rapid_on"):
                             execute_racadm_config_job(
                                 "host01.example.com",
                                 {
                                     "site_name": "Default",
-                                    "settings": {"ps_rapid_on": True},
+                                    "push_settings": [
+                                        self._ps(
+                                            "ps_rapid_on",
+                                            "System.ServerPwr.PSRapidOn",
+                                            "Disabled",
+                                        ),
+                                    ],
                                 },
                             )
+
+    def test_verification_failure_is_logged_not_raised(self):
+        mock_build_cmd = MagicMock(return_value=["echo", "test"])
+        mock_result = MagicMock(returncode=0)
+        mock_attr_def = {
+            "id": 1,
+            "name": "ps_rapid_on",
+            "endpoint_type": "system_oem_dell",
+            "attribute_path": "Attributes.ServerPwr.1.PSRapidOn",
+        }
+        with patch("dracs.jobqueue.subprocess.run", return_value=mock_result):
+            with patch("dracs.webapp._build_ssh_racadm_cmd", mock_build_cmd):
+                with patch("dracs.db.get_site_by_name", return_value=self._MOCK_SITE):
+                    with patch(
+                        "dracs.db.get_attr_def_by_name", return_value=mock_attr_def
+                    ):
+                        with patch(
+                            "dracs.snmp.build_idrac_hostname",
+                            return_value="mgmt-host01.example.com",
+                        ):
+                            with patch(
+                                "dracs.redfish.collect_for_host_dynamic",
+                                side_effect=RuntimeError("Redfish timeout"),
+                            ):
+                                # Must NOT raise — failure is logged
+                                execute_racadm_config_job(
+                                    "host01.example.com",
+                                    {
+                                        "site_name": "Default",
+                                        "push_settings": [
+                                            self._ps(
+                                                "ps_rapid_on",
+                                                "System.ServerPwr.PSRapidOn",
+                                                "Disabled",
+                                            ),
+                                        ],
+                                    },
+                                )
 
     def test_post_job_trigger_host_called(self):
         mock_build_cmd = MagicMock(return_value=["echo", "test"])
@@ -684,8 +732,11 @@ class TestExecuteRacadmConfigJob:
         with patch("dracs.jobqueue.subprocess.run", return_value=mock_result):
             with patch("dracs.webapp._build_ssh_racadm_cmd", mock_build_cmd):
                 with patch("dracs.db.get_site_by_name", return_value=self._MOCK_SITE):
-                    with patch("dracs.redfish.collect_all_for_host", return_value={}):
-                        with patch("dracs.db.upsert_host_config"):
+                    with patch("dracs.db.get_attr_def_by_name", return_value=None):
+                        with patch(
+                            "dracs.snmp.build_idrac_hostname",
+                            return_value="mgmt-host01.example.com",
+                        ):
                             with patch(
                                 "dracs.config_collector.get_collector",
                                 return_value=mock_cc,
@@ -694,7 +745,13 @@ class TestExecuteRacadmConfigJob:
                                     "host01.example.com",
                                     {
                                         "site_name": "Default",
-                                        "settings": {"ps_rapid_on": True},
+                                        "push_settings": [
+                                            self._ps(
+                                                "ps_rapid_on",
+                                                "System.ServerPwr.PSRapidOn",
+                                                "Disabled",
+                                            ),
+                                        ],
                                     },
                                 )
         mock_cc.trigger_host.assert_called_once_with("host01.example.com", "Default", 1)
@@ -705,8 +762,11 @@ class TestExecuteRacadmConfigJob:
         with patch("dracs.jobqueue.subprocess.run", return_value=mock_result):
             with patch("dracs.webapp._build_ssh_racadm_cmd", mock_build_cmd):
                 with patch("dracs.db.get_site_by_name", return_value=self._MOCK_SITE):
-                    with patch("dracs.redfish.collect_all_for_host", return_value={}):
-                        with patch("dracs.db.upsert_host_config"):
+                    with patch("dracs.db.get_attr_def_by_name", return_value=None):
+                        with patch(
+                            "dracs.snmp.build_idrac_hostname",
+                            return_value="mgmt-host01.example.com",
+                        ):
                             with patch(
                                 "dracs.config_collector.get_collector",
                                 return_value=None,
@@ -715,15 +775,44 @@ class TestExecuteRacadmConfigJob:
                                     "host01.example.com",
                                     {
                                         "site_name": "Default",
-                                        "settings": {"ps_rapid_on": True},
+                                        "push_settings": [
+                                            self._ps(
+                                                "ps_rapid_on",
+                                                "System.ServerPwr.PSRapidOn",
+                                                "Disabled",
+                                            ),
+                                        ],
                                     },
                                 )
+
+    def test_push_setting_without_push_key_is_skipped(self):
+        mock_build_cmd = MagicMock(return_value=["echo", "test"])
+        with patch("dracs.db.get_site_by_name", return_value=self._MOCK_SITE):
+            with patch(
+                "dracs.snmp.build_idrac_hostname",
+                return_value="mgmt-host01.example.com",
+            ):
+                with patch("dracs.webapp._build_ssh_racadm_cmd", mock_build_cmd):
+                    with patch("dracs.db.get_attr_def_by_name", return_value=None):
+                        execute_racadm_config_job(
+                            "host01.example.com",
+                            {
+                                "site_name": "Default",
+                                "push_settings": [
+                                    {
+                                        "attr_name": "ps_rapid_on",
+                                        "push_value": "Disabled",
+                                    }
+                                ],
+                            },
+                        )
+        mock_build_cmd.assert_not_called()
 
     def test_dispatched_by_processor(self, job_db):
         enqueue_job(
             "racadm_config",
             "server01.example.com",
-            metadata={"site_name": "Default", "settings": {}},
+            metadata={"site_name": "Default", "push_settings": []},
         )
         mock_execute = MagicMock()
         processor = JobProcessor(max_workers=2, poll_interval=0.05)
@@ -776,6 +865,12 @@ class TestProcessorDispatchUpdateJobs:
 
 class TestExecuteConfigCollectJob:
     _MOCK_SITE = {"id": 1, "name": "Default"}
+    _MOCK_ATTR = {
+        "id": 1,
+        "name": "ps_rapid_on",
+        "endpoint_type": "system_oem_dell",
+        "attribute_path": "Attributes.ServerPwr.1.PSRapidOn",
+    }
 
     def test_unknown_site_raises(self):
         with patch("dracs.db.get_site_by_name", return_value=None):
@@ -787,16 +882,19 @@ class TestExecuteConfigCollectJob:
 
     def test_collects_and_stores(self):
         mock_upsert = MagicMock()
+        collect_ret = {
+            "ps_rapid_on": {"value": "Disabled", "collected_at": "2026-01-01T00:00:00"}
+        }
         with patch("dracs.db.get_site_by_name", return_value=self._MOCK_SITE):
             with patch(
-                "dracs.db.get_site_config_collection",
-                return_value={"ps_rapid_on_enabled": True},
+                "dracs.db.get_enabled_attr_defs_for_site",
+                return_value=[self._MOCK_ATTR],
             ):
                 with patch(
-                    "dracs.redfish.collect_all_for_host",
-                    return_value={"ps_rapid_on": "Disabled"},
+                    "dracs.redfish.collect_for_host_dynamic",
+                    return_value=collect_ret,
                 ):
-                    with patch("dracs.db.upsert_host_config", mock_upsert):
+                    with patch("dracs.db.upsert_host_config_attr", mock_upsert):
                         execute_config_collect_job(
                             "host01.example.com",
                             {"site_name": "Default"},
@@ -806,20 +904,22 @@ class TestExecuteConfigCollectJob:
     def test_empty_collection_skips_upsert(self):
         mock_upsert = MagicMock()
         with patch("dracs.db.get_site_by_name", return_value=self._MOCK_SITE):
-            with patch("dracs.db.get_site_config_collection", return_value={}):
-                with patch("dracs.redfish.collect_all_for_host", return_value={}):
-                    with patch("dracs.db.upsert_host_config", mock_upsert):
-                        execute_config_collect_job(
-                            "host01.example.com",
-                            {"site_name": "Default"},
-                        )
+            with patch("dracs.db.get_enabled_attr_defs_for_site", return_value=[]):
+                with patch("dracs.db.upsert_host_config_attr", mock_upsert):
+                    execute_config_collect_job(
+                        "host01.example.com",
+                        {"site_name": "Default"},
+                    )
         mock_upsert.assert_not_called()
 
     def test_redfish_failure_propagates(self):
         with patch("dracs.db.get_site_by_name", return_value=self._MOCK_SITE):
-            with patch("dracs.db.get_site_config_collection", return_value={}):
+            with patch(
+                "dracs.db.get_enabled_attr_defs_for_site",
+                return_value=[self._MOCK_ATTR],
+            ):
                 with patch(
-                    "dracs.redfish.collect_all_for_host",
+                    "dracs.redfish.collect_for_host_dynamic",
                     side_effect=RuntimeError("Redfish timeout"),
                 ):
                     with pytest.raises(RuntimeError, match="Redfish timeout"):

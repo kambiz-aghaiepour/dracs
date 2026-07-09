@@ -24,53 +24,62 @@ CHECK_INTERVAL = 300
 MAX_WORKERS = 20
 
 
-def _needs_collection(hostname: str, site_id: int, settings: dict) -> bool:
-    """Return True if no HostConfig row exists or collected_at is stale."""
-    from dracs.db import get_host_config_data
+def _needs_collection(hostname: str, site_id: int, enabled_attr_defs: list) -> bool:
+    """Return True if any enabled attribute for this host is missing or stale."""
+    from dracs.db import get_host_config_attrs
 
-    enabled_hours = [
-        settings[f"{attr}_hours"]
-        for attr in [
-            "ps_rapid_on",
-            "dns_from_dhcp",
-            "ipmi_lan_enable",
-            "host_header_check",
-            "sys_profile",
-            "ssl",
-            "idrac_hostname",
-        ]
-        if settings.get(f"{attr}_enabled")
-    ]
-    if not enabled_hours:
+    if not enabled_attr_defs:
         return False
 
-    rows = get_host_config_data(site_id, [hostname])
-    if not rows:
-        return True
+    rows = get_host_config_attrs(site_id, [hostname])
+    host_attrs = rows[0]["attrs"] if rows else {}
+    now = datetime.now(timezone.utc)
 
-    collected_at = rows[0].get("collected_at")
-    if not collected_at:
-        return True
+    for attr in enabled_attr_defs:
+        existing = host_attrs.get(attr["name"])
+        if not existing or not existing.get("collected_at"):
+            return True
 
-    min_hours = min(enabled_hours)
-    try:
-        last = datetime.fromisoformat(collected_at).replace(tzinfo=timezone.utc)
-    except ValueError:
-        return True
+        try:
+            last = datetime.fromisoformat(existing["collected_at"])
+            if last.tzinfo is None:
+                last = last.replace(tzinfo=timezone.utc)
+        except ValueError:
+            return True
 
-    age_hours = (datetime.now(timezone.utc) - last).total_seconds() / 3600
-    return age_hours >= min_hours
+        hours = attr["site_settings"]["hours"]
+        age_hours = (now - last).total_seconds() / 3600
+        if age_hours >= hours:
+            return True
+
+    return False
 
 
 def _collect_and_store(hostname: str, site_name: str, site_id: int) -> None:
-    """Collect config for one host and persist to DB. Logs failures, never raises."""
+    """Collect all enabled attributes for one host and persist to DB. Never raises."""
     try:
-        from dracs.db import get_site_config_collection, upsert_host_config
-        from dracs.redfish import collect_all_for_host
+        from dracs.db import get_enabled_attr_defs_for_site, upsert_host_config_attr
+        from dracs.redfish import collect_for_host_dynamic
 
-        settings = get_site_config_collection(site_id)
-        data = collect_all_for_host(hostname, site_name, settings)
-        upsert_host_config(hostname, site_id, data)
+        enabled_attrs = get_enabled_attr_defs_for_site(site_id)
+        if not enabled_attrs:
+            return
+
+        results = collect_for_host_dynamic(hostname, site_name, enabled_attrs)
+
+        for attr in enabled_attrs:
+            attr_name = attr["name"]
+            if attr_name not in results:
+                continue
+            entry = results[attr_name]
+            upsert_host_config_attr(
+                hostname=hostname,
+                site_id=site_id,
+                attr_def_id=attr["id"],
+                value=entry["value"],
+                collected_at=entry["collected_at"],
+            )
+
         logger.debug("Collected config for %s (site=%s)", hostname, site_name)
     except Exception as exc:
         logger.warning(
@@ -80,7 +89,6 @@ def _collect_and_store(hostname: str, site_name: str, site_id: int) -> None:
 
 class ConfigCollector:
     def __init__(self):
-        """Initialize the collector with no running executor."""
         self._executor = None
         self._running = False
         self._thread = None
@@ -114,36 +122,21 @@ class ConfigCollector:
 
     def _sweep(self) -> None:
         from dracs.db import (
+            get_enabled_attr_defs_for_site,
             get_hosts_for_site,
-            get_site_config_collection,
             list_sites,
         )
 
-        sites = list_sites()
-        for site in sites:
+        for site in list_sites():
             site_id = site["id"]
             site_name = site["name"]
-            settings = get_site_config_collection(site_id)
-
-            any_enabled = any(
-                settings.get(f"{attr}_enabled")
-                for attr in [
-                    "ps_rapid_on",
-                    "dns_from_dhcp",
-                    "ipmi_lan_enable",
-                    "host_header_check",
-                    "sys_profile",
-                    "ssl",
-                    "idrac_hostname",
-                ]
-            )
-            if not any_enabled:
+            enabled_attrs = get_enabled_attr_defs_for_site(site_id)
+            if not enabled_attrs:
                 continue
 
-            hosts = get_hosts_for_site(site_id)
-            for host in hosts:
+            for host in get_hosts_for_site(site_id):
                 hostname = host["hostname"]
-                if _needs_collection(hostname, site_id, settings):
+                if _needs_collection(hostname, site_id, enabled_attrs):
                     self._executor.submit(
                         _collect_and_store, hostname, site_name, site_id
                     )

@@ -4184,9 +4184,9 @@ def config_page():
 def api_config_data():
     """Return cached iDRAC config data for requested hosts within a site."""
     from dracs.db import (
-        get_host_config_data,
+        get_attr_catalog_for_site,
+        get_host_config_attrs,
         get_site_by_name,
-        get_site_config_collection,
     )
 
     if request.method == "POST":
@@ -4204,11 +4204,11 @@ def api_config_data():
     site_id = site["id"] if site else None
 
     if site_id is None:
-        return jsonify({"success": True, "settings": {}, "data": []})
+        return jsonify({"success": True, "attr_defs": [], "data": []})
 
-    settings = get_site_config_collection(site_id)
-    data = get_host_config_data(site_id, hostnames)
-    return jsonify({"success": True, "settings": settings, "data": data})
+    attr_defs = get_attr_catalog_for_site(site_id)
+    data = get_host_config_attrs(site_id, hostnames)
+    return jsonify({"success": True, "attr_defs": attr_defs, "data": data})
 
 
 @app.route("/api/config-edit", methods=["POST"])
@@ -4221,10 +4221,16 @@ def api_config_edit():
 
         site_name = data.get("site", "")
         hosts = data.get("hosts", [])
-        settings = data.get("settings", {})
+        push_settings = data.get("push_settings", [])
 
         if not hosts or not isinstance(hosts, list):
             return jsonify({"success": False, "message": "hosts list required"}), 400
+
+        if not push_settings or not isinstance(push_settings, list):
+            return (
+                jsonify({"success": False, "message": "push_settings list required"}),
+                400,
+            )
 
         for h in hosts:
             if not validate_hostname(h):
@@ -4248,6 +4254,7 @@ def api_config_edit():
             return err
 
         site_id = site["id"]
+        pushed_names = [ps.get("attr_name", "") for ps in push_settings]
         parent_id = _eq(
             "racadm_config_batch",
             "batch",
@@ -4260,14 +4267,14 @@ def api_config_edit():
                 hostname,
                 parent_id=parent_id,
                 site_id=site_id,
-                metadata={"site_name": site_name, "settings": settings},
+                metadata={"site_name": site_name, "push_settings": push_settings},
             )
 
         audit_log(
             "config_edit",
             user=user,
             source=_client_ip(),
-            details=f"site={site_name} hosts={','.join(hosts)} settings={settings}",
+            details=f"site={site_name} hosts={','.join(hosts)} attrs={','.join(pushed_names)}",
         )
 
         return jsonify(
@@ -4344,7 +4351,7 @@ def api_config_edit_status(parent_id):
             return err
 
         from dracs.jobqueue import get_child_jobs, get_job_status
-        from dracs.db import get_host_config_data
+        from dracs.db import get_host_config_attrs
 
         parent = get_job_status(parent_id)
         if parent is None:
@@ -4367,7 +4374,7 @@ def api_config_edit_status(parent_id):
         for c in children:
             config_data = None
             if c["status"] == "completed" and site_id is not None:
-                rows = get_host_config_data(site_id, [c["target"]])
+                rows = get_host_config_attrs(site_id, [c["target"]])
                 config_data = rows[0] if rows else None
             child_results.append(
                 {
@@ -4397,26 +4404,29 @@ def api_config_edit_status(parent_id):
 
 @app.route("/api/sites/<name>/config-collection")
 def api_site_config_collection_get(name):
-    """Get iDRAC collection settings for a site (superadmin only)."""
+    """Get iDRAC attribute catalog with per-site settings (superadmin only)."""
     _, err = _require_auth(required_role="admin")
     if err:
         return err
     if not session.get("is_superadmin", False):
         return jsonify({"success": False, "message": "Superadmin required"}), 403
 
-    from dracs.db import get_site_by_name, get_site_config_collection
+    from dracs.db import get_attr_catalog_for_site, get_site_by_name
 
     site = get_site_by_name(name)
     if not site:
         return jsonify({"success": False, "message": "Site not found"}), 404
 
-    settings = get_site_config_collection(site["id"])
-    return jsonify({"success": True, "settings": settings})
+    catalog = get_attr_catalog_for_site(site["id"])
+    return jsonify({"success": True, "catalog": catalog})
 
 
 @app.route("/api/sites/<name>/config-collection", methods=["PUT"])
 def api_site_config_collection_put(name):
-    """Update iDRAC collection settings for a site (superadmin only)."""
+    """Update per-site settings for each attribute in the catalog (superadmin only).
+
+    Body: list of {attr_def_id, enabled, hours, desired_choice_id}
+    """
     try:
         user, err = _require_auth(required_role="admin")
         if err:
@@ -4424,20 +4434,31 @@ def api_site_config_collection_put(name):
         if not session.get("is_superadmin", False):
             return jsonify({"success": False, "message": "Superadmin required"}), 403
 
-        data = request.get_json(silent=True)
-        if not data:
+        body = request.get_json(silent=True)
+        if not body or not isinstance(body, list):
             return (
-                jsonify({"success": False, "message": "Settings data required"}),
+                jsonify(
+                    {"success": False, "message": "List of attribute settings required"}
+                ),
                 400,
             )
 
-        from dracs.db import get_site_by_name, upsert_site_config_collection
+        from dracs.db import get_site_by_name, upsert_attr_site_settings
 
         site = get_site_by_name(name)
         if not site:
             return jsonify({"success": False, "message": "Site not found"}), 404
 
-        upsert_site_config_collection(site["id"], data)
+        site_id = site["id"]
+        for item in body:
+            upsert_attr_site_settings(
+                attr_def_id=int(item["attr_def_id"]),
+                site_id=site_id,
+                enabled=bool(item.get("enabled", False)),
+                hours=int(item.get("hours", 24)),
+                desired_choice_id=item.get("desired_choice_id"),
+            )
+
         audit_log(
             "site_config_collection_update",
             target=name,
