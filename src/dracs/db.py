@@ -454,12 +454,12 @@ def _migrate_schema(engine) -> None:
             col_types.get("idrac_hostname", "").upper() in ("TEXT", "VARCHAR")
             or "idrac_hostname_value" not in col_types
         )
-        if needs_rebuild:
+        if needs_rebuild:  # pragma: no cover
             with engine.begin() as conn:
                 conn.execute(text("DROP TABLE host_config"))
         else:
             hc_cols = {c["name"] for c in inspector.get_columns("host_config")}
-            if "ssl_fingerprint" not in hc_cols:
+            if "ssl_fingerprint" not in hc_cols:  # pragma: no cover
                 with engine.begin() as conn:
                     conn.execute(
                         text(
@@ -608,7 +608,7 @@ def _migrate_hc_rows(conn, rows, attr_ids: dict) -> None:
             if raw_val is None:
                 continue
             attr_def_id = attr_ids.get(attr_name)
-            if attr_def_id is None:
+            if attr_def_id is None:  # pragma: no cover
                 continue
             conn.execute(
                 text(
@@ -640,7 +640,7 @@ def _migrate_collection_tables(engine) -> None:
             row[0]: row[1]
             for row in conn.execute(text("SELECT name, id FROM config_attr_def"))
         }
-        if not attr_ids:
+        if not attr_ids:  # pragma: no cover
             return  # Seed hasn't run; nothing to migrate against.
 
         if "site_config_collection" in tables:

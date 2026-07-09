@@ -99,6 +99,14 @@ class TestNeedsCollection:
     def test_false_when_nothing_enabled(self, coll_db, site_id):
         assert _needs_collection("host01.example.com", site_id, []) is False
 
+    def test_true_when_stale_naive_datetime(self, coll_db, site_id):
+        # Naive datetime (no timezone) should be treated as UTC.
+        naive_stale = (datetime.now() - timedelta(hours=25)).isoformat()
+        attr = get_attr_def_by_name("ps_rapid_on")
+        upsert_host_config_attr("host01.example.com", site_id, attr["id"], "Disabled", naive_stale)
+        enabled = [_make_attr_def("ps_rapid_on", 24)]
+        assert _needs_collection("host01.example.com", site_id, enabled) is True
+
 
 class TestCollectAndStore:
     @patch.dict(
@@ -126,6 +134,22 @@ class TestCollectAndStore:
             value="Disabled",
             collected_at="2026-01-01T00:00:00",
         )
+
+    def test_returns_early_when_no_attrs_enabled(self, coll_db, site_id):
+        with patch("dracs.db.get_enabled_attr_defs_for_site", return_value=[]):
+            with patch("dracs.redfish.collect_for_host_dynamic") as mock_collect:
+                _collect_and_store("server01.example.com", "Default", site_id)
+        mock_collect.assert_not_called()
+
+    @patch.dict(os.environ, {"DRACS_DNS_STRING": "mgmt-", "DRACS_DNS_MODE": "prefix"})
+    def test_skips_attr_not_in_collect_result(self, coll_db, site_id):
+        attr_id = get_attr_def_by_name("ps_rapid_on")["id"]
+        enabled_attrs = [{"id": attr_id, "name": "ps_rapid_on"}]
+        with patch("dracs.db.get_enabled_attr_defs_for_site", return_value=enabled_attrs):
+            with patch("dracs.redfish.collect_for_host_dynamic", return_value={}):
+                with patch("dracs.db.upsert_host_config_attr") as mock_upsert:
+                    _collect_and_store("server01.example.com", "Default", site_id)
+        mock_upsert.assert_not_called()
 
     def test_logs_on_exception_without_raising(self, coll_db, site_id):
         with patch(

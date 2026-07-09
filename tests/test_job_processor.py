@@ -785,6 +785,23 @@ class TestExecuteRacadmConfigJob:
                                     },
                                 )
 
+    def test_push_setting_without_push_key_is_skipped(self):
+        mock_build_cmd = MagicMock(return_value=["echo", "test"])
+        with patch("dracs.db.get_site_by_name", return_value=self._MOCK_SITE):
+            with patch("dracs.snmp.build_idrac_hostname", return_value="mgmt-host01.example.com"):
+                with patch("dracs.webapp._build_ssh_racadm_cmd", mock_build_cmd):
+                    with patch("dracs.db.get_attr_def_by_name", return_value=None):
+                        execute_racadm_config_job(
+                            "host01.example.com",
+                            {
+                                "site_name": "Default",
+                                "push_settings": [
+                                    {"attr_name": "ps_rapid_on", "push_value": "Disabled"}
+                                ],
+                            },
+                        )
+        mock_build_cmd.assert_not_called()
+
     def test_dispatched_by_processor(self, job_db):
         enqueue_job(
             "racadm_config",
