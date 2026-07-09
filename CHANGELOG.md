@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.18.8 (2026-07-09)
+
+### Bug Fixes
+
+- Scrolling configuration page
+  ([`baab931`](https://github.com/kambiz-aghaiepour/dracs/commit/baab931cd466d1eed932e8be5bbdfffaa131a5d4))
+
+### Chores
+
+- Sync spec file version to 2.18.7 [skip ci]
+  ([`f6812e6`](https://github.com/kambiz-aghaiepour/dracs/commit/f6812e6fd430e5ffbacef3a2f1cae87219a8e390))
+
+
 ## v2.18.7 (2026-07-08)
 
 ### Bug Fixes
