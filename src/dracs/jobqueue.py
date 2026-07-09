@@ -595,49 +595,61 @@ def execute_discover_job(hostname: str, metadata: dict) -> None:
     )
 
 
-_RACADM_SETTINGS = {
-    "dns_from_dhcp": ("iDRAC.IPv4.DNSFromDHCP", "Enabled"),
-    "ipmi_lan": ("iDRAC.IPMILan.Enable", "Enabled"),
-    "host_header": ("iDRAC.webserver.HostHeaderCheck", "Disabled"),
-    "ps_rapid_on": ("System.ServerPwr.PSRapidOn", "Disabled"),
-    "sys_profile": ("BIOS.SysProfileSettings.SysProfile", "PerfPerWattOptimizedOs"),
-}
-
-
 def execute_racadm_config_job(hostname: str, metadata: dict) -> None:
-    from dracs.webapp import _build_ssh_racadm_cmd
+    """Push racadm config settings to one host.
+
+    metadata format:
+        {
+            "site_name": "Default",
+            "push_settings": [
+                {
+                    "attr_name": "dns_from_dhcp",
+                    "push_key": "iDRAC.IPv4.DNSFromDHCP",
+                    "push_value": "Enabled",
+                    "post_push_command": null
+                },
+                ...
+            ]
+        }
+    """
+    from dracs.db import get_attr_def_by_name, get_site_by_name, upsert_host_config_attr
+    from dracs.redfish import collect_for_host_dynamic
     from dracs.snmp import build_idrac_hostname
-    from dracs.db import get_site_by_name, upsert_host_config
-    from dracs.redfish import collect_all_for_host
+    from dracs.webapp import _build_ssh_racadm_cmd
 
     site_name = metadata.get("site_name", "")
-    settings = metadata.get("settings", {})
+    push_settings = metadata.get("push_settings", [])
 
     site = get_site_by_name(site_name) if site_name else None
     if site is None:
         raise RuntimeError(f"Unknown site: {site_name!r}")
 
+    idrac_fqdn = build_idrac_hostname(hostname)
     errors = []
-    for key, enabled in settings.items():
-        if not enabled:
+
+    for ps in push_settings:
+        push_key = ps.get("push_key")
+        push_value = ps.get("push_value", "")
+        post_push_command = ps.get("post_push_command")
+        attr_name = ps.get("attr_name", push_key)
+
+        if not push_key:
             continue
-        if key == "idrac_hostname":
-            attr, value = "System.ServerOS.Hostname", build_idrac_hostname(hostname)
-        elif key in _RACADM_SETTINGS:
-            attr, value = _RACADM_SETTINGS[key]
-        else:
-            continue
-        cmd = _build_ssh_racadm_cmd(hostname, "set", attr, value, site=site_name)
+
+        # Substitute {idrac_fqdn} token in push_value (used for idrac_hostname attr).
+        push_value = push_value.replace("{idrac_fqdn}", idrac_fqdn)
+
+        cmd = _build_ssh_racadm_cmd(hostname, "set", push_key, push_value, site=site_name)
         result = subprocess.run(  # nosec # nosemgrep
             cmd, capture_output=True, text=True, timeout=60  # nosemgrep
         )
         if result.returncode != 0:
-            errors.append(f"{key}: {(result.stderr or result.stdout)[:120]}")
+            errors.append(f"{attr_name}: {(result.stderr or result.stdout)[:120]}")
             continue
-        if key == "sys_profile":
-            cmd2 = _build_ssh_racadm_cmd(
-                hostname, "jobqueue", "create", "BIOS.Setup.1-1", site=site_name
-            )
+
+        if post_push_command:
+            post_args = post_push_command.split()
+            cmd2 = _build_ssh_racadm_cmd(hostname, *post_args, site=site_name)
             subprocess.run(  # nosec # nosemgrep
                 cmd2, capture_output=True, text=True, timeout=60  # nosemgrep
             )
@@ -645,21 +657,28 @@ def execute_racadm_config_job(hostname: str, metadata: dict) -> None:
     if errors:
         raise RuntimeError("; ".join(errors))
 
-    enabled_attrs = {
-        "ps_rapid_on_enabled": settings.get("ps_rapid_on", False),
-        "dns_from_dhcp_enabled": settings.get("dns_from_dhcp", False),
-        "ipmi_lan_enable_enabled": settings.get("ipmi_lan", False),
-        "host_header_check_enabled": settings.get("host_header", False),
-        "idrac_hostname_enabled": settings.get("idrac_hostname", False),
-        "sys_profile_enabled": settings.get("sys_profile", False),
-        "ssl_enabled": False,
-    }
-    try:
-        collected = collect_all_for_host(hostname, site_name, enabled_attrs)
-        if collected:
-            upsert_host_config(hostname, site["id"], collected)
-    except Exception as exc:
-        logger.warning("Post-edit verification failed for %s: %s", hostname, exc)
+    # Re-collect pushed attributes to reflect their new values in the DB.
+    pushed_names = {ps["attr_name"] for ps in push_settings if ps.get("attr_name")}
+    pushed_attr_defs = [
+        d for name in pushed_names
+        if (d := get_attr_def_by_name(name)) is not None
+    ]
+
+    if pushed_attr_defs:
+        try:
+            results = collect_for_host_dynamic(hostname, site_name, pushed_attr_defs)
+            for attr in pushed_attr_defs:
+                entry = results.get(attr["name"])
+                if entry:
+                    upsert_host_config_attr(
+                        hostname=hostname,
+                        site_id=site["id"],
+                        attr_def_id=attr["id"],
+                        value=entry["value"],
+                        collected_at=entry["collected_at"],
+                    )
+        except Exception as exc:
+            logger.warning("Post-push re-collection failed for %s: %s", hostname, exc)
 
     from dracs.config_collector import get_collector
 
@@ -670,11 +689,11 @@ def execute_racadm_config_job(hostname: str, metadata: dict) -> None:
 
 def execute_config_collect_job(hostname: str, metadata: dict) -> None:
     from dracs.db import (
+        get_enabled_attr_defs_for_site,
         get_site_by_name,
-        get_site_config_collection,
-        upsert_host_config,
+        upsert_host_config_attr,
     )
-    from dracs.redfish import collect_all_for_host
+    from dracs.redfish import collect_for_host_dynamic
 
     site_name = metadata.get("site_name", "")
     site = get_site_by_name(site_name) if site_name else None
@@ -682,10 +701,21 @@ def execute_config_collect_job(hostname: str, metadata: dict) -> None:
         raise RuntimeError(f"Unknown site: {site_name!r}")
 
     site_id = site["id"]
-    settings = get_site_config_collection(site_id)
-    data = collect_all_for_host(hostname, site_name, settings)
-    if data:
-        upsert_host_config(hostname, site_id, data)
+    enabled_attrs = get_enabled_attr_defs_for_site(site_id)
+    if not enabled_attrs:
+        return
+
+    results = collect_for_host_dynamic(hostname, site_name, enabled_attrs)
+    for attr in enabled_attrs:
+        entry = results.get(attr["name"])
+        if entry:
+            upsert_host_config_attr(
+                hostname=hostname,
+                site_id=site_id,
+                attr_def_id=attr["id"],
+                value=entry["value"],
+                collected_at=entry["collected_at"],
+            )
 
 
 def execute_vnc_reset_job(hostname: str, metadata: dict) -> None:
@@ -754,7 +784,7 @@ def execute_ssl_cert_upload_job(hostname: str, metadata: dict) -> None:
     import tempfile
 
     from dracs.db import (
-        get_host_config_data,
+        get_host_config_attrs,
         get_host_ssl_override,
         get_site_by_name,
         get_site_ssl_config,
@@ -787,10 +817,11 @@ def execute_ssl_cert_upload_job(hostname: str, metadata: dict) -> None:
     stored_fingerprint = (host_override or {}).get("cert_fingerprint") or ssl_cfg.get(
         "cert_fingerprint"
     )
-    host_rows = get_host_config_data(site_id, [hostname])
-    idrac_expiry = host_rows[0].get("ssl_expiry") if host_rows else None
-    idrac_self_signed = host_rows[0].get("ssl_self_signed") if host_rows else None
-    idrac_fingerprint = host_rows[0].get("ssl_fingerprint") if host_rows else None
+    host_rows = get_host_config_attrs(site_id, [hostname])
+    host_attrs = host_rows[0].get("attrs", {}) if host_rows else {}
+    idrac_expiry = host_attrs.get("ssl_expiry", {}).get("value")
+    idrac_self_signed = host_attrs.get("ssl_self_signed", {}).get("value") == "1"
+    idrac_fingerprint = host_attrs.get("ssl_fingerprint", {}).get("value")
 
     if idrac_self_signed:
         if (

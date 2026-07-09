@@ -127,70 +127,81 @@ class Job(Base):
     )
 
 
-class SiteConfigCollection(Base):
-    __tablename__ = "site_config_collection"
+# ── Flexible config collection schema ────────────────────────────────────────
+
+
+class ConfigAttrDef(Base):
+    """Global catalog of collectible iDRAC attributes."""
+
+    __tablename__ = "config_attr_def"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    label: Mapped[str] = mapped_column(String, nullable=False)
+    endpoint_type: Mapped[str] = mapped_column(String, nullable=False)
+    attribute_path: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    push_key: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    is_writable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    post_push_command: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    display_type: Mapped[str] = mapped_column(
+        String, nullable=False, default="string"
+    )
+    display_order: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
+
+
+class ConfigAttrChoice(Base):
+    """Named, selectable desired values for a writable attribute."""
+
+    __tablename__ = "config_attr_choice"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    attr_def_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("config_attr_def.id"), nullable=False
+    )
+    choice_label: Mapped[str] = mapped_column(String, nullable=False)
+    push_value: Mapped[str] = mapped_column(String, nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class ConfigAttrSiteSettings(Base):
+    """Per-site enable/refresh/desired-value settings for each attribute."""
+
+    __tablename__ = "config_attr_site_settings"
+    __table_args__ = (UniqueConstraint("attr_def_id", "site_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    attr_def_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("config_attr_def.id"), nullable=False
+    )
     site_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("sites.id"), nullable=False, unique=True
+        Integer, ForeignKey("sites.id"), nullable=False
     )
-    ps_rapid_on_enabled: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False
-    )
-    ps_rapid_on_hours: Mapped[int] = mapped_column(Integer, nullable=False, default=24)
-    dns_from_dhcp_enabled: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False
-    )
-    dns_from_dhcp_hours: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=24
-    )
-    ipmi_lan_enable_enabled: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False
-    )
-    ipmi_lan_enable_hours: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=24
-    )
-    host_header_check_enabled: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False
-    )
-    host_header_check_hours: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=24
-    )
-    sys_profile_enabled: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False
-    )
-    sys_profile_hours: Mapped[int] = mapped_column(Integer, nullable=False, default=24)
-    ssl_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    ssl_hours: Mapped[int] = mapped_column(Integer, nullable=False, default=24)
-    idrac_hostname_enabled: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False
-    )
-    idrac_hostname_hours: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=24
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    hours: Mapped[int] = mapped_column(Integer, nullable=False, default=24)
+    desired_choice_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("config_attr_choice.id"), nullable=True
     )
 
 
-class HostConfig(Base):
-    __tablename__ = "host_config"
-    __table_args__ = (UniqueConstraint("hostname", "site_id"),)
+class HostConfigAttr(Base):
+    """EAV table: one row per (hostname, site, attribute), storing the collected value."""
+
+    __tablename__ = "host_config_attr"
+    __table_args__ = (UniqueConstraint("hostname", "site_id", "attr_def_id"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     hostname: Mapped[str] = mapped_column(String, nullable=False)
     site_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("sites.id"), nullable=False
     )
-    ps_rapid_on: Mapped[str | None] = mapped_column(String, nullable=True)
-    idrac_hostname: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    idrac_hostname_value: Mapped[str | None] = mapped_column(String, nullable=True)
-    dns_from_dhcp: Mapped[str | None] = mapped_column(String, nullable=True)
-    ipmi_lan_enable: Mapped[str | None] = mapped_column(String, nullable=True)
-    host_header_check: Mapped[str | None] = mapped_column(String, nullable=True)
-    sys_profile: Mapped[str | None] = mapped_column(String, nullable=True)
-    ssl_self_signed: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    ssl_valid_name: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    ssl_expiry: Mapped[str | None] = mapped_column(String, nullable=True)
-    ssl_fingerprint: Mapped[str | None] = mapped_column(String, nullable=True)
-    collected_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    attr_def_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("config_attr_def.id"), nullable=False
+    )
+    value: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    collected_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+
+# ── SSL certificate management ────────────────────────────────────────────────
 
 
 class SiteSslConfig(Base):
@@ -227,6 +238,164 @@ class HostSslOverride(Base):
     cert_fingerprint: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
 
+# ── Seed data for the attribute catalog ───────────────────────────────────────
+
+_SEED_ATTR_DEFS = [
+    {
+        "name": "ps_rapid_on",
+        "label": "PS Rapid On",
+        "endpoint_type": "system_oem_dell",
+        "attribute_path": "Attributes.ServerPwr.1.PSRapidOn",
+        "push_key": "System.ServerPwr.PSRapidOn",
+        "is_writable": True,
+        "post_push_command": None,
+        "display_type": "bool",
+        "display_order": 10,
+        "choices": [("Disabled", "Disabled", 0), ("Enabled", "Enabled", 1)],
+    },
+    {
+        "name": "dns_from_dhcp",
+        "label": "DNS from DHCP",
+        "endpoint_type": "idrac_attributes",
+        "attribute_path": "Attributes.IPv4.1.DNSFromDHCP",
+        "push_key": "iDRAC.IPv4.DNSFromDHCP",
+        "is_writable": True,
+        "post_push_command": None,
+        "display_type": "bool",
+        "display_order": 20,
+        "choices": [("Enabled", "Enabled", 0), ("Disabled", "Disabled", 1)],
+    },
+    {
+        "name": "ipmi_lan_enable",
+        "label": "IPMI LAN",
+        "endpoint_type": "idrac_attributes",
+        "attribute_path": "Attributes.IPMILan.1.Enable",
+        "push_key": "iDRAC.IPMILan.Enable",
+        "is_writable": True,
+        "post_push_command": None,
+        "display_type": "bool",
+        "display_order": 30,
+        "choices": [("Enabled", "Enabled", 0), ("Disabled", "Disabled", 1)],
+    },
+    {
+        "name": "host_header_check",
+        "label": "Host Header Check",
+        "endpoint_type": "idrac_attributes",
+        "attribute_path": "Attributes.WebServer.1.HostHeaderCheck",
+        "push_key": "iDRAC.webserver.HostHeaderCheck",
+        "is_writable": True,
+        "post_push_command": None,
+        "display_type": "bool",
+        "display_order": 40,
+        "choices": [("Enabled", "Enabled", 0), ("Disabled", "Disabled", 1)],
+    },
+    {
+        "name": "sys_profile",
+        "label": "Sys Profile",
+        "endpoint_type": "bios",
+        "attribute_path": "Attributes.SysProfile",
+        "push_key": "BIOS.SysProfileSettings.SysProfile",
+        "is_writable": True,
+        "post_push_command": "jobqueue create BIOS.Setup.1-1",
+        "display_type": "bool",
+        "display_order": 50,
+        "choices": [
+            ("PerfPerWattOptimizedDapc", "PerfPerWattOptimizedDapc", 0),
+            ("PerfPerWattOptimizedOs", "PerfPerWattOptimizedOs", 1),
+            ("PerfOptimized", "PerfOptimized", 2),
+            ("DenseCfgOptimized", "DenseCfgOptimized", 3),
+            ("Custom", "Custom", 4),
+        ],
+    },
+    {
+        "name": "idrac_hostname",
+        "label": "iDRAC Hostname",
+        "endpoint_type": "system",
+        "attribute_path": "HostName",
+        "push_key": "System.ServerOS.Hostname",
+        "is_writable": True,
+        "post_push_command": None,
+        "display_type": "int_bool",
+        "display_order": 60,
+        "choices": [("Match FQDN", "{idrac_fqdn}", 0)],
+    },
+    {
+        "name": "ssl_self_signed",
+        "label": "SSL CA-Signed",
+        "endpoint_type": "ssl",
+        "attribute_path": None,
+        "push_key": None,
+        "is_writable": False,
+        "post_push_command": None,
+        "display_type": "int_bool",
+        "display_order": 70,
+        "choices": [],
+    },
+    {
+        "name": "ssl_valid_name",
+        "label": "SSL Valid Name",
+        "endpoint_type": "ssl",
+        "attribute_path": None,
+        "push_key": None,
+        "is_writable": False,
+        "post_push_command": None,
+        "display_type": "int_bool",
+        "display_order": 80,
+        "choices": [],
+    },
+    {
+        "name": "ssl_expiry",
+        "label": "SSL Expiry",
+        "endpoint_type": "ssl",
+        "attribute_path": None,
+        "push_key": None,
+        "is_writable": False,
+        "post_push_command": None,
+        "display_type": "date",
+        "display_order": 90,
+        "choices": [],
+    },
+    {
+        "name": "ssl_fingerprint",
+        "label": "SSL Fingerprint",
+        "endpoint_type": "ssl",
+        "attribute_path": None,
+        "push_key": None,
+        "is_writable": False,
+        "post_push_command": None,
+        "display_type": "string",
+        "display_order": 100,
+        "choices": [],
+    },
+]
+
+# Maps old site_config_collection column prefixes to new attr_def names.
+# ssl is handled separately (one old column → four new attrs).
+_OLD_SCC_ATTR_MAP = [
+    ("ps_rapid_on", "ps_rapid_on"),
+    ("dns_from_dhcp", "dns_from_dhcp"),
+    ("ipmi_lan_enable", "ipmi_lan_enable"),
+    ("host_header_check", "host_header_check"),
+    ("sys_profile", "sys_profile"),
+    ("idrac_hostname", "idrac_hostname"),
+]
+_OLD_SCC_SSL_ATTRS = ["ssl_self_signed", "ssl_valid_name", "ssl_expiry", "ssl_fingerprint"]
+
+# Maps old host_config column names to new attr_def names (column index in raw SELECT).
+_OLD_HC_ATTR_MAP = [
+    ("ps_rapid_on", 2),
+    ("dns_from_dhcp", 3),
+    ("ipmi_lan_enable", 4),
+    ("host_header_check", 5),
+    ("sys_profile", 6),
+    ("idrac_hostname", 7),
+    ("ssl_self_signed", 8),
+    ("ssl_valid_name", 9),
+    ("ssl_expiry", 10),
+    ("ssl_fingerprint", 11),
+]
+
+
 def make_db_url(path: str) -> str:
     if "://" in path:
         return path
@@ -258,7 +427,8 @@ def _migrate_schema(engine) -> None:
         user_cols = {c["name"]: c for c in inspector.get_columns("users")}
         if not user_cols.get("role", {}).get("nullable", True):
             with engine.begin() as conn:
-                conn.execute(text("""
+                conn.execute(
+                    text("""
                     CREATE TABLE users_new (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         username VARCHAR NOT NULL UNIQUE,
@@ -267,7 +437,8 @@ def _migrate_schema(engine) -> None:
                         created_at VARCHAR NOT NULL,
                         created_by VARCHAR
                     )
-                    """))
+                    """)
+                )
                 conn.execute(text("INSERT INTO users_new SELECT * FROM users"))
                 conn.execute(text("DROP TABLE users"))
                 conn.execute(text("ALTER TABLE users_new RENAME TO users"))
@@ -334,6 +505,184 @@ def _grandfather_sites(engine) -> None:
         )
 
 
+def _seed_attr_defs(engine) -> None:
+    """Populate config_attr_def and config_attr_choice if the catalog is empty."""
+    from sqlalchemy import text
+
+    with engine.begin() as conn:
+        count = conn.execute(
+            text("SELECT COUNT(*) FROM config_attr_def")
+        ).scalar()
+        if count:
+            return
+
+        for defn in _SEED_ATTR_DEFS:
+            result = conn.execute(
+                text(
+                    "INSERT INTO config_attr_def "
+                    "(name, label, endpoint_type, attribute_path, push_key, "
+                    " is_writable, post_push_command, display_type, display_order) "
+                    "VALUES (:name, :label, :endpoint_type, :attribute_path, :push_key, "
+                    "        :is_writable, :post_push_command, :display_type, :display_order)"
+                ),
+                {
+                    "name": defn["name"],
+                    "label": defn["label"],
+                    "endpoint_type": defn["endpoint_type"],
+                    "attribute_path": defn["attribute_path"],
+                    "push_key": defn["push_key"],
+                    "is_writable": defn["is_writable"],
+                    "post_push_command": defn["post_push_command"],
+                    "display_type": defn["display_type"],
+                    "display_order": defn["display_order"],
+                },
+            )
+            attr_def_id = result.lastrowid
+
+            for choice_label, push_value, sort_order in defn["choices"]:
+                conn.execute(
+                    text(
+                        "INSERT INTO config_attr_choice "
+                        "(attr_def_id, choice_label, push_value, sort_order) "
+                        "VALUES (:attr_def_id, :choice_label, :push_value, :sort_order)"
+                    ),
+                    {
+                        "attr_def_id": attr_def_id,
+                        "choice_label": choice_label,
+                        "push_value": push_value,
+                        "sort_order": sort_order,
+                    },
+                )
+
+
+def _migrate_collection_tables(engine) -> None:
+    """One-time migration: move site_config_collection and host_config to EAV model.
+
+    No-op when the old tables are absent (fresh install or already migrated).
+    """
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(engine)
+    tables = inspector.get_table_names()
+
+    with engine.begin() as conn:
+        attr_ids = {
+            row[0]: row[1]
+            for row in conn.execute(text("SELECT name, id FROM config_attr_def"))
+        }
+
+        if not attr_ids:
+            return  # Seed hasn't run; nothing to migrate against.
+
+        # ── Migrate site_config_collection → config_attr_site_settings ──────
+        if "site_config_collection" in tables:
+            rows = conn.execute(
+                text(
+                    "SELECT site_id, "
+                    "ps_rapid_on_enabled, ps_rapid_on_hours, "
+                    "dns_from_dhcp_enabled, dns_from_dhcp_hours, "
+                    "ipmi_lan_enable_enabled, ipmi_lan_enable_hours, "
+                    "host_header_check_enabled, host_header_check_hours, "
+                    "sys_profile_enabled, sys_profile_hours, "
+                    "ssl_enabled, ssl_hours, "
+                    "idrac_hostname_enabled, idrac_hostname_hours "
+                    "FROM site_config_collection"
+                )
+            ).fetchall()
+
+            for row in rows:
+                site_id = row[0]
+                per_attr = {
+                    "ps_rapid_on": (bool(row[1]), int(row[2])),
+                    "dns_from_dhcp": (bool(row[3]), int(row[4])),
+                    "ipmi_lan_enable": (bool(row[5]), int(row[6])),
+                    "host_header_check": (bool(row[7]), int(row[8])),
+                    "sys_profile": (bool(row[9]), int(row[10])),
+                    "idrac_hostname": (bool(row[13]), int(row[14])),
+                }
+                ssl_enabled = bool(row[11])
+                ssl_hours = int(row[12])
+
+                for attr_name, (enabled, hours) in per_attr.items():
+                    attr_def_id = attr_ids.get(attr_name)
+                    if attr_def_id is None:
+                        continue
+                    conn.execute(
+                        text(
+                            "INSERT OR IGNORE INTO config_attr_site_settings "
+                            "(attr_def_id, site_id, enabled, hours) "
+                            "VALUES (:attr_def_id, :site_id, :enabled, :hours)"
+                        ),
+                        {
+                            "attr_def_id": attr_def_id,
+                            "site_id": site_id,
+                            "enabled": enabled,
+                            "hours": hours,
+                        },
+                    )
+
+                for ssl_attr in _OLD_SCC_SSL_ATTRS:
+                    attr_def_id = attr_ids.get(ssl_attr)
+                    if attr_def_id is None:
+                        continue
+                    conn.execute(
+                        text(
+                            "INSERT OR IGNORE INTO config_attr_site_settings "
+                            "(attr_def_id, site_id, enabled, hours) "
+                            "VALUES (:attr_def_id, :site_id, :enabled, :hours)"
+                        ),
+                        {
+                            "attr_def_id": attr_def_id,
+                            "site_id": site_id,
+                            "enabled": ssl_enabled,
+                            "hours": ssl_hours,
+                        },
+                    )
+
+            conn.execute(text("DROP TABLE site_config_collection"))
+
+        # ── Migrate host_config → host_config_attr ───────────────────────────
+        if "host_config" in tables:
+            rows = conn.execute(
+                text(
+                    "SELECT hostname, site_id, ps_rapid_on, dns_from_dhcp, "
+                    "ipmi_lan_enable, host_header_check, sys_profile, "
+                    "idrac_hostname, ssl_self_signed, ssl_valid_name, "
+                    "ssl_expiry, ssl_fingerprint, collected_at "
+                    "FROM host_config"
+                )
+            ).fetchall()
+
+            for row in rows:
+                hostname = row[0]
+                site_id = row[1]
+                collected_at = row[12]
+
+                for attr_name, col_idx in _OLD_HC_ATTR_MAP:
+                    raw_val = row[col_idx]
+                    if raw_val is None:
+                        continue
+                    attr_def_id = attr_ids.get(attr_name)
+                    if attr_def_id is None:
+                        continue
+                    conn.execute(
+                        text(
+                            "INSERT OR IGNORE INTO host_config_attr "
+                            "(hostname, site_id, attr_def_id, value, collected_at) "
+                            "VALUES (:hostname, :site_id, :attr_def_id, :value, :collected_at)"
+                        ),
+                        {
+                            "hostname": hostname,
+                            "site_id": site_id,
+                            "attr_def_id": attr_def_id,
+                            "value": str(raw_val),
+                            "collected_at": collected_at,
+                        },
+                    )
+
+            conn.execute(text("DROP TABLE host_config"))
+
+
 def db_initialize(db_url: str) -> None:
     global _engine, _SessionFactory
     url = make_db_url(db_url)
@@ -346,6 +695,8 @@ def db_initialize(db_url: str) -> None:
     _migrate_schema(_engine)
     Base.metadata.create_all(_engine)
     _grandfather_sites(_engine)
+    _seed_attr_defs(_engine)
+    _migrate_collection_tables(_engine)
     _SessionFactory = sessionmaker(bind=_engine)
 
 
@@ -571,98 +922,6 @@ def reorder_sites(ordered_ids: list) -> None:
         session.commit()
 
 
-_COLLECTION_ATTRS = [
-    "ps_rapid_on",
-    "dns_from_dhcp",
-    "ipmi_lan_enable",
-    "host_header_check",
-    "sys_profile",
-    "ssl",
-    "idrac_hostname",
-]
-
-
-def get_site_config_collection(site_id: int) -> dict:
-    with get_session() as session:
-        row = (
-            session.query(SiteConfigCollection)
-            .filter(SiteConfigCollection.site_id == site_id)
-            .first()
-        )
-        if row is None:
-            result = {}
-            for attr in _COLLECTION_ATTRS:
-                result[f"{attr}_enabled"] = False
-                result[f"{attr}_hours"] = 24
-            return result
-        result = {}
-        for attr in _COLLECTION_ATTRS:
-            result[f"{attr}_enabled"] = getattr(row, f"{attr}_enabled")
-            result[f"{attr}_hours"] = getattr(row, f"{attr}_hours")
-        return result
-
-
-def upsert_site_config_collection(site_id: int, settings: dict) -> None:
-    with get_session() as session:
-        row = (
-            session.query(SiteConfigCollection)
-            .filter(SiteConfigCollection.site_id == site_id)
-            .first()
-        )
-        if row is None:
-            row = SiteConfigCollection(site_id=site_id)
-            session.add(row)
-        for key, value in settings.items():
-            if hasattr(row, key):
-                setattr(row, key, value)
-        session.commit()
-
-
-def get_host_config_data(site_id: int, hostnames: list) -> list:
-    with get_session() as session:
-        query = session.query(HostConfig).filter(HostConfig.site_id == site_id)
-        if hostnames:
-            query = query.filter(HostConfig.hostname.in_(hostnames))
-        rows = query.order_by(HostConfig.hostname).all()
-        return [
-            {
-                "hostname": r.hostname,
-                "ps_rapid_on": r.ps_rapid_on,
-                "idrac_hostname": r.idrac_hostname,
-                "idrac_hostname_value": r.idrac_hostname_value,
-                "dns_from_dhcp": r.dns_from_dhcp,
-                "ipmi_lan_enable": r.ipmi_lan_enable,
-                "host_header_check": r.host_header_check,
-                "sys_profile": r.sys_profile,
-                "ssl_self_signed": r.ssl_self_signed,
-                "ssl_valid_name": r.ssl_valid_name,
-                "ssl_expiry": r.ssl_expiry,
-                "ssl_fingerprint": r.ssl_fingerprint,
-                "collected_at": r.collected_at,
-            }
-            for r in rows
-        ]
-
-
-def upsert_host_config(hostname: str, site_id: int, data: dict) -> None:
-    with get_session() as session:
-        row = (
-            session.query(HostConfig)
-            .filter(
-                HostConfig.hostname == hostname,
-                HostConfig.site_id == site_id,
-            )
-            .first()
-        )
-        if row is None:
-            row = HostConfig(hostname=hostname, site_id=site_id)
-            session.add(row)
-        for key, value in data.items():
-            if hasattr(row, key):
-                setattr(row, key, value)
-        session.commit()
-
-
 def get_hosts_for_site(site_id: int) -> list:
     with get_session() as session:
         systems = (
@@ -673,7 +932,241 @@ def get_hosts_for_site(site_id: int) -> list:
         return [{"hostname": s.name, "svc_tag": s.svc_tag} for s in systems]
 
 
-# ── SSL certificate management ──────────────────────────────────────────────
+# ── Config attribute catalog accessors ───────────────────────────────────────
+
+
+def get_attr_catalog_for_site(site_id: int) -> list:
+    """Return all attr defs with per-site settings and choices, in display order."""
+    with get_session() as session:
+        defs = (
+            session.query(ConfigAttrDef)
+            .order_by(ConfigAttrDef.display_order)
+            .all()
+        )
+
+        settings_rows = (
+            session.query(ConfigAttrSiteSettings)
+            .filter(ConfigAttrSiteSettings.site_id == site_id)
+            .all()
+        )
+        settings_map = {r.attr_def_id: r for r in settings_rows}
+
+        result = []
+        for d in defs:
+            choices = (
+                session.query(ConfigAttrChoice)
+                .filter(ConfigAttrChoice.attr_def_id == d.id)
+                .order_by(ConfigAttrChoice.sort_order)
+                .all()
+            )
+            site_cfg = settings_map.get(d.id)
+
+            desired_value = None
+            if site_cfg and site_cfg.desired_choice_id:
+                ch = session.get(ConfigAttrChoice, site_cfg.desired_choice_id)
+                if ch:
+                    desired_value = ch.push_value
+
+            result.append(
+                {
+                    "id": d.id,
+                    "name": d.name,
+                    "label": d.label,
+                    "endpoint_type": d.endpoint_type,
+                    "push_key": d.push_key,
+                    "is_writable": d.is_writable,
+                    "post_push_command": d.post_push_command,
+                    "display_type": d.display_type,
+                    "display_order": d.display_order,
+                    "choices": [
+                        {
+                            "id": c.id,
+                            "label": c.choice_label,
+                            "push_value": c.push_value,
+                        }
+                        for c in choices
+                    ],
+                    "site_settings": {
+                        "enabled": bool(site_cfg.enabled) if site_cfg else False,
+                        "hours": site_cfg.hours if site_cfg else 24,
+                        "desired_choice_id": (
+                            site_cfg.desired_choice_id if site_cfg else None
+                        ),
+                        "desired_value": desired_value,
+                    },
+                }
+            )
+
+        return result
+
+
+def get_enabled_attr_defs_for_site(site_id: int) -> list:
+    """Return only enabled attr defs with site settings. Used by the collector."""
+    return [a for a in get_attr_catalog_for_site(site_id) if a["site_settings"]["enabled"]]
+
+
+def get_host_config_attrs(site_id: int, hostnames: list) -> list:
+    """Return per-host EAV data as a list of host dicts.
+
+    Each dict: {hostname, attrs: {attr_name: {value, collected_at}}}
+    """
+    with get_session() as session:
+        attr_names = {
+            d.id: d.name for d in session.query(ConfigAttrDef).all()
+        }
+
+        query = session.query(HostConfigAttr).filter(
+            HostConfigAttr.site_id == site_id
+        )
+        if hostnames:
+            query = query.filter(HostConfigAttr.hostname.in_(hostnames))
+
+        host_map: dict = {}
+        for r in query.all():
+            if r.hostname not in host_map:
+                host_map[r.hostname] = {"hostname": r.hostname, "attrs": {}}
+            attr_name = attr_names.get(r.attr_def_id, str(r.attr_def_id))
+            host_map[r.hostname]["attrs"][attr_name] = {
+                "value": r.value,
+                "collected_at": r.collected_at,
+            }
+
+        return sorted(host_map.values(), key=lambda h: h["hostname"])
+
+
+def upsert_host_config_attr(
+    hostname: str,
+    site_id: int,
+    attr_def_id: int,
+    value: Optional[str],
+    collected_at: str,
+) -> None:
+    """Insert or update one EAV row in host_config_attr."""
+    with get_session() as session:
+        row = (
+            session.query(HostConfigAttr)
+            .filter(
+                HostConfigAttr.hostname == hostname,
+                HostConfigAttr.site_id == site_id,
+                HostConfigAttr.attr_def_id == attr_def_id,
+            )
+            .first()
+        )
+        if row is None:
+            row = HostConfigAttr(
+                hostname=hostname, site_id=site_id, attr_def_id=attr_def_id
+            )
+            session.add(row)
+        row.value = value
+        row.collected_at = collected_at
+        session.commit()
+
+
+def get_attr_def_by_name(name: str) -> Optional[dict]:
+    """Return a single attr def dict by name, including choices."""
+    with get_session() as session:
+        d = (
+            session.query(ConfigAttrDef)
+            .filter(ConfigAttrDef.name == name)
+            .first()
+        )
+        if d is None:
+            return None
+        choices = (
+            session.query(ConfigAttrChoice)
+            .filter(ConfigAttrChoice.attr_def_id == d.id)
+            .order_by(ConfigAttrChoice.sort_order)
+            .all()
+        )
+        return {
+            "id": d.id,
+            "name": d.name,
+            "label": d.label,
+            "endpoint_type": d.endpoint_type,
+            "attribute_path": d.attribute_path,
+            "push_key": d.push_key,
+            "is_writable": d.is_writable,
+            "post_push_command": d.post_push_command,
+            "display_type": d.display_type,
+            "display_order": d.display_order,
+            "choices": [
+                {"id": c.id, "label": c.choice_label, "push_value": c.push_value}
+                for c in choices
+            ],
+        }
+
+
+def get_all_attr_defs() -> list:
+    """Return all attr defs in display order, with choices. Used by the admin catalog UI."""
+    with get_session() as session:
+        defs = (
+            session.query(ConfigAttrDef)
+            .order_by(ConfigAttrDef.display_order)
+            .all()
+        )
+        result = []
+        for d in defs:
+            choices = (
+                session.query(ConfigAttrChoice)
+                .filter(ConfigAttrChoice.attr_def_id == d.id)
+                .order_by(ConfigAttrChoice.sort_order)
+                .all()
+            )
+            result.append(
+                {
+                    "id": d.id,
+                    "name": d.name,
+                    "label": d.label,
+                    "endpoint_type": d.endpoint_type,
+                    "attribute_path": d.attribute_path,
+                    "push_key": d.push_key,
+                    "is_writable": d.is_writable,
+                    "post_push_command": d.post_push_command,
+                    "display_type": d.display_type,
+                    "display_order": d.display_order,
+                    "choices": [
+                        {
+                            "id": c.id,
+                            "label": c.choice_label,
+                            "push_value": c.push_value,
+                            "sort_order": c.sort_order,
+                        }
+                        for c in choices
+                    ],
+                }
+            )
+        return result
+
+
+def upsert_attr_site_settings(
+    attr_def_id: int,
+    site_id: int,
+    enabled: bool,
+    hours: int,
+    desired_choice_id: Optional[int],
+) -> None:
+    """Create or update per-site settings for one attribute."""
+    with get_session() as session:
+        row = (
+            session.query(ConfigAttrSiteSettings)
+            .filter(
+                ConfigAttrSiteSettings.attr_def_id == attr_def_id,
+                ConfigAttrSiteSettings.site_id == site_id,
+            )
+            .first()
+        )
+        if row is None:
+            row = ConfigAttrSiteSettings(
+                attr_def_id=attr_def_id, site_id=site_id
+            )
+            session.add(row)
+        row.enabled = enabled
+        row.hours = hours
+        row.desired_choice_id = desired_choice_id
+        session.commit()
+
+
+# ── SSL certificate management ────────────────────────────────────────────────
 
 
 def get_site_ssl_config(site_id: int) -> dict:

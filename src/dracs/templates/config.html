@@ -208,40 +208,32 @@
         table.config-table td:first-child,
         table.config-table thead th:first-child { border-left: 1px solid #ddd; }
         table.config-table td:first-child { text-align: left; }
-        table.config-table td:last-child  { text-align: left; }
-        table.config-table tbody tr { background: white; user-select: none; }
         table.config-table tr:nth-child(even) { background: #f9f9f9; }
         table.config-table tr:hover { background: #f1f4ff; }
+        table.config-table tbody tr { user-select: none; }
         table.config-table thead th {
             position: sticky;
             top: 0; z-index: 2;
             background-color: white;
             border-top: 1px solid #ddd;
         }
-        /* Sticky left (Hostname) and right (Collected At) columns */
-        table.config-table td:first-child,
-        table.config-table td:last-child {
-            position: sticky;
-            background: inherit;
-            z-index: 1;
-        }
-        table.config-table td:first-child { left: 0; box-shadow: 2px 0 4px rgba(0,0,0,0.08); }
-        table.config-table td:last-child  { right: 0; box-shadow: -2px 0 4px rgba(0,0,0,0.08); }
         th.attr-header {
             text-align: center;
             font-size: 12px; font-weight: 600;
             color: #333; white-space: nowrap; padding: 6px 10px;
         }
-        th.hostname-header { text-align: left; min-width: 220px; font-weight: 600; }
-        th.collected-header { min-width: 160px; font-weight: 600; }
-        table.config-table thead th.hostname-header {
-            left: 0; z-index: 3;
+        th.hostname-header {
+            text-align: left; min-width: 220px; font-weight: 600;
+            position: sticky; left: 0; z-index: 3;
             box-shadow: 2px 0 4px rgba(0,0,0,0.08);
         }
-        table.config-table thead th.collected-header {
-            right: 0; z-index: 3;
-            box-shadow: -2px 0 4px rgba(0,0,0,0.08);
+        table.config-table td:first-child {
+            position: sticky; left: 0; z-index: 1;
+            background-color: white;
+            box-shadow: 2px 0 4px rgba(0,0,0,0.08);
         }
+        table.config-table tr:nth-child(even) td:first-child { background: #f9f9f9; }
+        table.config-table tr:hover td:first-child { background: #f1f4ff; }
 
         /* Status indicators */
         .ok   { color: #28a745; font-weight: bold; cursor: default; }
@@ -279,12 +271,12 @@
         body.dark-theme .theme-toggle label { color: #aaa; }
         body.dark-theme table.config-table td,
         body.dark-theme table.config-table th { border-color: #444; color: #ddd; }
-        body.dark-theme table.config-table tbody tr { background: #16213e; }
         body.dark-theme table.config-table tr:nth-child(even) { background: #1f2d4a; }
         body.dark-theme table.config-table tr:hover { background: #253555; }
         body.dark-theme table.config-table thead th { background-color: #16213e; }
-        body.dark-theme table.config-table td:first-child,
-        body.dark-theme table.config-table td:last-child { box-shadow: none; }
+        body.dark-theme table.config-table td:first-child { background-color: #16213e; }
+        body.dark-theme table.config-table tr:nth-child(even) td:first-child { background: #1f2d4a; }
+        body.dark-theme table.config-table tr:hover td:first-child { background: #253555; }
         body.dark-theme th.attr-header { color: #ccc; }
         body.dark-theme .page-size-label,
         body.dark-theme .results-info,
@@ -530,18 +522,7 @@
     <h3>Edit iDRAC Settings</h3>
     <p class="edit-modal-subtitle">Applying to <strong id="edit-host-count">0</strong> host(s)</p>
     <div id="edit-options">
-      <label><input type="checkbox" id="ec-dns-from-dhcp" onchange="updateApplyBtn()">
-        iDRAC.IPv4.DNSFromDHCP → <code>Enabled</code></label>
-      <label><input type="checkbox" id="ec-ipmi-lan" onchange="updateApplyBtn()">
-        iDRAC.IPMILan.Enable → <code>Enabled</code></label>
-      <label><input type="checkbox" id="ec-host-header" onchange="updateApplyBtn()">
-        iDRAC.webserver.HostHeaderCheck → <code>Disabled</code></label>
-      <label><input type="checkbox" id="ec-ps-rapid-on" onchange="updateApplyBtn()">
-        System.ServerPwr.PSRapidOn → <code>Disabled</code></label>
-      <label><input type="checkbox" id="ec-idrac-hostname" onchange="updateApplyBtn()">
-        System.ServerOS.Hostname → <code>correct FQDN</code></label>
-      <label><input type="checkbox" id="ec-sys-profile" onchange="updateApplyBtn()">
-        BIOS.SysProfileSettings.SysProfile → <code>PerfPerWattOptimizedOs</code></label>
+      <!-- Populated dynamically from writable+enabled attr_defs by openEditModal() -->
     </div>
     <div id="edit-progress" style="display:none;"></div>
     <div class="edit-modal-footer">
@@ -566,20 +547,18 @@
 <script>
 const isAdmin = {{ 'true' if is_admin else 'false' }};
 (function () {
-    const ATTR_LABELS = {
-        ps_rapid_on:       'PS Rapid On',
-        dns_from_dhcp:     'DNS from DHCP',
-        ipmi_lan_enable:   'IPMI LAN',
-        host_header_check: 'Host Header Check',
-        sys_profile:       'Sys Profile',
-        idrac_hostname:    'iDRAC Hostname',
-        ssl_self_signed:   'SSL CA-Signed',
-        ssl_valid_name:    'SSL Valid Name',
-        ssl_expiry:        'SSL Expiry',
+    // For int_bool attrs: "good" stored value (as string).
+    const INT_BOOL_GOOD_VALUES = {
+        idrac_hostname:  '1',   // 1 = matches expected FQDN
+        ssl_self_signed: '0',   // 0 = CA-signed (not self-signed)
+        ssl_valid_name:  '1',   // 1 = name validated
     };
 
     let allRows      = [];
-    let visibleAttrs = [];
+    let attrDefs     = [];    // full catalog from API
+    let visibleAttrs = [];    // enabled subset, [{id,name,label,push_key,display_type,
+                              //                    post_push_command,is_writable,
+                              //                    choices,site_settings}, ...]
     let pageSize     = 20;
     let currentPage  = 1;
     let displayedTotal = 0;
@@ -632,36 +611,49 @@ const isAdmin = {{ 'true' if is_admin else 'false' }};
         };
     }
 
+    function attrVal(row, name) {
+        return (row.attrs || {})[name]?.value ?? null;
+    }
+
+    function isBoolDrift(row, attrName) {
+        const def = attrDefs.find(d => d.name === attrName);
+        if (!def || !def.site_settings.enabled) return false;
+        const desired = def.site_settings.desired_value;
+        if (!desired) return false;
+        const val = attrVal(row, attrName);
+        return val !== null && val !== desired;
+    }
+
+    function isIntBoolBad(row, attrName) {
+        const val = attrVal(row, attrName);
+        if (val === null) return false;
+        const good = INT_BOOL_GOOD_VALUES[attrName];
+        return good !== undefined && String(val) !== String(good);
+    }
+
     function applyFilters(rows) {
         const f = readFilters();
         return rows.filter(row => {
             if (f.hostname && !row.hostname.toLowerCase().includes(f.hostname))
                 return false;
-            // Show only hosts where PS Rapid On is NOT "Disabled" (bad = Enabled)
-            if (f.psRapidOn && (row.ps_rapid_on == null || row.ps_rapid_on === 'Disabled'))
+            if (f.psRapidOn && !isBoolDrift(row, 'ps_rapid_on'))
                 return false;
-            // Show only hosts where DNS from DHCP is NOT "Enabled" (bad = Disabled)
-            if (f.dnsFromDhcp && (row.dns_from_dhcp == null || row.dns_from_dhcp === 'Enabled'))
+            if (f.dnsFromDhcp && !isBoolDrift(row, 'dns_from_dhcp'))
                 return false;
-            // Show only hosts where IPMI LAN is NOT "Enabled" (bad = Disabled)
-            if (f.ipmiLan && (row.ipmi_lan_enable == null || row.ipmi_lan_enable === 'Enabled'))
+            if (f.ipmiLan && !isBoolDrift(row, 'ipmi_lan_enable'))
                 return false;
-            // Show only hosts where Host Header Check is NOT "Disabled" (bad = Enabled)
-            if (f.hostHeader && (row.host_header_check == null || row.host_header_check === 'Disabled'))
+            if (f.hostHeader && !isBoolDrift(row, 'host_header_check'))
                 return false;
-            // Show only hosts where Sys Profile is NOT the desired value
-            if (f.sysProfile && (row.sys_profile == null || row.sys_profile === 'PerfPerWattOptimizedOs'))
+            if (f.sysProfile && !isBoolDrift(row, 'sys_profile'))
                 return false;
-            // Show only explicit iDRAC hostname mismatches (stored as 0)
-            if (f.idracHostname && row.idrac_hostname !== 0)
+            if (f.idracHostname && !isIntBoolBad(row, 'idrac_hostname'))
                 return false;
-            // Show only self-signed certs (stored as 1)
-            if (f.sslSelfSigned && row.ssl_self_signed !== 1)
+            if (f.sslSelfSigned && !isIntBoolBad(row, 'ssl_self_signed'))
                 return false;
-            // Show only certs expiring within n days (or already expired)
             if (f.sslExpiry >= 0) {
-                if (row.ssl_expiry == null) return false;
-                const days = (new Date(row.ssl_expiry) - new Date()) / 86400000;
+                const expVal = attrVal(row, 'ssl_expiry');
+                if (!expVal) return false;
+                const days = (new Date(expVal) - new Date()) / 86400000;
                 if (days > f.sslExpiry) return false;
             }
             return true;
@@ -703,21 +695,27 @@ const isAdmin = {{ 'true' if is_admin else 'false' }};
             .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
-    function boolCell(val, goodVal, tipGood, tipBad) {
+    function makeTip(pushKey, val, collectedAt) {
+        const parts = [];
+        if (pushKey) parts.push(`${pushKey}: ${val ?? '—'}`);
+        if (collectedAt) parts.push(`Collected: ${collectedAt.replace('T', ' ').slice(0, 19)}`);
+        return parts.join('\n');
+    }
+
+    function boolCell(val, goodVal, tip) {
         if (val === null || val === undefined) return '<span class="na">—</span>';
-        const ok  = String(val) === String(goodVal);
-        const tip = ok ? (tipGood || '') : (tipBad || '');
-        const ta  = tip ? ` title="${escHtml(tip)}"` : '';
+        const ok = String(val) === String(goodVal);
+        const ta = tip ? ` title="${escHtml(tip)}"` : '';
         return ok
             ? `<span class="ok"${ta}>✓</span>`
             : `<span class="bad"${ta}>✗</span>`;
     }
 
-    function intBoolCell(val, goodIs1, tipGood, tipBad) {
+    function intBoolCell(attrName, val, tip) {
         if (val === null || val === undefined) return '<span class="na">—</span>';
-        const ok  = goodIs1 ? val === 1 : val === 0;
-        const tip = ok ? (tipGood || '') : (tipBad || '');
-        const ta  = tip ? ` title="${escHtml(tip)}"` : '';
+        const good = INT_BOOL_GOOD_VALUES[attrName];
+        const ok   = good !== undefined ? String(val) === String(good) : val === '1';
+        const ta   = tip ? ` title="${escHtml(tip)}"` : '';
         return ok
             ? `<span class="ok"${ta}>✓</span>`
             : `<span class="bad"${ta}>✗</span>`;
@@ -748,9 +746,9 @@ const isAdmin = {{ 'true' if is_admin else 'false' }};
         // Header
         const thead = document.getElementById('config-thead');
         let hrow = '<tr><th class="hostname-header">Hostname</th>';
-        for (const attr of visibleAttrs)
-            hrow += `<th class="attr-header">${ATTR_LABELS[attr] || attr}</th>`;
-        hrow += '<th class="collected-header">Collected At</th></tr>';
+        for (const def of visibleAttrs)
+            hrow += `<th class="attr-header">${escHtml(def.label)}</th>`;
+        hrow += '</tr>';
         thead.innerHTML = hrow;
 
         // Body
@@ -760,56 +758,30 @@ const isAdmin = {{ 'true' if is_admin else 'false' }};
             html += `<tr data-hostname="${escHtml(row.hostname || '')}">`;
             html += `<td>${escHtml(row.hostname || '')}</td>`;
 
-            for (const attr of visibleAttrs) {
-                if (attr === 'ps_rapid_on') {
-                    html += `<td data-field="ps_rapid_on">${boolCell(row[attr], 'Disabled',
-                        'System.ServerPwr.PSRapidOn Disabled',
-                        'System.ServerPwr.PSRapidOn Enabled')}</td>`;
+            for (const def of visibleAttrs) {
+                const entry = (row.attrs || {})[def.name] || {};
+                const val = entry.value !== undefined ? entry.value : null;
+                const tip = makeTip(def.push_key, val, entry.collected_at || null);
 
-                } else if (attr === 'dns_from_dhcp') {
-                    html += `<td data-field="dns_from_dhcp">${boolCell(row[attr], 'Enabled',
-                        'iDRAC.IPv4.DNSFromDHCP Enabled',
-                        'iDRAC.IPv4.DNSFromDHCP Disabled')}</td>`;
+                if (def.display_type === 'bool') {
+                    const goodVal = def.site_settings.desired_value;
+                    html += `<td data-field="${escHtml(def.name)}">${boolCell(val, goodVal, tip)}</td>`;
 
-                } else if (attr === 'ipmi_lan_enable') {
-                    html += `<td data-field="ipmi_lan_enable">${boolCell(row[attr], 'Enabled',
-                        'iDRAC.IPMILan.Enable Enabled',
-                        'iDRAC.IPMILan.Enable Disabled')}</td>`;
+                } else if (def.display_type === 'int_bool') {
+                    html += `<td data-field="${escHtml(def.name)}">${intBoolCell(def.name, val, tip)}</td>`;
 
-                } else if (attr === 'host_header_check') {
-                    html += `<td data-field="host_header_check">${boolCell(row[attr], 'Disabled',
-                        'iDRAC.webserver.HostHeaderCheck Disabled',
-                        'iDRAC.webserver.HostHeaderCheck Enabled')}</td>`;
-
-                } else if (attr === 'sys_profile') {
-                    const actual = row[attr] != null ? String(row[attr]) : '';
-                    html += `<td data-field="sys_profile">${boolCell(row[attr], 'PerfPerWattOptimizedOs',
-                        'BIOS.SysProfileSettings.SysProfile PerfPerWattOptimizedOs',
-                        actual ? `BIOS.SysProfileSettings.SysProfile ${actual}` : '')}</td>`;
-
-                } else if (attr === 'idrac_hostname') {
-                    const fetchedVal = row.idrac_hostname_value || '';
-                    const tip = fetchedVal ? `System.ServerOS.Hostname ${fetchedVal}` : '';
-                    html += `<td data-field="idrac_hostname">${intBoolCell(row[attr], true, tip, tip)}</td>`;
-
-                } else if (attr === 'ssl_self_signed') {
-                    html += `<td data-field="ssl_self_signed">${intBoolCell(row[attr], false)}</td>`;
-
-                } else if (attr === 'ssl_valid_name') {
-                    html += `<td data-field="ssl_valid_name">${intBoolCell(row[attr], true)}</td>`;
-
-                } else if (attr === 'ssl_expiry') {
-                    const cls   = sslExpiryClass(row[attr]);
-                    const label = row[attr] ? escHtml(row[attr]) : '—';
-                    html += `<td data-field="ssl_expiry"><span class="${cls}">${label}</span></td>`;
+                } else if (def.display_type === 'date') {
+                    const cls   = sslExpiryClass(val);
+                    const label = val ? escHtml(val) : '—';
+                    const ta    = tip ? ` title="${escHtml(tip)}"` : '';
+                    html += `<td data-field="${escHtml(def.name)}"><span class="${cls}"${ta}>${label}</span></td>`;
 
                 } else {
-                    html += `<td>${escHtml(String(row[attr] ?? '—'))}</td>`;
+                    const ta = tip ? ` title="${escHtml(tip)}"` : '';
+                    html += `<td data-field="${escHtml(def.name)}"${ta}>${escHtml(val ?? '—')}</td>`;
                 }
             }
 
-            const ts = row.collected_at ? row.collected_at.replace('T', ' ').slice(0, 19) : '—';
-            html += `<td>${escHtml(ts)}</td>`;
             html += '</tr>';
         }
         tbody.innerHTML = html;
@@ -932,11 +904,14 @@ const isAdmin = {{ 'true' if is_admin else 'false' }};
         const site = getQueryParam('site');
         const refreshedHosts = [...selectedConfigRows];
 
-        // Snapshot collected_at for each host before the job runs
+        // Snapshot the earliest collected_at across all attrs for each host.
         const beforeMap = {};
         for (const h of refreshedHosts) {
             const row = allRows.find(r => r.hostname === h);
-            beforeMap[h] = row ? (row.collected_at || null) : null;
+            if (!row || !row.attrs) { beforeMap[h] = null; continue; }
+            const timestamps = Object.values(row.attrs)
+                .map(a => a.collected_at).filter(Boolean);
+            beforeMap[h] = timestamps.length ? timestamps.sort()[0] : null;
         }
 
         try {
@@ -985,9 +960,11 @@ const isAdmin = {{ 'true' if is_admin else 'false' }};
                     const newRows = d.data || [];
                     const allUpdated = refreshedHosts.every(h => {
                         const newRow = newRows.find(r => r.hostname === h);
-                        if (!newRow) return false;
+                        if (!newRow || !newRow.attrs) return false;
                         const before = beforeMap[h];
-                        const after = newRow.collected_at || null;
+                        const timestamps = Object.values(newRow.attrs)
+                            .map(a => a.collected_at).filter(Boolean);
+                        const after = timestamps.length ? timestamps.sort()[0] : null;
                         if (before === null) return after !== null;
                         return after && after > before;
                     });
@@ -1010,11 +987,24 @@ const isAdmin = {{ 'true' if is_admin else 'false' }};
 
     window.openEditModal = function () {
         document.getElementById('edit-host-count').textContent = selectedConfigRows.length;
-        ['ec-dns-from-dhcp','ec-ipmi-lan','ec-host-header','ec-ps-rapid-on','ec-idrac-hostname','ec-sys-profile']
-            .forEach(id => { document.getElementById(id).checked = false; });
+
+        // Build checkboxes from writable+enabled attr_defs.
+        const writableEnabled = visibleAttrs.filter(d => d.is_writable);
+        const optDiv = document.getElementById('edit-options');
+        optDiv.innerHTML = '';
+        for (const def of writableEnabled) {
+            const desired = def.site_settings.desired_value;
+            const desiredLabel = def.choices.find(c => c.push_value === desired)?.label || desired || '';
+            const id = `ec-attr-${def.id}`;
+            const lbl = document.createElement('label');
+            lbl.innerHTML = `<input type="checkbox" id="${escHtml(id)}" data-attr-id="${def.id}" onchange="updateApplyBtn()">
+                ${escHtml(def.push_key || def.name)} → <code>${escHtml(desiredLabel)}</code>`;
+            optDiv.appendChild(lbl);
+        }
+
         document.getElementById('apply-btn').disabled = true;
         document.getElementById('cancel-btn').textContent = 'Cancel';
-        document.getElementById('edit-options').style.display = '';
+        optDiv.style.display = '';
         document.getElementById('edit-progress').style.display = 'none';
         document.getElementById('edit-progress').innerHTML = '';
         document.getElementById('edit-modal-overlay').style.display = '';
@@ -1025,9 +1015,9 @@ const isAdmin = {{ 'true' if is_admin else 'false' }};
     };
 
     window.updateApplyBtn = function () {
-        const anyChecked = ['ec-dns-from-dhcp','ec-ipmi-lan','ec-host-header',
-            'ec-ps-rapid-on','ec-idrac-hostname','ec-sys-profile']
-            .some(id => document.getElementById(id).checked);
+        const anyChecked = Array.from(
+            document.querySelectorAll('#edit-options input[type="checkbox"]')
+        ).some(cb => cb.checked);
         document.getElementById('apply-btn').disabled = !anyChecked;
     };
 
@@ -1039,21 +1029,26 @@ const isAdmin = {{ 'true' if is_admin else 'false' }};
         prog.style.display = '';
         prog.innerHTML = '<p>Submitting jobs…</p>';
 
-        const settings = {
-            dns_from_dhcp:  document.getElementById('ec-dns-from-dhcp').checked,
-            ipmi_lan:       document.getElementById('ec-ipmi-lan').checked,
-            host_header:    document.getElementById('ec-host-header').checked,
-            ps_rapid_on:    document.getElementById('ec-ps-rapid-on').checked,
-            idrac_hostname: document.getElementById('ec-idrac-hostname').checked,
-            sys_profile:    document.getElementById('ec-sys-profile').checked,
-        };
+        // Build push_settings from checked attrs.
+        const push_settings = [];
+        for (const def of visibleAttrs.filter(d => d.is_writable)) {
+            const cb = document.getElementById(`ec-attr-${def.id}`);
+            if (!cb || !cb.checked) continue;
+            push_settings.push({
+                attr_name:        def.name,
+                push_key:         def.push_key,
+                push_value:       def.site_settings.desired_value || '',
+                post_push_command: def.post_push_command || null,
+            });
+        }
+
         const site = getQueryParam('site');
         let resp, data;
         try {
             resp = await fetch('/api/config-edit', {
                 method: 'POST', credentials: 'same-origin',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({site, hosts: selectedConfigRows, settings}),
+                body: JSON.stringify({site, hosts: selectedConfigRows, push_settings}),
             });
             data = await resp.json();
         } catch (e) {
@@ -1093,32 +1088,23 @@ const isAdmin = {{ 'true' if is_admin else 'false' }};
         }, 3000);
     }
 
-    function renderFieldValue(field, value) {
-        if (field === 'ps_rapid_on')
-            return boolCell(value, 'Disabled',
-                'System.ServerPwr.PSRapidOn Disabled',
-                'System.ServerPwr.PSRapidOn Enabled');
-        if (field === 'dns_from_dhcp')
-            return boolCell(value, 'Enabled',
-                'iDRAC.IPv4.DNSFromDHCP Enabled',
-                'iDRAC.IPv4.DNSFromDHCP Disabled');
-        if (field === 'ipmi_lan_enable')
-            return boolCell(value, 'Enabled',
-                'iDRAC.IPMILan.Enable Enabled',
-                'iDRAC.IPMILan.Enable Disabled');
-        if (field === 'host_header_check')
-            return boolCell(value, 'Disabled',
-                'iDRAC.webserver.HostHeaderCheck Disabled',
-                'iDRAC.webserver.HostHeaderCheck Enabled');
-        if (field === 'sys_profile') {
-            const actual = value != null ? String(value) : '';
-            return boolCell(value, 'PerfPerWattOptimizedOs',
-                'BIOS.SysProfileSettings.SysProfile PerfPerWattOptimizedOs',
-                actual ? `BIOS.SysProfileSettings.SysProfile ${actual}` : '');
+    function renderFieldValue(def, entry) {
+        const val = entry?.value ?? null;
+        const tip = makeTip(def.push_key, val, entry?.collected_at || null);
+        if (def.display_type === 'bool') {
+            return boolCell(val, def.site_settings.desired_value, tip);
         }
-        if (field === 'idrac_hostname')
-            return intBoolCell(value, true);
-        return '';
+        if (def.display_type === 'int_bool') {
+            return intBoolCell(def.name, val, tip);
+        }
+        if (def.display_type === 'date') {
+            const cls   = sslExpiryClass(val);
+            const label = val ? escHtml(val) : '—';
+            const ta    = tip ? ` title="${escHtml(tip)}"` : '';
+            return `<span class="${cls}"${ta}>${label}</span>`;
+        }
+        const ta = tip ? ` title="${escHtml(tip)}"` : '';
+        return `<span${ta}>${escHtml(val ?? '—')}</span>`;
     }
 
     function applyTableUpdates(children) {
@@ -1127,9 +1113,10 @@ const isAdmin = {{ 'true' if is_admin else 'false' }};
             const hn = child.hostname.replace(/"/g, '\\"');
             const row = document.querySelector(`#config-tbody tr[data-hostname="${hn}"]`);
             if (!row) continue;
-            for (const [field, value] of Object.entries(child.config)) {
-                const cell = row.querySelector(`td[data-field="${field}"]`);
-                if (cell) cell.innerHTML = renderFieldValue(field, value);
+            const attrs = child.config.attrs || {};
+            for (const def of visibleAttrs) {
+                const cell = row.querySelector(`td[data-field="${def.name}"]`);
+                if (cell) cell.innerHTML = renderFieldValue(def, attrs[def.name]);
             }
         }
     }
@@ -1160,31 +1147,10 @@ const isAdmin = {{ 'true' if is_admin else 'false' }};
             return;
         }
 
-        const settings = data.settings || {};
-        allRows = data.data || [];
-
-        const attrOrder = [
-            'ps_rapid_on', 'dns_from_dhcp', 'ipmi_lan_enable',
-            'host_header_check', 'sys_profile',
-            'idrac_hostname', 'ssl_self_signed', 'ssl_valid_name', 'ssl_expiry',
-        ];
-        const settingsAttrMap = {
-            ps_rapid_on:       'ps_rapid_on_enabled',
-            dns_from_dhcp:     'dns_from_dhcp_enabled',
-            ipmi_lan_enable:   'ipmi_lan_enable_enabled',
-            host_header_check: 'host_header_check_enabled',
-            sys_profile:       'sys_profile_enabled',
-            idrac_hostname:    'idrac_hostname_enabled',
-            ssl_self_signed:   'ssl_enabled',
-            ssl_valid_name:    'ssl_enabled',
-            ssl_expiry:        'ssl_enabled',
-        };
-
-        visibleAttrs = attrOrder.filter(a => {
-            const key = settingsAttrMap[a];
-            return key ? settings[key] : true;
-        });
-        if (visibleAttrs.length === 0) visibleAttrs = attrOrder;
+        attrDefs     = data.attr_defs || [];
+        allRows      = data.data || [];
+        visibleAttrs = attrDefs.filter(d => d.site_settings.enabled);
+        if (visibleAttrs.length === 0) visibleAttrs = attrDefs;
 
         document.getElementById('loading').style.display = 'none';
         document.getElementById('main-content').style.display = '';
@@ -1248,8 +1214,14 @@ const isAdmin = {{ 'true' if is_admin else 'false' }};
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ site, hosts: hostnames }),
             });
-            const d = await r.json();
-            if (d.success) { allRows = d.data || []; renderTable(); }
+            const rdata = await r.json();
+            if (rdata.success) {
+                attrDefs     = rdata.attr_defs || attrDefs;
+                allRows      = rdata.data || [];
+                visibleAttrs = attrDefs.filter(def => def.site_settings.enabled);
+                if (visibleAttrs.length === 0) visibleAttrs = attrDefs;
+                renderTable();
+            }
         } catch (_) {}
         if (arInterval > 0) arBegin();
     }
