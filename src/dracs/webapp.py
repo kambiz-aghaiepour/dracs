@@ -4227,7 +4227,10 @@ def api_config_edit():
             return jsonify({"success": False, "message": "hosts list required"}), 400
 
         if not push_settings or not isinstance(push_settings, list):
-            return jsonify({"success": False, "message": "push_settings list required"}), 400
+            return (
+                jsonify({"success": False, "message": "push_settings list required"}),
+                400,
+            )
 
         for h in hosts:
             if not validate_hostname(h):
@@ -4434,7 +4437,9 @@ def api_site_config_collection_put(name):
         body = request.get_json(silent=True)
         if not body or not isinstance(body, list):
             return (
-                jsonify({"success": False, "message": "List of attribute settings required"}),
+                jsonify(
+                    {"success": False, "message": "List of attribute settings required"}
+                ),
                 400,
             )
 

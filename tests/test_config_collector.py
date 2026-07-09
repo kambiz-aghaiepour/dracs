@@ -137,9 +137,7 @@ class TestCollectAndStore:
 
 class TestSweep:
     def test_skips_site_with_nothing_enabled(self, coll_db, site_id):
-        with patch(
-            "dracs.db.get_enabled_attr_defs_for_site", return_value=[]
-        ):
+        with patch("dracs.db.get_enabled_attr_defs_for_site", return_value=[]):
             with patch("dracs.db.get_hosts_for_site") as mock_hosts:
                 collector = ConfigCollector()
                 collector._executor = MagicMock()

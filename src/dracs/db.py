@@ -143,9 +143,7 @@ class ConfigAttrDef(Base):
     push_key: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     is_writable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     post_push_command: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    display_type: Mapped[str] = mapped_column(
-        String, nullable=False, default="string"
-    )
+    display_type: Mapped[str] = mapped_column(String, nullable=False, default="string")
     display_order: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
 
 
@@ -379,7 +377,12 @@ _OLD_SCC_ATTR_MAP = [
     ("sys_profile", "sys_profile"),
     ("idrac_hostname", "idrac_hostname"),
 ]
-_OLD_SCC_SSL_ATTRS = ["ssl_self_signed", "ssl_valid_name", "ssl_expiry", "ssl_fingerprint"]
+_OLD_SCC_SSL_ATTRS = [
+    "ssl_self_signed",
+    "ssl_valid_name",
+    "ssl_expiry",
+    "ssl_fingerprint",
+]
 
 # Maps old host_config column names to new attr_def names (column index in raw SELECT).
 _OLD_HC_ATTR_MAP = [
@@ -427,8 +430,7 @@ def _migrate_schema(engine) -> None:
         user_cols = {c["name"]: c for c in inspector.get_columns("users")}
         if not user_cols.get("role", {}).get("nullable", True):
             with engine.begin() as conn:
-                conn.execute(
-                    text("""
+                conn.execute(text("""
                     CREATE TABLE users_new (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         username VARCHAR NOT NULL UNIQUE,
@@ -437,8 +439,7 @@ def _migrate_schema(engine) -> None:
                         created_at VARCHAR NOT NULL,
                         created_by VARCHAR
                     )
-                    """)
-                )
+                    """))
                 conn.execute(text("INSERT INTO users_new SELECT * FROM users"))
                 conn.execute(text("DROP TABLE users"))
                 conn.execute(text("ALTER TABLE users_new RENAME TO users"))
@@ -510,9 +511,7 @@ def _seed_attr_defs(engine) -> None:
     from sqlalchemy import text
 
     with engine.begin() as conn:
-        count = conn.execute(
-            text("SELECT COUNT(*) FROM config_attr_def")
-        ).scalar()
+        count = conn.execute(text("SELECT COUNT(*) FROM config_attr_def")).scalar()
         if count:
             return
 
@@ -938,11 +937,7 @@ def get_hosts_for_site(site_id: int) -> list:
 def get_attr_catalog_for_site(site_id: int) -> list:
     """Return all attr defs with per-site settings and choices, in display order."""
     with get_session() as session:
-        defs = (
-            session.query(ConfigAttrDef)
-            .order_by(ConfigAttrDef.display_order)
-            .all()
-        )
+        defs = session.query(ConfigAttrDef).order_by(ConfigAttrDef.display_order).all()
 
         settings_rows = (
             session.query(ConfigAttrSiteSettings)
@@ -1002,7 +997,9 @@ def get_attr_catalog_for_site(site_id: int) -> list:
 
 def get_enabled_attr_defs_for_site(site_id: int) -> list:
     """Return only enabled attr defs with site settings. Used by the collector."""
-    return [a for a in get_attr_catalog_for_site(site_id) if a["site_settings"]["enabled"]]
+    return [
+        a for a in get_attr_catalog_for_site(site_id) if a["site_settings"]["enabled"]
+    ]
 
 
 def get_host_config_attrs(site_id: int, hostnames: list) -> list:
@@ -1011,13 +1008,9 @@ def get_host_config_attrs(site_id: int, hostnames: list) -> list:
     Each dict: {hostname, attrs: {attr_name: {value, collected_at}}}
     """
     with get_session() as session:
-        attr_names = {
-            d.id: d.name for d in session.query(ConfigAttrDef).all()
-        }
+        attr_names = {d.id: d.name for d in session.query(ConfigAttrDef).all()}
 
-        query = session.query(HostConfigAttr).filter(
-            HostConfigAttr.site_id == site_id
-        )
+        query = session.query(HostConfigAttr).filter(HostConfigAttr.site_id == site_id)
         if hostnames:
             query = query.filter(HostConfigAttr.hostname.in_(hostnames))
 
@@ -1065,11 +1058,7 @@ def upsert_host_config_attr(
 def get_attr_def_by_name(name: str) -> Optional[dict]:
     """Return a single attr def dict by name, including choices."""
     with get_session() as session:
-        d = (
-            session.query(ConfigAttrDef)
-            .filter(ConfigAttrDef.name == name)
-            .first()
-        )
+        d = session.query(ConfigAttrDef).filter(ConfigAttrDef.name == name).first()
         if d is None:
             return None
         choices = (
@@ -1099,11 +1088,7 @@ def get_attr_def_by_name(name: str) -> Optional[dict]:
 def get_all_attr_defs() -> list:
     """Return all attr defs in display order, with choices. Used by the admin catalog UI."""
     with get_session() as session:
-        defs = (
-            session.query(ConfigAttrDef)
-            .order_by(ConfigAttrDef.display_order)
-            .all()
-        )
+        defs = session.query(ConfigAttrDef).order_by(ConfigAttrDef.display_order).all()
         result = []
         for d in defs:
             choices = (
@@ -1156,9 +1141,7 @@ def upsert_attr_site_settings(
             .first()
         )
         if row is None:
-            row = ConfigAttrSiteSettings(
-                attr_def_id=attr_def_id, site_id=site_id
-            )
+            row = ConfigAttrSiteSettings(attr_def_id=attr_def_id, site_id=site_id)
             session.add(row)
         row.enabled = enabled
         row.hours = hours

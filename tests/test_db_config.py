@@ -101,7 +101,9 @@ class TestAttrCatalog:
 
     def test_enabled_attr_returned_correctly_after_upsert(self, config_db, site_id):
         attr = get_attr_def_by_name("ps_rapid_on")
-        upsert_attr_site_settings(attr["id"], site_id, enabled=True, hours=6, desired_choice_id=None)
+        upsert_attr_site_settings(
+            attr["id"], site_id, enabled=True, hours=6, desired_choice_id=None
+        )
         catalog = get_attr_catalog_for_site(site_id)
         ps = next(d for d in catalog if d["name"] == "ps_rapid_on")
         assert ps["site_settings"]["enabled"] is True
@@ -122,8 +124,12 @@ class TestGetEnabledAttrDefsForSite:
     def test_returns_only_enabled_attrs(self, config_db, site_id):
         ps = get_attr_def_by_name("ps_rapid_on")
         dns = get_attr_def_by_name("dns_from_dhcp")
-        upsert_attr_site_settings(ps["id"], site_id, enabled=True, hours=24, desired_choice_id=None)
-        upsert_attr_site_settings(dns["id"], site_id, enabled=False, hours=24, desired_choice_id=None)
+        upsert_attr_site_settings(
+            ps["id"], site_id, enabled=True, hours=24, desired_choice_id=None
+        )
+        upsert_attr_site_settings(
+            dns["id"], site_id, enabled=False, hours=24, desired_choice_id=None
+        )
         enabled = get_enabled_attr_defs_for_site(site_id)
         names = [d["name"] for d in enabled]
         assert "ps_rapid_on" in names
@@ -133,7 +139,9 @@ class TestGetEnabledAttrDefsForSite:
 class TestUpsertAttrSiteSettings:
     def test_sets_enabled_and_hours(self, config_db, site_id):
         attr = get_attr_def_by_name("dns_from_dhcp")
-        upsert_attr_site_settings(attr["id"], site_id, enabled=True, hours=12, desired_choice_id=None)
+        upsert_attr_site_settings(
+            attr["id"], site_id, enabled=True, hours=12, desired_choice_id=None
+        )
         catalog = get_attr_catalog_for_site(site_id)
         d = next(x for x in catalog if x["name"] == "dns_from_dhcp")
         assert d["site_settings"]["enabled"] is True
@@ -141,8 +149,12 @@ class TestUpsertAttrSiteSettings:
 
     def test_updates_existing(self, config_db, site_id):
         attr = get_attr_def_by_name("dns_from_dhcp")
-        upsert_attr_site_settings(attr["id"], site_id, enabled=True, hours=12, desired_choice_id=None)
-        upsert_attr_site_settings(attr["id"], site_id, enabled=False, hours=48, desired_choice_id=None)
+        upsert_attr_site_settings(
+            attr["id"], site_id, enabled=True, hours=12, desired_choice_id=None
+        )
+        upsert_attr_site_settings(
+            attr["id"], site_id, enabled=False, hours=48, desired_choice_id=None
+        )
         catalog = get_attr_catalog_for_site(site_id)
         d = next(x for x in catalog if x["name"] == "dns_from_dhcp")
         assert d["site_settings"]["enabled"] is False
@@ -165,7 +177,11 @@ class TestHostConfigAttrs:
     def test_insert_and_retrieve(self, config_db, site_id):
         attr = get_attr_def_by_name("ps_rapid_on")
         upsert_host_config_attr(
-            "server01.example.com", site_id, attr["id"], "Disabled", "2026-01-01T00:00:00"
+            "server01.example.com",
+            site_id,
+            attr["id"],
+            "Disabled",
+            "2026-01-01T00:00:00",
         )
         rows = get_host_config_attrs(site_id, ["server01.example.com"])
         assert len(rows) == 1
@@ -177,10 +193,18 @@ class TestHostConfigAttrs:
     def test_update_existing(self, config_db, site_id):
         attr = get_attr_def_by_name("ps_rapid_on")
         upsert_host_config_attr(
-            "server01.example.com", site_id, attr["id"], "Enabled", "2026-01-01T00:00:00"
+            "server01.example.com",
+            site_id,
+            attr["id"],
+            "Enabled",
+            "2026-01-01T00:00:00",
         )
         upsert_host_config_attr(
-            "server01.example.com", site_id, attr["id"], "Disabled", "2026-01-02T00:00:00"
+            "server01.example.com",
+            site_id,
+            attr["id"],
+            "Disabled",
+            "2026-01-02T00:00:00",
         )
         rows = get_host_config_attrs(site_id, ["server01.example.com"])
         assert rows[0]["attrs"]["ps_rapid_on"]["value"] == "Disabled"
@@ -330,7 +354,12 @@ class TestMigrateCollectionTables:
             assert ps["site_settings"]["hours"] == 12
             # ssl attrs: ssl_self_signed, ssl_valid_name, ssl_expiry, ssl_fingerprint
             # should all be enabled with hours=6
-            for ssl_name in ("ssl_self_signed", "ssl_valid_name", "ssl_expiry", "ssl_fingerprint"):
+            for ssl_name in (
+                "ssl_self_signed",
+                "ssl_valid_name",
+                "ssl_expiry",
+                "ssl_fingerprint",
+            ):
                 ssl_entry = next((d for d in catalog if d["name"] == ssl_name), None)
                 assert ssl_entry is not None, f"Missing SSL attr: {ssl_name}"
                 assert ssl_entry["site_settings"]["enabled"] is True

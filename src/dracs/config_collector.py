@@ -121,7 +121,11 @@ class ConfigCollector:
             time.sleep(CHECK_INTERVAL)
 
     def _sweep(self) -> None:
-        from dracs.db import get_enabled_attr_defs_for_site, get_hosts_for_site, list_sites
+        from dracs.db import (
+            get_enabled_attr_defs_for_site,
+            get_hosts_for_site,
+            list_sites,
+        )
 
         for site in list_sites():
             site_id = site["id"]

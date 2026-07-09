@@ -941,7 +941,9 @@ class TestExecuteSslCertUploadJob:
             },
         )
         # idrac already has same or newer expiry and is CA-signed (not self-signed)
-        _upsert_host_ssl_attrs("server01", site["id"], ssl_expiry=expiry, ssl_self_signed=0)
+        _upsert_host_ssl_attrs(
+            "server01", site["id"], ssl_expiry=expiry, ssl_self_signed=0
+        )
 
         with patch("os.path.exists", return_value=True):
             with patch("subprocess.run") as mock_run:
@@ -965,8 +967,10 @@ class TestExecuteSslCertUploadJob:
         )
         # iDRAC has a self-signed cert with a later expiry than what's stored
         _upsert_host_ssl_attrs(
-            "server01", site["id"],
-            ssl_expiry="2036-05-26T00:00:00+00:00", ssl_self_signed=1,
+            "server01",
+            site["id"],
+            ssl_expiry="2036-05-26T00:00:00+00:00",
+            ssl_self_signed=1,
         )
 
         ok_result = MagicMock()
@@ -1003,8 +1007,10 @@ class TestExecuteSslCertUploadJob:
         )
         # iDRAC is self-signed and already has the same cert
         _upsert_host_ssl_attrs(
-            "server01", site["id"],
-            ssl_expiry="2036-05-26T00:00:00+00:00", ssl_self_signed=1,
+            "server01",
+            site["id"],
+            ssl_expiry="2036-05-26T00:00:00+00:00",
+            ssl_self_signed=1,
             ssl_fingerprint=fingerprint,
         )
 
@@ -1030,8 +1036,10 @@ class TestExecuteSslCertUploadJob:
         )
         # iDRAC is self-signed but has a different cert
         _upsert_host_ssl_attrs(
-            "server01", site["id"],
-            ssl_expiry="2036-05-26T00:00:00+00:00", ssl_self_signed=1,
+            "server01",
+            site["id"],
+            ssl_expiry="2036-05-26T00:00:00+00:00",
+            ssl_self_signed=1,
             ssl_fingerprint="11:22:33:44:55:66",
         )
 
@@ -1065,7 +1073,9 @@ class TestExecuteSslCertUploadJob:
                 "cert_expiry": "2027-06-01T00:00:00+00:00",
             },
         )
-        _upsert_host_ssl_attrs("server01", site["id"], ssl_expiry="2026-01-01T00:00:00+00:00")
+        _upsert_host_ssl_attrs(
+            "server01", site["id"], ssl_expiry="2026-01-01T00:00:00+00:00"
+        )
 
         mock_result = MagicMock()
         mock_result.returncode = 0
@@ -1102,7 +1112,9 @@ class TestExecuteSslCertUploadJob:
                 "cert_expiry": "2027-06-01T00:00:00+00:00",
             },
         )
-        _upsert_host_ssl_attrs("server01", site["id"], ssl_expiry="2026-01-01T00:00:00+00:00")
+        _upsert_host_ssl_attrs(
+            "server01", site["id"], ssl_expiry="2026-01-01T00:00:00+00:00"
+        )
 
         fail_result = MagicMock()
         fail_result.returncode = 1
@@ -1141,7 +1153,9 @@ class TestExecuteSslCertUploadJob:
                 "cert_expiry": "2027-06-01T00:00:00+00:00",
             },
         )
-        _upsert_host_ssl_attrs("server01", site["id"], ssl_expiry="2026-01-01T00:00:00+00:00")
+        _upsert_host_ssl_attrs(
+            "server01", site["id"], ssl_expiry="2026-01-01T00:00:00+00:00"
+        )
 
         fail_result = MagicMock()
         fail_result.returncode = 1
@@ -1183,7 +1197,9 @@ class TestExecuteSslCertUploadJob:
                 "cert_expiry": "2027-06-01T00:00:00+00:00",
             },
         )
-        _upsert_host_ssl_attrs("server01", site["id"], ssl_expiry="2026-01-01T00:00:00+00:00")
+        _upsert_host_ssl_attrs(
+            "server01", site["id"], ssl_expiry="2026-01-01T00:00:00+00:00"
+        )
 
         mock_result = MagicMock()
         mock_result.returncode = 0
@@ -1233,7 +1249,9 @@ class TestExecuteSslCertUploadJob:
                 "cert_expiry": "2027-06-01T00:00:00+00:00",
             },
         )
-        _upsert_host_ssl_attrs("server01", site["id"], ssl_expiry="2026-01-01T00:00:00+00:00")
+        _upsert_host_ssl_attrs(
+            "server01", site["id"], ssl_expiry="2026-01-01T00:00:00+00:00"
+        )
 
         fail_result = MagicMock()
         fail_result.returncode = 1
@@ -1293,7 +1311,9 @@ class TestExecuteSslCertUploadJob:
                 "cert_expiry": "2027-06-01T00:00:00+00:00",
             },
         )
-        _upsert_host_ssl_attrs("server01", site["id"], ssl_expiry="2026-01-01T00:00:00+00:00")
+        _upsert_host_ssl_attrs(
+            "server01", site["id"], ssl_expiry="2026-01-01T00:00:00+00:00"
+        )
 
         ok_result = MagicMock()
         ok_result.returncode = 0
@@ -1339,7 +1359,9 @@ class TestExecuteSslCertUploadJob:
                 "cert_expiry": "2027-06-01T00:00:00+00:00",
             },
         )
-        _upsert_host_ssl_attrs("server01", site["id"], ssl_expiry="2026-01-01T00:00:00+00:00")
+        _upsert_host_ssl_attrs(
+            "server01", site["id"], ssl_expiry="2026-01-01T00:00:00+00:00"
+        )
 
         ok_result = MagicMock()
         ok_result.returncode = 0

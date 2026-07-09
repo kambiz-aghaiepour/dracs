@@ -43,7 +43,7 @@ def _extract_by_path(data: dict, path: str):
     'IPv4.1.DNSFromDHCP').  All other paths are treated as top-level keys.
     """
     if path.startswith("Attributes."):
-        attr_key = path[len("Attributes."):]
+        attr_key = path[len("Attributes.") :]
         return data.get("Attributes", {}).get(attr_key)
     return data.get(path)
 
@@ -94,9 +94,7 @@ def collect_ssl_info(idrac_fqdn: str) -> dict:
     return result
 
 
-def collect_for_host_dynamic(
-    hostname: str, site_name: str, attr_defs: list
-) -> dict:
+def collect_for_host_dynamic(hostname: str, site_name: str, attr_defs: list) -> dict:
     """Collect config attributes for one host using the DB-driven attr catalog.
 
     attr_defs: list of dicts from get_enabled_attr_defs_for_site() — each has

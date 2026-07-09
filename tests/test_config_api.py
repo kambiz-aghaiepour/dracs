@@ -372,7 +372,11 @@ class TestApiConfigEdit:
             sess["is_superadmin"] = True
         resp = client.post(
             "/api/config-edit",
-            json={"site": "Default", "hosts": [], "push_settings": self._push_settings()},
+            json={
+                "site": "Default",
+                "hosts": [],
+                "push_settings": self._push_settings(),
+            },
         )
         assert resp.status_code == 400
 

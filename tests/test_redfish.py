@@ -173,10 +173,15 @@ class TestCollectForHostDynamic:
 
     @patch.dict(os.environ, {"DRACS_DNS_STRING": "mgmt-", "DRACS_DNS_MODE": "prefix"})
     def test_returns_eav_format(self):
-        attr_defs = [_attr("ps_rapid_on", "system_oem_dell", "Attributes.ServerPwr.1.PSRapidOn")]
+        attr_defs = [
+            _attr("ps_rapid_on", "system_oem_dell", "Attributes.ServerPwr.1.PSRapidOn")
+        ]
         resp = _mock_response({"Attributes": {"ServerPwr.1.PSRapidOn": "Disabled"}})
         with patch("dracs.redfish._get_credentials", return_value=("root", "pw")):
-            with patch("dracs.snmp.build_idrac_hostname", return_value="mgmt-server01.example.com"):
+            with patch(
+                "dracs.snmp.build_idrac_hostname",
+                return_value="mgmt-server01.example.com",
+            ):
                 with patch("requests.get", return_value=resp):
                     result = collect_for_host_dynamic(
                         "server01.example.com", "Default", attr_defs
@@ -190,17 +195,26 @@ class TestCollectForHostDynamic:
         attr_defs = [
             _attr("dns_from_dhcp", "idrac_attributes", "Attributes.IPv4.1.DNSFromDHCP"),
             _attr("ipmi_lan_enable", "idrac_attributes", "Attributes.IPMILan.1.Enable"),
-            _attr("host_header_check", "idrac_attributes", "Attributes.WebServer.1.HostHeaderCheck"),
+            _attr(
+                "host_header_check",
+                "idrac_attributes",
+                "Attributes.WebServer.1.HostHeaderCheck",
+            ),
         ]
-        resp = _mock_response({
-            "Attributes": {
-                "IPv4.1.DNSFromDHCP": "Enabled",
-                "IPMILan.1.Enable": "Enabled",
-                "WebServer.1.HostHeaderCheck": "Disabled",
+        resp = _mock_response(
+            {
+                "Attributes": {
+                    "IPv4.1.DNSFromDHCP": "Enabled",
+                    "IPMILan.1.Enable": "Enabled",
+                    "WebServer.1.HostHeaderCheck": "Disabled",
+                }
             }
-        })
+        )
         with patch("dracs.redfish._get_credentials", return_value=("root", "pw")):
-            with patch("dracs.snmp.build_idrac_hostname", return_value="mgmt-server01.example.com"):
+            with patch(
+                "dracs.snmp.build_idrac_hostname",
+                return_value="mgmt-server01.example.com",
+            ):
                 with patch("requests.get", return_value=resp) as mock_get:
                     result = collect_for_host_dynamic(
                         "server01.example.com", "Default", attr_defs
@@ -225,7 +239,10 @@ class TestCollectForHostDynamic:
             _attr("ssl_fingerprint", "ssl", None),
         ]
         with patch("dracs.redfish._get_credentials", return_value=("root", "pw")):
-            with patch("dracs.snmp.build_idrac_hostname", return_value="mgmt-server01.example.com"):
+            with patch(
+                "dracs.snmp.build_idrac_hostname",
+                return_value="mgmt-server01.example.com",
+            ):
                 with patch("dracs.redfish.collect_ssl_info", return_value=ssl_info):
                     result = collect_for_host_dynamic(
                         "server01.example.com", "Default", attr_defs
@@ -237,10 +254,18 @@ class TestCollectForHostDynamic:
 
     @patch.dict(os.environ, {"DRACS_DNS_STRING": "mgmt-", "DRACS_DNS_MODE": "prefix"})
     def test_ssl_none_fields_stored_as_none(self):
-        ssl_info = {"self_signed": None, "valid_name": None, "expiry": None, "fingerprint": None}
+        ssl_info = {
+            "self_signed": None,
+            "valid_name": None,
+            "expiry": None,
+            "fingerprint": None,
+        }
         attr_defs = [_attr("ssl_self_signed", "ssl", None)]
         with patch("dracs.redfish._get_credentials", return_value=("root", "pw")):
-            with patch("dracs.snmp.build_idrac_hostname", return_value="mgmt-server01.example.com"):
+            with patch(
+                "dracs.snmp.build_idrac_hostname",
+                return_value="mgmt-server01.example.com",
+            ):
                 with patch("dracs.redfish.collect_ssl_info", return_value=ssl_info):
                     result = collect_for_host_dynamic(
                         "server01.example.com", "Default", attr_defs
@@ -252,7 +277,10 @@ class TestCollectForHostDynamic:
         attr_defs = [_attr("idrac_hostname", "system", "HostName")]
         resp = _mock_response({"HostName": "mgmt-server01.example.com"})
         with patch("dracs.redfish._get_credentials", return_value=("root", "pw")):
-            with patch("dracs.snmp.build_idrac_hostname", return_value="mgmt-server01.example.com"):
+            with patch(
+                "dracs.snmp.build_idrac_hostname",
+                return_value="mgmt-server01.example.com",
+            ):
                 with patch("requests.get", return_value=resp):
                     result = collect_for_host_dynamic(
                         "server01.example.com", "Default", attr_defs
@@ -264,7 +292,10 @@ class TestCollectForHostDynamic:
         attr_defs = [_attr("idrac_hostname", "system", "HostName")]
         resp = _mock_response({"HostName": "wrong-name.example.com"})
         with patch("dracs.redfish._get_credentials", return_value=("root", "pw")):
-            with patch("dracs.snmp.build_idrac_hostname", return_value="mgmt-server01.example.com"):
+            with patch(
+                "dracs.snmp.build_idrac_hostname",
+                return_value="mgmt-server01.example.com",
+            ):
                 with patch("requests.get", return_value=resp):
                     result = collect_for_host_dynamic(
                         "server01.example.com", "Default", attr_defs
@@ -278,7 +309,10 @@ class TestCollectForHostDynamic:
         ]
         resp = _mock_response({}, status_code=401)
         with patch("dracs.redfish._get_credentials", return_value=("root", "pw")):
-            with patch("dracs.snmp.build_idrac_hostname", return_value="mgmt-server01.example.com"):
+            with patch(
+                "dracs.snmp.build_idrac_hostname",
+                return_value="mgmt-server01.example.com",
+            ):
                 with patch("requests.get", return_value=resp):
                     result = collect_for_host_dynamic(
                         "server01.example.com", "Default", attr_defs
@@ -292,7 +326,10 @@ class TestCollectForHostDynamic:
             _attr("ps_rapid_on", "system_oem_dell", "Attributes.ServerPwr.1.PSRapidOn")
         ]
         with patch("dracs.redfish._get_credentials", return_value=("root", "pw")):
-            with patch("dracs.snmp.build_idrac_hostname", return_value="mgmt-server01.example.com"):
+            with patch(
+                "dracs.snmp.build_idrac_hostname",
+                return_value="mgmt-server01.example.com",
+            ):
                 with patch("requests.get", side_effect=ConnectionError("unreachable")):
                     result = collect_for_host_dynamic(
                         "server01.example.com", "Default", attr_defs
@@ -302,17 +339,21 @@ class TestCollectForHostDynamic:
     @patch.dict(os.environ, {"DRACS_DNS_STRING": "mgmt-", "DRACS_DNS_MODE": "prefix"})
     def test_empty_attr_defs_returns_empty_dict(self):
         with patch("dracs.redfish._get_credentials", return_value=("root", "pw")):
-            with patch("dracs.snmp.build_idrac_hostname", return_value="mgmt-server01.example.com"):
-                result = collect_for_host_dynamic(
-                    "server01.example.com", "Default", []
-                )
+            with patch(
+                "dracs.snmp.build_idrac_hostname",
+                return_value="mgmt-server01.example.com",
+            ):
+                result = collect_for_host_dynamic("server01.example.com", "Default", [])
         assert result == {}
 
     @patch.dict(os.environ, {"DRACS_DNS_STRING": "mgmt-", "DRACS_DNS_MODE": "prefix"})
     def test_unknown_endpoint_type_stores_none(self):
         attr_defs = [_attr("mystery_attr", "unknown_endpoint", "SomeKey")]
         with patch("dracs.redfish._get_credentials", return_value=("root", "pw")):
-            with patch("dracs.snmp.build_idrac_hostname", return_value="mgmt-server01.example.com"):
+            with patch(
+                "dracs.snmp.build_idrac_hostname",
+                return_value="mgmt-server01.example.com",
+            ):
                 result = collect_for_host_dynamic(
                     "server01.example.com", "Default", attr_defs
                 )
@@ -320,10 +361,15 @@ class TestCollectForHostDynamic:
 
     @patch.dict(os.environ, {"DRACS_DNS_STRING": "mgmt-", "DRACS_DNS_MODE": "prefix"})
     def test_missing_path_key_stores_none(self):
-        attr_defs = [_attr("ps_rapid_on", "system_oem_dell", "Attributes.ServerPwr.1.PSRapidOn")]
+        attr_defs = [
+            _attr("ps_rapid_on", "system_oem_dell", "Attributes.ServerPwr.1.PSRapidOn")
+        ]
         resp = _mock_response({"Attributes": {}})
         with patch("dracs.redfish._get_credentials", return_value=("root", "pw")):
-            with patch("dracs.snmp.build_idrac_hostname", return_value="mgmt-server01.example.com"):
+            with patch(
+                "dracs.snmp.build_idrac_hostname",
+                return_value="mgmt-server01.example.com",
+            ):
                 with patch("requests.get", return_value=resp):
                     result = collect_for_host_dynamic(
                         "server01.example.com", "Default", attr_defs
@@ -333,12 +379,18 @@ class TestCollectForHostDynamic:
     @patch.dict(os.environ, {"DRACS_DNS_STRING": "mgmt-", "DRACS_DNS_MODE": "prefix"})
     def test_multiple_endpoints_each_make_one_request(self):
         """Attrs from different endpoint_types each trigger a separate HTTP call."""
-        ps_attr = _attr("ps_rapid_on", "system_oem_dell", "Attributes.ServerPwr.1.PSRapidOn")
+        ps_attr = _attr(
+            "ps_rapid_on", "system_oem_dell", "Attributes.ServerPwr.1.PSRapidOn"
+        )
         sp_attr = _attr("sys_profile", "bios", "Attributes.SysProfile")
 
         responses = {
-            "system_oem_dell": _mock_response({"Attributes": {"ServerPwr.1.PSRapidOn": "Disabled"}}),
-            "bios": _mock_response({"Attributes": {"SysProfile": "PerfPerWattOptimizedOs"}}),
+            "system_oem_dell": _mock_response(
+                {"Attributes": {"ServerPwr.1.PSRapidOn": "Disabled"}}
+            ),
+            "bios": _mock_response(
+                {"Attributes": {"SysProfile": "PerfPerWattOptimizedOs"}}
+            ),
         }
 
         call_count = 0
@@ -353,7 +405,10 @@ class TestCollectForHostDynamic:
             return _mock_response({})
 
         with patch("dracs.redfish._get_credentials", return_value=("root", "pw")):
-            with patch("dracs.snmp.build_idrac_hostname", return_value="mgmt-server01.example.com"):
+            with patch(
+                "dracs.snmp.build_idrac_hostname",
+                return_value="mgmt-server01.example.com",
+            ):
                 with patch("requests.get", side_effect=side_effect):
                     result = collect_for_host_dynamic(
                         "server01.example.com", "Default", [ps_attr, sp_attr]

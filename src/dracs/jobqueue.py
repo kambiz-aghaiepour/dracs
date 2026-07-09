@@ -639,7 +639,9 @@ def execute_racadm_config_job(hostname: str, metadata: dict) -> None:
         # Substitute {idrac_fqdn} token in push_value (used for idrac_hostname attr).
         push_value = push_value.replace("{idrac_fqdn}", idrac_fqdn)
 
-        cmd = _build_ssh_racadm_cmd(hostname, "set", push_key, push_value, site=site_name)
+        cmd = _build_ssh_racadm_cmd(
+            hostname, "set", push_key, push_value, site=site_name
+        )
         result = subprocess.run(  # nosec # nosemgrep
             cmd, capture_output=True, text=True, timeout=60  # nosemgrep
         )
@@ -660,8 +662,7 @@ def execute_racadm_config_job(hostname: str, metadata: dict) -> None:
     # Re-collect pushed attributes to reflect their new values in the DB.
     pushed_names = {ps["attr_name"] for ps in push_settings if ps.get("attr_name")}
     pushed_attr_defs = [
-        d for name in pushed_names
-        if (d := get_attr_def_by_name(name)) is not None
+        d for name in pushed_names if (d := get_attr_def_by_name(name)) is not None
     ]
 
     if pushed_attr_defs:
