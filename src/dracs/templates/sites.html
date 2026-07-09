@@ -349,6 +349,7 @@
                         <th>Attribute</th>
                         <th>Enabled</th>
                         <th>Interval (hours)</th>
+                        <th>Desired Value</th>
                     </tr>
                 </thead>
                 <tbody id="collection-settings-tbody">
@@ -356,36 +357,43 @@
                         <td>PS Rapid On</td>
                         <td><input type="checkbox" class="coll-enabled"></td>
                         <td><input type="number" class="coll-hours" min="1" max="8760" value="24"></td>
+                        <td><select class="coll-desired"><option value="">— Any —</option></select></td>
                     </tr>
                     <tr data-attr="dns_from_dhcp">
                         <td>DNS from DHCP</td>
                         <td><input type="checkbox" class="coll-enabled"></td>
                         <td><input type="number" class="coll-hours" min="1" max="8760" value="24"></td>
+                        <td><select class="coll-desired"><option value="">— Any —</option></select></td>
                     </tr>
                     <tr data-attr="ipmi_lan_enable">
                         <td>IPMI LAN</td>
                         <td><input type="checkbox" class="coll-enabled"></td>
                         <td><input type="number" class="coll-hours" min="1" max="8760" value="24"></td>
+                        <td><select class="coll-desired"><option value="">— Any —</option></select></td>
                     </tr>
                     <tr data-attr="host_header_check">
                         <td>Host Header Check</td>
                         <td><input type="checkbox" class="coll-enabled"></td>
                         <td><input type="number" class="coll-hours" min="1" max="8760" value="24"></td>
+                        <td><select class="coll-desired"><option value="">— Any —</option></select></td>
                     </tr>
                     <tr data-attr="sys_profile">
                         <td>System Profile</td>
                         <td><input type="checkbox" class="coll-enabled"></td>
                         <td><input type="number" class="coll-hours" min="1" max="8760" value="24"></td>
+                        <td><select class="coll-desired"><option value="">— Any —</option></select></td>
                     </tr>
                     <tr data-attr="ssl">
                         <td>SSL Certificate</td>
                         <td><input type="checkbox" class="coll-enabled"></td>
                         <td><input type="number" class="coll-hours" min="1" max="8760" value="24"></td>
+                        <td><span style="color:#999;">—</span></td>
                     </tr>
                     <tr data-attr="idrac_hostname">
                         <td>iDRAC Hostname</td>
                         <td><input type="checkbox" class="coll-enabled"></td>
                         <td><input type="number" class="coll-hours" min="1" max="8760" value="24"></td>
+                        <td><span style="color:#999;">—</span></td>
                     </tr>
                 </tbody>
             </table>
@@ -1014,16 +1022,27 @@
             const data = await resp.json();
             if (!data.success) return;
             _attrCatalog = data.catalog || [];
-            // Build name → site_settings map; aggregate the four SSL attrs into one 'ssl' entry.
-            const byName = {};
+            // Build name → catalog entry map; aggregate the four SSL attrs into one 'ssl' entry.
+            const catalogByName = {};
             for (const entry of _attrCatalog) {
-                byName[entry.name] = entry.site_settings;
+                catalogByName[entry.name] = entry;
             }
-            byName['ssl'] = byName['ssl_self_signed'] || {enabled: false, hours: 24};
+            catalogByName['ssl'] = catalogByName['ssl_self_signed'] || null;
             document.querySelectorAll('#collection-settings-tbody tr[data-attr]').forEach(row => {
-                const s = byName[row.dataset.attr] || {enabled: false, hours: 24};
+                const entry = catalogByName[row.dataset.attr];
+                const s = entry ? entry.site_settings : {enabled: false, hours: 24, desired_choice_id: null};
                 row.querySelector('.coll-enabled').checked = !!s.enabled;
                 row.querySelector('.coll-hours').value = s.hours || 24;
+                const sel = row.querySelector('.coll-desired');
+                if (!sel || !entry || !entry.is_writable || !entry.choices || entry.choices.length === 0) return;
+                sel.innerHTML = '<option value="">— Any —</option>';
+                for (const ch of entry.choices) {
+                    const opt = document.createElement('option');
+                    opt.value = ch.id;
+                    opt.textContent = ch.label;
+                    if (s.desired_choice_id === ch.id) opt.selected = true;
+                    sel.appendChild(opt);
+                }
             });
         }
 
@@ -1032,19 +1051,21 @@
             const _SSL_ATTRS = ['ssl_self_signed', 'ssl_valid_name', 'ssl_expiry', 'ssl_fingerprint'];
             const rowSettings = {};
             document.querySelectorAll('#collection-settings-tbody tr[data-attr]').forEach(row => {
+                const sel = row.querySelector('.coll-desired');
                 rowSettings[row.dataset.attr] = {
                     enabled: row.querySelector('.coll-enabled').checked,
                     hours: parseInt(row.querySelector('.coll-hours').value) || 24,
+                    desired_choice_id: sel && sel.value ? parseInt(sel.value) : null,
                 };
             });
             const payload = _attrCatalog.map(entry => {
                 const key = _SSL_ATTRS.includes(entry.name) ? 'ssl' : entry.name;
-                const s = rowSettings[key] || {enabled: false, hours: 24};
+                const s = rowSettings[key] || {enabled: false, hours: 24, desired_choice_id: null};
                 return {
                     attr_def_id: entry.id,
                     enabled: s.enabled,
                     hours: s.hours,
-                    desired_choice_id: entry.site_settings.desired_choice_id || null,
+                    desired_choice_id: s.desired_choice_id,
                 };
             });
             const resp = await fetch('/api/sites/' + encodeURIComponent(selectedSite.name) + '/config-collection', {

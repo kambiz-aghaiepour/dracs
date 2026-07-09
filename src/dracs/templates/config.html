@@ -309,6 +309,8 @@
         /* Row selection */
         .config-row-selected { background-color: #cce5ff !important; }
         body.dark-theme .config-row-selected { background-color: #1e5a96 !important; }
+        table.config-table tr.config-row-selected td:first-child { background-color: #cce5ff !important; }
+        body.dark-theme table.config-table tr.config-row-selected td:first-child { background-color: #1e5a96 !important; }
         table.config-table tbody tr { cursor: pointer; }
 
         /* Refresh button */
@@ -997,8 +999,14 @@ const isAdmin = {{ 'true' if is_admin else 'false' }};
             const desiredLabel = def.choices.find(c => c.push_value === desired)?.label || desired || '';
             const id = `ec-attr-${def.id}`;
             const lbl = document.createElement('label');
-            lbl.innerHTML = `<input type="checkbox" id="${escHtml(id)}" data-attr-id="${def.id}" onchange="updateApplyBtn()">
-                ${escHtml(def.push_key || def.name)} → <code>${escHtml(desiredLabel)}</code>`;
+            if (!desired) {
+                lbl.style.cssText = 'opacity:0.45; cursor:not-allowed;';
+                lbl.innerHTML = `<input type="checkbox" id="${escHtml(id)}" data-attr-id="${def.id}" disabled>
+                    ${escHtml(def.push_key || def.name)} <span style="font-style:italic; color:#888;">(no desired value set)</span>`;
+            } else {
+                lbl.innerHTML = `<input type="checkbox" id="${escHtml(id)}" data-attr-id="${def.id}" onchange="updateApplyBtn()">
+                    ${escHtml(def.push_key || def.name)} → <code>${escHtml(desiredLabel)}</code>`;
+            }
             optDiv.appendChild(lbl);
         }
 
@@ -1149,8 +1157,8 @@ const isAdmin = {{ 'true' if is_admin else 'false' }};
 
         attrDefs     = data.attr_defs || [];
         allRows      = data.data || [];
-        visibleAttrs = attrDefs.filter(d => d.site_settings.enabled);
-        if (visibleAttrs.length === 0) visibleAttrs = attrDefs;
+        visibleAttrs = attrDefs.filter(d => d.site_settings.enabled && d.name !== 'ssl_fingerprint');
+        if (visibleAttrs.length === 0) visibleAttrs = attrDefs.filter(d => d.name !== 'ssl_fingerprint');
 
         document.getElementById('loading').style.display = 'none';
         document.getElementById('main-content').style.display = '';
@@ -1218,8 +1226,8 @@ const isAdmin = {{ 'true' if is_admin else 'false' }};
             if (rdata.success) {
                 attrDefs     = rdata.attr_defs || attrDefs;
                 allRows      = rdata.data || [];
-                visibleAttrs = attrDefs.filter(def => def.site_settings.enabled);
-                if (visibleAttrs.length === 0) visibleAttrs = attrDefs;
+                visibleAttrs = attrDefs.filter(def => def.site_settings.enabled && def.name !== 'ssl_fingerprint');
+                if (visibleAttrs.length === 0) visibleAttrs = attrDefs.filter(d => d.name !== 'ssl_fingerprint');
                 renderTable();
             }
         } catch (_) {}
