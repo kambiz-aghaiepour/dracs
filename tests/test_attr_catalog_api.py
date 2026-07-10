@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
+import dracs.db as db_mod
 from dracs.db import db_initialize, get_default_site_id
 
 
@@ -18,6 +19,10 @@ def cat_db():
     yield path
     if os.path.exists(path):
         os.unlink(path)
+    # Reset global DB state so later tests that mock db_initialize don't
+    # find a stale _SessionFactory pointing at a deleted temp file.
+    db_mod._engine = None
+    db_mod._SessionFactory = None
 
 
 @pytest.fixture
@@ -263,3 +268,112 @@ class TestApiAttrCatalogDelete:
     def test_requires_auth(self, client):
         resp = client.delete("/api/attr-catalog/1")
         assert resp.status_code in (401, 302, 403)
+
+
+def _login_non_superadmin(client):
+    """Create a non-superadmin admin user and log in as them."""
+    from dracs.users import create_user
+
+    create_user("secondary_admin", "pass123", role="admin")
+    client.post(
+        "/login",
+        data=json.dumps({"username": "secondary_admin", "password": "pass123"}),
+        content_type="application/json",
+    )
+
+
+class TestNonSuperadminAccess:
+    """Tests for routes that require superadmin, accessed by a regular admin."""
+
+    def test_page_redirects_non_superadmin(self, client):
+        _login_non_superadmin(client)
+        resp = client.get("/attr-catalog")
+        assert resp.status_code == 302
+
+    def test_get_api_403_for_non_superadmin(self, client):
+        _login_non_superadmin(client)
+        resp = client.get("/api/attr-catalog")
+        assert resp.status_code == 403
+        assert resp.get_json()["success"] is False
+
+    def test_post_api_403_for_non_superadmin(self, client):
+        _login_non_superadmin(client)
+        resp = client.post("/api/attr-catalog", json=_new_attr_payload())
+        assert resp.status_code == 403
+
+    def test_put_api_403_for_non_superadmin(self, client):
+        _login_non_superadmin(client)
+        resp = client.put("/api/attr-catalog/1", json=_new_attr_payload())
+        assert resp.status_code == 403
+
+    def test_delete_api_403_for_non_superadmin(self, client):
+        _login_non_superadmin(client)
+        resp = client.delete("/api/attr-catalog/1")
+        assert resp.status_code == 403
+
+
+class TestValidationEdgeCases:
+    """Tests for _validate_attr_def_body edge cases not hit by other test classes."""
+
+    def test_rejects_null_body(self, client):
+        _login(client)
+        # Sending no JSON body makes get_json return None
+        resp = client.post("/api/attr-catalog")
+        data = resp.get_json()
+        assert resp.status_code == 400
+        assert "Request body required" in data["message"]
+
+    def test_rejects_missing_label(self, client):
+        _login(client)
+        resp = client.post("/api/attr-catalog", json=_new_attr_payload(label=""))
+        data = resp.get_json()
+        assert resp.status_code == 400
+        assert "label is required" in data["message"]
+
+    def test_rejects_choices_not_a_list(self, client):
+        _login(client)
+        payload = {**_new_attr_payload(), "choices": "not-a-list"}
+        resp = client.post("/api/attr-catalog", json=payload)
+        data = resp.get_json()
+        assert resp.status_code == 400
+        assert "choices must be a list" in data["message"]
+
+    def test_rejects_choice_missing_push_value(self, client):
+        _login(client)
+        payload = {**_new_attr_payload(), "choices": [{"label": "Only label"}]}
+        resp = client.post("/api/attr-catalog", json=payload)
+        data = resp.get_json()
+        assert resp.status_code == 400
+        assert "label and push_value" in data["message"]
+
+
+class TestExceptionHandlers:
+    """Tests for except Exception blocks via mocked DB functions."""
+
+    def test_get_api_500_on_db_error(self, client):
+        _login(client)
+        with patch("dracs.db.get_all_attr_defs", side_effect=Exception("simulated")):
+            resp = client.get("/api/attr-catalog")
+        assert resp.status_code == 500
+        assert resp.get_json()["success"] is False
+
+    def test_post_api_500_on_db_error(self, client):
+        _login(client)
+        with patch("dracs.db.create_attr_def", side_effect=Exception("simulated")):
+            resp = client.post("/api/attr-catalog", json=_new_attr_payload())
+        assert resp.status_code == 500
+        assert resp.get_json()["success"] is False
+
+    def test_put_api_500_on_db_error(self, client):
+        _login(client)
+        with patch("dracs.db.update_attr_def", side_effect=Exception("simulated")):
+            resp = client.put("/api/attr-catalog/1", json=_new_attr_payload())
+        assert resp.status_code == 500
+        assert resp.get_json()["success"] is False
+
+    def test_delete_api_500_on_db_error(self, client):
+        _login(client)
+        with patch("dracs.db.delete_attr_def", side_effect=Exception("simulated")):
+            resp = client.delete("/api/attr-catalog/1")
+        assert resp.status_code == 500
+        assert resp.get_json()["success"] is False
