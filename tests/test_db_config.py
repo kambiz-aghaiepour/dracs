@@ -446,7 +446,10 @@ class TestCreateAttrDef:
         params = _make_params(
             name="test_choices",
             is_writable=True,
-            choices=[{"label": "Yes", "push_value": "Enabled"}, {"label": "No", "push_value": "Disabled"}],
+            choices=[
+                {"label": "Yes", "push_value": "Enabled"},
+                {"label": "No", "push_value": "Disabled"},
+            ],
         )
         entry = create_attr_def(params)
         assert len(entry["choices"]) == 2
@@ -459,7 +462,9 @@ class TestCreateAttrDef:
         assert "test_attr" in names
 
     def test_post_push_command_stored(self, config_db):
-        entry = create_attr_def(_make_params(post_push_command="jobqueue create BIOS.Setup.1-1"))
+        entry = create_attr_def(
+            _make_params(post_push_command="jobqueue create BIOS.Setup.1-1")
+        )
         assert entry["post_push_command"] == "jobqueue create BIOS.Setup.1-1"
 
     def test_empty_string_path_stored_as_none(self, config_db):
@@ -476,28 +481,43 @@ class TestUpdateAttrDef:
         assert updated["id"] == entry["id"]
 
     def test_replaces_choices(self, config_db):
-        entry = create_attr_def(_make_params(
-            is_writable=True,
-            choices=[{"label": "Old", "push_value": "old"}],
-        ))
-        updated = update_attr_def(entry["id"], _make_params(
-            is_writable=True,
-            choices=[{"label": "New1", "push_value": "n1"}, {"label": "New2", "push_value": "n2"}],
-        ))
+        entry = create_attr_def(
+            _make_params(
+                is_writable=True,
+                choices=[{"label": "Old", "push_value": "old"}],
+            )
+        )
+        updated = update_attr_def(
+            entry["id"],
+            _make_params(
+                is_writable=True,
+                choices=[
+                    {"label": "New1", "push_value": "n1"},
+                    {"label": "New2", "push_value": "n2"},
+                ],
+            ),
+        )
         assert len(updated["choices"]) == 2
         assert updated["choices"][0]["label"] == "New1"
 
     def test_nullifies_desired_choice_id_on_site_settings(self, config_db, site_id):
-        entry = create_attr_def(_make_params(
-            is_writable=True,
-            choices=[{"label": "On", "push_value": "Enabled"}],
-        ))
+        entry = create_attr_def(
+            _make_params(
+                is_writable=True,
+                choices=[{"label": "On", "push_value": "Enabled"}],
+            )
+        )
         choice_id = entry["choices"][0]["id"]
-        upsert_attr_site_settings(entry["id"], site_id, enabled=True, hours=24, desired_choice_id=choice_id)
-        update_attr_def(entry["id"], _make_params(
-            is_writable=True,
-            choices=[{"label": "New", "push_value": "New"}],
-        ))
+        upsert_attr_site_settings(
+            entry["id"], site_id, enabled=True, hours=24, desired_choice_id=choice_id
+        )
+        update_attr_def(
+            entry["id"],
+            _make_params(
+                is_writable=True,
+                choices=[{"label": "New", "push_value": "New"}],
+            ),
+        )
         catalog = get_attr_catalog_for_site(site_id)
         found = next((d for d in catalog if d["id"] == entry["id"]), None)
         assert found is not None
@@ -517,17 +537,23 @@ class TestDeleteAttrDef:
 
     def test_returns_counts(self, config_db, site_id):
         entry = create_attr_def(_make_params())
-        upsert_host_config_attr("host1.example.com", site_id, entry["id"], "val", "2026-01-01T00:00:00")
-        upsert_attr_site_settings(entry["id"], site_id, enabled=True, hours=24, desired_choice_id=None)
+        upsert_host_config_attr(
+            "host1.example.com", site_id, entry["id"], "val", "2026-01-01T00:00:00"
+        )
+        upsert_attr_site_settings(
+            entry["id"], site_id, enabled=True, hours=24, desired_choice_id=None
+        )
         result = delete_attr_def(entry["id"])
         assert result["deleted_host_records"] == 1
         assert result["deleted_site_settings"] == 1
 
     def test_cascades_choices(self, config_db):
-        entry = create_attr_def(_make_params(
-            is_writable=True,
-            choices=[{"label": "A", "push_value": "a"}],
-        ))
+        entry = create_attr_def(
+            _make_params(
+                is_writable=True,
+                choices=[{"label": "A", "push_value": "a"}],
+            )
+        )
         delete_attr_def(entry["id"])
         # After delete, get_all_attr_defs should not include the deleted entry
         ids = [d["id"] for d in get_all_attr_defs()]

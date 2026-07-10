@@ -129,7 +129,10 @@ class TestApiAttrCatalogPost:
         payload = _new_attr_payload(
             name="test_bool",
             is_writable=True,
-            choices=[{"label": "Enabled", "push_value": "Enabled"}, {"label": "Disabled", "push_value": "Disabled"}],
+            choices=[
+                {"label": "Enabled", "push_value": "Enabled"},
+                {"label": "Disabled", "push_value": "Disabled"},
+            ],
         )
         resp = client.post("/api/attr-catalog", json=payload)
         data = resp.get_json()
@@ -138,21 +141,27 @@ class TestApiAttrCatalogPost:
 
     def test_rejects_invalid_name(self, client):
         _login(client)
-        resp = client.post("/api/attr-catalog", json=_new_attr_payload(name="bad name!"))
+        resp = client.post(
+            "/api/attr-catalog", json=_new_attr_payload(name="bad name!")
+        )
         data = resp.get_json()
         assert data["success"] is False
         assert resp.status_code == 400
 
     def test_rejects_invalid_endpoint_type(self, client):
         _login(client)
-        resp = client.post("/api/attr-catalog", json=_new_attr_payload(endpoint_type="bogus"))
+        resp = client.post(
+            "/api/attr-catalog", json=_new_attr_payload(endpoint_type="bogus")
+        )
         data = resp.get_json()
         assert data["success"] is False
         assert resp.status_code == 400
 
     def test_rejects_invalid_display_type(self, client):
         _login(client)
-        resp = client.post("/api/attr-catalog", json=_new_attr_payload(display_type="unknown"))
+        resp = client.post(
+            "/api/attr-catalog", json=_new_attr_payload(display_type="unknown")
+        )
         data = resp.get_json()
         assert data["success"] is False
         assert resp.status_code == 400
@@ -179,7 +188,10 @@ class TestApiAttrCatalogPut:
     def test_updates_label(self, client):
         _login(client)
         attr_id = self._create(client)
-        resp = client.put(f"/api/attr-catalog/{attr_id}", json=_new_attr_payload(name="edit_attr", label="Changed"))
+        resp = client.put(
+            f"/api/attr-catalog/{attr_id}",
+            json=_new_attr_payload(name="edit_attr", label="Changed"),
+        )
         data = resp.get_json()
         assert data["success"] is True
         assert data["entry"]["label"] == "Changed"
@@ -192,7 +204,10 @@ class TestApiAttrCatalogPut:
             json=_new_attr_payload(
                 name="edit_attr",
                 is_writable=True,
-                choices=[{"label": "A", "push_value": "a"}, {"label": "B", "push_value": "b"}],
+                choices=[
+                    {"label": "A", "push_value": "a"},
+                    {"label": "B", "push_value": "b"},
+                ],
             ),
         )
         data = resp.get_json()
@@ -211,7 +226,9 @@ class TestApiAttrCatalogPut:
     def test_rejects_invalid_body(self, client):
         _login(client)
         attr_id = self._create(client)
-        resp = client.put(f"/api/attr-catalog/{attr_id}", json=_new_attr_payload(endpoint_type="nope"))
+        resp = client.put(
+            f"/api/attr-catalog/{attr_id}", json=_new_attr_payload(endpoint_type="nope")
+        )
         assert resp.status_code == 400
 
 
