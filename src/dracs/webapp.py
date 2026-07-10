@@ -4575,9 +4575,9 @@ def api_attr_catalog_post():
         if errmsg:
             return jsonify({"success": False, "message": errmsg}), 400
 
-        from dracs.db import create_attr_def
+        from dracs.db import AttrDefParams, create_attr_def
 
-        entry = create_attr_def(**fields)
+        entry = create_attr_def(AttrDefParams(**fields))
         audit_log(
             "attr_catalog_create", target=entry["name"], user=user, source=_client_ip()
         )
@@ -4600,9 +4600,9 @@ def api_attr_catalog_put(attr_id):
         if errmsg:
             return jsonify({"success": False, "message": errmsg}), 400
 
-        from dracs.db import update_attr_def
+        from dracs.db import AttrDefParams, update_attr_def
 
-        entry = update_attr_def(attr_id, **fields)
+        entry = update_attr_def(attr_id, AttrDefParams(**fields))
         audit_log(
             "attr_catalog_update", target=entry["name"], user=user, source=_client_ip()
         )
