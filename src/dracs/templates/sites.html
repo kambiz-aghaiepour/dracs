@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DRACS - Site Management</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='images/dracs.svg') }}">
     <style>
         * { box-sizing: border-box; }
         body {
@@ -12,6 +13,7 @@
             padding: 20px;
             background-color: #f5f5f5;
         }
+        button, input, select, textarea { font-family: inherit; }
         .container {
             max-width: 1400px;
             margin: 0 auto;
@@ -64,6 +66,9 @@
         .notification.error { background: #e53935; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
         .footer-bar { text-align: center; margin-top: 24px; }
+        .logout-link { color: #1976d2; text-decoration: none; font-size: 14px; font-weight: 500; }
+        .logout-link:hover { text-decoration: underline; }
+        body.dark-theme .logout-link { color: #7ab8f5; }
         .primary-tag { display: inline-block; padding: 1px 6px; border-radius: 3px; background: #e8f5e9; color: #2e7d32; font-size: 0.8em; margin-left: 4px; }
 
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; justify-content: center; align-items: center; }
@@ -110,6 +115,8 @@
         body.dark-theme .btn-primary:hover { background: #2a6ba8; }
         body.dark-theme .btn-danger { background: #c62828; }
         body.dark-theme .primary-tag { background: #1e4d2b; color: #90ee90; }
+        body.dark-theme .coll-desired { background-color: #4a4a4a; color: #e0e0e0; border-color: #555; }
+        body.dark-theme .form-group select { background-color: #4a4a4a; color: #e0e0e0; border-color: #555; }
         body.dark-theme .modal-overlay { background: rgba(0,0,0,0.8); }
         body.dark-theme .modal-box { background: #2d2d2d; color: #e0e0e0; }
         body.dark-theme .modal-box input { background-color: #4a4a4a; color: #e0e0e0; border-color: #555; }
@@ -172,6 +179,8 @@
             </div>
             <div class="auth-section">
                 <span class="username-display">Logged in as <strong>{{ username }}</strong> ({{ user_role }})</span>
+                <a href="/attr-catalog?site={{ from_site }}" class="logout-link" style="margin-right: 8px;" title="Attribute Catalog">Attr Catalog</a>
+                <a href="/?site={{ from_site }}" class="logout-link">&#8592; Inventory</a>
             </div>
         </div>
 
@@ -349,44 +358,11 @@
                         <th>Attribute</th>
                         <th>Enabled</th>
                         <th>Interval (hours)</th>
+                        <th>Desired Value</th>
                     </tr>
                 </thead>
                 <tbody id="collection-settings-tbody">
-                    <tr data-attr="ps_rapid_on">
-                        <td>PS Rapid On</td>
-                        <td><input type="checkbox" class="coll-enabled"></td>
-                        <td><input type="number" class="coll-hours" min="1" max="8760" value="24"></td>
-                    </tr>
-                    <tr data-attr="dns_from_dhcp">
-                        <td>DNS from DHCP</td>
-                        <td><input type="checkbox" class="coll-enabled"></td>
-                        <td><input type="number" class="coll-hours" min="1" max="8760" value="24"></td>
-                    </tr>
-                    <tr data-attr="ipmi_lan_enable">
-                        <td>IPMI LAN</td>
-                        <td><input type="checkbox" class="coll-enabled"></td>
-                        <td><input type="number" class="coll-hours" min="1" max="8760" value="24"></td>
-                    </tr>
-                    <tr data-attr="host_header_check">
-                        <td>Host Header Check</td>
-                        <td><input type="checkbox" class="coll-enabled"></td>
-                        <td><input type="number" class="coll-hours" min="1" max="8760" value="24"></td>
-                    </tr>
-                    <tr data-attr="sys_profile">
-                        <td>System Profile</td>
-                        <td><input type="checkbox" class="coll-enabled"></td>
-                        <td><input type="number" class="coll-hours" min="1" max="8760" value="24"></td>
-                    </tr>
-                    <tr data-attr="ssl">
-                        <td>SSL Certificate</td>
-                        <td><input type="checkbox" class="coll-enabled"></td>
-                        <td><input type="number" class="coll-hours" min="1" max="8760" value="24"></td>
-                    </tr>
-                    <tr data-attr="idrac_hostname">
-                        <td>iDRAC Hostname</td>
-                        <td><input type="checkbox" class="coll-enabled"></td>
-                        <td><input type="number" class="coll-hours" min="1" max="8760" value="24"></td>
-                    </tr>
+                    <tr><td colspan="4" style="color:#888; text-align:center; padding:8px;">Loading…</td></tr>
                 </tbody>
             </table>
             <div style="margin-top: 8px;">
@@ -450,6 +426,7 @@
         const fromSite = '{{ from_site|default("", true) }}';
         let sites = [];
         let selectedSite = null;
+        let _attrCatalog = [];
 
         function toggleTheme() {
             const body = document.body;
@@ -1008,27 +985,88 @@
             }
         }
 
+        const _SSL_ATTR_NAMES = new Set(['ssl_self_signed', 'ssl_valid_name', 'ssl_expiry', 'ssl_fingerprint']);
+
+        function _buildCollRow(entry, rowKey, s) {
+            // Determine desired-value cell content
+            let desiredCell;
+            if (rowKey === 'idrac_hostname') {
+                desiredCell = '<td><span style="color:#666; font-style:italic; font-size:0.85em;">Matches FQDN (auto)</span></td>';
+            } else if (rowKey === 'ssl') {
+                desiredCell = '<td></td>';
+            } else if (entry && entry.is_writable && entry.choices && entry.choices.length > 0) {
+                let opts = '<option value="">— Any —</option>';
+                for (const ch of entry.choices) {
+                    const sel = s && s.desired_choice_id === ch.id ? ' selected' : '';
+                    opts += `<option value="${ch.id}"${sel}>${ch.label}</option>`;
+                }
+                desiredCell = `<td><select class="coll-desired">${opts}</select></td>`;
+            } else {
+                desiredCell = '<td></td>';
+            }
+            const labelText = entry ? entry.label : rowKey;
+            const enabled = s && s.enabled ? ' checked' : '';
+            const hours = s ? (s.hours || 24) : 24;
+            return `<tr data-attr="${rowKey}">
+                <td>${labelText}</td>
+                <td><input type="checkbox" class="coll-enabled"${enabled}></td>
+                <td><input type="number" class="coll-hours" min="1" max="8760" value="${hours}"></td>
+                ${desiredCell}
+            </tr>`;
+        }
+
         async function loadCollectionSettings(siteName) {
             const resp = await fetch('/api/sites/' + encodeURIComponent(siteName) + '/config-collection');
             const data = await resp.json();
             if (!data.success) return;
-            const settings = data.settings;
-            document.querySelectorAll('#collection-settings-tbody tr[data-attr]').forEach(row => {
-                const attr = row.dataset.attr;
-                const enabledKey = attr + '_enabled';
-                const hoursKey = attr + '_hours';
-                row.querySelector('.coll-enabled').checked = !!settings[enabledKey];
-                row.querySelector('.coll-hours').value = settings[hoursKey] || 24;
-            });
+            _attrCatalog = data.catalog || [];
+
+            const tbody = document.getElementById('collection-settings-tbody');
+            let html = '';
+            let sslRowAdded = false;
+
+            for (const entry of _attrCatalog) {
+                const isSSL = _SSL_ATTR_NAMES.has(entry.name);
+                if (isSSL) {
+                    if (!sslRowAdded) {
+                        // Aggregate all SSL attrs under a single row keyed 'ssl'
+                        // Use ssl_self_signed's site_settings for enabled/hours
+                        html += _buildCollRow(entry, 'ssl', entry.site_settings);
+                        sslRowAdded = true;
+                    }
+                    continue;
+                }
+                html += _buildCollRow(entry, entry.name, entry.site_settings);
+            }
+
+            tbody.innerHTML = html || '<tr><td colspan="4" style="color:#888; text-align:center;">No attributes in catalog.</td></tr>';
         }
 
         async function saveCollectionSettings() {
             if (!selectedSite) return;
-            const payload = {};
+            const _SSL_ATTRS = [..._SSL_ATTR_NAMES];
+            const rowSettings = {};
             document.querySelectorAll('#collection-settings-tbody tr[data-attr]').forEach(row => {
-                const attr = row.dataset.attr;
-                payload[attr + '_enabled'] = row.querySelector('.coll-enabled').checked;
-                payload[attr + '_hours'] = parseInt(row.querySelector('.coll-hours').value) || 24;
+                const sel = row.querySelector('.coll-desired');
+                rowSettings[row.dataset.attr] = {
+                    enabled: row.querySelector('.coll-enabled').checked,
+                    hours: parseInt(row.querySelector('.coll-hours').value) || 24,
+                    desired_choice_id: sel && sel.value ? parseInt(sel.value) : null,
+                };
+            });
+            const payload = _attrCatalog.map(entry => {
+                const key = _SSL_ATTRS.includes(entry.name) ? 'ssl' : entry.name;
+                const s = rowSettings[key] || {enabled: false, hours: 24, desired_choice_id: null};
+                // Single-choice attrs (e.g. idrac_hostname) have an implicit desired value;
+                // auto-set it so the push dialog is not greyed out.
+                const desiredId = s.desired_choice_id !== null ? s.desired_choice_id
+                    : (entry.choices && entry.choices.length === 1 ? entry.choices[0].id : null);
+                return {
+                    attr_def_id: entry.id,
+                    enabled: s.enabled,
+                    hours: s.hours,
+                    desired_choice_id: desiredId,
+                };
             });
             const resp = await fetch('/api/sites/' + encodeURIComponent(selectedSite.name) + '/config-collection', {
                 method: 'PUT',

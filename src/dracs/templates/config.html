@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DRACS - Configuration</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='images/dracs.svg') }}">
     <style>
         * { box-sizing: border-box; }
         html { height: 100%; }
@@ -17,6 +18,7 @@
             display: flex;
             flex-direction: column;
         }
+        button, input, select, textarea { font-family: inherit; }
         .container {
             flex: 1;
             display: flex;
@@ -265,41 +267,41 @@
         .pagination-info { font-size: 13px; color: #555; }
 
         /* ── Dark theme ── */
-        body.dark-theme { background-color: #1a1a2e; color: #e0e0e0; }
-        body.dark-theme .container { background-color: #16213e; }
+        body.dark-theme { background-color: #1a1a1a; color: #e0e0e0; }
+        body.dark-theme .container { background-color: #2d2d2d; }
         body.dark-theme h1 { color: #e0e0e0; }
         body.dark-theme .theme-toggle label { color: #aaa; }
         body.dark-theme table.config-table td,
         body.dark-theme table.config-table th { border-color: #444; color: #ddd; }
-        body.dark-theme table.config-table tr:nth-child(even) { background: #1f2d4a; }
-        body.dark-theme table.config-table tr:hover { background: #253555; }
-        body.dark-theme table.config-table thead th { background-color: #16213e; }
-        body.dark-theme table.config-table td:first-child { background-color: #16213e; }
-        body.dark-theme table.config-table tr:nth-child(even) td:first-child { background: #1f2d4a; }
-        body.dark-theme table.config-table tr:hover td:first-child { background: #253555; }
+        body.dark-theme table.config-table tr:nth-child(even) { background: #363636; }
+        body.dark-theme table.config-table tr:hover { background: #424242; }
+        body.dark-theme table.config-table thead th { background-color: #2d2d2d; }
+        body.dark-theme table.config-table td:first-child { background-color: #2d2d2d; }
+        body.dark-theme table.config-table tr:nth-child(even) td:first-child { background: #363636; }
+        body.dark-theme table.config-table tr:hover td:first-child { background: #424242; }
         body.dark-theme th.attr-header { color: #ccc; }
         body.dark-theme .page-size-label,
         body.dark-theme .results-info,
         body.dark-theme .pagination-info { color: #aaa; }
         body.dark-theme .page-size-select {
-            background: #253555; color: #ddd; border-color: #444;
+            background: #424242; color: #ddd; border-color: #444;
         }
         body.dark-theme .pagination-container button {
-            background: #253555; color: #ddd; border-color: #444;
+            background: #424242; color: #ddd; border-color: #444;
         }
         body.dark-theme .pagination-container button.active { background: #0d6efd; color: white; }
         body.dark-theme .close-btn { background-color: #5a6268; }
         body.dark-theme .config-table-wrapper { border-color: #444; }
         body.dark-theme .filters-section { border-color: #444; }
-        body.dark-theme .filters-header { background-color: #1f2d4a; color: #ddd; }
-        body.dark-theme .filters-header:hover { background-color: #253555; }
+        body.dark-theme .filters-header { background-color: #363636; color: #ddd; }
+        body.dark-theme .filters-header:hover { background-color: #424242; }
         body.dark-theme .filters-triangle { color: #aaa; }
         body.dark-theme .filters-body { border-top-color: #444; }
         body.dark-theme .filter-label { color: #aaa; }
         body.dark-theme .filter-check-label { color: #ddd; }
         body.dark-theme .filter-hostname-input,
         body.dark-theme .filter-expiry-select {
-            background-color: #253555; color: #ddd; border-color: #444;
+            background-color: #424242; color: #ddd; border-color: #444;
         }
 
         #loading   { flex-shrink: 0; text-align: center; color: #888; padding: 40px 0; font-size: 1.1em; }
@@ -309,6 +311,8 @@
         /* Row selection */
         .config-row-selected { background-color: #cce5ff !important; }
         body.dark-theme .config-row-selected { background-color: #1e5a96 !important; }
+        table.config-table tr.config-row-selected td:first-child { background-color: #cce5ff !important; }
+        body.dark-theme table.config-table tr.config-row-selected td:first-child { background-color: #1e5a96 !important; }
         table.config-table tbody tr { cursor: pointer; }
 
         /* Refresh button */
@@ -354,13 +358,13 @@
             border-radius: 4px; box-shadow: 0 2px 10px rgba(0,0,0,0.15);
             z-index: 200; min-width: 80px; overflow: hidden;
         }
-        body.dark-theme .ar-menu { background: #1f2d4a; border-color: #444; }
+        body.dark-theme .ar-menu { background: #363636; border-color: #444; }
         .ar-option {
             padding: 7px 14px; cursor: pointer;
             font-size: 13px; white-space: nowrap;
         }
         .ar-option:hover { background: #f0f4ff; }
-        body.dark-theme .ar-option:hover { background: #253555; }
+        body.dark-theme .ar-option:hover { background: #424242; }
         .ar-option.ar-sel { font-weight: 600; color: #0d6efd; }
 
         /* Edit modal */
@@ -392,10 +396,10 @@
         #apply-btn:disabled { opacity: 0.4; cursor: default; }
         #apply-btn:not(:disabled):hover { background: #0b5ed7; }
         #edit-progress { font-size: 13px; color: #555; margin-top: 8px; }
-        body.dark-theme .edit-modal-box { background: #16213e; color: #e0e0e0; }
+        body.dark-theme .edit-modal-box { background: #2d2d2d; color: #e0e0e0; }
         body.dark-theme .edit-modal-subtitle { color: #aaa; }
         body.dark-theme #edit-options label { color: #ddd; }
-        body.dark-theme .edit-modal-footer button { background: #253555; color: #ddd; border-color: #444; }
+        body.dark-theme .edit-modal-footer button { background: #424242; color: #ddd; border-color: #444; }
         body.dark-theme #apply-btn { background: #0d6efd; color: white; border-color: #0d6efd; }
     </style>
 </head>
@@ -994,11 +998,19 @@ const isAdmin = {{ 'true' if is_admin else 'false' }};
         optDiv.innerHTML = '';
         for (const def of writableEnabled) {
             const desired = def.site_settings.desired_value;
-            const desiredLabel = def.choices.find(c => c.push_value === desired)?.label || desired || '';
+            // Single-choice attrs (e.g. idrac_hostname) have an implicit desired push value.
+            const effectiveDesired = desired || (def.choices.length === 1 ? def.choices[0].push_value : null);
+            const desiredLabel = def.choices.find(c => c.push_value === effectiveDesired)?.label || effectiveDesired || '';
             const id = `ec-attr-${def.id}`;
             const lbl = document.createElement('label');
-            lbl.innerHTML = `<input type="checkbox" id="${escHtml(id)}" data-attr-id="${def.id}" onchange="updateApplyBtn()">
-                ${escHtml(def.push_key || def.name)} → <code>${escHtml(desiredLabel)}</code>`;
+            if (!effectiveDesired) {
+                lbl.style.cssText = 'opacity:0.45; cursor:not-allowed;';
+                lbl.innerHTML = `<input type="checkbox" id="${escHtml(id)}" data-attr-id="${def.id}" disabled>
+                    ${escHtml(def.push_key || def.name)} <span style="font-style:italic; color:#888;">(no desired value set)</span>`;
+            } else {
+                lbl.innerHTML = `<input type="checkbox" id="${escHtml(id)}" data-attr-id="${def.id}" onchange="updateApplyBtn()">
+                    ${escHtml(def.push_key || def.name)} → <code>${escHtml(desiredLabel)}</code>`;
+            }
             optDiv.appendChild(lbl);
         }
 
@@ -1034,10 +1046,12 @@ const isAdmin = {{ 'true' if is_admin else 'false' }};
         for (const def of visibleAttrs.filter(d => d.is_writable)) {
             const cb = document.getElementById(`ec-attr-${def.id}`);
             if (!cb || !cb.checked) continue;
+            const pushValue = def.site_settings.desired_value
+                || (def.choices.length === 1 ? def.choices[0].push_value : '');
             push_settings.push({
                 attr_name:        def.name,
                 push_key:         def.push_key,
-                push_value:       def.site_settings.desired_value || '',
+                push_value:       pushValue,
                 post_push_command: def.post_push_command || null,
             });
         }
@@ -1149,8 +1163,8 @@ const isAdmin = {{ 'true' if is_admin else 'false' }};
 
         attrDefs     = data.attr_defs || [];
         allRows      = data.data || [];
-        visibleAttrs = attrDefs.filter(d => d.site_settings.enabled);
-        if (visibleAttrs.length === 0) visibleAttrs = attrDefs;
+        visibleAttrs = attrDefs.filter(d => d.site_settings.enabled && d.name !== 'ssl_fingerprint');
+        if (visibleAttrs.length === 0) visibleAttrs = attrDefs.filter(d => d.name !== 'ssl_fingerprint');
 
         document.getElementById('loading').style.display = 'none';
         document.getElementById('main-content').style.display = '';
@@ -1218,8 +1232,8 @@ const isAdmin = {{ 'true' if is_admin else 'false' }};
             if (rdata.success) {
                 attrDefs     = rdata.attr_defs || attrDefs;
                 allRows      = rdata.data || [];
-                visibleAttrs = attrDefs.filter(def => def.site_settings.enabled);
-                if (visibleAttrs.length === 0) visibleAttrs = attrDefs;
+                visibleAttrs = attrDefs.filter(def => def.site_settings.enabled && def.name !== 'ssl_fingerprint');
+                if (visibleAttrs.length === 0) visibleAttrs = attrDefs.filter(d => d.name !== 'ssl_fingerprint');
                 renderTable();
             }
         } catch (_) {}

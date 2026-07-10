@@ -4472,6 +4472,168 @@ def api_site_config_collection_put(name):
         return jsonify({"success": False, "message": str(e)}), 500
 
 
+@app.route("/attr-catalog")
+def attr_catalog_page():
+    """Attribute catalog management page (superadmin only)."""
+    is_authenticated = session.get("authenticated", False)
+    if not is_authenticated:
+        return redirect(url_for("index"))
+    if not session.get("is_superadmin", False):
+        return redirect(url_for("index"))
+
+    from_site = request.args.get("site", "")
+
+    return render_template(
+        "attr_catalog.html",
+        username=session.get("username", ""),
+        user_role=session.get("role", ""),
+        is_superadmin=True,
+        from_site=from_site,
+    )
+
+
+@app.route("/api/attr-catalog")
+def api_attr_catalog_get():
+    """Return the full attr def catalog (superadmin only)."""
+    try:
+        user, err = _require_auth(required_role="admin")
+        if err:
+            return err
+        if not session.get("is_superadmin", False):
+            return jsonify({"success": False, "message": "Superadmin required"}), 403
+
+        from dracs.db import get_all_attr_defs
+
+        return jsonify({"success": True, "catalog": get_all_attr_defs()})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+_VALID_ENDPOINT_TYPES = {"system_oem_dell", "idrac_attributes", "bios", "system", "ssl"}
+_VALID_DISPLAY_TYPES = {"string", "bool", "int_bool", "date"}
+_VALID_NAME_RE = re.compile(r"^[a-zA-Z0-9_]+$")
+
+
+def _validate_attr_def_body(body):
+    """Validate and extract attr def fields from a request body dict. Returns (fields, error_str)."""
+    if not body:
+        return None, "Request body required"
+    name = (body.get("name") or "").strip()
+    label = (body.get("label") or "").strip()
+    endpoint_type = (body.get("endpoint_type") or "").strip()
+    display_type = (body.get("display_type") or "string").strip()
+
+    if not name:
+        return None, "name is required"
+    if not _VALID_NAME_RE.match(name):
+        return None, "name must be alphanumeric and underscores only"
+    if not label:
+        return None, "label is required"
+    if endpoint_type not in _VALID_ENDPOINT_TYPES:
+        return (
+            None,
+            f"endpoint_type must be one of: {', '.join(sorted(_VALID_ENDPOINT_TYPES))}",
+        )
+    if display_type not in _VALID_DISPLAY_TYPES:
+        return (
+            None,
+            f"display_type must be one of: {', '.join(sorted(_VALID_DISPLAY_TYPES))}",
+        )
+
+    choices = body.get("choices") or []
+    if not isinstance(choices, list):
+        return None, "choices must be a list"
+    for ch in choices:
+        if not ch.get("label") or not ch.get("push_value"):
+            return None, "Each choice must have label and push_value"
+
+    return {
+        "name": name,
+        "label": label,
+        "endpoint_type": endpoint_type,
+        "attribute_path": (body.get("attribute_path") or "").strip() or None,
+        "push_key": (body.get("push_key") or "").strip() or None,
+        "is_writable": bool(body.get("is_writable", False)),
+        "post_push_command": (body.get("post_push_command") or "").strip() or None,
+        "display_type": display_type,
+        "display_order": int(body.get("display_order") or 100),
+        "choices": choices,
+    }, None
+
+
+@app.route("/api/attr-catalog", methods=["POST"])
+def api_attr_catalog_post():
+    """Create a new attr def (superadmin only)."""
+    try:
+        user, err = _require_auth(required_role="admin")
+        if err:
+            return err
+        if not session.get("is_superadmin", False):
+            return jsonify({"success": False, "message": "Superadmin required"}), 403
+
+        fields, errmsg = _validate_attr_def_body(request.get_json(silent=True))
+        if errmsg:
+            return jsonify({"success": False, "message": errmsg}), 400
+
+        from dracs.db import AttrDefParams, create_attr_def
+
+        entry = create_attr_def(AttrDefParams(**fields))
+        audit_log(
+            "attr_catalog_create", target=entry["name"], user=user, source=_client_ip()
+        )
+        return jsonify({"success": True, "entry": entry})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route("/api/attr-catalog/<int:attr_id>", methods=["PUT"])
+def api_attr_catalog_put(attr_id):
+    """Update an attr def (superadmin only)."""
+    try:
+        user, err = _require_auth(required_role="admin")
+        if err:
+            return err
+        if not session.get("is_superadmin", False):
+            return jsonify({"success": False, "message": "Superadmin required"}), 403
+
+        fields, errmsg = _validate_attr_def_body(request.get_json(silent=True))
+        if errmsg:
+            return jsonify({"success": False, "message": errmsg}), 400
+
+        from dracs.db import AttrDefParams, update_attr_def
+
+        entry = update_attr_def(attr_id, AttrDefParams(**fields))
+        audit_log(
+            "attr_catalog_update", target=entry["name"], user=user, source=_client_ip()
+        )
+        return jsonify({"success": True, "entry": entry})
+    except ValueError as e:
+        return jsonify({"success": False, "message": str(e)}), 404
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route("/api/attr-catalog/<int:attr_id>", methods=["DELETE"])
+def api_attr_catalog_delete(attr_id):
+    """Delete an attr def and all associated data (superadmin only)."""
+    try:
+        user, err = _require_auth(required_role="admin")
+        if err:
+            return err
+        if not session.get("is_superadmin", False):
+            return jsonify({"success": False, "message": "Superadmin required"}), 403
+
+        from dracs.db import delete_attr_def
+
+        result = delete_attr_def(attr_id)
+        audit_log(
+            "attr_catalog_delete", target=str(attr_id), user=user, source=_client_ip()
+        )
+        return jsonify({"success": True, **result})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
 _IDRACADM7 = "/opt/dell/srvadmin/bin/idracadm7"
 
 

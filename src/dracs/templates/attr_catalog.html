@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DRACS - Attribute Catalog</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='images/dracs.svg') }}">
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        button, input, select, textarea { font-family: inherit; }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .header-left { display: flex; align-items: center; gap: 15px; }
+        .logo { height: 48px; width: auto; }
+        .auth-section { display: flex; gap: 15px; align-items: center; }
+        .username-display { font-size: 14px; color: #555; }
+        .theme-toggle { display: flex; align-items: center; gap: 10px; margin-left: 20px; }
+        .theme-toggle label { font-size: 14px; color: #555; font-weight: 500; }
+        .toggle-switch { position: relative; width: 50px; height: 24px; background-color: #ccc; border-radius: 12px; cursor: pointer; transition: background-color 0.3s; }
+        .toggle-switch::after { content: ''; position: absolute; width: 20px; height: 20px; border-radius: 50%; background-color: white; top: 2px; left: 2px; transition: transform 0.3s; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        .toggle-switch.active { background-color: #007bff; }
+        .toggle-switch.active::after { transform: translateX(26px); }
+
+        h2 { margin-bottom: 16px; font-size: 1.2em; border-bottom: 2px solid #eee; padding-bottom: 8px; }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 8px 12px; border-bottom: 2px solid #ddd; font-weight: 600; font-size: 0.9em; color: #555; }
+        td { padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 0.9em; vertical-align: top; }
+        .btn { padding: 6px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9em; font-weight: 500; }
+        .btn-primary { background: #1976d2; color: white; }
+        .btn-primary:hover { background: #1565c0; }
+        .btn-secondary { background: #e0e0e0; color: #333; }
+        .btn-secondary:hover { background: #bdbdbd; }
+        .btn-danger { background: #ef5350; color: white; }
+        .btn-danger:hover { background: #c62828; }
+        .btn-sm { padding: 3px 10px; font-size: 0.82em; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .actions-bar { display: flex; gap: 8px; margin-bottom: 16px; align-items: center; }
+        .notification { position: fixed; top: 16px; right: 16px; padding: 12px 20px; border-radius: 6px; color: white; z-index: 1000; animation: fadeIn 0.3s; }
+        .notification.success { background: #43a047; }
+        .notification.error { background: #e53935; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .login-link, .logout-link {
+            color: #1976d2; text-decoration: none; font-size: 14px; font-weight: 500;
+        }
+        .login-link:hover, .logout-link:hover { text-decoration: underline; }
+
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; justify-content: center; align-items: flex-start; overflow-y: auto; padding: 40px 0; }
+        .modal-overlay.active { display: flex; }
+        .modal-box { background: white; border-radius: 8px; padding: 24px; min-width: 440px; max-width: 660px; width: 100%; margin: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+        .modal-box h3 { margin-top: 0; margin-bottom: 16px; }
+        .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+        .form-group { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+        .form-group label { font-size: 0.85em; font-weight: 500; color: #555; }
+        .form-group input, .form-group select, .form-group textarea {
+            padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9em; width: 100%;
+        }
+        .form-row { display: flex; gap: 12px; }
+        .form-row .form-group { flex: 1; }
+
+        .choices-editor { margin-bottom: 12px; }
+        .choices-editor label { font-size: 0.85em; font-weight: 500; color: #555; display: block; margin-bottom: 6px; }
+        .choice-row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+        .choice-row input { flex: 1; padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85em; }
+        .choice-row .btn { padding: 3px 8px; font-size: 0.8em; }
+        .add-choice-btn { font-size: 0.82em; padding: 4px 10px; }
+
+        .preset-search { width: 100%; padding: 7px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9em; margin-bottom: 12px; }
+        .preset-group-label { font-size: 0.78em; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.05em; padding: 6px 0 2px; }
+        .preset-item { padding: 7px 10px; border-radius: 4px; cursor: pointer; font-size: 0.9em; }
+        .preset-item:hover { background: #e8f0fe; }
+        .preset-item .preset-name { font-weight: 600; }
+        .preset-item .preset-desc { font-size: 0.82em; color: #777; }
+
+        .catalog-table code { font-size: 0.82em; background: #f0f0f0; padding: 1px 4px; border-radius: 3px; white-space: nowrap; }
+        .choices-cell { font-size: 0.82em; color: #666; }
+        .badge { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 0.8em; font-weight: 600; }
+        .badge-yes { background: #e8f5e9; color: #2e7d32; }
+        .badge-no { background: #f5f5f5; color: #888; }
+        .badge-ep { background: #e3f2fd; color: #1565c0; }
+
+        /* Dark Theme */
+        body.dark-theme { background-color: #1a1a1a; }
+        body.dark-theme .container { background-color: #2d2d2d; color: #e0e0e0; }
+        body.dark-theme h1, body.dark-theme h2, body.dark-theme h3, body.dark-theme h4 { color: #e0e0e0; }
+        body.dark-theme h2 { border-bottom-color: #444; }
+        body.dark-theme .username-display { color: #b0b0b0; }
+        body.dark-theme .theme-toggle label { color: #b0b0b0; }
+        body.dark-theme th { color: #b0b0b0; border-bottom-color: #555; }
+        body.dark-theme td { color: #e0e0e0; border-bottom-color: #444; }
+        body.dark-theme .form-group label { color: #b0b0b0; }
+        body.dark-theme .form-group input, body.dark-theme .form-group select, body.dark-theme .form-group textarea { background-color: #4a4a4a; color: #e0e0e0; border-color: #555; }
+        body.dark-theme .choice-row input { background-color: #4a4a4a; color: #e0e0e0; border-color: #555; }
+        body.dark-theme .btn-secondary { background: #555; color: #e0e0e0; }
+        body.dark-theme .btn-secondary:hover { background: #666; }
+        body.dark-theme .btn-primary { background: #1e5a8e; }
+        body.dark-theme .btn-primary:hover { background: #2a6ba8; }
+        body.dark-theme .btn-danger { background: #c62828; }
+        body.dark-theme .modal-overlay { background: rgba(0,0,0,0.8); }
+        body.dark-theme .modal-box { background: #2d2d2d; color: #e0e0e0; }
+        body.dark-theme .preset-search { background-color: #4a4a4a; color: #e0e0e0; border-color: #555; }
+        body.dark-theme .preset-group-label { color: #888; }
+        body.dark-theme .preset-item:hover { background: #3a4a5a; }
+        body.dark-theme .preset-item .preset-desc { color: #aaa; }
+        body.dark-theme .catalog-table code { background: #444; color: #e0e0e0; }
+        body.dark-theme .choices-cell { color: #aaa; }
+        body.dark-theme .badge-yes { background: #1e4d2b; color: #90ee90; }
+        body.dark-theme .badge-no { background: #3a3a3a; color: #888; }
+        body.dark-theme .badge-ep { background: #1a3a5a; color: #7ab8f5; }
+        body.dark-theme .logout-link, body.dark-theme .login-link { color: #7ab8f5; }
+        body.dark-theme .notification.success { background: #1e4d2b; }
+        body.dark-theme .notification.error { background: #5c1e1e; }
+    </style>
+</head>
+<body>
+<script>if(localStorage.getItem('theme')==='dark')document.body.classList.add('dark-theme');</script>
+<div class="container">
+    <div class="header">
+        <div class="header-left">
+            <img src="{{ url_for('static', filename='images/dracs.svg') }}" alt="DRACS Logo" class="logo">
+            <h1 style="margin: 0; border: none; padding: 0;">DRACS — Attribute Catalog</h1>
+            <div class="theme-toggle">
+                <label for="theme-toggle-switch">Dark Mode</label>
+                <div id="theme-toggle-switch" class="toggle-switch" onclick="toggleTheme()"></div>
+            </div>
+        </div>
+        <div class="auth-section">
+            <span class="username-display">Logged in as <strong>{{ username }}</strong> ({{ user_role }})</span>
+            {% if from_site %}
+            <a href="/sites?site={{ from_site }}" class="logout-link" style="margin-right: 8px;">&#8592; Site Management</a>
+            <a href="/?site={{ from_site }}" class="logout-link">&#8592; Inventory</a>
+            {% else %}
+            <a href="/sites" class="logout-link" style="margin-right: 8px;">&#8592; Site Management</a>
+            <a href="/" class="logout-link">&#8592; Inventory</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <h2>iDRAC Attribute Catalog</h2>
+    <p style="font-size:0.9em; color:#666; margin-bottom:16px;">
+        Manage the catalog of iDRAC configuration attributes available for collection.
+        Built-in attributes cannot be deleted but can be edited. Custom attributes can be fully managed.
+    </p>
+
+    <div class="actions-bar">
+        <button class="btn btn-secondary" onclick="showPresetModal()">&#43; Add from Preset</button>
+        <button class="btn btn-primary" onclick="showAddModal()">&#43; Add Custom</button>
+    </div>
+
+    <table class="catalog-table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Label</th>
+                <th>Endpoint</th>
+                <th>Redfish Path</th>
+                <th>Push Key (racadm)</th>
+                <th>Writable</th>
+                <th>Display</th>
+                <th>Choices</th>
+                <th style="width:100px;">Actions</th>
+            </tr>
+        </thead>
+        <tbody id="catalog-tbody">
+            <tr><td colspan="9" style="text-align:center; color:#888; padding:24px;">Loading…</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Add/Edit Modal -->
+<div id="modal-edit" class="modal-overlay">
+    <div class="modal-box" style="max-width:680px;">
+        <h3 id="modal-edit-title">Add Custom Attribute</h3>
+        <input type="hidden" id="edit-attr-id" value="">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Name <span style="color:#888; font-weight:400;">(alphanumeric/underscore)</span></label>
+                <input type="text" id="edit-name" placeholder="e.g. ntp_enabled">
+            </div>
+            <div class="form-group">
+                <label>Label</label>
+                <input type="text" id="edit-label" placeholder="e.g. NTP Enabled">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Endpoint Type</label>
+                <select id="edit-endpoint">
+                    <option value="idrac_attributes">idrac_attributes</option>
+                    <option value="bios">bios</option>
+                    <option value="system_oem_dell">system_oem_dell</option>
+                    <option value="system">system</option>
+                    <option value="ssl">ssl</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Display Type</label>
+                <select id="edit-display-type">
+                    <option value="string">string</option>
+                    <option value="bool">bool</option>
+                    <option value="int_bool">int_bool</option>
+                    <option value="date">date</option>
+                </select>
+            </div>
+            <div class="form-group" style="flex:0; min-width:110px;">
+                <label>Display Order</label>
+                <input type="number" id="edit-display-order" value="100" min="0" style="width:90px;">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Redfish Attribute Path</label>
+            <input type="text" id="edit-attr-path" placeholder="e.g. Attributes.NTPConfigGroup.1.NTPEnable">
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Push Key (racadm set)</label>
+                <input type="text" id="edit-push-key" placeholder="e.g. iDRAC.NTPConfigGroup.NTPEnable">
+            </div>
+            <div class="form-group" style="flex:0; min-width:110px; justify-content:flex-end;">
+                <label>&nbsp;</label>
+                <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:400; font-size:0.9em; margin-top:6px;">
+                    <input type="checkbox" id="edit-is-writable" onchange="updateWritableHint()"> Writable
+                </label>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Post-Push Command <span style="color:#888; font-weight:400;">(optional, e.g. for BIOS job queue)</span></label>
+            <input type="text" id="edit-post-push" placeholder="e.g. jobqueue create BIOS.Setup.1-1">
+        </div>
+        <div class="choices-editor">
+            <label>Desired Value Choices <span id="choices-hint" style="color:#888; font-weight:400; font-size:0.9em;">(only relevant for writable attributes)</span></label>
+            <div id="choices-list"></div>
+            <button class="btn btn-secondary add-choice-btn" onclick="addChoiceRow()">&#43; Add Choice</button>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="closeEditModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="saveAttrDef()">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- Preset Picker Modal -->
+<div id="modal-preset" class="modal-overlay">
+    <div class="modal-box" style="max-width:540px;">
+        <h3>Add from Preset</h3>
+        <input type="text" class="preset-search" id="preset-search" placeholder="Search presets…" oninput="filterPresets()">
+        <div id="preset-list" style="max-height:400px; overflow-y:auto;"></div>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="closePresetModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirm Modal -->
+<div id="modal-delete" class="modal-overlay">
+    <div class="modal-box" style="max-width:440px;">
+        <h3>Delete Attribute</h3>
+        <p id="delete-confirm-text">Are you sure you want to delete this attribute?</p>
+        <p style="color:#e53935; font-size:0.9em; font-weight:500;">This action cannot be undone.</p>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="closeDeleteModal()">Cancel</button>
+            <button class="btn btn-danger" onclick="confirmDelete()">Delete</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const KNOWN_PRESETS = [
+    // System (read-only)
+    { group: 'System (read-only)', name: 'bios_version', label: 'BIOS Version', endpoint_type: 'system', attribute_path: 'BiosVersion', push_key: '', is_writable: false, post_push_command: '', display_type: 'string', display_order: 50, choices: [] },
+    { group: 'System (read-only)', name: 'system_model', label: 'System Model', endpoint_type: 'system', attribute_path: 'Model', push_key: '', is_writable: false, post_push_command: '', display_type: 'string', display_order: 51, choices: [] },
+    { group: 'System (read-only)', name: 'cpu_count', label: 'CPU Count', endpoint_type: 'system', attribute_path: 'ProcessorSummary.Count', push_key: '', is_writable: false, post_push_command: '', display_type: 'string', display_order: 52, choices: [] },
+    { group: 'System (read-only)', name: 'total_memory_gib', label: 'Total Memory (GiB)', endpoint_type: 'system', attribute_path: 'MemorySummary.TotalSystemMemoryGiB', push_key: '', is_writable: false, post_push_command: '', display_type: 'string', display_order: 53, choices: [] },
+    // iDRAC Network / Time
+    { group: 'iDRAC Network / Time', name: 'ntp_enabled', label: 'NTP Enabled', endpoint_type: 'idrac_attributes', attribute_path: 'Attributes.NTPConfigGroup.1.NTPEnable', push_key: 'iDRAC.NTPConfigGroup.NTPEnable', is_writable: true, post_push_command: '', display_type: 'bool', display_order: 30, choices: [{label:'Enabled', push_value:'Enabled'},{label:'Disabled', push_value:'Disabled'}] },
+    { group: 'iDRAC Network / Time', name: 'ntp_server_1', label: 'NTP Server 1', endpoint_type: 'idrac_attributes', attribute_path: 'Attributes.NTPConfigGroup.1.NTP1', push_key: 'iDRAC.NTPConfigGroup.NTP1', is_writable: true, post_push_command: '', display_type: 'string', display_order: 31, choices: [] },
+    { group: 'iDRAC Network / Time', name: 'ntp_server_2', label: 'NTP Server 2', endpoint_type: 'idrac_attributes', attribute_path: 'Attributes.NTPConfigGroup.1.NTP2', push_key: 'iDRAC.NTPConfigGroup.NTP2', is_writable: true, post_push_command: '', display_type: 'string', display_order: 32, choices: [] },
+    { group: 'iDRAC Network / Time', name: 'timezone', label: 'Timezone', endpoint_type: 'idrac_attributes', attribute_path: 'Attributes.Time.1.Timezone', push_key: 'iDRAC.Time.Timezone', is_writable: true, post_push_command: '', display_type: 'string', display_order: 33, choices: [] },
+    { group: 'iDRAC Network / Time', name: 'idrac_ip_address', label: 'iDRAC IP Address', endpoint_type: 'idrac_attributes', attribute_path: 'Attributes.IPv4.1.Address', push_key: '', is_writable: false, post_push_command: '', display_type: 'string', display_order: 34, choices: [] },
+    // iDRAC Services
+    { group: 'iDRAC Services', name: 'ssh_enabled', label: 'SSH Enabled', endpoint_type: 'idrac_attributes', attribute_path: 'Attributes.SSH.1.Enable', push_key: 'iDRAC.SSH.Enable', is_writable: true, post_push_command: '', display_type: 'bool', display_order: 40, choices: [{label:'Enabled', push_value:'Enabled'},{label:'Disabled', push_value:'Disabled'}] },
+    { group: 'iDRAC Services', name: 'vnc_enabled', label: 'VNC Enabled', endpoint_type: 'idrac_attributes', attribute_path: 'Attributes.VNCServer.1.Enable', push_key: 'iDRAC.VNCServer.Enable', is_writable: true, post_push_command: '', display_type: 'bool', display_order: 41, choices: [{label:'Enabled', push_value:'Enabled'},{label:'Disabled', push_value:'Disabled'}] },
+    { group: 'iDRAC Services', name: 'snmp_agent_enabled', label: 'SNMP Agent Enabled', endpoint_type: 'idrac_attributes', attribute_path: 'Attributes.SNMP.1.AgentEnable', push_key: 'iDRAC.SNMP.AgentEnable', is_writable: true, post_push_command: '', display_type: 'bool', display_order: 42, choices: [{label:'Enabled', push_value:'Enabled'},{label:'Disabled', push_value:'Disabled'}] },
+    { group: 'iDRAC Services', name: 'snmp_community', label: 'SNMP Community String', endpoint_type: 'idrac_attributes', attribute_path: 'Attributes.SNMP.1.AgentCommunity', push_key: 'iDRAC.SNMP.AgentCommunity', is_writable: true, post_push_command: '', display_type: 'string', display_order: 43, choices: [] },
+    { group: 'iDRAC Services', name: 'ipmi_serial_enabled', label: 'IPMI Serial Enabled', endpoint_type: 'idrac_attributes', attribute_path: 'Attributes.IPMISerial.1.Enable', push_key: 'iDRAC.IPMISerial.Enable', is_writable: true, post_push_command: '', display_type: 'bool', display_order: 44, choices: [{label:'Enabled', push_value:'Enabled'},{label:'Disabled', push_value:'Disabled'}] },
+    { group: 'iDRAC Services', name: 'os_bmc_admin_state', label: 'OS-BMC Admin State', endpoint_type: 'idrac_attributes', attribute_path: 'Attributes.OS-BMC.1.AdminState', push_key: 'iDRAC.OS-BMC.AdminState', is_writable: true, post_push_command: '', display_type: 'bool', display_order: 45, choices: [{label:'Enabled', push_value:'Enabled'},{label:'Disabled', push_value:'Disabled'}] },
+    // BIOS Performance
+    { group: 'BIOS Performance', name: 'bios_turbo_mode', label: 'Turbo Mode', endpoint_type: 'bios', attribute_path: 'Attributes.ProcSettings.1.ProcTurboMode', push_key: 'BIOS.ProcSettings.ProcTurboMode', is_writable: true, post_push_command: 'jobqueue create BIOS.Setup.1-1', display_type: 'bool', display_order: 60, choices: [{label:'Enabled', push_value:'Enabled'},{label:'Disabled', push_value:'Disabled'}] },
+    { group: 'BIOS Performance', name: 'bios_c_states', label: 'C-States', endpoint_type: 'bios', attribute_path: 'Attributes.ProcSettings.1.ProcCStates', push_key: 'BIOS.ProcSettings.ProcCStates', is_writable: true, post_push_command: 'jobqueue create BIOS.Setup.1-1', display_type: 'bool', display_order: 61, choices: [{label:'Enabled', push_value:'Enabled'},{label:'Disabled', push_value:'Disabled'}] },
+    { group: 'BIOS Performance', name: 'bios_virtualization', label: 'Virtualization', endpoint_type: 'bios', attribute_path: 'Attributes.ProcSettings.1.ProcVirtualization', push_key: 'BIOS.ProcSettings.ProcVirtualization', is_writable: true, post_push_command: 'jobqueue create BIOS.Setup.1-1', display_type: 'bool', display_order: 62, choices: [{label:'Enabled', push_value:'Enabled'},{label:'Disabled', push_value:'Disabled'}] },
+    { group: 'BIOS Performance', name: 'bios_hyper_threading', label: 'Hyper-Threading', endpoint_type: 'bios', attribute_path: 'Attributes.ProcSettings.1.LogicalProc', push_key: 'BIOS.ProcSettings.LogicalProc', is_writable: true, post_push_command: 'jobqueue create BIOS.Setup.1-1', display_type: 'bool', display_order: 63, choices: [{label:'Enabled', push_value:'Enabled'},{label:'Disabled', push_value:'Disabled'}] },
+    // BIOS Security
+    { group: 'BIOS Security', name: 'bios_secure_boot', label: 'Secure Boot', endpoint_type: 'bios', attribute_path: 'Attributes.SecureBoot.1.SecureBoot', push_key: 'BIOS.SecureBoot.SecureBoot', is_writable: true, post_push_command: 'jobqueue create BIOS.Setup.1-1', display_type: 'bool', display_order: 70, choices: [{label:'Enabled', push_value:'Enabled'},{label:'Disabled', push_value:'Disabled'}] },
+    // Power
+    { group: 'Power', name: 'ps_redundancy_policy', label: 'Redundant Power Policy', endpoint_type: 'system_oem_dell', attribute_path: 'Attributes.ServerPwr.1.PSRedPolicy', push_key: 'System.ServerPwr.PSRedPolicy', is_writable: true, post_push_command: '', display_type: 'string', display_order: 80, choices: [{label:'A Side Only', push_value:'A_Side Only'},{label:'B Side Only', push_value:'B_Side Only'},{label:'Not Redundant', push_value:'Not Redundant'},{label:'Grid Redundant', push_value:'Grid Redundant'}] },
+];
+
+let _catalog = [];
+let _deleteAttrId = null;
+
+function toggleTheme() {
+    const dark = document.body.classList.toggle('dark-theme');
+    localStorage.setItem('theme', dark ? 'dark' : 'light');
+    document.getElementById('theme-toggle-switch').classList.toggle('active', dark);
+}
+
+function esc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function notify(msg, type='success') {
+    const el = document.createElement('div');
+    el.className = 'notification ' + type;
+    el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 4000);
+}
+
+async function loadCatalog() {
+    const resp = await fetch('/api/attr-catalog');
+    const data = await resp.json();
+    if (!data.success) { notify(data.message || 'Load failed', 'error'); return; }
+    _catalog = data.catalog;
+    renderCatalog();
+}
+
+function renderCatalog() {
+    const tbody = document.getElementById('catalog-tbody');
+    if (_catalog.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; color:#888; padding:24px;">No attributes defined.</td></tr>';
+        return;
+    }
+    const existingNames = new Set(_catalog.map(e => e.name));
+    tbody.innerHTML = _catalog.map(e => {
+        const choicesText = e.choices.length ? e.choices.map(c => esc(c.label)).join(', ') : '—';
+        const writableBadge = e.is_writable
+            ? '<span class="badge badge-yes">Yes</span>'
+            : '<span class="badge badge-no">No</span>';
+        const path = e.attribute_path || '—';
+        const pushKey = e.push_key || '—';
+        return `<tr>
+            <td><code>${esc(e.name)}</code></td>
+            <td>${esc(e.label)}</td>
+            <td><span class="badge badge-ep">${esc(e.endpoint_type)}</span></td>
+            <td><code style="word-break:break-all;">${esc(path)}</code></td>
+            <td><code>${esc(pushKey)}</code></td>
+            <td>${writableBadge}</td>
+            <td>${esc(e.display_type)}</td>
+            <td class="choices-cell">${choicesText}</td>
+            <td>
+                <button class="btn btn-secondary btn-sm" onclick="showEditModal(${e.id})">Edit</button>
+                <button class="btn btn-danger btn-sm" onclick="showDeleteModal(${e.id})" style="margin-left:4px;">Del</button>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+// ── Add/Edit Modal ─────────────────────────────────────────────────────────────
+
+function showAddModal(preset) {
+    document.getElementById('modal-edit-title').textContent = 'Add Custom Attribute';
+    document.getElementById('edit-attr-id').value = '';
+    document.getElementById('edit-name').value = preset ? preset.name : '';
+    document.getElementById('edit-name').readOnly = false;
+    document.getElementById('edit-label').value = preset ? preset.label : '';
+    document.getElementById('edit-endpoint').value = preset ? preset.endpoint_type : 'idrac_attributes';
+    document.getElementById('edit-display-type').value = preset ? preset.display_type : 'string';
+    document.getElementById('edit-display-order').value = preset ? preset.display_order : 100;
+    document.getElementById('edit-attr-path').value = preset ? preset.attribute_path : '';
+    document.getElementById('edit-push-key').value = preset ? preset.push_key : '';
+    document.getElementById('edit-is-writable').checked = preset ? preset.is_writable : false;
+    document.getElementById('edit-post-push').value = preset ? preset.post_push_command : '';
+    renderChoiceRows(preset ? preset.choices : []);
+    document.getElementById('modal-edit').classList.add('active');
+}
+
+function showEditModal(attrId) {
+    const entry = _catalog.find(e => e.id === attrId);
+    if (!entry) return;
+    document.getElementById('modal-edit-title').textContent = 'Edit Attribute';
+    document.getElementById('edit-attr-id').value = entry.id;
+    document.getElementById('edit-name').value = entry.name;
+    document.getElementById('edit-name').readOnly = false;
+    document.getElementById('edit-label').value = entry.label;
+    document.getElementById('edit-endpoint').value = entry.endpoint_type;
+    document.getElementById('edit-display-type').value = entry.display_type;
+    document.getElementById('edit-display-order').value = entry.display_order;
+    document.getElementById('edit-attr-path').value = entry.attribute_path || '';
+    document.getElementById('edit-push-key').value = entry.push_key || '';
+    document.getElementById('edit-is-writable').checked = entry.is_writable;
+    document.getElementById('edit-post-push').value = entry.post_push_command || '';
+    renderChoiceRows(entry.choices.map(c => ({label: c.label, push_value: c.push_value})));
+    document.getElementById('modal-edit').classList.add('active');
+}
+
+function closeEditModal() {
+    document.getElementById('modal-edit').classList.remove('active');
+}
+
+function updateWritableHint() {
+    const writable = document.getElementById('edit-is-writable').checked;
+    document.getElementById('choices-hint').style.opacity = writable ? '1' : '0.5';
+}
+
+function renderChoiceRows(choices) {
+    const list = document.getElementById('choices-list');
+    list.innerHTML = '';
+    for (const ch of choices) addChoiceRow(ch.label, ch.push_value);
+}
+
+function addChoiceRow(label, pushValue) {
+    const list = document.getElementById('choices-list');
+    const row = document.createElement('div');
+    row.className = 'choice-row';
+    row.innerHTML = `
+        <input type="text" placeholder="Label (display)" value="${esc(label || '')}">
+        <input type="text" placeholder="Push value (racadm)" value="${esc(pushValue || '')}">
+        <button class="btn btn-secondary" onclick="this.closest('.choice-row').remove()">&#10005;</button>
+    `;
+    list.appendChild(row);
+}
+
+function getChoices() {
+    return Array.from(document.querySelectorAll('#choices-list .choice-row')).map(row => {
+        const inputs = row.querySelectorAll('input');
+        return { label: inputs[0].value.trim(), push_value: inputs[1].value.trim() };
+    }).filter(ch => ch.label || ch.push_value);
+}
+
+async function saveAttrDef() {
+    const attrId = document.getElementById('edit-attr-id').value;
+    const payload = {
+        name: document.getElementById('edit-name').value.trim(),
+        label: document.getElementById('edit-label').value.trim(),
+        endpoint_type: document.getElementById('edit-endpoint').value,
+        display_type: document.getElementById('edit-display-type').value,
+        display_order: parseInt(document.getElementById('edit-display-order').value) || 100,
+        attribute_path: document.getElementById('edit-attr-path').value.trim(),
+        push_key: document.getElementById('edit-push-key').value.trim(),
+        is_writable: document.getElementById('edit-is-writable').checked,
+        post_push_command: document.getElementById('edit-post-push').value.trim(),
+        choices: getChoices(),
+    };
+
+    const url = attrId ? `/api/attr-catalog/${attrId}` : '/api/attr-catalog';
+    const method = attrId ? 'PUT' : 'POST';
+    const resp = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    const data = await resp.json();
+    if (!data.success) { notify(data.message || 'Save failed', 'error'); return; }
+    closeEditModal();
+    notify(attrId ? 'Attribute updated.' : 'Attribute created.');
+    await loadCatalog();
+}
+
+// ── Preset Modal ───────────────────────────────────────────────────────────────
+
+function showPresetModal() {
+    document.getElementById('preset-search').value = '';
+    filterPresets();
+    document.getElementById('modal-preset').classList.add('active');
+}
+
+function closePresetModal() {
+    document.getElementById('modal-preset').classList.remove('active');
+}
+
+function filterPresets() {
+    const q = document.getElementById('preset-search').value.toLowerCase();
+    const existingNames = new Set(_catalog.map(e => e.name));
+    const list = document.getElementById('preset-list');
+    let html = '';
+    let currentGroup = '';
+    for (const p of KNOWN_PRESETS) {
+        if (existingNames.has(p.name)) continue;
+        if (q && !p.name.includes(q) && !p.label.toLowerCase().includes(q) && !p.group.toLowerCase().includes(q)) continue;
+        if (p.group !== currentGroup) {
+            currentGroup = p.group;
+            html += `<div class="preset-group-label">${esc(currentGroup)}</div>`;
+        }
+        html += `<div class="preset-item" onclick="selectPreset(${JSON.stringify(p.name).replace(/"/g,'&quot;')})">
+            <div class="preset-name">${esc(p.label)}</div>
+            <div class="preset-desc">${esc(p.endpoint_type)} &middot; ${esc(p.attribute_path || '')} ${p.is_writable ? '&middot; writable' : ''}</div>
+        </div>`;
+    }
+    if (!html) html = '<div style="color:#888; padding:12px; text-align:center;">No presets available (all already added or filtered out).</div>';
+    list.innerHTML = html;
+}
+
+function selectPreset(presetName) {
+    const preset = KNOWN_PRESETS.find(p => p.name === presetName);
+    if (!preset) return;
+    closePresetModal();
+    showAddModal(preset);
+}
+
+// ── Delete Modal ───────────────────────────────────────────────────────────────
+
+async function showDeleteModal(attrId) {
+    _deleteAttrId = attrId;
+    const entry = _catalog.find(e => e.id === attrId);
+    const name = entry ? entry.name : String(attrId);
+
+    // Pre-fetch counts from catalog (we don't have host counts client-side, so show name and let user confirm)
+    document.getElementById('delete-confirm-text').innerHTML =
+        `Delete attribute <strong>${esc(name)}</strong>? This will remove all collected data and site settings for this attribute.`;
+    document.getElementById('modal-delete').classList.add('active');
+}
+
+function closeDeleteModal() {
+    document.getElementById('modal-delete').classList.remove('active');
+    _deleteAttrId = null;
+}
+
+async function confirmDelete() {
+    if (!_deleteAttrId) return;
+    const resp = await fetch(`/api/attr-catalog/${_deleteAttrId}`, { method: 'DELETE' });
+    const data = await resp.json();
+    if (!data.success) { notify(data.message || 'Delete failed', 'error'); return; }
+    closeDeleteModal();
+    notify(`Deleted. Removed ${data.deleted_host_records} host record(s) and ${data.deleted_site_settings} site setting(s).`);
+    await loadCatalog();
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', () => {
+    const dark = localStorage.getItem('theme') === 'dark';
+    document.getElementById('theme-toggle-switch').classList.toggle('active', dark);
+    loadCatalog();
+});
+</script>
+</body>
+</html>

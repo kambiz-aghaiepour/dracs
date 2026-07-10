@@ -7,8 +7,11 @@ import tempfile
 import pytest
 
 from dracs.db import (
+    AttrDefParams,
+    create_attr_def,
     create_site,
     db_initialize,
+    delete_attr_def,
     get_all_attr_defs,
     get_attr_catalog_for_site,
     get_attr_def_by_name,
@@ -16,6 +19,7 @@ from dracs.db import (
     get_enabled_attr_defs_for_site,
     get_host_config_attrs,
     get_hosts_for_site,
+    update_attr_def,
     upsert_attr_site_settings,
     upsert_host_config_attr,
     upsert_system,
@@ -411,3 +415,152 @@ class TestMigrateCollectionTables:
         finally:
             if os.path.exists(path):
                 os.unlink(path)
+
+
+def _make_params(**kwargs):
+    defaults = dict(
+        name="test_attr",
+        label="Test Attr",
+        endpoint_type="idrac_attributes",
+        display_type="string",
+        display_order=99,
+        choices=[],
+        attribute_path="Attributes.Test.1.Value",
+        push_key="iDRAC.Test.Value",
+        is_writable=False,
+        post_push_command=None,
+    )
+    defaults.update(kwargs)
+    return AttrDefParams(**defaults)
+
+
+class TestCreateAttrDef:
+    def test_creates_def_and_returns_dict(self, config_db):
+        entry = create_attr_def(_make_params())
+        assert entry["name"] == "test_attr"
+        assert entry["label"] == "Test Attr"
+        assert entry["endpoint_type"] == "idrac_attributes"
+        assert isinstance(entry["id"], int)
+
+    def test_creates_with_choices(self, config_db):
+        params = _make_params(
+            name="test_choices",
+            is_writable=True,
+            choices=[
+                {"label": "Yes", "push_value": "Enabled"},
+                {"label": "No", "push_value": "Disabled"},
+            ],
+        )
+        entry = create_attr_def(params)
+        assert len(entry["choices"]) == 2
+        assert entry["choices"][0]["label"] == "Yes"
+        assert entry["choices"][1]["push_value"] == "Disabled"
+
+    def test_new_def_appears_in_get_all(self, config_db):
+        create_attr_def(_make_params())
+        names = [d["name"] for d in get_all_attr_defs()]
+        assert "test_attr" in names
+
+    def test_post_push_command_stored(self, config_db):
+        entry = create_attr_def(
+            _make_params(post_push_command="jobqueue create BIOS.Setup.1-1")
+        )
+        assert entry["post_push_command"] == "jobqueue create BIOS.Setup.1-1"
+
+    def test_empty_string_path_stored_as_none(self, config_db):
+        entry = create_attr_def(_make_params(attribute_path="", push_key=""))
+        assert entry["attribute_path"] is None
+        assert entry["push_key"] is None
+
+
+class TestUpdateAttrDef:
+    def test_updates_label_and_returns_dict(self, config_db):
+        entry = create_attr_def(_make_params())
+        updated = update_attr_def(entry["id"], _make_params(label="Updated Label"))
+        assert updated["label"] == "Updated Label"
+        assert updated["id"] == entry["id"]
+
+    def test_replaces_choices(self, config_db):
+        entry = create_attr_def(
+            _make_params(
+                is_writable=True,
+                choices=[{"label": "Old", "push_value": "old"}],
+            )
+        )
+        updated = update_attr_def(
+            entry["id"],
+            _make_params(
+                is_writable=True,
+                choices=[
+                    {"label": "New1", "push_value": "n1"},
+                    {"label": "New2", "push_value": "n2"},
+                ],
+            ),
+        )
+        assert len(updated["choices"]) == 2
+        assert updated["choices"][0]["label"] == "New1"
+
+    def test_nullifies_desired_choice_id_on_site_settings(self, config_db, site_id):
+        entry = create_attr_def(
+            _make_params(
+                is_writable=True,
+                choices=[{"label": "On", "push_value": "Enabled"}],
+            )
+        )
+        choice_id = entry["choices"][0]["id"]
+        upsert_attr_site_settings(
+            entry["id"], site_id, enabled=True, hours=24, desired_choice_id=choice_id
+        )
+        update_attr_def(
+            entry["id"],
+            _make_params(
+                is_writable=True,
+                choices=[{"label": "New", "push_value": "New"}],
+            ),
+        )
+        catalog = get_attr_catalog_for_site(site_id)
+        found = next((d for d in catalog if d["id"] == entry["id"]), None)
+        assert found is not None
+        assert found["site_settings"]["desired_choice_id"] is None
+
+    def test_raises_for_nonexistent_id(self, config_db):
+        with pytest.raises(ValueError, match="not found"):
+            update_attr_def(999999, _make_params())
+
+
+class TestDeleteAttrDef:
+    def test_removes_def_from_catalog(self, config_db):
+        entry = create_attr_def(_make_params())
+        delete_attr_def(entry["id"])
+        names = [d["name"] for d in get_all_attr_defs()]
+        assert "test_attr" not in names
+
+    def test_returns_counts(self, config_db, site_id):
+        entry = create_attr_def(_make_params())
+        upsert_host_config_attr(
+            "host1.example.com", site_id, entry["id"], "val", "2026-01-01T00:00:00"
+        )
+        upsert_attr_site_settings(
+            entry["id"], site_id, enabled=True, hours=24, desired_choice_id=None
+        )
+        result = delete_attr_def(entry["id"])
+        assert result["deleted_host_records"] == 1
+        assert result["deleted_site_settings"] == 1
+
+    def test_cascades_choices(self, config_db):
+        entry = create_attr_def(
+            _make_params(
+                is_writable=True,
+                choices=[{"label": "A", "push_value": "a"}],
+            )
+        )
+        delete_attr_def(entry["id"])
+        # After delete, get_all_attr_defs should not include the deleted entry
+        ids = [d["id"] for d in get_all_attr_defs()]
+        assert entry["id"] not in ids
+
+    def test_zero_counts_when_no_collected_data(self, config_db):
+        entry = create_attr_def(_make_params())
+        result = delete_attr_def(entry["id"])
+        assert result["deleted_host_records"] == 0
+        assert result["deleted_site_settings"] == 0

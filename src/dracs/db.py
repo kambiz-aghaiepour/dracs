@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Optional
 
@@ -1105,6 +1106,137 @@ def get_all_attr_defs() -> list:
                 }
             )
         return result
+
+
+@dataclass
+class AttrDefParams:
+    name: str
+    label: str
+    endpoint_type: str
+    display_type: str
+    display_order: int
+    choices: list
+    attribute_path: Optional[str] = None
+    push_key: Optional[str] = None
+    is_writable: bool = False
+    post_push_command: Optional[str] = None
+
+
+def _attr_def_to_dict(d, new_choices) -> dict:
+    return {
+        "id": d.id,
+        "name": d.name,
+        "label": d.label,
+        "endpoint_type": d.endpoint_type,
+        "attribute_path": d.attribute_path,
+        "push_key": d.push_key,
+        "is_writable": d.is_writable,
+        "post_push_command": d.post_push_command,
+        "display_type": d.display_type,
+        "display_order": d.display_order,
+        "choices": [
+            {
+                "id": c.id,
+                "label": c.choice_label,
+                "push_value": c.push_value,
+                "sort_order": c.sort_order,
+            }
+            for c in new_choices
+        ],
+    }
+
+
+def _insert_choices(session, attr_def_id: int, choices: list) -> list:
+    rows = []
+    for i, ch in enumerate(choices):
+        c = ConfigAttrChoice(
+            attr_def_id=attr_def_id,
+            choice_label=ch["label"],
+            push_value=ch["push_value"],
+            sort_order=i,
+        )
+        session.add(c)
+        rows.append(c)
+    return rows
+
+
+def create_attr_def(params: "AttrDefParams") -> dict:
+    """Insert a new attr def + choices. Returns the new entry dict."""
+    with get_session() as session:
+        d = ConfigAttrDef(
+            name=params.name,
+            label=params.label,
+            endpoint_type=params.endpoint_type,
+            attribute_path=params.attribute_path or None,
+            push_key=params.push_key or None,
+            is_writable=params.is_writable,
+            post_push_command=params.post_push_command or None,
+            display_type=params.display_type,
+            display_order=params.display_order,
+        )
+        session.add(d)
+        session.flush()
+        new_choices = _insert_choices(session, d.id, params.choices)
+        session.commit()
+        return _attr_def_to_dict(d, new_choices)
+
+
+def update_attr_def(attr_def_id: int, params: "AttrDefParams") -> dict:
+    """Update an attr def and replace its choices. Nullifies desired_choice_id on site settings first."""
+    with get_session() as session:
+        d = session.query(ConfigAttrDef).filter(ConfigAttrDef.id == attr_def_id).first()
+        if d is None:
+            raise ValueError(f"attr_def_id {attr_def_id} not found")
+        session.query(ConfigAttrSiteSettings).filter(
+            ConfigAttrSiteSettings.attr_def_id == attr_def_id
+        ).update({"desired_choice_id": None}, synchronize_session=False)
+        session.query(ConfigAttrChoice).filter(
+            ConfigAttrChoice.attr_def_id == attr_def_id
+        ).delete(synchronize_session=False)
+        d.name = params.name
+        d.label = params.label
+        d.endpoint_type = params.endpoint_type
+        d.attribute_path = params.attribute_path or None
+        d.push_key = params.push_key or None
+        d.is_writable = params.is_writable
+        d.post_push_command = params.post_push_command or None
+        d.display_type = params.display_type
+        d.display_order = params.display_order
+        new_choices = _insert_choices(session, attr_def_id, params.choices)
+        session.commit()
+        return _attr_def_to_dict(d, new_choices)
+
+
+def delete_attr_def(attr_def_id: int) -> dict:
+    """Delete an attr def and all associated data. Returns counts of deleted records."""
+    with get_session() as session:
+        n_host = (
+            session.query(HostConfigAttr)
+            .filter(HostConfigAttr.attr_def_id == attr_def_id)
+            .count()
+        )
+        n_site = (
+            session.query(ConfigAttrSiteSettings)
+            .filter(ConfigAttrSiteSettings.attr_def_id == attr_def_id)
+            .count()
+        )
+        session.query(ConfigAttrSiteSettings).filter(
+            ConfigAttrSiteSettings.attr_def_id == attr_def_id
+        ).update({"desired_choice_id": None}, synchronize_session=False)
+        session.query(HostConfigAttr).filter(
+            HostConfigAttr.attr_def_id == attr_def_id
+        ).delete(synchronize_session=False)
+        session.query(ConfigAttrSiteSettings).filter(
+            ConfigAttrSiteSettings.attr_def_id == attr_def_id
+        ).delete(synchronize_session=False)
+        session.query(ConfigAttrChoice).filter(
+            ConfigAttrChoice.attr_def_id == attr_def_id
+        ).delete(synchronize_session=False)
+        session.query(ConfigAttrDef).filter(ConfigAttrDef.id == attr_def_id).delete(
+            synchronize_session=False
+        )
+        session.commit()
+        return {"deleted_host_records": n_host, "deleted_site_settings": n_site}
 
 
 def upsert_attr_site_settings(

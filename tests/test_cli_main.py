@@ -14,6 +14,22 @@ def run_main_with_args(args):
         asyncio.run(main())
 
 
+@pytest.fixture(autouse=True)
+def _init_db_for_cli_tests(temp_db):
+    """Ensure a real initialized DB exists for every test in this module.
+
+    Many CLI commands call _resolve_site_id() -> get_default_site_id() before
+    the mocked command function is invoked, so _SessionFactory must be set.
+    """
+    import dracs.db as db_mod
+    from dracs.db import db_initialize
+
+    db_initialize(temp_db)
+    yield
+    db_mod._engine = None
+    db_mod._SessionFactory = None
+
+
 class TestMainAdd:
     @patch("dracs.commands.add_dell_warranty", new_callable=AsyncMock)
     @patch("dracs.cli.db_initialize")
