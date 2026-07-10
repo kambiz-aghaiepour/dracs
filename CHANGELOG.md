@@ -2,6 +2,52 @@
 
 <!-- version list -->
 
+## v2.19.1 (2026-07-10)
+
+### Bug Fixes
+
+- Black formatting
+  ([`a68d942`](https://github.com/kambiz-aghaiepour/dracs/commit/a68d9421489b0b7ec4bb4606f96f16cafc544a46))
+
+- Black formatting
+  ([`a909705`](https://github.com/kambiz-aghaiepour/dracs/commit/a9097053f537a612c15eaef5c79d917e0b93be72))
+
+- Codacy
+  ([`6ccf756`](https://github.com/kambiz-aghaiepour/dracs/commit/6ccf75606e9060ed753aa7b8810eb85fc331a8bd))
+
+- Codecov
+  ([`dca5748`](https://github.com/kambiz-aghaiepour/dracs/commit/dca57489d41bd6e50e41f02ffa44fd038599ecaf))
+
+- Codecov
+  ([`19340a5`](https://github.com/kambiz-aghaiepour/dracs/commit/19340a56f6af9da395ec15ebddf5b12d071cfd27))
+
+- Config and edit pages
+  ([`76ed189`](https://github.com/kambiz-aghaiepour/dracs/commit/76ed189de5b190c8ddca43ba8206a613e9a778c9))
+
+- Config page bug and no pushing no default
+  ([`0327d24`](https://github.com/kambiz-aghaiepour/dracs/commit/0327d2417ce945502f28470aee76957f5bbacf40))
+
+- Ensure favicon is set on all pages
+  ([`aa9e5fa`](https://github.com/kambiz-aghaiepour/dracs/commit/aa9e5fa1f730d35ee9b800f12d034622feca27ab))
+
+- Have a way to edit collected attributes
+  ([`2ef673d`](https://github.com/kambiz-aghaiepour/dracs/commit/2ef673dfadd58cecc82884ca1f725e6791a177a6))
+
+- Initialize DB in test_cli_main autouse fixture
+  ([`57cd3ac`](https://github.com/kambiz-aghaiepour/dracs/commit/57cd3ac2a3f682bb27920fee0342652d300ba09d))
+
+- Site management page broke
+  ([`8a93847`](https://github.com/kambiz-aghaiepour/dracs/commit/8a9384743add63b938df8ea6a6feae0dee0f73ff))
+
+- Theme consistency
+  ([`8ac3f98`](https://github.com/kambiz-aghaiepour/dracs/commit/8ac3f98488de3cba5b0e4cc5129a1aa24bd3230e))
+
+### Chores
+
+- Sync spec file version to 2.19.0 [skip ci]
+  ([`4c8ec02`](https://github.com/kambiz-aghaiepour/dracs/commit/4c8ec024161f1e58135fb857f81ca179de0cddd2))
+
+
 ## v2.19.0 (2026-07-09)
 
 ### Bug Fixes
