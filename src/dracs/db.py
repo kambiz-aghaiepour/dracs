@@ -1157,7 +1157,12 @@ def create_attr_def(
             "display_type": d.display_type,
             "display_order": d.display_order,
             "choices": [
-                {"id": c.id, "label": c.choice_label, "push_value": c.push_value, "sort_order": c.sort_order}
+                {
+                    "id": c.id,
+                    "label": c.choice_label,
+                    "push_value": c.push_value,
+                    "sort_order": c.sort_order,
+                }
                 for c in new_choices
             ],
         }
@@ -1220,7 +1225,12 @@ def update_attr_def(
             "display_type": d.display_type,
             "display_order": d.display_order,
             "choices": [
-                {"id": c.id, "label": c.choice_label, "push_value": c.push_value, "sort_order": c.sort_order}
+                {
+                    "id": c.id,
+                    "label": c.choice_label,
+                    "push_value": c.push_value,
+                    "sort_order": c.sort_order,
+                }
                 for c in new_choices
             ],
         }
@@ -1251,9 +1261,9 @@ def delete_attr_def(attr_def_id: int) -> dict:
         session.query(ConfigAttrChoice).filter(
             ConfigAttrChoice.attr_def_id == attr_def_id
         ).delete(synchronize_session=False)
-        session.query(ConfigAttrDef).filter(
-            ConfigAttrDef.id == attr_def_id
-        ).delete(synchronize_session=False)
+        session.query(ConfigAttrDef).filter(ConfigAttrDef.id == attr_def_id).delete(
+            synchronize_session=False
+        )
         session.commit()
         return {"deleted_host_records": n_host, "deleted_site_settings": n_site}
 

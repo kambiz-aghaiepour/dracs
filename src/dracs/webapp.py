@@ -4530,9 +4530,15 @@ def _validate_attr_def_body(body):
     if not label:
         return None, "label is required"
     if endpoint_type not in _VALID_ENDPOINT_TYPES:
-        return None, f"endpoint_type must be one of: {', '.join(sorted(_VALID_ENDPOINT_TYPES))}"
+        return (
+            None,
+            f"endpoint_type must be one of: {', '.join(sorted(_VALID_ENDPOINT_TYPES))}",
+        )
     if display_type not in _VALID_DISPLAY_TYPES:
-        return None, f"display_type must be one of: {', '.join(sorted(_VALID_DISPLAY_TYPES))}"
+        return (
+            None,
+            f"display_type must be one of: {', '.join(sorted(_VALID_DISPLAY_TYPES))}",
+        )
 
     choices = body.get("choices") or []
     if not isinstance(choices, list):
@@ -4572,7 +4578,9 @@ def api_attr_catalog_post():
         from dracs.db import create_attr_def
 
         entry = create_attr_def(**fields)
-        audit_log("attr_catalog_create", target=entry["name"], user=user, source=_client_ip())
+        audit_log(
+            "attr_catalog_create", target=entry["name"], user=user, source=_client_ip()
+        )
         return jsonify({"success": True, "entry": entry})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
@@ -4595,7 +4603,9 @@ def api_attr_catalog_put(attr_id):
         from dracs.db import update_attr_def
 
         entry = update_attr_def(attr_id, **fields)
-        audit_log("attr_catalog_update", target=entry["name"], user=user, source=_client_ip())
+        audit_log(
+            "attr_catalog_update", target=entry["name"], user=user, source=_client_ip()
+        )
         return jsonify({"success": True, "entry": entry})
     except ValueError as e:
         return jsonify({"success": False, "message": str(e)}), 404
@@ -4616,7 +4626,9 @@ def api_attr_catalog_delete(attr_id):
         from dracs.db import delete_attr_def
 
         result = delete_attr_def(attr_id)
-        audit_log("attr_catalog_delete", target=str(attr_id), user=user, source=_client_ip())
+        audit_log(
+            "attr_catalog_delete", target=str(attr_id), user=user, source=_client_ip()
+        )
         return jsonify({"success": True, **result})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
