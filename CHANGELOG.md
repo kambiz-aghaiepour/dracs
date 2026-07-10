@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.19.2 (2026-07-10)
+
+### Bug Fixes
+
+- Navigation between pages made more consistent
+  ([`eb1eb3b`](https://github.com/kambiz-aghaiepour/dracs/commit/eb1eb3ba412a569ac82da9ae575375f387c672b8))
+
+### Chores
+
+- Sync spec file version to 2.19.1 [skip ci]
+  ([`e43c3c3`](https://github.com/kambiz-aghaiepour/dracs/commit/e43c3c3f83e69202f394d70b87c99c8c18ef8cb2))
+
+
 ## v2.19.1 (2026-07-10)
 
 ### Bug Fixes
