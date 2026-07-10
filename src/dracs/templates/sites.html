@@ -390,13 +390,13 @@
                         <td>SSL Certificate</td>
                         <td><input type="checkbox" class="coll-enabled"></td>
                         <td><input type="number" class="coll-hours" min="1" max="8760" value="24"></td>
-                        <td><span style="color:#999;">—</span></td>
+                        <td></td>
                     </tr>
                     <tr data-attr="idrac_hostname">
                         <td>iDRAC Hostname</td>
                         <td><input type="checkbox" class="coll-enabled"></td>
                         <td><input type="number" class="coll-hours" min="1" max="8760" value="24"></td>
-                        <td><span style="color:#999;">—</span></td>
+                        <td><span style="color:#666; font-style:italic; font-size:0.85em;">Matches FQDN (auto)</span></td>
                     </tr>
                 </tbody>
             </table>
@@ -1064,11 +1064,15 @@
             const payload = _attrCatalog.map(entry => {
                 const key = _SSL_ATTRS.includes(entry.name) ? 'ssl' : entry.name;
                 const s = rowSettings[key] || {enabled: false, hours: 24, desired_choice_id: null};
+                // Single-choice attrs (e.g. idrac_hostname) have an implicit desired value;
+                // auto-set it so the push dialog is not greyed out.
+                const desiredId = s.desired_choice_id !== null ? s.desired_choice_id
+                    : (entry.choices && entry.choices.length === 1 ? entry.choices[0].id : null);
                 return {
                     attr_def_id: entry.id,
                     enabled: s.enabled,
                     hours: s.hours,
-                    desired_choice_id: s.desired_choice_id,
+                    desired_choice_id: desiredId,
                 };
             });
             const resp = await fetch('/api/sites/' + encodeURIComponent(selectedSite.name) + '/config-collection', {

@@ -997,10 +997,12 @@ const isAdmin = {{ 'true' if is_admin else 'false' }};
         optDiv.innerHTML = '';
         for (const def of writableEnabled) {
             const desired = def.site_settings.desired_value;
-            const desiredLabel = def.choices.find(c => c.push_value === desired)?.label || desired || '';
+            // Single-choice attrs (e.g. idrac_hostname) have an implicit desired push value.
+            const effectiveDesired = desired || (def.choices.length === 1 ? def.choices[0].push_value : null);
+            const desiredLabel = def.choices.find(c => c.push_value === effectiveDesired)?.label || effectiveDesired || '';
             const id = `ec-attr-${def.id}`;
             const lbl = document.createElement('label');
-            if (!desired) {
+            if (!effectiveDesired) {
                 lbl.style.cssText = 'opacity:0.45; cursor:not-allowed;';
                 lbl.innerHTML = `<input type="checkbox" id="${escHtml(id)}" data-attr-id="${def.id}" disabled>
                     ${escHtml(def.push_key || def.name)} <span style="font-style:italic; color:#888;">(no desired value set)</span>`;
@@ -1043,10 +1045,12 @@ const isAdmin = {{ 'true' if is_admin else 'false' }};
         for (const def of visibleAttrs.filter(d => d.is_writable)) {
             const cb = document.getElementById(`ec-attr-${def.id}`);
             if (!cb || !cb.checked) continue;
+            const pushValue = def.site_settings.desired_value
+                || (def.choices.length === 1 ? def.choices[0].push_value : '');
             push_settings.push({
                 attr_name:        def.name,
                 push_key:         def.push_key,
-                push_value:       def.site_settings.desired_value || '',
+                push_value:       pushValue,
                 post_push_command: def.post_push_command || null,
             });
         }
