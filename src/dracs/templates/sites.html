@@ -66,6 +66,9 @@
         .notification.error { background: #e53935; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
         .footer-bar { text-align: center; margin-top: 24px; }
+        .logout-link { color: #1976d2; text-decoration: none; font-size: 14px; font-weight: 500; }
+        .logout-link:hover { text-decoration: underline; }
+        body.dark-theme .logout-link { color: #7ab8f5; }
         .primary-tag { display: inline-block; padding: 1px 6px; border-radius: 3px; background: #e8f5e9; color: #2e7d32; font-size: 0.8em; margin-left: 4px; }
 
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; justify-content: center; align-items: center; }
@@ -176,6 +179,8 @@
             </div>
             <div class="auth-section">
                 <span class="username-display">Logged in as <strong>{{ username }}</strong> ({{ user_role }})</span>
+                <a href="/attr-catalog?site={{ from_site }}" class="logout-link" style="margin-right: 8px;" title="Attribute Catalog">Attr Catalog</a>
+                <a href="/?site={{ from_site }}" class="logout-link">&#8592; Inventory</a>
             </div>
         </div>
 
@@ -357,48 +362,7 @@
                     </tr>
                 </thead>
                 <tbody id="collection-settings-tbody">
-                    <tr data-attr="ps_rapid_on">
-                        <td>PS Rapid On</td>
-                        <td><input type="checkbox" class="coll-enabled"></td>
-                        <td><input type="number" class="coll-hours" min="1" max="8760" value="24"></td>
-                        <td><select class="coll-desired"><option value="">— Any —</option></select></td>
-                    </tr>
-                    <tr data-attr="dns_from_dhcp">
-                        <td>DNS from DHCP</td>
-                        <td><input type="checkbox" class="coll-enabled"></td>
-                        <td><input type="number" class="coll-hours" min="1" max="8760" value="24"></td>
-                        <td><select class="coll-desired"><option value="">— Any —</option></select></td>
-                    </tr>
-                    <tr data-attr="ipmi_lan_enable">
-                        <td>IPMI LAN</td>
-                        <td><input type="checkbox" class="coll-enabled"></td>
-                        <td><input type="number" class="coll-hours" min="1" max="8760" value="24"></td>
-                        <td><select class="coll-desired"><option value="">— Any —</option></select></td>
-                    </tr>
-                    <tr data-attr="host_header_check">
-                        <td>Host Header Check</td>
-                        <td><input type="checkbox" class="coll-enabled"></td>
-                        <td><input type="number" class="coll-hours" min="1" max="8760" value="24"></td>
-                        <td><select class="coll-desired"><option value="">— Any —</option></select></td>
-                    </tr>
-                    <tr data-attr="sys_profile">
-                        <td>System Profile</td>
-                        <td><input type="checkbox" class="coll-enabled"></td>
-                        <td><input type="number" class="coll-hours" min="1" max="8760" value="24"></td>
-                        <td><select class="coll-desired"><option value="">— Any —</option></select></td>
-                    </tr>
-                    <tr data-attr="ssl">
-                        <td>SSL Certificate</td>
-                        <td><input type="checkbox" class="coll-enabled"></td>
-                        <td><input type="number" class="coll-hours" min="1" max="8760" value="24"></td>
-                        <td></td>
-                    </tr>
-                    <tr data-attr="idrac_hostname">
-                        <td>iDRAC Hostname</td>
-                        <td><input type="checkbox" class="coll-enabled"></td>
-                        <td><input type="number" class="coll-hours" min="1" max="8760" value="24"></td>
-                        <td><span style="color:#666; font-style:italic; font-size:0.85em;">Matches FQDN (auto)</span></td>
-                    </tr>
+                    <tr><td colspan="4" style="color:#888; text-align:center; padding:8px;">Loading…</td></tr>
                 </tbody>
             </table>
             <div style="margin-top: 8px;">
@@ -1021,38 +985,66 @@
             }
         }
 
+        const _SSL_ATTR_NAMES = new Set(['ssl_self_signed', 'ssl_valid_name', 'ssl_expiry', 'ssl_fingerprint']);
+
+        function _buildCollRow(entry, rowKey, s) {
+            // Determine desired-value cell content
+            let desiredCell;
+            if (rowKey === 'idrac_hostname') {
+                desiredCell = '<td><span style="color:#666; font-style:italic; font-size:0.85em;">Matches FQDN (auto)</span></td>';
+            } else if (rowKey === 'ssl') {
+                desiredCell = '<td></td>';
+            } else if (entry && entry.is_writable && entry.choices && entry.choices.length > 0) {
+                let opts = '<option value="">— Any —</option>';
+                for (const ch of entry.choices) {
+                    const sel = s && s.desired_choice_id === ch.id ? ' selected' : '';
+                    opts += `<option value="${ch.id}"${sel}>${ch.label}</option>`;
+                }
+                desiredCell = `<td><select class="coll-desired">${opts}</select></td>`;
+            } else {
+                desiredCell = '<td></td>';
+            }
+            const labelText = entry ? entry.label : rowKey;
+            const enabled = s && s.enabled ? ' checked' : '';
+            const hours = s ? (s.hours || 24) : 24;
+            return `<tr data-attr="${rowKey}">
+                <td>${labelText}</td>
+                <td><input type="checkbox" class="coll-enabled"${enabled}></td>
+                <td><input type="number" class="coll-hours" min="1" max="8760" value="${hours}"></td>
+                ${desiredCell}
+            </tr>`;
+        }
+
         async function loadCollectionSettings(siteName) {
             const resp = await fetch('/api/sites/' + encodeURIComponent(siteName) + '/config-collection');
             const data = await resp.json();
             if (!data.success) return;
             _attrCatalog = data.catalog || [];
-            // Build name → catalog entry map; aggregate the four SSL attrs into one 'ssl' entry.
-            const catalogByName = {};
+
+            const tbody = document.getElementById('collection-settings-tbody');
+            let html = '';
+            let sslRowAdded = false;
+
             for (const entry of _attrCatalog) {
-                catalogByName[entry.name] = entry;
-            }
-            catalogByName['ssl'] = catalogByName['ssl_self_signed'] || null;
-            document.querySelectorAll('#collection-settings-tbody tr[data-attr]').forEach(row => {
-                const entry = catalogByName[row.dataset.attr];
-                const s = entry ? entry.site_settings : {enabled: false, hours: 24, desired_choice_id: null};
-                row.querySelector('.coll-enabled').checked = !!s.enabled;
-                row.querySelector('.coll-hours').value = s.hours || 24;
-                const sel = row.querySelector('.coll-desired');
-                if (!sel || !entry || !entry.is_writable || !entry.choices || entry.choices.length === 0) return;
-                sel.innerHTML = '<option value="">— Any —</option>';
-                for (const ch of entry.choices) {
-                    const opt = document.createElement('option');
-                    opt.value = ch.id;
-                    opt.textContent = ch.label;
-                    if (s.desired_choice_id === ch.id) opt.selected = true;
-                    sel.appendChild(opt);
+                const isSSL = _SSL_ATTR_NAMES.has(entry.name);
+                if (isSSL) {
+                    if (!sslRowAdded) {
+                        // Aggregate all SSL attrs under a single row keyed 'ssl'
+                        // Use ssl_self_signed's site_settings for enabled/hours
+                        html += _buildCollRow(entry, 'ssl', entry.site_settings);
+                        sslRowAdded = true;
+                    }
+                    continue;
                 }
-            });
+                html += _buildCollRow(entry, entry.name, entry.site_settings);
+            }
+
+            tbody.innerHTML = html || '<tr><td colspan="4" style="color:#888; text-align:center;">No attributes in catalog.</td></tr>';
         }
 
         async function saveCollectionSettings() {
             if (!selectedSite) return;
-            const _SSL_ATTRS = ['ssl_self_signed', 'ssl_valid_name', 'ssl_expiry', 'ssl_fingerprint'];
+            const _SSL_ATTRS = [..._SSL_ATTR_NAMES];
             const rowSettings = {};
             document.querySelectorAll('#collection-settings-tbody tr[data-attr]').forEach(row => {
                 const sel = row.querySelector('.coll-desired');

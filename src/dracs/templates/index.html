@@ -1567,6 +1567,7 @@
                 </select>
                 {% if is_superadmin %}
                 <a href="/sites?site={{ current_site }}" class="logout-link" style="margin-right: 8px;" title="Site Management">&#9881;</a>
+                <a href="/attr-catalog?site={{ current_site }}" class="logout-link" style="margin-right: 8px;" title="Attribute Catalog">Attr Catalog</a>
                 {% endif %}
                 {% if is_authenticated %}
                     <span class="username-display">Logged in as <strong>{{ username }}</strong> ({{ user_role or 'none' }})</span>
