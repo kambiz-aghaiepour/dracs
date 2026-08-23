@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.20.2 (2026-08-23)
+
+### Bug Fixes
+
+- Bump pypi-publish action to twine 7 image
+  ([`8a750ff`](https://github.com/kambiz-aghaiepour/dracs/commit/8a750ff3fe317af81de4b5344334985de5648492))
+
+### Chores
+
+- Sync spec file version to 2.20.1 [skip ci]
+  ([`9017957`](https://github.com/kambiz-aghaiepour/dracs/commit/9017957280fc152adec519d88d5aaa9a56e9aa29))
+
+
 ## v2.20.1 (2026-08-23)
 
 ### Bug Fixes
