@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.22.0 (2026-08-23)
+
+### Chores
+
+- Sync spec file version to 2.21.0 [skip ci]
+  ([`9259b91`](https://github.com/kambiz-aghaiepour/dracs/commit/9259b912e0dca92774a12db14176293a5951c5ec))
+
+### Features
+
+- Add --not-expired filter and warranty status
+  ([`e4054b3`](https://github.com/kambiz-aghaiepour/dracs/commit/e4054b3198d3f1ed1233ba4b0edb312fcfb4f71f))
+
+
 ## v2.21.0 (2026-08-23)
 
 ### Bug Fixes
