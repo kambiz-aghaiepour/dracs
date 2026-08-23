@@ -1,3 +1,4 @@
+import calendar
 import os
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Union
@@ -5,9 +6,6 @@ from typing import Dict, List, Optional, Tuple, Union
 import requests
 
 from dracs.exceptions import APIError, ValidationError
-
-WARRANTY_DATE_FORMAT = "%B %e, %Y"
-EPOCH_FORMAT = "%s"
 
 
 def dell_api_warranty_date(
@@ -87,16 +85,20 @@ def dell_api_warranty_date(
         for e in s["entitlements"]:
             eed = e["endDate"]
             eed_dt = datetime.fromisoformat(eed.replace("Z", "+00:00"))
-            eed_dt_epoch = int(eed_dt.strftime(EPOCH_FORMAT))
-            eed_dt_string = eed_dt.strftime(WARRANTY_DATE_FORMAT)
+            eed_dt_epoch = calendar.timegm(eed_dt.utctimetuple())
+            eed_dt_string = (
+                f"{calendar.month_name[eed_dt.month]} {eed_dt.day}, {eed_dt.year}"
+            )
             if eed_dt_epoch > cur_eed:
                 cur_eed = eed_dt_epoch
                 cur_eed_string = eed_dt_string
             sed = e.get("startDate")
             if sed:
                 sed_dt = datetime.fromisoformat(sed.replace("Z", "+00:00"))
-                sed_dt_epoch = int(sed_dt.strftime(EPOCH_FORMAT))
-                sed_dt_string = sed_dt.strftime(WARRANTY_DATE_FORMAT)
+                sed_dt_epoch = calendar.timegm(sed_dt.utctimetuple())
+                sed_dt_string = (
+                    f"{calendar.month_name[sed_dt.month]} {sed_dt.day}, {sed_dt.year}"
+                )
                 if cur_sed is None or sed_dt_epoch < cur_sed:
                     cur_sed = sed_dt_epoch
                     cur_sed_string = sed_dt_string
