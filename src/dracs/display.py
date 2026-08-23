@@ -94,6 +94,7 @@ def render_list_table(results: List[Tuple]) -> None:
     table.add_column("Model")
     table.add_column("Firmware")
     table.add_column("BIOS")
+    table.add_column("Start Date")
     table.add_column("Expires")
 
     current_time = int(time.time())
@@ -109,6 +110,7 @@ def render_list_table(results: List[Tuple]) -> None:
             model,
             _color_by_rank(firmware, model, firmware_ranks),
             _color_by_rank(bios, model, bios_ranks),
+            str(row[7]) if len(row) > 7 and row[7] is not None else "",
             _color_expiry(str(row[5]), int(row[6]), current_time),
         )
 

@@ -63,7 +63,9 @@ class TestAddDebugOutput:
     @patch("dracs.commands.build_idrac_hostname", return_value="mgmt-h1")
     def test_add_new_with_debug(self, mock_build, mock_snmp, mock_api, temp_db):
         mock_snmp.side_effect = ["2.1.0", "7.0.0"]
-        mock_api.return_value = {"TAG001": (1735689600, "Jan 1, 2027")}
+        mock_api.return_value = {
+            "TAG001": (1735689600, "Jan 1, 2027", "September 1, 2020")
+        }
         db_initialize(temp_db)
         old_debug = commands.debug_output
         commands.debug_output = True
@@ -315,7 +317,9 @@ class TestRefreshChanges:
             1735689600,
         )
         mock_snmp.side_effect = ["2.1.0", "7.0.0", "PowerEdge R760"]
-        mock_api.return_value = {"TAG001": (1735689600, "Jan 1, 2027")}
+        mock_api.return_value = {
+            "TAG001": (1735689600, "Jan 1, 2027", "September 1, 2020")
+        }
         with patch.dict(os.environ, {"SNMP_COMMUNITY": "public"}):
             asyncio.run(refresh_dell_warranty("TAG001", None, temp_db))
         output = capsys.readouterr().out
@@ -339,7 +343,9 @@ class TestRefreshChanges:
             1735689600,
         )
         mock_snmp.side_effect = ["2.1.0", "8.0.0", "PowerEdge R660"]
-        mock_api.return_value = {"TAG001": (1735689600, "Jan 1, 2027")}
+        mock_api.return_value = {
+            "TAG001": (1735689600, "Jan 1, 2027", "September 1, 2020")
+        }
         with patch.dict(os.environ, {"SNMP_COMMUNITY": "public"}):
             asyncio.run(refresh_dell_warranty("TAG001", None, temp_db))
         output = capsys.readouterr().out
@@ -363,7 +369,9 @@ class TestRefreshChanges:
             1735689600,
         )
         mock_snmp.side_effect = ["3.0.0", "7.0.0", "PowerEdge R660"]
-        mock_api.return_value = {"TAG001": (1735689600, "Jan 1, 2027")}
+        mock_api.return_value = {
+            "TAG001": (1735689600, "Jan 1, 2027", "September 1, 2020")
+        }
         with patch.dict(os.environ, {"SNMP_COMMUNITY": "public"}):
             asyncio.run(refresh_dell_warranty("TAG001", None, temp_db))
         output = capsys.readouterr().out
@@ -387,7 +395,9 @@ class TestRefreshChanges:
             1735689600,
         )
         mock_snmp.side_effect = ["2.1.0", "7.0.0", "PowerEdge R660"]
-        mock_api.return_value = {"TAG001": (1893456000, "Jan 1, 2030")}
+        mock_api.return_value = {
+            "TAG001": (1893456000, "Jan 1, 2030", "September 1, 2020")
+        }
         with patch.dict(os.environ, {"SNMP_COMMUNITY": "public"}):
             asyncio.run(refresh_dell_warranty("TAG001", None, temp_db))
         output = capsys.readouterr().out
@@ -583,7 +593,9 @@ class TestBatchDiscoverAddFailure:
         self, mock_add, mock_discover, mock_api, temp_db, capsys
     ):
         mock_discover.return_value = ("TAG001", "R660")
-        mock_api.return_value = {"TAG001": (1735689600, "Jan 2027")}
+        mock_api.return_value = {
+            "TAG001": (1735689600, "Jan 2027", "September 1, 2020")
+        }
         mock_add.side_effect = Exception("insert failed")
         asyncio.run(
             discover_dell_systems_batch(

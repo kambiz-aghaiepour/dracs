@@ -151,6 +151,7 @@ class TestSystemToTuple:
             "2.1.0",
             "Jan 1, 2027",
             1735689600,
+            start_date="September 1, 2020",
         )
         with get_session() as session:
             system = session.query(System).first()
@@ -164,6 +165,7 @@ class TestSystemToTuple:
             "2.1.0",
             "Jan 1, 2027",
             1735689600,
+            "September 1, 2020",
         )
 
 

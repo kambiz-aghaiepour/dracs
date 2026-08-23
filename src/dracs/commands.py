@@ -87,6 +87,7 @@ async def add_dell_warranty(
             bios_version,
             results[0].exp_date,
             results[0].exp_epoch,
+            results[0].start_date,
             site_id=site_id,
         )
         logger.info(f"Successfully updated record for {service_tag}")
@@ -96,12 +97,12 @@ async def add_dell_warranty(
         )
         if warranty_results is None:
             warranty_results = dell_api_warranty_date(service_tag)
-        h_epoch, h_date = warranty_results[service_tag]
+        h_epoch, h_date, h_start = warranty_results[service_tag]
 
         if debug_output:
             logger.debug(
                 f"Warranty result: svc_tag={service_tag}, exp_date={h_date}, "
-                f"exp_epoch={h_epoch}"
+                f"exp_epoch={h_epoch}, start_date={h_start}"
             )
 
         upsert_system(
@@ -113,6 +114,7 @@ async def add_dell_warranty(
             bios_version,
             h_date,
             h_epoch,
+            h_start,
             site_id=site_id,
         )
         logger.info(f"Successfully added record for {service_tag}")
@@ -412,12 +414,20 @@ async def refresh_dell_warranty(
     )
 
     warranty_results = dell_api_warranty_date(svc_tag)
-    exp_epoch, exp_date = warranty_results[svc_tag]
+    exp_epoch, exp_date, start_date = warranty_results[svc_tag]
 
     logger.debug(f"Updated warranty expiration: {exp_date}")
 
     upsert_system(
-        warranty, svc_tag, name, model, idrac_version, bios_version, exp_date, exp_epoch
+        warranty,
+        svc_tag,
+        name,
+        model,
+        idrac_version,
+        bios_version,
+        exp_date,
+        exp_epoch,
+        start_date,
     )
 
     logger.debug(f"Successfully refreshed record for {svc_tag}")

@@ -81,8 +81,8 @@ def test_batch_discover_with_add(
         ("TAG0002", "R650"),
     ]
     mock_warranty.return_value = {
-        "TAG0001": (1700000000, "November 14, 2023"),
-        "TAG0002": (1700000000, "November 14, 2023"),
+        "TAG0001": (1700000000, "November 14, 2023", "September 1, 2020"),
+        "TAG0002": (1700000000, "November 14, 2023", "September 1, 2020"),
     }
     mock_add.return_value = None
 
@@ -185,8 +185,8 @@ def test_batch_discover_without_show_discovered(
         ("TAG0002", "R650"),
     ]
     mock_warranty.return_value = {
-        "TAG0001": (1700000000, "November 14, 2023"),
-        "TAG0002": (1700000000, "November 14, 2023"),
+        "TAG0001": (1700000000, "November 14, 2023", "September 1, 2020"),
+        "TAG0002": (1700000000, "November 14, 2023", "September 1, 2020"),
     }
     mock_add.return_value = None
 

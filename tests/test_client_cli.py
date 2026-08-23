@@ -24,6 +24,7 @@ SAMPLE_SYSTEMS = [
         "bios_version": "2.1.0",
         "exp_date": "Jan 1, 2027",
         "exp_epoch": 1893456000,
+        "start_date": "September 1, 2020",
     },
     {
         "svc_tag": "TAG002",
@@ -33,6 +34,7 @@ SAMPLE_SYSTEMS = [
         "bios_version": "1.5.0",
         "exp_date": "Jan 1, 2020",
         "exp_epoch": 1577836800,
+        "start_date": "January 5, 2017",
     },
     {
         "svc_tag": "TAG003",
@@ -42,6 +44,7 @@ SAMPLE_SYSTEMS = [
         "bios_version": "2.5.0",
         "exp_date": "Jun 1, 2027",
         "exp_epoch": 1811894400,
+        "start_date": None,
     },
 ]
 
@@ -149,6 +152,7 @@ class TestSystemsToTuples:
             "2.1.0",
             "Jan 1, 2027",
             1893456000,
+            "September 1, 2020",
         )
 
 

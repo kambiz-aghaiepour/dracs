@@ -30,6 +30,7 @@ def test_db_initialize_table_schema(temp_db):
         "bios_version",
         "exp_date",
         "exp_epoch",
+        "start_date",
         "site_id",
     ]
 

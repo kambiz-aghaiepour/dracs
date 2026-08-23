@@ -53,6 +53,7 @@ class System(Base):
     bios_version: Mapped[str | None] = mapped_column(String)
     exp_date: Mapped[str | None] = mapped_column(String)
     exp_epoch: Mapped[int | None] = mapped_column(Integer)
+    start_date: Mapped[str | None] = mapped_column(String)
     site_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("sites.id"), nullable=True
     )
@@ -66,6 +67,7 @@ class System(Base):
             self.bios_version,
             self.exp_date,
             self.exp_epoch,
+            self.start_date,
         )
 
 
@@ -426,6 +428,9 @@ def _migrate_schema(engine) -> None:
         if "site_id" not in columns:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE systems ADD COLUMN site_id INTEGER"))
+        if "start_date" not in columns:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE systems ADD COLUMN start_date VARCHAR"))
 
     if "users" in tables:  # pragma: no cover
         user_cols = {c["name"]: c for c in inspector.get_columns("users")}
@@ -736,6 +741,7 @@ def upsert_system(
     bios_version: str,
     exp_date: str,
     exp_epoch: int,
+    start_date: Optional[str] = None,
     site_id: Optional[int] = None,
 ) -> None:
     with get_session() as session:
@@ -747,6 +753,7 @@ def upsert_system(
             existing.bios_version = bios_version
             existing.exp_date = exp_date
             existing.exp_epoch = exp_epoch
+            existing.start_date = start_date
             if site_id is not None:
                 existing.site_id = site_id
         else:
@@ -760,6 +767,7 @@ def upsert_system(
                 bios_version=bios_version,
                 exp_date=exp_date,
                 exp_epoch=exp_epoch,
+                start_date=start_date,
                 site_id=site_id,
             )
             session.add(system)

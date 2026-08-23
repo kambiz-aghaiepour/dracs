@@ -389,6 +389,8 @@ def system_to_dict(system):
         "bios_version": system.bios_version,
         "exp_date": system.exp_date,
         "exp_epoch": system.exp_epoch,
+        "start_date": system.start_date,
+        "site_id": system.site_id,
     }
 
 
