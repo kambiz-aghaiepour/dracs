@@ -2,6 +2,24 @@
 
 <!-- version list -->
 
+## v2.20.0 (2026-08-23)
+
+### Bug Fixes
+
+- Replace strftime date handling with calendar in api.py
+  ([`90403a8`](https://github.com/kambiz-aghaiepour/dracs/commit/90403a89453fe98f27bab805486d675d58fa7bf1))
+
+### Chores
+
+- Sync spec file version to 2.19.2 [skip ci]
+  ([`b06fcb0`](https://github.com/kambiz-aghaiepour/dracs/commit/b06fcb0bdf573bf9a1ba99af95f717603adc4ffe))
+
+### Features
+
+- Display earliest warranty start date
+  ([`e71617a`](https://github.com/kambiz-aghaiepour/dracs/commit/e71617ac8dd500842fe7459c7a7bf672e8e36b42))
+
+
 ## v2.19.2 (2026-07-10)
 
 ### Bug Fixes
