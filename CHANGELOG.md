@@ -2,6 +2,24 @@
 
 <!-- version list -->
 
+## v2.21.0 (2026-08-23)
+
+### Bug Fixes
+
+- Codecov/patch dropped coverage
+  ([`e478449`](https://github.com/kambiz-aghaiepour/dracs/commit/e478449586fb056af42459da68a2194f3233a3e6))
+
+### Chores
+
+- Sync spec file version to 2.20.2 [skip ci]
+  ([`e4fb6ec`](https://github.com/kambiz-aghaiepour/dracs/commit/e4fb6ec25506f499af4c8588b8038ba5e800bebc))
+
+### Features
+
+- Add warranty duration filter
+  ([`98b4fd1`](https://github.com/kambiz-aghaiepour/dracs/commit/98b4fd1453ac1997feadfbc5efc96929d416a52f))
+
+
 ## v2.20.2 (2026-08-23)
 
 ### Bug Fixes
