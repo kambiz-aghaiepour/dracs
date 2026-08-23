@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.20.1 (2026-08-23)
+
+### Bug Fixes
+
+- Prevent release workflow from cancelling its own publish step
+  ([`236f9da`](https://github.com/kambiz-aghaiepour/dracs/commit/236f9da0687894de35e14fe402365ca8f7c42018))
+
+### Chores
+
+- Sync spec file version to 2.20.0 [skip ci]
+  ([`84cc02f`](https://github.com/kambiz-aghaiepour/dracs/commit/84cc02f62c140e9fce7e9e4faf767916ccc6525f))
+
+
 ## v2.20.0 (2026-08-23)
 
 ### Bug Fixes
