@@ -72,6 +72,21 @@ class TestBuildParser:
         assert args.json is True
         assert args.expired is True
 
+    def test_list_duration_valid(self):
+        parser = build_parser()
+        args = parser.parse_args(["list", "--duration", "3"])
+        assert args.duration == 3
+
+    def test_list_duration_rejects_unsupported_years(self):
+        parser = build_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args(["list", "--duration", "4"])
+
+    def test_list_duration_rejects_non_integer(self):
+        parser = build_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args(["list", "--duration", "abc"])
+
     def test_tsr_subcommand(self):
         parser = build_parser()
         args = parser.parse_args(["tsr", "--list", "-t", "host1"])
@@ -217,6 +232,59 @@ class TestClientSideFilter:
         assert len(results) == 1
         assert results[0][0] == "TAG001"
 
+    def test_filter_by_duration_3y(self):
+        results = client_side_filter(
+            self._tuples(), None, None, None, None, None, False, 3
+        )
+        assert [r[0] for r in results] == ["TAG002"]
+
+    def test_filter_by_duration_5y(self):
+        results = client_side_filter(
+            self._tuples(), None, None, None, None, None, False, 5
+        )
+        assert results == []
+
+    def test_filter_by_duration_excludes_missing_start(self):
+        row = (
+            "TAGX",
+            "x.example.com",
+            "R660",
+            "7.0.0",
+            "2.1.0",
+            "Jan 1, 2027",
+            1893456000,
+            None,
+        )
+        results = client_side_filter([row], None, None, None, None, None, False, 3)
+        assert results == []
+
+    def test_filter_by_duration_margin_boundary(self):
+        start = 1598918400  # September 1, 2020, 00:00 UTC
+        edge = (
+            "EDGE",
+            "h.example.com",
+            "R660",
+            "7.0.0",
+            "2.1.0",
+            "Jan 1, 2025",
+            start + (1095 + 30) * 86400,
+            "September 1, 2020",
+        )
+        out = (
+            "OUT",
+            "h.example.com",
+            "R660",
+            "7.0.0",
+            "2.1.0",
+            "Jan 1, 2025",
+            start + (1095 + 31) * 86400,
+            "September 1, 2020",
+        )
+        results = client_side_filter(
+            [edge, out], None, None, None, None, None, False, 3
+        )
+        assert [r[0] for r in results] == ["EDGE"]
+
 
 class TestFetchSystems:
     def test_success(self):
@@ -257,6 +325,7 @@ class TestCmdList:
             "regex": None,
             "expires_in": None,
             "expired": False,
+            "duration": None,
             "json": False,
             "host_only": False,
             "bios_le": None,
@@ -803,6 +872,7 @@ class TestCmdListConflicts:
             "regex": None,
             "expires_in": None,
             "expired": False,
+            "duration": None,
             "json": False,
             "host_only": False,
             "bios_le": None,

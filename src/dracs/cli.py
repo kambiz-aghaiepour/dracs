@@ -218,6 +218,12 @@ async def main() -> None:
         "--expired", action="store_true", help="List hosts with expired warranties"
     )
     parser_list.add_argument(
+        "--duration",
+        type=int,
+        choices=[3, 5],
+        help="List hosts whose warranty duration is N years (3 or 5, ±30 days)",
+    )
+    parser_list.add_argument(
         "--json", action="store_true", help="Print list results in json format"
     )
     parser_list.add_argument(
@@ -859,6 +865,7 @@ async def main() -> None:
             args.host_only,
             warranty,
             site_id=_resolve_site_id(),
+            duration=args.duration,
         )
     elif args.command in ["tsr", "t"]:
         if args.list:

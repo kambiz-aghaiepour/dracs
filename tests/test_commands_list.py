@@ -1,10 +1,16 @@
 import asyncio
+import calendar
 import time
+from datetime import datetime
 from unittest.mock import patch, AsyncMock
 
 import pytest
 
-from dracs.commands import list_dell_warranty, refresh_dell_warranty
+from dracs.commands import (
+    list_dell_warranty,
+    refresh_dell_warranty,
+    warranty_duration_matches,
+)
 from dracs.db import db_initialize, upsert_system
 from dracs.exceptions import DatabaseError, ValidationError
 
@@ -464,6 +470,139 @@ class TestListDellWarranty:
                     temp_db,
                 )
             )
+
+
+class TestListDuration:
+    def _setup_db(self, temp_db):
+        db_initialize(temp_db)
+
+        def epoch(y, m, d):
+            return calendar.timegm(datetime(y, m, d).utctimetuple())
+
+        # 1096 days (~3 years, includes leap day) -> matches 3
+        upsert_system(
+            temp_db,
+            "TAG3Y",
+            "three.example.com",
+            "R660",
+            "7.0.0",
+            "2.1.0",
+            "Jan 1, 2025",
+            epoch(2025, 1, 1),
+            start_date="January 1, 2022",
+        )
+        upsert_system(
+            temp_db,
+            "TAG5Y",
+            "five.example.com",
+            "R660",
+            "7.0.0",
+            "2.1.0",
+            "Jan 1, 2025",
+            epoch(2025, 1, 1),
+            start_date="January 1, 2020",
+        )
+        upsert_system(
+            temp_db,
+            "TAG3YEDGE",
+            "edge.example.com",
+            "R660",
+            "7.0.0",
+            "2.1.0",
+            "Jan 30, 2025",
+            epoch(2025, 1, 30),
+            start_date="January 1, 2022",
+        )
+        upsert_system(
+            temp_db,
+            "TAG3YOUT",
+            "out.example.com",
+            "R660",
+            "7.0.0",
+            "2.1.0",
+            "Jan 31, 2025",
+            epoch(2025, 1, 31),
+            start_date="January 1, 2022",
+        )
+        upsert_system(
+            temp_db,
+            "TAGNOSTART",
+            "nostart.example.com",
+            "R660",
+            "7.0.0",
+            "2.1.0",
+            "Jan 1, 2025",
+            epoch(2025, 1, 1),
+        )
+
+    def _list(self, temp_db, capsys, duration):
+        import json
+
+        asyncio.run(
+            list_dell_warranty(
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                False,
+                True,
+                False,
+                temp_db,
+                duration=duration,
+            )
+        )
+        return json.loads(capsys.readouterr().out)
+
+    def test_list_duration_3(self, temp_db, capsys):
+        self._setup_db(temp_db)
+        data = self._list(temp_db, capsys, 3)
+        assert [r[0] for r in data] == ["TAG3YEDGE", "TAG3Y"]
+
+    def test_list_duration_5(self, temp_db, capsys):
+        self._setup_db(temp_db)
+        data = self._list(temp_db, capsys, 5)
+        assert [r[0] for r in data] == ["TAG5Y"]
+
+    def test_list_no_duration_shows_all(self, temp_db, capsys):
+        self._setup_db(temp_db)
+        data = self._list(temp_db, capsys, None)
+        assert len(data) == 5
+
+
+class TestWarrantyDurationMatches:
+    def test_3y_with_leap_day(self):
+        end = calendar.timegm((2025, 1, 1, 0, 0, 0, 0, 0, 0))
+        assert warranty_duration_matches("January 1, 2022", end, 3)
+
+    def test_5y(self):
+        end = calendar.timegm((2025, 1, 1, 0, 0, 0, 0, 0, 0))
+        assert warranty_duration_matches("January 1, 2020", end, 5)
+
+    def test_outside_margin(self):
+        end = calendar.timegm((2025, 1, 31, 0, 0, 0, 0, 0, 0))
+        assert not warranty_duration_matches("January 1, 2022", end, 3)
+
+    def test_legacy_space_padded_date(self):
+        # Rows written before the f-string change are space-padded
+        end = calendar.timegm((2023, 1, 1, 0, 0, 0, 0, 0, 0))
+        assert warranty_duration_matches("January  1, 2020", end, 3)
+
+    def test_missing_start_date(self):
+        assert not warranty_duration_matches(None, 1735689600, 3)
+
+    def test_unparseable_start_date(self):
+        assert not warranty_duration_matches("garbage", 1735689600, 3)
 
 
 class TestRefreshDellWarranty:
