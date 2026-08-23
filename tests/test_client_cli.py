@@ -258,6 +258,20 @@ class TestClientSideFilter:
         results = client_side_filter([row], None, None, None, None, None, False, 3)
         assert results == []
 
+    def test_filter_by_duration_excludes_unparseable_start(self):
+        row = (
+            "TAGX",
+            "x.example.com",
+            "R660",
+            "7.0.0",
+            "2.1.0",
+            "Jan 1, 2027",
+            1893456000,
+            "not a date",
+        )
+        results = client_side_filter([row], None, None, None, None, None, False, 3)
+        assert results == []
+
     def test_filter_by_duration_margin_boundary(self):
         start = 1598918400  # September 1, 2020, 00:00 UTC
         edge = (

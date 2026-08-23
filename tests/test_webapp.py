@@ -605,6 +605,20 @@ class TestHelperFunctions:
         assert d2["start_date"] is None
         assert d2["start_epoch"] is None
 
+        s3 = System(
+            svc_tag="TAG003",
+            name="host3",
+            model="R650",
+            idrac_version="6.0.0",
+            bios_version="1.5.0",
+            exp_date="Jan 1, 2020",
+            exp_epoch=1577836800,
+            start_date="not a date",
+        )
+        d3 = system_to_dict(s3)
+        assert d3["start_date"] == "not a date"
+        assert d3["start_epoch"] is None
+
     def test_get_idrac_credentials_no_file(self):
         from dracs.webapp import get_idrac_credentials
 
