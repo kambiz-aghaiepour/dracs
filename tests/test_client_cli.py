@@ -72,6 +72,17 @@ class TestBuildParser:
         assert args.json is True
         assert args.expired is True
 
+    def test_list_flag_not_expired(self):
+        parser = build_parser()
+        args = parser.parse_args(["list", "--not-expired"])
+        assert args.not_expired is True
+        assert args.expired is False
+
+    def test_list_flag_expired_conflicts_with_not_expired(self):
+        parser = build_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args(["list", "--expired", "--not-expired"])
+
     def test_list_duration_valid(self):
         parser = build_parser()
         args = parser.parse_args(["list", "--duration", "3"])
@@ -212,6 +223,12 @@ class TestClientSideFilter:
         assert len(results) == 1
         assert results[0][0] == "TAG002"
 
+    def test_filter_not_expired(self):
+        results = client_side_filter(
+            self._tuples(), None, None, None, None, None, False, None, True
+        )
+        assert [r[0] for r in results] == ["TAG001", "TAG003"]
+
     def test_filter_expires_in(self):
         future_days = str(int((1893456000 - time.time()) / 86400) + 1)
         results = client_side_filter(
@@ -340,6 +357,7 @@ class TestCmdList:
             "expires_in": None,
             "expired": False,
             "duration": None,
+            "not_expired": False,
             "json": False,
             "host_only": False,
             "bios_le": None,
@@ -887,6 +905,7 @@ class TestCmdListConflicts:
             "expires_in": None,
             "expired": False,
             "duration": None,
+            "not_expired": False,
             "json": False,
             "host_only": False,
             "bios_le": None,

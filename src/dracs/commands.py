@@ -308,6 +308,7 @@ async def list_dell_warranty(
     warranty: str,
     site_id: Optional[int] = None,
     duration: Optional[int] = None,
+    not_expired: bool = False,
 ) -> None:
     db_initialize(warranty)
 
@@ -348,6 +349,10 @@ async def list_dell_warranty(
         if expired:
             current_time = int(time.time())
             query = query.filter(System.exp_epoch < current_time)
+
+        if not_expired:
+            current_time = int(time.time())
+            query = query.filter(System.exp_epoch >= current_time)
 
         query = query.order_by(System.name)
         records = query.all()
