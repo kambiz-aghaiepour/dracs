@@ -1,7 +1,9 @@
 import argparse
+import calendar
 import getpass
 import sys
 import time
+from datetime import datetime
 from typing import List, Optional, Tuple
 from urllib.parse import quote as url_quote
 
@@ -76,6 +78,7 @@ def client_side_filter(
     regex: Optional[str],
     expires_in: Optional[str],
     expired: bool,
+    duration: Optional[int] = None,
 ) -> List[Tuple]:
     filtered = results
 
@@ -106,7 +109,32 @@ def client_side_filter(
             r for r in filtered if r[6] is not None and int(r[6]) < current_time
         ]
 
+    if duration is not None:
+        filtered = [
+            r for r in filtered if warranty_duration_matches(r[7], r[6], duration)
+        ]
     return filtered
+
+
+def parse_warranty_date(value: Optional[str]) -> Optional[datetime]:
+    """Parse a stored warranty date string (e.g. 'May 29, 2020')."""
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, "%B %d, %Y")
+    except ValueError:
+        return None
+
+
+def warranty_duration_matches(
+    start_date: Optional[str], exp_epoch: Optional[int], years: int
+) -> bool:
+    """True if the start-to-end warranty duration is `years` within 30 days."""
+    start = parse_warranty_date(start_date)
+    if start is None or exp_epoch is None:
+        return False
+    days = round((int(exp_epoch) - calendar.timegm(start.utctimetuple())) / 86400)
+    return abs(days - years * 365) <= 30
 
 
 def cmd_list(
@@ -139,6 +167,7 @@ def cmd_list(
         args.regex,
         args.expires_in,
         args.expired,
+        args.duration,
     )
 
     results.sort(key=lambda r: r[1] or "")
@@ -295,6 +324,12 @@ def _add_list_subparser(subparsers):
     parser_list.add_argument("--expires_in", help="List hosts that expire in N days")
     parser_list.add_argument(
         "--expired", action="store_true", help="List hosts with expired warranties"
+    )
+    parser_list.add_argument(
+        "--duration",
+        type=int,
+        choices=[3, 5],
+        help="List hosts whose warranty duration is N years (3 or 5, ±30 days)",
     )
     parser_list.add_argument(
         "--json", action="store_true", help="Print results in JSON format"

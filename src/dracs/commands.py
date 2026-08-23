@@ -1,4 +1,5 @@
 import asyncio
+import calendar
 import logging
 import os
 import sys
@@ -38,6 +39,27 @@ from dracs.api import dell_api_warranty_date
 logger = logging.getLogger(__name__)
 
 debug_output = False
+
+
+def parse_warranty_date(value: Optional[str]) -> Optional[datetime]:
+    """Parse a stored warranty date string (e.g. 'May 29, 2020')."""
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, "%B %d, %Y")
+    except ValueError:
+        return None
+
+
+def warranty_duration_matches(
+    start_date: Optional[str], exp_epoch: Optional[int], years: int
+) -> bool:
+    """True if the start-to-end warranty duration is `years` within 30 days."""
+    start = parse_warranty_date(start_date)
+    if start is None or exp_epoch is None:
+        return False
+    days = round((int(exp_epoch) - calendar.timegm(start.utctimetuple())) / 86400)
+    return abs(days - years * 365) <= 30
 
 
 async def add_dell_warranty(
@@ -285,6 +307,7 @@ async def list_dell_warranty(
     host_only: bool,
     warranty: str,
     site_id: Optional[int] = None,
+    duration: Optional[int] = None,
 ) -> None:
     db_initialize(warranty)
 
@@ -328,6 +351,12 @@ async def list_dell_warranty(
 
         query = query.order_by(System.name)
         records = query.all()
+        if duration is not None:
+            records = [
+                r
+                for r in records
+                if warranty_duration_matches(r.start_date, r.exp_epoch, duration)
+            ]
         results = [r.to_tuple() for r in records]
 
     if (

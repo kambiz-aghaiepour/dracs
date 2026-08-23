@@ -2,7 +2,7 @@
 
 import asyncio
 import configparser
-from datetime import datetime
+from datetime import datetime, timezone
 import glob
 import gzip
 import hashlib
@@ -379,6 +379,17 @@ def get_all_systems(site_id=None):
         return query.all()
 
 
+def _start_epoch(start_date: str | None) -> int | None:
+    """Epoch seconds of a stored warranty start date string, or None."""
+    if not start_date:
+        return None
+    try:
+        dt = datetime.strptime(start_date, "%B %d, %Y").replace(tzinfo=timezone.utc)
+        return int(dt.timestamp())
+    except ValueError:
+        return None
+
+
 def system_to_dict(system):
     """Convert System object to dictionary."""
     return {
@@ -390,6 +401,7 @@ def system_to_dict(system):
         "exp_date": system.exp_date,
         "exp_epoch": system.exp_epoch,
         "start_date": system.start_date,
+        "start_epoch": _start_epoch(system.start_date),
         "site_id": system.site_id,
     }
 

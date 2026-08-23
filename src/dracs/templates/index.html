@@ -1674,6 +1674,14 @@
                                 <option value="180">180 days</option>
                             </select>
                         </div>
+                        <div class="warranty-expires-inline">
+                            <label for="warranty-duration">Duration</label>
+                            <select id="warranty-duration">
+                                <option value="">(none)</option>
+                                <option value="3">3 years</option>
+                                <option value="5">5 years</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
 
@@ -5278,6 +5286,7 @@
             // Clear warranty filters
             document.getElementById('warranty-expired').checked = false;
             document.getElementById('warranty-expires').value = '';
+            document.getElementById('warranty-duration').value = '';
 
             // Clear firmware filters
             document.getElementById('firmware-version').value = '';
@@ -5403,6 +5412,7 @@
         const biosOldestCheck = document.getElementById('bios-oldest');
         const warrantyExpiredCheck = document.getElementById('warranty-expired');
         const warrantyExpiresSelect = document.getElementById('warranty-expires');
+        const warrantyDurationSelect = document.getElementById('warranty-duration');
         const tableBody = document.getElementById('table-body');
         const resultsCount = document.getElementById('results-count');
         const totalCount = document.getElementById('total-count');
@@ -5480,6 +5490,7 @@
             row.dataset.biosVersion = system.bios_version || '';
             row.dataset.firmwareVersion = system.idrac_version || '';
             row.dataset.expEpoch = system.exp_epoch || '';
+            row.dataset.startEpoch = system.start_epoch || '';
 
             row.innerHTML = `
                 <td>${system.svc_tag || ''}</td>
@@ -5697,6 +5708,7 @@
             const biosOldest = biosOldestCheck.checked;
             const warrantyExpired = warrantyExpiredCheck.checked;
             const warrantyExpiresDays = warrantyExpiresSelect.value;
+            const warrantyDurationYears = warrantyDurationSelect.value;
 
             // Get selected models from multi-select
             const selectedModels = Array.from(modelFilter.selectedOptions).map(opt => opt.value);
@@ -5797,8 +5809,21 @@
                     }
                 }
 
+                // Check warranty duration filter (ANDed with all other filters)
+                let warrantyDurationMatch = true;
+                if (warrantyDurationYears) {
+                    const rowStartEpoch = row.dataset.startEpoch;
+                    if (rowStartEpoch && rowExpEpoch) {
+                        const durationDays = (parseInt(rowExpEpoch) - parseInt(rowStartEpoch)) / (60 * 60 * 24);
+                        warrantyDurationMatch = Math.abs(durationDays - parseInt(warrantyDurationYears) * 365) <= 30;
+                    } else {
+                        // No start date available, exclude from duration-filtered results
+                        warrantyDurationMatch = false;
+                    }
+                }
+
                 // Show row if all filters match
-                if (hostnameMatch && servicetagMatch && customFilterMatch && modelMatch && biosMatch && firmwareMatch && firmwareAgeMatch && biosAgeMatch && warrantyMatch) {
+                if (hostnameMatch && servicetagMatch && customFilterMatch && modelMatch && biosMatch && firmwareMatch && firmwareAgeMatch && biosAgeMatch && warrantyMatch && warrantyDurationMatch) {
                     row.classList.remove('hidden');
                     visibleCount++;
                 } else {
@@ -6006,6 +6031,7 @@
                 biosOldest: biosOldestCheck.checked,
                 warrantyExpired: warrantyExpiredCheck.checked,
                 warrantyExpires: warrantyExpiresSelect.value,
+                warrantyDuration: warrantyDurationSelect.value,
                 selectedHostnames: selectedSystems.map(s => s.hostname),
             };
             sessionStorage.setItem('dracs_main_state', JSON.stringify(state));
@@ -6043,6 +6069,7 @@
             if (state.biosOldest !== undefined) biosOldestCheck.checked = state.biosOldest;
             if (state.warrantyExpired !== undefined) warrantyExpiredCheck.checked = state.warrantyExpired;
             if (state.warrantyExpires !== undefined) warrantyExpiresSelect.value = state.warrantyExpires;
+            if (state.warrantyDuration !== undefined) warrantyDurationSelect.value = state.warrantyDuration;
             if (state.selectedHostnames && state.selectedHostnames.length > 0) {
                 const hostnameSet = new Set(state.selectedHostnames);
                 selectedRows = [];
@@ -6113,6 +6140,7 @@
         biosOldestCheck.addEventListener('change', applyFilters);
         warrantyExpiredCheck.addEventListener('change', applyFilters);
         warrantyExpiresSelect.addEventListener('change', applyFilters);
+        warrantyDurationSelect.addEventListener('change', applyFilters);
 
         // Initialize on page load
         initTable();
