@@ -1,6 +1,7 @@
+import calendar
 import os
 from datetime import datetime
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import requests
 
@@ -9,7 +10,7 @@ from dracs.exceptions import APIError, ValidationError
 
 def dell_api_warranty_date(
     svctags: Union[str, List[str]],
-) -> Dict[str, Tuple[int, str]]:
+) -> Dict[str, Tuple[int, str, Optional[str]]]:
     if isinstance(svctags, str):
         svctags = [svctags]
 
@@ -74,19 +75,33 @@ def dell_api_warranty_date(
                 f"Dell API request failed: {response.status_code} - {response.text}"
             )
 
-    results: Dict[str, Tuple[int, str]] = {}
+    results: Dict[str, Tuple[int, str, Optional[str]]] = {}
     for s in warranty_data:
         tag = s["serviceTag"]
         cur_eed = 0
         cur_eed_string = "January 1, 1970"
+        cur_sed = None
+        cur_sed_string = None
         for e in s["entitlements"]:
             eed = e["endDate"]
             eed_dt = datetime.fromisoformat(eed.replace("Z", "+00:00"))
-            eed_dt_epoch = int(eed_dt.strftime("%s"))
-            eed_dt_string = eed_dt.strftime("%B %e, %Y")
+            eed_dt_epoch = calendar.timegm(eed_dt.utctimetuple())
+            eed_dt_string = (
+                f"{calendar.month_name[eed_dt.month]} {eed_dt.day}, {eed_dt.year}"
+            )
             if eed_dt_epoch > cur_eed:
                 cur_eed = eed_dt_epoch
                 cur_eed_string = eed_dt_string
-        results[tag] = (cur_eed, cur_eed_string)
+            sed = e.get("startDate")
+            if sed:
+                sed_dt = datetime.fromisoformat(sed.replace("Z", "+00:00"))
+                sed_dt_epoch = calendar.timegm(sed_dt.utctimetuple())
+                sed_dt_string = (
+                    f"{calendar.month_name[sed_dt.month]} {sed_dt.day}, {sed_dt.year}"
+                )
+                if cur_sed is None or sed_dt_epoch < cur_sed:
+                    cur_sed = sed_dt_epoch
+                    cur_sed_string = sed_dt_string
+        results[tag] = (cur_eed, cur_eed_string, cur_sed_string)
 
     return results

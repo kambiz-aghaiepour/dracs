@@ -53,6 +53,9 @@ class TestIndexRoute:
     def test_index_contains_systems(self, client):
         resp = client.get("/")
         assert b"TAG001" in resp.data or b"systems_json" in resp.data
+        assert b"<th>Start Date</th>" in resp.data
+        assert b"<th>Expires</th>" in resp.data
+        assert b"Warranty Expiration Date" not in resp.data
 
 
 class TestApiSystems:

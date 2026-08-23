@@ -1772,7 +1772,8 @@
                         <th>Model</th>
                         <th>Firmware</th>
                         <th>BIOS</th>
-                        <th>Warranty Expiration Date</th>
+                        <th>Start Date</th>
+                        <th>Expires</th>
                     </tr>
                 </thead>
                 <tbody id="table-body">
@@ -5486,6 +5487,7 @@
                 <td>${system.model || ''}</td>
                 <td>${system.idrac_version || ''}</td>
                 <td>${system.bios_version || ''}</td>
+                <td>${system.start_date || ''}</td>
                 <td>${system.exp_date || ''}</td>
             `;
 
@@ -5499,13 +5501,13 @@
 
                 if (highlightExpired && expirationTime < currentTime) {
                     // Warranty has expired - highlight cell in red
-                    cells[5].classList.add('warranty-expired');
+                    cells[6].classList.add('warranty-expired');
                 } else if (highlightExpiring > 0) {
                     // Check if warranty is expiring soon
                     const daysUntilExpiration = (expirationTime - currentTime) / (60 * 60 * 24);
                     if (daysUntilExpiration > 0 && daysUntilExpiration <= highlightExpiring) {
                         // Warranty expiring within threshold - highlight cell in yellow
-                        cells[5].classList.add('warranty-expiring');
+                    cells[6].classList.add('warranty-expiring');
                     }
                 }
             }
@@ -6297,7 +6299,7 @@
             // Check if admin is logged in, multiple rows are selected, and clicked row is selected
             if (isAuthenticated && selectedRows.length > 1 && currentClickedRow && currentClickedRow.classList.contains('selected')) {
                 // Copy the same column from all selected rows
-                const columnNames = ['Service Tag', 'Hostname', 'Model', 'Firmware', 'BIOS', 'Warranty Expiration'];
+                const columnNames = ['Service Tag', 'Hostname', 'Model', 'Firmware', 'BIOS', 'Start Date', 'Warranty Expiration'];
                 const columnName = columnNames[currentCellIndex] || 'values';
 
                 const values = selectedRows.map(row => {

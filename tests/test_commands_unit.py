@@ -22,7 +22,9 @@ class TestAddDellWarranty:
     @patch("dracs.commands.build_idrac_hostname", return_value="mgmt-server01")
     def test_add_new_system(self, mock_build, mock_snmp, mock_api, temp_db):
         mock_snmp.side_effect = ["2.1.0", "7.0.0"]
-        mock_api.return_value = {"TAG001": (1735689600, "Jan 1, 2027")}
+        mock_api.return_value = {
+            "TAG001": (1735689600, "Jan 1, 2027", "September 1, 2020")
+        }
 
         with patch.dict(os.environ, {"SNMP_COMMUNITY": "public"}):
             asyncio.run(add_dell_warranty("TAG001", "server01", "R660", temp_db))
@@ -64,7 +66,7 @@ class TestAddDellWarranty:
     def test_add_with_precomputed_warranty(self, mock_build, mock_snmp, temp_db):
         mock_snmp.side_effect = ["2.1.0", "7.0.0"]
 
-        warranty_results = {"TAG001": (1735689600, "Jan 1, 2027")}
+        warranty_results = {"TAG001": (1735689600, "Jan 1, 2027", "September 1, 2020")}
 
         with patch.dict(os.environ, {"SNMP_COMMUNITY": "public"}):
             asyncio.run(

@@ -37,8 +37,14 @@ class TestDellApiWarrantyDate:
                 {
                     "serviceTag": "ABC1234",
                     "entitlements": [
-                        {"endDate": "2027-01-15T00:00:00Z"},
-                        {"endDate": "2025-06-01T00:00:00Z"},
+                        {
+                            "startDate": "2027-01-15T05:00:00Z",
+                            "endDate": "2027-01-15T00:00:00Z",
+                        },
+                        {
+                            "startDate": "2025-06-01T05:00:00Z",
+                            "endDate": "2025-06-01T00:00:00Z",
+                        },
                     ],
                 }
             ],
@@ -55,9 +61,11 @@ class TestDellApiWarrantyDate:
             results = dell_api_warranty_date("ABC1234")
 
         assert "ABC1234" in results
-        epoch, date_str = results["ABC1234"]
+        epoch, date_str, start_str = results["ABC1234"]
         assert epoch > 0
         assert "2027" in date_str
+        assert start_str is not None
+        assert "2025" in start_str
 
     @patch("dracs.api.requests.get")
     @patch("dracs.api.requests.post")
@@ -143,8 +151,51 @@ class TestDellApiWarrantyDate:
         ):
             results = dell_api_warranty_date("ABC1234")
 
-        epoch, date_str = results["ABC1234"]
+        epoch, date_str, start_str = results["ABC1234"]
         assert "2030" in date_str
+        assert start_str is None
+
+    @patch("dracs.api.requests.get")
+    @patch("dracs.api.requests.post")
+    def test_picks_earliest_start_date(self, mock_post, mock_get):
+        mock_post.return_value = MagicMock(json=lambda: {"access_token": "fake-token"})
+        mock_get.return_value = MagicMock(
+            status_code=200,
+            json=lambda: [
+                {
+                    "serviceTag": "ABC1234",
+                    "entitlements": [
+                        {
+                            "startDate": "2023-09-01T05:00:00Z",
+                            "endDate": "2026-08-31T05:00:00Z",
+                        },
+                        {
+                            "startDate": "2020-09-01T05:00:00Z",
+                            "endDate": "2023-08-31T05:00:00Z",
+                        },
+                        {
+                            "startDate": "2024-09-01T05:00:00Z",
+                            "endDate": "2027-08-31T05:00:00Z",
+                        },
+                    ],
+                }
+            ],
+        )
+
+        with patch.dict(
+            os.environ,
+            {
+                "CLIENT_ID": "test-id",
+                "CLIENT_SECRET": "test-secret",
+                "TOKEN_URL": "https://api.example.com/auth/token",
+            },
+        ):
+            results = dell_api_warranty_date("ABC1234")
+
+        epoch, date_str, start_str = results["ABC1234"]
+        assert "2027" in date_str
+        assert "2020" in start_str
+        assert "September" in start_str
 
     @patch(
         "dracs.api.requests.post",

@@ -486,7 +486,9 @@ class TestRefreshDellWarranty:
         )
 
         mock_snmp.side_effect = ["2.2.0", "7.1.0", "PowerEdge R660"]
-        mock_api.return_value = {"TAG001": (1893456000, "Jan 1, 2030")}
+        mock_api.return_value = {
+            "TAG001": (1893456000, "Jan 1, 2030", "September 1, 2020")
+        }
 
         import os
 

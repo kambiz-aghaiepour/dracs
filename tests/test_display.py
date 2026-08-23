@@ -251,13 +251,25 @@ class TestFilterListResults:
 class TestRenderListTable:
     def test_renders_without_error(self, capsys):
         results = [
-            ("TAG1", "host1", "R660", "7.0.0", "2.1.0", "Jan 1, 2027", 1893456000),
+            (
+                "TAG1",
+                "host1",
+                "R660",
+                "7.0.0",
+                "2.1.0",
+                "Jan 1, 2027",
+                1893456000,
+                "September 1, 2020",
+            ),
         ]
         render_list_table(results)
         captured = capsys.readouterr()
         assert "TAG1" in captured.out
         assert "host1" in captured.out
         assert "R660" in captured.out
+        assert "Start Date" in captured.out
+        assert "September" in captured.out
+        assert "1, 2020" in captured.out
 
     def test_empty_results(self, capsys):
         render_list_table([])

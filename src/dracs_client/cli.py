@@ -62,6 +62,7 @@ def systems_to_tuples(systems: List[dict]) -> List[Tuple]:
             s["bios_version"],
             s["exp_date"],
             s["exp_epoch"],
+            s["start_date"],
         )
         for s in systems
     ]
