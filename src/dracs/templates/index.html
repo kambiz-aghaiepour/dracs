@@ -1660,10 +1660,14 @@
                 <div class="filter-group">
                     <label>Warranty Filters</label>
                     <div class="warranty-combined-row">
-                        <label class="checkbox-label">
-                            <input type="checkbox" id="warranty-expired">
-                            Warranty Expired
-                        </label>
+                        <div class="warranty-expires-inline">
+                            <label for="warranty-status">Warranty</label>
+                            <select id="warranty-status">
+                                <option value="">(none)</option>
+                                <option value="expired">Expired</option>
+                                <option value="not-expired">Not Expired</option>
+                            </select>
+                        </div>
                         <div class="warranty-expires-inline">
                             <label for="warranty-expires">Expires in</label>
                             <select id="warranty-expires">
@@ -5284,7 +5288,7 @@
             }
 
             // Clear warranty filters
-            document.getElementById('warranty-expired').checked = false;
+            document.getElementById('warranty-status').value = '';
             document.getElementById('warranty-expires').value = '';
             document.getElementById('warranty-duration').value = '';
 
@@ -5410,7 +5414,7 @@
         const biosCurrentCheck = document.getElementById('bios-current');
         const biosOlderCheck = document.getElementById('bios-older');
         const biosOldestCheck = document.getElementById('bios-oldest');
-        const warrantyExpiredCheck = document.getElementById('warranty-expired');
+        const warrantyStatusSelect = document.getElementById('warranty-status');
         const warrantyExpiresSelect = document.getElementById('warranty-expires');
         const warrantyDurationSelect = document.getElementById('warranty-duration');
         const tableBody = document.getElementById('table-body');
@@ -5706,7 +5710,7 @@
             const biosCurrent = biosCurrentCheck.checked;
             const biosOlder = biosOlderCheck.checked;
             const biosOldest = biosOldestCheck.checked;
-            const warrantyExpired = warrantyExpiredCheck.checked;
+            const warrantyStatus = warrantyStatusSelect.value;
             const warrantyExpiresDays = warrantyExpiresSelect.value;
             const warrantyDurationYears = warrantyDurationSelect.value;
 
@@ -5786,22 +5790,27 @@
                 // Check warranty filter
                 let warrantyMatch = true;
                 const rowExpEpoch = row.dataset.expEpoch;
-                if (warrantyExpired || warrantyExpiresDays) {
+                if (warrantyStatus || warrantyExpiresDays) {
                     if (rowExpEpoch) {
                         const currentTime = Math.floor(Date.now() / 1000);
                         const expirationTime = parseInt(rowExpEpoch);
                         const isExpired = expirationTime < currentTime;
                         const daysUntilExpiration = (expirationTime - currentTime) / (60 * 60 * 24);
+                        const expiringWithin = warrantyExpiresDays &&
+                            daysUntilExpiration > 0 &&
+                            daysUntilExpiration <= parseInt(warrantyExpiresDays);
 
-                        if (warrantyExpired && warrantyExpiresDays) {
-                            // Both filters active: show expired OR expiring within X days
-                            warrantyMatch = isExpired || (daysUntilExpiration > 0 && daysUntilExpiration <= parseInt(warrantyExpiresDays));
-                        } else if (warrantyExpired) {
-                            // Only expired checkbox: show only expired
-                            warrantyMatch = isExpired;
-                        } else if (warrantyExpiresDays) {
+                        if (warrantyStatus === 'expired') {
+                            // Expired, optionally ORed with expiring within X days
+                            warrantyMatch = warrantyExpiresDays
+                                ? isExpired || expiringWithin
+                                : isExpired;
+                        } else if (warrantyStatus === 'not-expired') {
+                            // Not expired, ANDed with expiring within X days when set
+                            warrantyMatch = !isExpired && (!warrantyExpiresDays || expiringWithin);
+                        } else {
                             // Only expires-in selector: show expiring within X days but NOT already expired
-                            warrantyMatch = !isExpired && daysUntilExpiration > 0 && daysUntilExpiration <= parseInt(warrantyExpiresDays);
+                            warrantyMatch = !isExpired && expiringWithin;
                         }
                     } else {
                         // No warranty data available, exclude from filtered results
@@ -6029,7 +6038,7 @@
                 biosCurrent: biosCurrentCheck.checked,
                 biosOlder: biosOlderCheck.checked,
                 biosOldest: biosOldestCheck.checked,
-                warrantyExpired: warrantyExpiredCheck.checked,
+                warrantyStatus: warrantyStatusSelect.value,
                 warrantyExpires: warrantyExpiresSelect.value,
                 warrantyDuration: warrantyDurationSelect.value,
                 selectedHostnames: selectedSystems.map(s => s.hostname),
@@ -6067,7 +6076,8 @@
             if (state.biosCurrent !== undefined) biosCurrentCheck.checked = state.biosCurrent;
             if (state.biosOlder !== undefined) biosOlderCheck.checked = state.biosOlder;
             if (state.biosOldest !== undefined) biosOldestCheck.checked = state.biosOldest;
-            if (state.warrantyExpired !== undefined) warrantyExpiredCheck.checked = state.warrantyExpired;
+            if (state.warrantyStatus !== undefined) warrantyStatusSelect.value = state.warrantyStatus;
+            else if (state.warrantyExpired === true) warrantyStatusSelect.value = 'expired';
             if (state.warrantyExpires !== undefined) warrantyExpiresSelect.value = state.warrantyExpires;
             if (state.warrantyDuration !== undefined) warrantyDurationSelect.value = state.warrantyDuration;
             if (state.selectedHostnames && state.selectedHostnames.length > 0) {
@@ -6138,7 +6148,7 @@
         biosCurrentCheck.addEventListener('change', applyFilters);
         biosOlderCheck.addEventListener('change', applyFilters);
         biosOldestCheck.addEventListener('change', applyFilters);
-        warrantyExpiredCheck.addEventListener('change', applyFilters);
+        warrantyStatusSelect.addEventListener('change', applyFilters);
         warrantyExpiresSelect.addEventListener('change', applyFilters);
         warrantyDurationSelect.addEventListener('change', applyFilters);
 

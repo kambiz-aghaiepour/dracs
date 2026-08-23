@@ -214,8 +214,14 @@ async def main() -> None:
     parser_list.add_argument("-t", "--target", help="Target hostname to find")
     parser_list.add_argument("-m", "--model", help="Target model to list")
     parser_list.add_argument("--expires_in", help="List hosts that expire in N days")
-    parser_list.add_argument(
+    warranty_status_group = parser_list.add_mutually_exclusive_group()
+    warranty_status_group.add_argument(
         "--expired", action="store_true", help="List hosts with expired warranties"
+    )
+    warranty_status_group.add_argument(
+        "--not-expired",
+        action="store_true",
+        help="List hosts with unexpired warranties",
     )
     parser_list.add_argument(
         "--duration",
@@ -866,6 +872,7 @@ async def main() -> None:
             warranty,
             site_id=_resolve_site_id(),
             duration=args.duration,
+            not_expired=args.not_expired,
         )
     elif args.command in ["tsr", "t"]:
         if args.list:

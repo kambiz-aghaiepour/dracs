@@ -347,6 +347,41 @@ class TestListDellWarranty:
         assert len(data) == 1
         assert data[0][0] == "TAG002"
 
+    def test_list_not_expired(self, temp_db, capsys):
+        self._setup_db(temp_db)
+
+        asyncio.run(
+            list_dell_warranty(
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                False,
+                True,
+                False,
+                temp_db,
+                not_expired=True,
+            )
+        )
+
+        import json
+
+        output = capsys.readouterr().out
+        data = json.loads(output)
+        assert len(data) == 2
+        assert [row[0] for row in data] == ["TAG001", "TAG003"]
+
     def test_list_expires_in(self, temp_db, capsys):
         self._setup_db(temp_db)
 
