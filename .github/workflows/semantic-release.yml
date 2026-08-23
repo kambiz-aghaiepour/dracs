@@ -7,10 +7,18 @@ on:
 
 concurrency:
   group: semantic-release
-  cancel-in-progress: true
+  # Keep the group so overlapping release runs serialize, but never cancel an
+  # in-progress run: the "Sync spec file version" step pushes to main mid-run,
+  # which re-triggers this workflow; cancel-in-progress let the re-triggered
+  # run cancel the original run between tagging and the PyPI publish step.
+  cancel-in-progress: false
 
 jobs:
   release:
+    # Ignore pushes made by this workflow itself (release commit + spec sync
+    # commit are both pushed with GITHUB_TOKEN) so the run cannot re-trigger
+    # and race its own publish step.
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     permissions:
       contents: write
