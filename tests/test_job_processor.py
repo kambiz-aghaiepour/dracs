@@ -430,11 +430,21 @@ class TestExecuteRefreshJob:
 
 
 class TestExecuteFirmwareUpdateJob:
-    def test_success(self, job_db):
+    def test_success(self, job_db, tmp_path):
+        (tmp_path / "R660-8.0.0.d9").write_bytes(b"fake")
         mock_build_cmd = MagicMock(return_value=["echo", "test"])
         mock_result = MagicMock(returncode=0)
         with patch("dracs.jobqueue.subprocess.run", return_value=mock_result):
             with patch("dracs.webapp._build_ssh_racadm_cmd", mock_build_cmd):
+                with patch("dracs.webapp.FIRMWARE_IMAGE_DIR", tmp_path):
+                    execute_firmware_update_job(
+                        "server01.example.com",
+                        {"target_version": "8.0.0", "model": "R660"},
+                    )
+
+    def test_missing_staged_image(self, job_db, tmp_path):
+        with patch("dracs.webapp.FIRMWARE_IMAGE_DIR", tmp_path):
+            with pytest.raises(RuntimeError, match="No staged firmware image"):
                 execute_firmware_update_job(
                     "server01.example.com",
                     {"target_version": "8.0.0", "model": "R660"},
@@ -444,16 +454,18 @@ class TestExecuteFirmwareUpdateJob:
         with pytest.raises(ValueError, match="target_version and model required"):
             execute_firmware_update_job("server01.example.com", {})
 
-    def test_command_failure(self, job_db):
+    def test_command_failure(self, job_db, tmp_path):
+        (tmp_path / "R660-8.0.0.d10").write_bytes(b"fake")
         mock_build_cmd = MagicMock(return_value=["echo", "test"])
         mock_result = MagicMock(returncode=1, stderr="error", stdout="")
         with patch("dracs.jobqueue.subprocess.run", return_value=mock_result):
             with patch("dracs.webapp._build_ssh_racadm_cmd", mock_build_cmd):
-                with pytest.raises(RuntimeError, match="Firmware update failed"):
-                    execute_firmware_update_job(
-                        "server01.example.com",
-                        {"target_version": "8.0.0", "model": "R660"},
-                    )
+                with patch("dracs.webapp.FIRMWARE_IMAGE_DIR", tmp_path):
+                    with pytest.raises(RuntimeError, match="Firmware update failed"):
+                        execute_firmware_update_job(
+                            "server01.example.com",
+                            {"target_version": "8.0.0", "model": "R660"},
+                        )
 
 
 class TestExecuteBiosUpdateJob:

@@ -1677,7 +1677,7 @@ class TestFirmwareStreamEdgeCases:
             )
             data_str = resp.get_data(as_text=True)
 
-        assert "No .d9 firmware image found" in data_str
+        assert "No firmware image found in package" in data_str
 
     def test_firmware_file_already_exists(self, client, tmp_path):
         _login(client)

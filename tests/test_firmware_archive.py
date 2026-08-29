@@ -112,6 +112,130 @@ def _make_firmware_exe(tmp_path):
     return exe_path
 
 
+def _make_firmware_exe_d10(tmp_path):
+    pkg_xml = '<SoftwareComponent vendorVersion="1.30.30.52"></SoftwareComponent>'
+    exe_path = tmp_path / "firmware.EXE"
+    with zipfile.ZipFile(exe_path, "w") as zf:
+        zf.writestr("package.xml", pkg_xml)
+        zf.writestr("payload/firmimg.d10", b"firmware data")
+    return exe_path
+
+
+class TestFindFirmwareImage:
+    def test_finds_d9_in_payload(self, tmp_path):
+        from dracs.webapp import _find_firmware_image
+
+        payload = tmp_path / "payload"
+        payload.mkdir()
+        (payload / "firmimgFIT.d9").write_bytes(b"x")
+        assert _find_firmware_image(str(tmp_path)) == str(payload / "firmimgFIT.d9")
+
+    def test_finds_d10_in_payload(self, tmp_path):
+        from dracs.webapp import _find_firmware_image
+
+        payload = tmp_path / "payload"
+        payload.mkdir()
+        (payload / "firmimg.d10").write_bytes(b"x")
+        assert _find_firmware_image(str(tmp_path)) == str(payload / "firmimg.d10")
+
+    def test_prefers_d9_over_d10(self, tmp_path):
+        from dracs.webapp import _find_firmware_image
+
+        payload = tmp_path / "payload"
+        payload.mkdir()
+        (payload / "firmimg.d10").write_bytes(b"x")
+        (payload / "firmimgFIT.d9").write_bytes(b"x")
+        assert _find_firmware_image(str(tmp_path)).endswith("firmimgFIT.d9")
+
+    def test_none_when_missing(self, tmp_path):
+        from dracs.webapp import _find_firmware_image
+
+        assert _find_firmware_image(str(tmp_path)) is None
+
+
+class TestFirmwareD10Payload:
+    def test_d10_payload_staged(self, client, tmp_path):
+        _login(client)
+
+        src_exe = _make_firmware_exe_d10(tmp_path)
+        exe_bytes = src_exe.read_bytes()
+        expected_hash = hashlib.sha256(exe_bytes).hexdigest()
+
+        catalog_xml = f"""<?xml version="1.0" encoding="utf-16"?>
+        <Manifest>
+          <SoftwareComponent path="FOLDER/firmware.EXE" vendorVersion="1.30.30.52"
+              dateTime="2026-08-29T10:00:00Z" hash="{expected_hash}">
+            <ComponentType value="FRMW"/>
+            <Category><Display>iDRAC with Lifecycle Controller</Display></Category>
+            <SupportedSystems><Brand><Model><Display>R670</Display></Model></Brand></SupportedSystems>
+          </SoftwareComponent>
+        </Manifest>"""
+        catalog_gz = gzip.compress(catalog_xml.encode("utf-16"))
+
+        mock_catalog_resp = MagicMock()
+        mock_catalog_resp.read.return_value = catalog_gz
+        mock_catalog_resp.__enter__ = lambda s: s
+        mock_catalog_resp.__exit__ = MagicMock(return_value=False)
+
+        mock_exe_resp = MagicMock()
+        mock_exe_resp.__enter__ = lambda s: s
+        mock_exe_resp.__exit__ = MagicMock(return_value=False)
+
+        def fake_urlopen(req, timeout=None):
+            if "Catalog" in req.full_url:
+                return mock_catalog_resp
+            return mock_exe_resp
+
+        fw_dir = tmp_path / "fw_dest"
+        fw_dir.mkdir()
+        fw_archive = tmp_path / "fw_archive"
+        fw_archive.mkdir()
+
+        import xml.etree.ElementTree as real_ET
+
+        orig_parse = real_ET.parse
+
+        def fake_et_parse(path):
+            if "package.xml" in str(path):
+                root = real_ET.fromstring(
+                    '<SoftwareComponent vendorVersion="1.30.30.52"/>'
+                )
+                tree = MagicMock()
+                tree.getroot.return_value = root
+                return tree
+            return orig_parse(path)
+
+        def fake_copyfileobj(src, dst):
+            dst.write(exe_bytes)
+
+        with (
+            patch("dracs.webapp.urllib.request.urlopen", side_effect=fake_urlopen),
+            patch("dracs.webapp.shutil.copyfileobj", side_effect=fake_copyfileobj),
+            patch("dracs.webapp.defused_ET.parse", side_effect=fake_et_parse),
+            patch("dracs.webapp.FIRMWARE_IMAGE_DIR", fw_dir),
+            patch("dracs.webapp.FIRMWARE_ARCHIVE_DIR", fw_archive),
+        ):
+            resp = client.post(
+                "/api/latest-firmware",
+                data=json.dumps(
+                    {
+                        "model": "R670",
+                        "hostname": "server01",
+                        "current_version": "1.30.10.50",
+                    }
+                ),
+                content_type="application/json",
+            )
+            data_str = resp.get_data(as_text=True)
+
+        assert "FAIL" not in data_str
+        assert "No firmware image" not in data_str
+        staged = fw_dir / "R670-1.30.30.52.d10"
+        assert staged.exists()
+        assert not (fw_dir / "R670-1.30.30.52.d9").exists()
+        assert '"type": "complete"' in data_str
+
+
 class TestFirmwareSha256AndArchive:
     def test_sha256_verified_and_archived(self, client, tmp_path):
         _login(client)
