@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.22.1 (2026-08-29)
+
+### Bug Fixes
+
+- Newest generation fw has .d10 files
+  ([`e5b69a1`](https://github.com/kambiz-aghaiepour/dracs/commit/e5b69a1db1540485670a6e4ab628e517befccb74))
+
+### Chores
+
+- Sync spec file version to 2.22.0 [skip ci]
+  ([`5eb42ff`](https://github.com/kambiz-aghaiepour/dracs/commit/5eb42ff95fae8f7b7833bf5502298479547b2430))
+
+
 ## v2.22.0 (2026-08-23)
 
 ### Chores
