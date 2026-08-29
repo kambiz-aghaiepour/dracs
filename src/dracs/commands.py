@@ -1009,18 +1009,19 @@ async def idrac_jobs_clear(
 
 
 def _get_available_firmware_versions(model: str) -> list:
-    from dracs.webapp import FIRMWARE_IMAGE_DIR
+    from dracs.webapp import FIRMWARE_IMAGE_DIR, FIRMWARE_IMAGE_SUFFIXES
 
     versions = []
     prefix = f"{model}-"
-    suffix = ".d9"
     if FIRMWARE_IMAGE_DIR.is_dir():
         for f in FIRMWARE_IMAGE_DIR.iterdir():
             name = f.name
-            if name.startswith(prefix) and name.endswith(suffix):
-                ver = name[len(prefix) : -len(suffix)]
-                if ver:
-                    versions.append(ver)
+            for suffix in FIRMWARE_IMAGE_SUFFIXES:
+                if name.startswith(prefix) and name.endswith(suffix):
+                    ver = name[len(prefix) : -len(suffix)]
+                    if ver and ver not in versions:
+                        versions.append(ver)
+                    break
     return versions
 
 

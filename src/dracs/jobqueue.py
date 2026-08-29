@@ -515,14 +515,29 @@ def execute_refresh_job(hostname: str) -> None:
 
 
 def execute_firmware_update_job(hostname: str, metadata: dict) -> None:
-    from dracs.webapp import _build_ssh_racadm_cmd
+    from dracs.webapp import (
+        _build_ssh_racadm_cmd,
+        FIRMWARE_IMAGE_DIR,
+        FIRMWARE_IMAGE_SUFFIXES,
+    )
 
     target_version = metadata.get("target_version", "")
     model = metadata.get("model", "")
     if not target_version or not model:
         raise ValueError("target_version and model required in job metadata")
 
-    firmware_file = f"{model}-{target_version}.d9"
+    firmware_file = None
+    for suffix in FIRMWARE_IMAGE_SUFFIXES:
+        candidate = f"{model}-{target_version}{suffix}"
+        if (FIRMWARE_IMAGE_DIR / candidate).exists():
+            firmware_file = candidate
+            break
+    if not firmware_file:
+        raise RuntimeError(
+            f"No staged firmware image for {model} {target_version} "
+            f"(expected {model}-{target_version}.[{'|'.join(FIRMWARE_IMAGE_SUFFIXES)}] "
+            f"in {FIRMWARE_IMAGE_DIR})"
+        )
     fw_server = os.environ.get("DRACS_FIRMWARE_SERVER") or socket.getfqdn()
     fw_uri = os.environ.get("DRACS_FIRMWARE_URI", "/firmware/")
     firmware_url = f"http://{fw_server}{fw_uri}"

@@ -85,6 +85,14 @@ class TestGetAvailableFirmwareVersions:
         assert len(versions) == 3
         assert "7.10.50" in versions
 
+    def test_finds_d10_files(self, tmp_path):
+        (tmp_path / "R670-1.30.30.52.d10").write_bytes(b"fake")
+        (tmp_path / "R670-1.30.30.50.d9").write_bytes(b"fake")
+        (tmp_path / "R650-5.00.00.d9").write_bytes(b"fake")
+        with patch("dracs.webapp.FIRMWARE_IMAGE_DIR", tmp_path):
+            versions = _get_available_firmware_versions("R670")
+        assert sorted(versions) == ["1.30.30.50", "1.30.30.52"]
+
     def test_no_dir(self, tmp_path):
         with patch("dracs.webapp.FIRMWARE_IMAGE_DIR", tmp_path / "nope"):
             versions = _get_available_firmware_versions("R660")

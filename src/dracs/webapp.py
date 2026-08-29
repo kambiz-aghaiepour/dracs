@@ -837,15 +837,16 @@ def api_available_firmware(model):
             return err
 
         prefix = f"{model}-"
-        suffix = ".d9"
         versions = []
         if FIRMWARE_IMAGE_DIR.is_dir():
             for f in FIRMWARE_IMAGE_DIR.iterdir():
                 name = f.name
-                if name.startswith(prefix) and name.endswith(suffix):
-                    ver = name[len(prefix) : -len(suffix)]
-                    if ver:
-                        versions.append(ver)
+                for suffix in FIRMWARE_IMAGE_SUFFIXES:
+                    if name.startswith(prefix) and name.endswith(suffix):
+                        ver = name[len(prefix) : -len(suffix)]
+                        if ver and ver not in versions:
+                            versions.append(ver)
+                        break
 
         versions.sort(key=lambda v: tuple(map(int, v.split("."))), reverse=True)
         return jsonify({"success": True, "model": model, "versions": versions})
@@ -1774,6 +1775,12 @@ def api_power_action():
 CATALOG_URL = "https://downloads.dell.com/catalog/Catalog.xml.gz"
 CATALOG_BASE_URL = "https://downloads.dell.com"
 FIRMWARE_IMAGE_DIR = Path("/var/lib/dracs/web/firmware")
+
+# Firmware image payload extensions found inside Dell iDRAC DUP packages.
+# Older iDRAC9 generation payloads (14G/15G: R640/R650/R660/R750/R760, …) are
+# "payload/firmimgFIT.d9"; the newest generation (16G: R670, …) ships
+# "payload/firmimg.d10".
+FIRMWARE_IMAGE_SUFFIXES = (".d9", ".d10")
 BIOS_IMAGE_DIR = Path("/var/lib/dracs/web/bios")
 ISO_IMAGE_DIR = Path("/var/lib/dracs/web/iso")
 
@@ -1864,15 +1871,24 @@ def _extract_firmware_version(extract_dir: str, fallback_version: str) -> str:
     return fallback_version
 
 
-def _find_d9_file(extract_dir: str) -> str | None:
+def _find_firmware_image(extract_dir: str) -> str | None:
+    """Return the iDRAC firmware image payload extracted from a DUP zip.
+
+    Dell DUP packages carry the firmware image under payload/ with an
+    extension that varies by generation: older iDRAC9 (.d9, e.g.
+    payload/firmimgFIT.d9) and the newest generation (.d10, e.g.
+    payload/firmimg.d10).  .d9 is preferred for backwards compatibility.
+    """
     payload_dir = os.path.join(extract_dir, "payload")
     if os.path.isdir(payload_dir):
-        for fname in os.listdir(payload_dir):
-            if fname.lower().endswith(".d9"):
-                return os.path.join(payload_dir, fname)
+        for suffix in FIRMWARE_IMAGE_SUFFIXES:
+            for fname in os.listdir(payload_dir):
+                if fname.lower().endswith(suffix):
+                    return os.path.join(payload_dir, fname)
     for root_dir, _dirs, files in os.walk(extract_dir):
         for fname in files:
-            if fname.lower().endswith(".d9"):
+            low = fname.lower()
+            if any(low.endswith(s) for s in FIRMWARE_IMAGE_SUFFIXES):
                 return os.path.join(root_dir, fname)
     return None
 
@@ -2110,12 +2126,18 @@ def api_latest_firmware():
                 f"Latest Firmware version for {model} found: {pkg_version}",
             )
 
-            d9_file = _find_d9_file(extract_dir)
-            if not d9_file:
-                yield _sse_event("error", "No .d9 firmware image found in package.")
+            firmware_image = _find_firmware_image(extract_dir)
+            if not firmware_image:
+                yield _sse_event(
+                    "error",
+                    "No firmware image found in package "
+                    f"(expected payload/*{' or *'.join(FIRMWARE_IMAGE_SUFFIXES)}).",
+                )
                 return
 
-            dest_filename = f"{model}-{pkg_version}.d9"
+            dest_filename = (
+                f"{model}-{pkg_version}{os.path.splitext(firmware_image)[1]}"
+            )
             dest_path = FIRMWARE_IMAGE_DIR / dest_filename
             file_exists = dest_path.exists()
 
@@ -2126,7 +2148,7 @@ def api_latest_firmware():
                 )
             else:
                 FIRMWARE_IMAGE_DIR.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(d9_file, dest_path)
+                shutil.copy2(firmware_image, dest_path)
                 os.chmod(dest_path, 0o444)
                 yield _sse_event(
                     "status",
