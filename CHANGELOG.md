@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.22.2 (2026-08-31)
+
+### Bug Fixes
+
+- TSR handling of newer models
+  ([`c892c6f`](https://github.com/kambiz-aghaiepour/dracs/commit/c892c6f137cf90582ca79b2efa699d8225f8e4cd))
+
+### Chores
+
+- Sync spec file version to 2.22.1 [skip ci]
+  ([`1ef2bd8`](https://github.com/kambiz-aghaiepour/dracs/commit/1ef2bd8ee3a8feea05bd210735ba5a1b6a981438))
+
+
 ## v2.22.1 (2026-08-29)
 
 ### Bug Fixes
