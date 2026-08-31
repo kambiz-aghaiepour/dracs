@@ -448,6 +448,7 @@ def execute_tsr_job(
 ) -> None:
     from dracs.webapp import (
         _build_ssh_racadm_cmd,
+        _detect_tsr_command_family,
         _find_tsr_zip,
         _get_sa_jobs,
         _stage_tsr_files,
@@ -467,13 +468,12 @@ def execute_tsr_job(
     fqdn = socket.getfqdn()
     poll_interval = 20
     max_wait = 1800
+    tsr_family = _detect_tsr_command_family(hostname)
 
     if job_id is not None:
         update_job_progress(job_id, "Collecting")
 
-    cmd = _build_ssh_racadm_cmd(
-        hostname, "techsupreport", "collect", "-t", "SysInfo,TTYLog"
-    )
+    cmd = _build_ssh_racadm_cmd(hostname, tsr_family, "collect", "-t", "SysInfo,TTYLog")
     result = subprocess.run(  # nosec # nosemgrep
         cmd, capture_output=True, text=True, timeout=30  # nosemgrep
     )
@@ -487,8 +487,11 @@ def execute_tsr_job(
     if job_id is not None:
         update_job_progress(job_id, "Exporting")
 
+    export_subcommand = (
+        "exportlastcollection" if tsr_family == "supportassist" else "export"
+    )
     export_cmd = _build_ssh_racadm_cmd(
-        hostname, "techsupreport", "export", "-l", f"tftp://{fqdn}"
+        hostname, tsr_family, export_subcommand, "-l", f"tftp://{fqdn}"
     )
     subprocess.run(  # nosec # nosemgrep
         export_cmd, capture_output=True, text=True, timeout=30  # nosemgrep

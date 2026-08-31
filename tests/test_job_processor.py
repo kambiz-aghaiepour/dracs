@@ -235,6 +235,140 @@ class TestExecuteTsrJob:
         status = get_job_status(job_id)
         assert status is not None
 
+    def test_supportassist_commands_used_for_new_idrac(self, job_db):
+        calls = []
+
+        def fake_build_cmd(hostname, *args, **kwargs):
+            calls.append((hostname, args))
+            return ["echo", "test"]
+
+        mock_subprocess = MagicMock()
+        mock_subprocess.returncode = 0
+
+        running_job = {
+            "status": "Running",
+            "job_name": "SupportAssist Collection",
+        }
+        completed_job = {
+            "status": "Completed",
+            "job_name": "SupportAssist Collection",
+            "message": "collection operation is completed successfully",
+        }
+        call_count = [0]
+
+        def mock_get_sa_jobs(hostname):
+            call_count[0] += 1
+            if call_count[0] <= 1:
+                return [running_job]
+            return [completed_job]
+
+        with patch.dict(os.environ, {"DRACS_DB": job_db}):
+            import dracs.webapp as webapp_mod
+
+            webapp_mod.DB_PATH = job_db
+            webapp_mod.db_initialize(job_db)
+
+            with patch("dracs.jobqueue.subprocess.run", return_value=mock_subprocess):
+                with patch("dracs.jobqueue.time.sleep"):
+                    with patch.multiple(
+                        "dracs.webapp",
+                        _build_ssh_racadm_cmd=fake_build_cmd,
+                        _detect_tsr_command_family=MagicMock(
+                            return_value="supportassist"
+                        ),
+                        _get_sa_jobs=mock_get_sa_jobs,
+                        _wait_for_tsr_export=MagicMock(return_value=True),
+                        _find_tsr_zip=MagicMock(
+                            return_value="/tmp/TSR20260505_TAG001.zip"
+                        ),
+                        _stage_tsr_files=MagicMock(),
+                    ):
+                        execute_tsr_job("server01.example.com")
+
+        collect = [c for c in calls if c[1][:2] == ("supportassist", "collect")]
+        assert len(collect) == 1
+        assert collect[0][0] == "server01.example.com"
+        assert collect[0][1] == (
+            "supportassist",
+            "collect",
+            "-t",
+            "SysInfo,TTYLog",
+        )
+        export = [
+            c for c in calls if c[1][:2] == ("supportassist", "exportlastcollection")
+        ]
+        assert len(export) == 1
+        assert export[0][1][:3] == (
+            "supportassist",
+            "exportlastcollection",
+            "-l",
+        )
+        assert str(export[0][1][3]).startswith("tftp://")
+
+    def test_techsupreport_commands_used_for_legacy_idrac(self, job_db):
+        calls = []
+
+        def fake_build_cmd(hostname, *args, **kwargs):
+            calls.append((hostname, args))
+            return ["echo", "test"]
+
+        mock_subprocess = MagicMock()
+        mock_subprocess.returncode = 0
+
+        running_job = {
+            "status": "Running",
+            "job_name": "SupportAssist Collection",
+        }
+        completed_job = {
+            "status": "Completed",
+            "job_name": "SupportAssist Collection",
+            "message": "collection operation is completed successfully",
+        }
+        call_count = [0]
+
+        def mock_get_sa_jobs(hostname):
+            call_count[0] += 1
+            if call_count[0] <= 1:
+                return [running_job]
+            return [completed_job]
+
+        with patch.dict(os.environ, {"DRACS_DB": job_db}):
+            import dracs.webapp as webapp_mod
+
+            webapp_mod.DB_PATH = job_db
+            webapp_mod.db_initialize(job_db)
+
+            with patch("dracs.jobqueue.subprocess.run", return_value=mock_subprocess):
+                with patch("dracs.jobqueue.time.sleep"):
+                    with patch.multiple(
+                        "dracs.webapp",
+                        _build_ssh_racadm_cmd=fake_build_cmd,
+                        _detect_tsr_command_family=MagicMock(
+                            return_value="techsupreport"
+                        ),
+                        _get_sa_jobs=mock_get_sa_jobs,
+                        _wait_for_tsr_export=MagicMock(return_value=True),
+                        _find_tsr_zip=MagicMock(
+                            return_value="/tmp/TSR20260505_TAG001.zip"
+                        ),
+                        _stage_tsr_files=MagicMock(),
+                    ):
+                        execute_tsr_job("server01.example.com")
+
+        collect = [c for c in calls if c[1][:2] == ("techsupreport", "collect")]
+        assert len(collect) == 1
+        assert collect[0][0] == "server01.example.com"
+        assert collect[0][1] == (
+            "techsupreport",
+            "collect",
+            "-t",
+            "SysInfo,TTYLog",
+        )
+        export = [c for c in calls if c[1][:2] == ("techsupreport", "export")]
+        assert len(export) == 1
+        assert export[0][1][:3] == ("techsupreport", "export", "-l")
+        assert str(export[0][1][3]).startswith("tftp://")
+
     def test_host_not_found(self, job_db):
         with pytest.raises(ValueError, match="not found"):
             execute_tsr_job("nonexistent.example.com")

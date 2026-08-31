@@ -2440,6 +2440,26 @@ def _build_ssh_racadm_cmd(
     ]
 
 
+def _detect_tsr_command_family(hostname: str) -> str:
+    """Detect the racadm command family the iDRAC supports for TSR jobs.
+
+    Newer iDRAC firmware removed ``techsupreport`` in favor of
+    ``supportassist``.  The iDRAC can still exit 0 when rejecting the
+    command, so detection keys on the RAC1281 marker in the output.
+    """
+    cmd = _build_ssh_racadm_cmd(hostname, "techsupreport", "view")
+    try:
+        result = subprocess.run(  # nosec # nosemgrep
+            cmd, capture_output=True, text=True, timeout=30  # nosemgrep
+        )
+    except Exception:
+        return "techsupreport"
+    output = (result.stdout + result.stderr).lower()
+    if "not supported" in output and "techsupreport" in output:
+        return "supportassist"
+    return "techsupreport"
+
+
 def _get_tsr_job_status(hostname: str) -> dict:
     cmd = _build_ssh_racadm_cmd(hostname, "jobqueue", "view")
     result = subprocess.run(  # nosec # nosemgrep
