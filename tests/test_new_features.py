@@ -599,6 +599,55 @@ class TestGetSaJobs:
 
 
 # ---------------------------------------------------------------------------
+# _detect_tsr_command_family
+# ---------------------------------------------------------------------------
+class TestDetectTsrCommandFamily:
+    def test_legacy_idrac_returns_techsupreport(self):
+        from dracs.webapp import _detect_tsr_command_family
+
+        mock_result = MagicMock(
+            returncode=0, stdout="No TSR collection data available", stderr=""
+        )
+        with patch("dracs.webapp._build_ssh_racadm_cmd", return_value=["echo"]):
+            with patch("dracs.webapp.subprocess.run", return_value=mock_result):
+                assert _detect_tsr_command_family("server01") == "techsupreport"
+
+    def test_new_idrac_returns_supportassist(self):
+        from dracs.webapp import _detect_tsr_command_family
+
+        mock_result = MagicMock(
+            returncode=0,
+            stdout=(
+                "ERROR: RAC1281: The command racadm techsupreport is not "
+                "supported on iDRAC 1.10.05.00 and later versions."
+            ),
+            stderr="",
+        )
+        with patch("dracs.webapp._build_ssh_racadm_cmd", return_value=["echo"]):
+            with patch("dracs.webapp.subprocess.run", return_value=mock_result):
+                assert _detect_tsr_command_family("server01") == "supportassist"
+
+    def test_ssh_failure_falls_back_to_techsupreport(self):
+        from dracs.webapp import _detect_tsr_command_family
+
+        mock_result = MagicMock(
+            returncode=255,
+            stdout="",
+            stderr="ssh: connect to host mgmt-server01 port 22: timed out",
+        )
+        with patch("dracs.webapp._build_ssh_racadm_cmd", return_value=["echo"]):
+            with patch("dracs.webapp.subprocess.run", return_value=mock_result):
+                assert _detect_tsr_command_family("server01") == "techsupreport"
+
+    def test_run_exception_falls_back_to_techsupreport(self):
+        from dracs.webapp import _detect_tsr_command_family
+
+        with patch("dracs.webapp._build_ssh_racadm_cmd", return_value=["echo"]):
+            with patch("dracs.webapp.subprocess.run", side_effect=OSError("boom")):
+                assert _detect_tsr_command_family("server01") == "techsupreport"
+
+
+# ---------------------------------------------------------------------------
 # /api/tsr-ensure-index Endpoint
 # ---------------------------------------------------------------------------
 class TestTsrEnsureIndexEndpoint:
