@@ -2462,9 +2462,12 @@ def _detect_tsr_command_family(hostname: str) -> str:
 
 def _get_tsr_job_status(hostname: str) -> dict:
     cmd = _build_ssh_racadm_cmd(hostname, "jobqueue", "view")
-    result = subprocess.run(  # nosec # nosemgrep
-        cmd, capture_output=True, text=True, timeout=30  # nosemgrep
-    )
+    try:
+        result = subprocess.run(  # nosec # nosemgrep
+            cmd, capture_output=True, text=True, timeout=30  # nosemgrep
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return {"state": "error", "message": "Failed to query job queue"}
     if result.returncode != 0:
         return {"state": "error", "message": "Failed to query job queue"}
 
@@ -2541,9 +2544,14 @@ def _extract_tsr(zip_path: str, dest_dir: str) -> None:
 
 def _get_sa_jobs(hostname: str) -> list | None:
     cmd = _build_ssh_racadm_cmd(hostname, "jobqueue", "view")
-    result = subprocess.run(  # nosec # nosemgrep
-        cmd, capture_output=True, text=True, timeout=30  # nosemgrep
-    )
+    try:
+        result = subprocess.run(  # nosec # nosemgrep
+            cmd, capture_output=True, text=True, timeout=30  # nosemgrep
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        # A slow iDRAC must not abort the TSR job; pollers treat None
+        # as "no data, keep polling".
+        return None
     if result.returncode != 0:
         return None
     return [
