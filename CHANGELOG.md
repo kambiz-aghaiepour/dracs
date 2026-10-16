@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.22.3 (2026-10-16)
+
+### Bug Fixes
+
+- Don't abort TSR jobs when iDRAC jobqueue view times out
+  ([`fc43657`](https://github.com/kambiz-aghaiepour/dracs/commit/fc43657ff0497aa3004ec12d0d449da0a2d14623))
+
+### Chores
+
+- Sync spec file version to 2.22.2 [skip ci]
+  ([`53c7a4a`](https://github.com/kambiz-aghaiepour/dracs/commit/53c7a4acdba4dcdc0bace61634abd1a377ad6c26))
+
+
 ## v2.22.2 (2026-08-31)
 
 ### Bug Fixes
