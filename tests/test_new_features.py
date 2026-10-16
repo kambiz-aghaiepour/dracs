@@ -2,6 +2,7 @@
 
 import json
 import os
+import subprocess
 import tempfile
 import zipfile
 from datetime import datetime
@@ -334,6 +335,20 @@ class TestGetTsrJobStatus:
                 status = _get_tsr_job_status("server01")
         assert status["state"] == "error"
 
+    def test_timeout_returns_error(self):
+        from dracs.webapp import _get_tsr_job_status
+
+        with patch(
+            "dracs.webapp.subprocess.run",
+            side_effect=subprocess.TimeoutExpired(["echo"], 30),
+        ):
+            with patch.dict(
+                os.environ,
+                {"DRACS_DNS_STRING": "mgmt-", "DRACS_DNS_MODE": "prefix"},
+            ):
+                status = _get_tsr_job_status("server01")
+        assert status["state"] == "error"
+
 
 # ---------------------------------------------------------------------------
 # _find_tsr_zip
@@ -594,6 +609,17 @@ class TestGetSaJobs:
         mock_result = MagicMock(returncode=1)
         with patch("dracs.webapp._build_ssh_racadm_cmd", return_value=["echo"]):
             with patch("dracs.webapp.subprocess.run", return_value=mock_result):
+                result = _get_sa_jobs("server01")
+        assert result is None
+
+    def test_returns_none_on_timeout(self):
+        from dracs.webapp import _get_sa_jobs
+
+        with patch("dracs.webapp._build_ssh_racadm_cmd", return_value=["echo"]):
+            with patch(
+                "dracs.webapp.subprocess.run",
+                side_effect=subprocess.TimeoutExpired(["echo"], 30),
+            ):
                 result = _get_sa_jobs("server01")
         assert result is None
 
