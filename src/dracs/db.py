@@ -711,12 +711,18 @@ def db_initialize(db_url: str) -> None:
 
     # Job-pool threads re-run db_initialize per job: reuse the engine and
     # keepalive, but still run the idempotent migration checks below. A
-    # missing keepalive means a previous attempt died halfway (e.g. the WAL
-    # switch timed out), so re-initialize rather than lose the WAL pin.
-    if _db_url != url or _engine is None or _keepalive is None:
+    # missing keepalive (sqlite only) means a previous attempt died halfway
+    # (e.g. the WAL switch timed out), so re-initialize rather than lose the
+    # WAL pin. Non-sqlite engines have no keepalive and reuse unconditionally.
+    needs_keepalive = url.startswith("sqlite")
+    if _db_url != url or _engine is None or (needs_keepalive and _keepalive is None):
         with _init_lock:
             # Two threads can pass the check above; re-check under the lock.
-            if _db_url == url and _engine is not None and _keepalive is not None:
+            if (
+                _db_url == url
+                and _engine is not None
+                and (not needs_keepalive or _keepalive is not None)
+            ):
                 url = _db_url
             else:
                 _db_url = url

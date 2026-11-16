@@ -71,13 +71,17 @@ def test_db_initialize_blocks_on_init_lock(temp_db):
     time.sleep(0.2)  # worker passed the URL check and is blocked on the lock
 
     # Another thread finished initializing url2 while we held the lock.
-    db_mod._engine = db_mod.create_engine(canon2)
+    fake_engine = db_mod.create_engine(canon2)
+    db_mod._engine = fake_engine
     db_mod._db_url = canon2
     db_mod._init_lock.release()
 
     thread.join(timeout=10)
     assert not thread.is_alive()
     assert not errors
+    # The reuse branch must leave the winner's engine in place; a second
+    # engine creation here would mean the re-check is broken.
+    assert db_mod._engine is fake_engine
     if os.path.exists(url2):
         os.unlink(url2)
 
