@@ -1159,3 +1159,70 @@ class TestProcessorHeartbeat:
         processor.stop()
 
         assert not heartbeat_stale(lock_path, 30)
+
+    def test_processor_heartbeat_missing_path(self, tmp_path):
+        from dracs.jobqueue import JobProcessor
+
+        # Missing directory: the heartbeat touch must fail softly.
+        processor = JobProcessor(
+            poll_interval=0.05, heartbeat_path=str(tmp_path / "no" / "hb.lock")
+        )
+        processor.start()
+        time.sleep(0.3)
+        processor.stop()
+        assert processor.is_running is False
+
+
+class TestProcessorWatchdog:
+    def _load_gunicorn_conf(self):
+        from pathlib import Path
+
+        conf_path = Path(__file__).parent.parent / "src" / "dracs" / "gunicorn.conf.py"
+        spec = importlib.util.spec_from_file_location("gunicorn_conf", str(conf_path))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+
+    def test_stale_holder_pid_branches(self, tmp_path):
+        lock_path = str(tmp_path / "hb.lock")
+        conf = self._load_gunicorn_conf()
+
+        # Empty / unparsable lock file.
+        with open(lock_path, "w") as f:
+            f.write("nope\n")
+        assert conf._stale_holder_pid(lock_path, 120) is None
+
+        # Missing file.
+        assert conf._stale_holder_pid(str(tmp_path / "missing"), 120) is None
+
+        # Live holder, fresh heartbeat.
+        with open(lock_path, "w") as f:
+            f.write(f"{os.getpid()}\n")
+        assert conf._stale_holder_pid(lock_path, 120) is None
+
+        # Live holder, stale heartbeat.
+        old = time.time() - 300
+        os.utime(lock_path, (old, old))
+        assert conf._stale_holder_pid(lock_path, 120) == os.getpid()
+
+        # Dead holder (unlikely PID), stale heartbeat.
+        with open(lock_path, "w") as f:
+            f.write("4194304\n")
+        os.utime(lock_path, (old, old))
+        assert conf._stale_holder_pid(lock_path, 120) is None
+
+    def test_watchdog_logs_stale_heartbeat(self, tmp_path):
+        lock_path = str(tmp_path / "hb.lock")
+        with open(lock_path, "w") as f:
+            f.write(f"{os.getpid()}\n")
+        old = time.time() - 300
+        os.utime(lock_path, (old, old))
+
+        conf = self._load_gunicorn_conf()
+        real_sleep = time.sleep
+        with patch("time.sleep", side_effect=lambda s: real_sleep(0.01)):
+            with patch.object(conf.logging.getLogger("dracs"), "error") as mock_error:
+                conf._start_processor_watchdog(lock_path)
+                real_sleep(0.2)
+
+        mock_error.assert_called()

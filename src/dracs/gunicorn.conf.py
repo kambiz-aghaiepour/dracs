@@ -65,6 +65,23 @@ def on_starting(server):
         ).start()
 
 
+def _stale_holder_pid(lock_path: str, max_age_secs: float):
+    """PID of the alive lock holder whose heartbeat is stale, else None."""
+    from dracs.jobqueue import heartbeat_stale
+
+    try:
+        holder_pid = int(open(lock_path).read().strip())
+    except (OSError, ValueError):
+        return None
+    try:
+        os.kill(holder_pid, 0)
+    except OSError:
+        return None  # holder gone; flock will be released
+    if not heartbeat_stale(lock_path, max_age_secs):
+        return None
+    return holder_pid
+
+
 def _start_processor_watchdog(lock_path: str) -> None:
     """Log when the job processor lock holder stops heartbeating.
 
@@ -75,22 +92,13 @@ def _start_processor_watchdog(lock_path: str) -> None:
     import threading
     import time
 
-    from dracs.jobqueue import heartbeat_stale
-
     heartbeat_max_age = float(os.environ.get("JOB_PROCESSOR_HEARTBEAT_MAX_AGE", "120"))
 
     def watch() -> None:
         while True:
             time.sleep(30)
-            try:
-                holder_pid = int(open(lock_path).read().strip())
-            except (OSError, ValueError):
-                continue
-            try:
-                os.kill(holder_pid, 0)
-            except OSError:
-                continue  # holder gone; flock will be released
-            if not heartbeat_stale(lock_path, heartbeat_max_age):
+            holder_pid = _stale_holder_pid(lock_path, heartbeat_max_age)
+            if holder_pid is None:
                 continue
             logging.getLogger("dracs").error(
                 "Job processor heartbeat stale (holder pid %s): processor "

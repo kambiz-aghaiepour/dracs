@@ -15,6 +15,9 @@ def test_db_initialize_enables_wal(temp_db):
 
 
 def test_add_column_safe_duplicate_column(temp_db):
+    import pytest
+    from sqlalchemy.exc import OperationalError
+
     from dracs.db import _add_column_safe
 
     db_initialize(temp_db)
@@ -22,8 +25,13 @@ def test_add_column_safe_duplicate_column(temp_db):
 
     # Concurrent workers may both run the same migration; the second
     # ALTER must be tolerated ("duplicate column name").
-    _add_column_safe(engine, "systems", "extra_col VARCHAR")
-    _add_column_safe(engine, "systems", "extra_col VARCHAR")
+    stmt = "ALTER TABLE systems ADD COLUMN extra_col VARCHAR"
+    _add_column_safe(engine, stmt)
+    _add_column_safe(engine, stmt)
+
+    # Other ALTER errors must still propagate.
+    with pytest.raises(OperationalError):
+        _add_column_safe(engine, "ALTER TABLE missing_table ADD COLUMN x TEXT")
 
 
 def test_db_initialize_waits_for_write_lock(temp_db):

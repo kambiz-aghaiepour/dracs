@@ -409,14 +409,14 @@ def make_db_url(path: str) -> str:
     return f"sqlite:///{path}"
 
 
-def _add_column_safe(engine, table: str, column_def: str) -> None:
+def _add_column_safe(engine, statement: str) -> None:
     """ADD COLUMN tolerant of concurrent workers doing the same migration
     (every gunicorn worker runs db_initialize at import)."""
     from sqlalchemy import text
 
     try:
         with engine.begin() as conn:
-            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column_def}"))
+            conn.execute(text(statement))
     except OperationalError as exc:
         if "duplicate column" not in str(exc).lower():
             raise
@@ -431,16 +431,18 @@ def _migrate_schema(engine) -> None:
     if "jobs" in tables:
         columns = {c["name"] for c in inspector.get_columns("jobs")}
         if "metadata_json" not in columns:
-            _add_column_safe(engine, "jobs", "metadata_json TEXT")
+            _add_column_safe(engine, "ALTER TABLE jobs ADD COLUMN metadata_json TEXT")
         if "site_id" not in columns:
-            _add_column_safe(engine, "jobs", "site_id INTEGER")
+            _add_column_safe(engine, "ALTER TABLE jobs ADD COLUMN site_id INTEGER")
 
     if "systems" in tables:
         columns = {c["name"] for c in inspector.get_columns("systems")}
         if "site_id" not in columns:
-            _add_column_safe(engine, "systems", "site_id INTEGER")
+            _add_column_safe(engine, "ALTER TABLE systems ADD COLUMN site_id INTEGER")
         if "start_date" not in columns:
-            _add_column_safe(engine, "systems", "start_date VARCHAR")
+            _add_column_safe(
+                engine, "ALTER TABLE systems ADD COLUMN start_date VARCHAR"
+            )
 
     if "users" in tables:  # pragma: no cover
         user_cols = {c["name"]: c for c in inspector.get_columns("users")}
@@ -476,16 +478,20 @@ def _migrate_schema(engine) -> None:
         else:
             hc_cols = {c["name"] for c in inspector.get_columns("host_config")}
             if "ssl_fingerprint" not in hc_cols:  # pragma: no cover
-                _add_column_safe(engine, "host_config", "ssl_fingerprint VARCHAR")
+                _add_column_safe(
+                    engine, "ALTER TABLE host_config ADD COLUMN ssl_fingerprint VARCHAR"
+                )
 
     if "sites" in tables:
         site_cols = {c["name"] for c in inspector.get_columns("sites")}
         if "sort_order" not in site_cols:
-            _add_column_safe(engine, "sites", "sort_order INTEGER")
+            _add_column_safe(engine, "ALTER TABLE sites ADD COLUMN sort_order INTEGER")
             with engine.begin() as conn:
                 conn.execute(text("UPDATE sites SET sort_order = id"))
         if "allowed_domains" not in site_cols:
-            _add_column_safe(engine, "sites", "allowed_domains TEXT")
+            _add_column_safe(
+                engine, "ALTER TABLE sites ADD COLUMN allowed_domains TEXT"
+            )
 
 
 def _grandfather_sites(engine) -> None:
