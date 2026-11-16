@@ -2,6 +2,8 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Optional
+import os
+import threading
 
 from sqlalchemy import (
     Boolean,
@@ -25,6 +27,7 @@ _engine = None
 _SessionFactory = None
 _keepalive = None
 _db_url = None
+_init_lock = threading.Lock()
 
 
 class Base(DeclarativeBase):
@@ -701,34 +704,48 @@ def _migrate_collection_tables(engine) -> None:
 def db_initialize(db_url: str) -> None:
     global _engine, _SessionFactory, _keepalive, _db_url
     url = make_db_url(db_url)
+    # "./warranty.db" and "warranty.db" are the same file but distinct keys;
+    # canonicalize so one engine is shared by every caller.
+    if url.startswith("sqlite:///") and not url.startswith("sqlite:///:memory:"):
+        url = "sqlite:///" + os.path.abspath(url[len("sqlite:///") :])
 
     # Job-pool threads re-run db_initialize per job: reuse the engine and
     # keepalive, but still run the idempotent migration checks below.
     if _db_url != url or _engine is None:
-        _db_url = url
+        with _init_lock:
+            # Two threads can pass the check above; re-check under the lock.
+            if _db_url == url and _engine is not None:
+                url = _db_url
+            else:
+                _db_url = url
+                if _keepalive is not None:
+                    _keepalive[1].close()
+                    _keepalive = None
 
-        if url.startswith("sqlite"):
-            # WAL + busy timeout: concurrent writers (import-time
-            # db_initialize in every gunicorn worker, job pool threads) must
-            # wait instead of failing with "database is locked".
-            _engine = create_engine(
-                url, poolclass=NullPool, connect_args={"timeout": 30}
-            )
-            if _keepalive is not None and _keepalive[0] is not _engine:
-                _keepalive[1].close()
-            with _engine.connect() as conn:
-                if conn.exec_driver_sql("PRAGMA journal_mode").scalar() != "wal":
-                    conn.exec_driver_sql("PRAGMA journal_mode=WAL")
-            # Pin the -wal/-shm files: SQLite deletes them when the last
-            # connection that actually used them closes, leaving the job
-            # pool holding fds to deleted files -> "disk I/O error". The
-            # SELECT 1 registers this connection with the WAL (a connection
-            # opened but never used does not pin the files).
-            _keepalive = (_engine, _engine.connect())
-            _keepalive[1].exec_driver_sql("SELECT 1")
-            _keepalive[1].rollback()
-        else:
-            _engine = create_engine(url)  # pragma: no cover
+                if url.startswith("sqlite"):
+                    # WAL + busy timeout: concurrent writers (import-time
+                    # db_initialize in every gunicorn worker, job pool
+                    # threads) must wait instead of failing with "database
+                    # is locked".
+                    _engine = create_engine(
+                        url, poolclass=NullPool, connect_args={"timeout": 30}
+                    )
+                    with _engine.connect() as conn:
+                        if (
+                            conn.exec_driver_sql("PRAGMA journal_mode").scalar()
+                            != "wal"
+                        ):
+                            conn.exec_driver_sql("PRAGMA journal_mode=WAL")
+                    # Pin the -wal/-shm files: SQLite deletes them when the
+                    # last connection that actually used them closes, leaving
+                    # the job pool holding fds to deleted files -> "disk I/O
+                    # error". The SELECT 1 registers this connection with the
+                    # WAL (a connection opened but never used does not pin).
+                    _keepalive = (_engine, _engine.connect())
+                    _keepalive[1].exec_driver_sql("SELECT 1")
+                    _keepalive[1].rollback()
+                else:
+                    _engine = create_engine(url)  # pragma: no cover
 
     _migrate_schema(_engine)
     Base.metadata.create_all(_engine)
