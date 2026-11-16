@@ -1220,9 +1220,16 @@ class TestProcessorWatchdog:
 
         conf = self._load_gunicorn_conf()
         real_sleep = time.sleep
-        with patch("time.sleep", side_effect=lambda s: real_sleep(0.01)):
-            with patch.object(conf.logging.getLogger("dracs"), "error") as mock_error:
-                conf._start_processor_watchdog(lock_path)
-                real_sleep(0.2)
+        try:
+            with patch("time.sleep", side_effect=lambda s: real_sleep(0.01)):
+                with patch.object(
+                    conf.logging.getLogger("dracs"), "error"
+                ) as mock_error:
+                    conf._start_processor_watchdog(lock_path)
+                    real_sleep(0.2)
 
-        mock_error.assert_called()
+            mock_error.assert_called()
+        finally:
+            # Leave the daemon watchdog with a fresh heartbeat so it
+            # stops logging stale warnings for the rest of the run.
+            os.utime(lock_path, None)
