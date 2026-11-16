@@ -710,11 +710,13 @@ def db_initialize(db_url: str) -> None:
         url = "sqlite:///" + os.path.abspath(url[len("sqlite:///") :])
 
     # Job-pool threads re-run db_initialize per job: reuse the engine and
-    # keepalive, but still run the idempotent migration checks below.
-    if _db_url != url or _engine is None:
+    # keepalive, but still run the idempotent migration checks below. A
+    # missing keepalive means a previous attempt died halfway (e.g. the WAL
+    # switch timed out), so re-initialize rather than lose the WAL pin.
+    if _db_url != url or _engine is None or _keepalive is None:
         with _init_lock:
             # Two threads can pass the check above; re-check under the lock.
-            if _db_url == url and _engine is not None:
+            if _db_url == url and _engine is not None and _keepalive is not None:
                 url = _db_url
             else:
                 _db_url = url

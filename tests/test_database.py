@@ -82,6 +82,20 @@ def test_db_initialize_blocks_on_init_lock(temp_db):
         os.unlink(url2)
 
 
+def test_db_initialize_recovers_after_partial_failure(temp_db):
+    """A same-URL retry after a failed init attempt (no keepalive) re-inits."""
+    from dracs import db as db_mod
+
+    db_initialize(temp_db)
+    # Simulate an init that died between engine creation and keepalive.
+    db_mod._keepalive = None
+
+    db_initialize(temp_db)
+
+    assert db_mod._keepalive is not None
+    assert db_mod._keepalive[0] is db_mod._engine
+
+
 def test_keepalive_pins_wal_files(temp_db):
     """The pinned keepalive connection keeps -wal/-shm after writes."""
     import os
