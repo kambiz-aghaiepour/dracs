@@ -685,7 +685,12 @@ def db_initialize(db_url: str) -> None:
     url = make_db_url(db_url)
 
     if url.startswith("sqlite"):
-        _engine = create_engine(url, poolclass=NullPool)
+        # WAL + busy timeout: concurrent writers (import-time
+        # db_initialize in every gunicorn worker, job pool threads) must
+        # wait instead of failing with "database is locked".
+        _engine = create_engine(url, poolclass=NullPool, connect_args={"timeout": 30})
+        with _engine.connect() as conn:
+            conn.exec_driver_sql("PRAGMA journal_mode=WAL")
     else:
         _engine = create_engine(url)  # pragma: no cover
 

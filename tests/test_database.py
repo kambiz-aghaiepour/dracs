@@ -1,7 +1,17 @@
+import sqlite3
+
 from sqlalchemy import create_engine, inspect
 
 from dracs import db_initialize, System
 from dracs.db import get_session, upsert_system, query_by_service_tag, query_by_hostname
+
+
+def test_db_initialize_enables_wal(temp_db):
+    db_initialize(temp_db)
+
+    con = sqlite3.connect(temp_db)
+    assert con.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+    con.close()
 
 
 def test_db_initialize_creates_table(temp_db):

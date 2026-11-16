@@ -1,5 +1,6 @@
 """Gunicorn configuration for DRACS web application."""
 
+import logging
 import os
 
 # Server socket
@@ -103,7 +104,11 @@ def post_worker_init(worker):
         worker._config_collector = config_collector
         worker._job_lock_file = lock_file
     except (IOError, OSError):
-        pass
+        logging.getLogger("dracs").warning(
+            "Job processor already running in another worker "
+            "(lock %s); not starting one here",
+            lock_path,
+        )
 
 
 def on_exit(server):
