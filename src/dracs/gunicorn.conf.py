@@ -40,6 +40,17 @@ def on_starting(server):
         port = int(os.environ.get("VNC_WEBSOCKIFY_PORT", "6080"))
         start_websockify(port, get_token_dir())
 
+
+def when_ready(server):
+    """Start conserver only after workers are forked.
+
+    Starting threads in the gunicorn master (on_starting) and then
+    forking workers can deadlock the children on locks inherited from
+    the master thread (CPython os.fork semantics): the SOL thread runs
+    db_initialize/SQLAlchemy in the master, so workers would block on
+    inherited import/DB mutexes at import (observed on dracs.rdu2).
+    """
+
     if os.environ.get("SOL_ENABLE", "false").lower() in ("true", "1", "yes"):
         import threading
         from pathlib import Path
