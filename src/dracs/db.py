@@ -718,11 +718,14 @@ def db_initialize(db_url: str) -> None:
     # (e.g. the WAL switch timed out), so re-initialize rather than lose the
     # WAL pin. Non-sqlite engines have no keepalive and reuse unconditionally.
     needs_keepalive = url.startswith("sqlite")
-    # Probe the pinned connection on every call: if it died (or the DB file
-    # was replaced, leaving the pin on the unlinked inode), drop it so the
-    # recovery below re-initializes instead of silently reusing without a
-    # WAL pin. Serialized: the keepalive Connection is shared across the
-    # job-pool threads and is not thread-safe.
+    # Probe the pinned connection on every call: if it died or became
+    # unusable, drop it so the recovery below re-initializes instead of
+    # silently reusing without a WAL pin. Serialized: the keepalive
+    # Connection is shared across the job-pool threads and is not
+    # thread-safe.
+    # shortcut: this probe detects a dead/unusable connection, not a
+    # replaced DB file (the pin would sit on the orphaned inode); add a
+    # dev/ino check if file replacement becomes a real scenario.
     if needs_keepalive and _keepalive is not None:
         with _init_lock:
             if _keepalive is not None:
@@ -748,8 +751,9 @@ def db_initialize(db_url: str) -> None:
             else:
                 _db_url = url
                 if _keepalive is not None:
-                    _keepalive[1].close()
+                    keepalive = _keepalive
                     _keepalive = None
+                    keepalive[1].close()
 
                 if url.startswith("sqlite"):
                     # WAL + busy timeout: concurrent writers (import-time
