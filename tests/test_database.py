@@ -14,6 +14,18 @@ def test_db_initialize_enables_wal(temp_db):
     con.close()
 
 
+def test_add_column_safe_duplicate_column(temp_db):
+    from dracs.db import _add_column_safe
+
+    db_initialize(temp_db)
+    engine = create_engine(f"sqlite:///{temp_db}")
+
+    # Concurrent workers may both run the same migration; the second
+    # ALTER must be tolerated ("duplicate column name").
+    _add_column_safe(engine, "systems", "extra_col VARCHAR")
+    _add_column_safe(engine, "systems", "extra_col VARCHAR")
+
+
 def test_db_initialize_waits_for_write_lock(temp_db):
     import threading
     import time

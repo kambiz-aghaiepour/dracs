@@ -1129,3 +1129,33 @@ class TestGunicornHook:
 
         assert not hasattr(worker, "_job_processor")
         lock_file.close()
+
+
+class TestProcessorHeartbeat:
+    def test_heartbeat_stale(self, tmp_path):
+        from dracs.jobqueue import heartbeat_stale
+
+        lock_path = str(tmp_path / "hb.lock")
+        with open(lock_path, "w") as f:
+            f.write("123\n")
+        assert not heartbeat_stale(lock_path, 120)
+
+        old = time.time() - 300
+        os.utime(lock_path, (old, old))
+        assert heartbeat_stale(lock_path, 120)
+
+        assert heartbeat_stale(str(tmp_path / "missing.lock"), 120)
+
+    def test_processor_updates_heartbeat(self, tmp_path):
+        from dracs.jobqueue import JobProcessor, heartbeat_stale
+
+        lock_path = str(tmp_path / "hb.lock")
+        with open(lock_path, "w") as f:
+            f.write("123\n")
+
+        processor = JobProcessor(poll_interval=0.05, heartbeat_path=lock_path)
+        processor.start()
+        time.sleep(0.4)
+        processor.stop()
+
+        assert not heartbeat_stale(lock_path, 30)

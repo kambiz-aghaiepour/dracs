@@ -65,6 +65,42 @@ def on_starting(server):
         ).start()
 
 
+def _start_processor_watchdog(lock_path: str) -> None:
+    """Log when the job processor lock holder stops heartbeating.
+
+    The flock itself survives a hung holder, so a stale heartbeat is the
+    only signal that the single processor is stuck (incident 2026-10-26:
+    three weeks with no job processed).
+    """
+    import threading
+    import time
+
+    from dracs.jobqueue import heartbeat_stale
+
+    heartbeat_max_age = float(os.environ.get("JOB_PROCESSOR_HEARTBEAT_MAX_AGE", "120"))
+
+    def watch() -> None:
+        while True:
+            time.sleep(30)
+            try:
+                holder_pid = int(open(lock_path).read().strip())
+            except (OSError, ValueError):
+                continue
+            try:
+                os.kill(holder_pid, 0)
+            except OSError:
+                continue  # holder gone; flock will be released
+            if not heartbeat_stale(lock_path, heartbeat_max_age):
+                continue
+            logging.getLogger("dracs").error(
+                "Job processor heartbeat stale (holder pid %s): processor "
+                "appears hung; inspect and restart dracs-webapp",
+                holder_pid,
+            )
+
+    threading.Thread(target=watch, daemon=True).start()
+
+
 def post_worker_init(worker):
     """Start job processor in exactly one gunicorn worker using a file lock."""
     import fcntl
@@ -78,13 +114,20 @@ def post_worker_init(worker):
             os.makedirs(lock_dir, exist_ok=True)
         lock_file = open(lock_path, "w")
         fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        lock_file.write(f"{os.getpid()}\n")
+        lock_file.flush()
 
-        from dracs.jobqueue import JobProcessor, JobScheduler, recover_stale_jobs
+        from dracs.jobqueue import (
+            JobProcessor,
+            JobScheduler,
+            heartbeat_stale,
+            recover_stale_jobs,
+        )
 
         recover_stale_jobs()
 
         max_workers = int(os.environ.get("JOB_MAX_WORKERS", "50"))
-        processor = JobProcessor(max_workers=max_workers)
+        processor = JobProcessor(max_workers=max_workers, heartbeat_path=lock_path)
         processor.start()
 
         schedule_path = os.environ.get(
@@ -109,6 +152,8 @@ def post_worker_init(worker):
             lock_path,
             exc,
         )
+    finally:
+        _start_processor_watchdog(lock_path)
 
 
 def on_exit(server):

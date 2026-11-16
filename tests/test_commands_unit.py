@@ -105,6 +105,24 @@ class TestAddDellWarranty:
         assert results[0][5] == ""
         assert results[0][6] == 0
 
+    @patch("dracs.commands.dell_api_warranty_date", return_value={})
+    @patch("dracs.commands.get_snmp_value", new_callable=AsyncMock)
+    @patch("dracs.commands.build_idrac_hostname", return_value="mgmt-server01")
+    def test_add_new_system_api_omits_tag_still_adds(
+        self, mock_build, mock_snmp, mock_api, temp_db
+    ):
+        mock_snmp.side_effect = ["2.1.0", "7.0.0"]
+
+        with patch.dict(os.environ, {"SNMP_COMMUNITY": "public"}):
+            asyncio.run(add_dell_warranty("TAG001", "server01", "R660", temp_db))
+
+        from dracs.db import query_by_service_tag
+
+        results = query_by_service_tag("TAG001")
+        assert len(results) == 1
+        assert results[0][5] == ""
+        assert results[0][6] == 0
+
     @patch("dracs.commands.get_snmp_value", new_callable=AsyncMock)
     @patch("dracs.commands.build_idrac_hostname", return_value="mgmt-server01")
     def test_add_multiple_records_raises(self, mock_build, mock_snmp, temp_db):
@@ -807,6 +825,37 @@ class TestRefreshDellWarranty:
         assert results[0][2] == "R670"
         assert results[0][3] == "8.2.0"
         assert results[0][4] == "3.2.0"
+        assert results[0][5] == "Jan 1, 2027"
+        assert results[0][6] == 1735689600
+        assert results[0][7] == "September 1, 2020"
+
+    @patch("dracs.commands.dell_api_warranty_date", return_value={})
+    @patch("dracs.commands.get_snmp_value", new_callable=AsyncMock)
+    @patch("dracs.commands.build_idrac_hostname", return_value="mgmt-server01")
+    def test_api_omits_tag_keeps_warranty(
+        self, mock_build, mock_snmp, mock_api, temp_db
+    ):
+        db_initialize(temp_db)
+        upsert_system(
+            temp_db,
+            "TAG001",
+            "server01",
+            "R660",
+            "7.0.0",
+            "2.1.0",
+            "Jan 1, 2027",
+            1735689600,
+            "September 1, 2020",
+        )
+        mock_snmp.side_effect = ["3.2.0", "8.2.0", "R670"]
+
+        with patch.dict(os.environ, {"SNMP_COMMUNITY": "public"}):
+            asyncio.run(refresh_dell_warranty("TAG001", None, temp_db))
+
+        from dracs.db import query_by_service_tag
+
+        results = query_by_service_tag("TAG001")
+        assert len(results) == 1
         assert results[0][5] == "Jan 1, 2027"
         assert results[0][6] == 1735689600
         assert results[0][7] == "September 1, 2020"
