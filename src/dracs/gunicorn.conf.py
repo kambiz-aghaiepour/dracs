@@ -103,11 +103,11 @@ def post_worker_init(worker):
         worker._job_scheduler = scheduler
         worker._config_collector = config_collector
         worker._job_lock_file = lock_file
-    except (IOError, OSError):
+    except (IOError, OSError) as exc:
         logging.getLogger("dracs").warning(
-            "Job processor already running in another worker "
-            "(lock %s); not starting one here",
+            "Failed to start job processor in this worker " "(lock %s): %s",
             lock_path,
+            exc,
         )
 
 

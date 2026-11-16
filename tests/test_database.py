@@ -14,6 +14,37 @@ def test_db_initialize_enables_wal(temp_db):
     con.close()
 
 
+def test_db_initialize_waits_for_write_lock(temp_db):
+    import threading
+    import time
+
+    db_initialize(temp_db)
+
+    release = threading.Event()
+
+    def hold_write_lock():
+        con = sqlite3.connect(temp_db)
+        con.execute("BEGIN IMMEDIATE")
+        con.execute("INSERT INTO systems (svc_tag, name) VALUES ('LOCK', 'holder')")
+        release.wait(timeout=60)
+        con.rollback()
+        con.close()
+
+    holder = threading.Thread(target=hold_write_lock)
+    holder.start()
+    time.sleep(1)  # let the writer acquire the write lock
+    # Release after ~6s: longer than sqlite3's default 5s busy timeout,
+    # so pre-fix code fails with "database is locked" instead of waiting.
+    threading.Timer(6.0, release.set).start()
+
+    # A second worker's import-time db_initialize must block on the lock
+    # and succeed once it is released.
+    db_initialize(temp_db)
+
+    holder.join(timeout=10)
+    assert not holder.is_alive()
+
+
 def test_db_initialize_creates_table(temp_db):
     db_initialize(temp_db)
 
