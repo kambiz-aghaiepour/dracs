@@ -1184,39 +1184,55 @@ class TestProcessorWatchdog:
         return mod
 
     def test_stale_holder_pid_branches(self, tmp_path):
-        lock_path = str(tmp_path / "hb.lock")
+        pid_path = str(tmp_path / "hb.pid")
         conf = self._load_gunicorn_conf()
 
-        # Empty / unparsable lock file.
-        with open(lock_path, "w") as f:
+        # Empty / unparsable pid file.
+        with open(pid_path, "w") as f:
             f.write("nope\n")
-        assert conf._stale_holder_pid(lock_path, 120) is None
+        assert conf._stale_holder_pid(pid_path, 120) is None
 
         # Missing file.
-        assert conf._stale_holder_pid(str(tmp_path / "missing"), 120) is None
+        assert conf._stale_holder_pid(str(tmp_path / "missing.pid"), 120) is None
 
         # Live holder, fresh heartbeat.
-        with open(lock_path, "w") as f:
+        with open(pid_path, "w") as f:
             f.write(f"{os.getpid()}\n")
-        assert conf._stale_holder_pid(lock_path, 120) is None
+        assert conf._stale_holder_pid(pid_path, 120) is None
 
         # Live holder, stale heartbeat.
         old = time.time() - 300
-        os.utime(lock_path, (old, old))
-        assert conf._stale_holder_pid(lock_path, 120) == os.getpid()
+        os.utime(pid_path, (old, old))
+        assert conf._stale_holder_pid(pid_path, 120) == os.getpid()
 
         # Dead holder (unlikely PID), stale heartbeat.
-        with open(lock_path, "w") as f:
+        with open(pid_path, "w") as f:
             f.write("4194304\n")
-        os.utime(lock_path, (old, old))
-        assert conf._stale_holder_pid(lock_path, 120) is None
+        os.utime(pid_path, (old, old))
+        assert conf._stale_holder_pid(pid_path, 120) is None
+
+    def test_pid_survives_loser_lock_open(self, tmp_path):
+        # Regression: losing workers open the flock lock file with "w",
+        # truncating it. The PID lives in a separate file so it survives.
+        lock_path = str(tmp_path / "hb.lock")
+        pid_path = f"{lock_path}.pid"
+        with open(lock_path, "w") as f:
+            f.write("")
+        with open(pid_path, "w") as f:
+            f.write(f"{os.getpid()}\n")
+
+        loser_lock = open(lock_path, "w")
+        loser_lock.close()
+
+        with open(pid_path) as f:
+            assert int(f.read().strip()) == os.getpid()
 
     def test_watchdog_logs_stale_heartbeat(self, tmp_path):
-        lock_path = str(tmp_path / "hb.lock")
-        with open(lock_path, "w") as f:
+        pid_path = str(tmp_path / "hb.pid")
+        with open(pid_path, "w") as f:
             f.write(f"{os.getpid()}\n")
         old = time.time() - 300
-        os.utime(lock_path, (old, old))
+        os.utime(pid_path, (old, old))
 
         conf = self._load_gunicorn_conf()
         real_sleep = time.sleep
@@ -1225,11 +1241,12 @@ class TestProcessorWatchdog:
                 with patch.object(
                     conf.logging.getLogger("dracs"), "error"
                 ) as mock_error:
-                    conf._start_processor_watchdog(lock_path)
+                    conf._start_processor_watchdog(pid_path)
                     real_sleep(0.2)
 
-            mock_error.assert_called()
+            # Throttled: logged exactly once per stale episode.
+            mock_error.assert_called_once()
         finally:
             # Leave the daemon watchdog with a fresh heartbeat so it
             # stops logging stale warnings for the rest of the run.
-            os.utime(lock_path, None)
+            os.utime(pid_path, None)
