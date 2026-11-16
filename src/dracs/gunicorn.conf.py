@@ -120,7 +120,6 @@ def post_worker_init(worker):
         from dracs.jobqueue import (
             JobProcessor,
             JobScheduler,
-            heartbeat_stale,
             recover_stale_jobs,
         )
 
