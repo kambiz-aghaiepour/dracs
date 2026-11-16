@@ -33,7 +33,7 @@ daemon = False
 
 
 def on_starting(server):
-    """Start websockify for VNC console support and conserver for IPMI SOL."""
+    """Start websockify for VNC console support."""
     if os.environ.get("VNC_ENABLE", "false").lower() in ("true", "1", "yes"):
         from dracs.vnc import get_token_dir, start_websockify
 
@@ -41,39 +41,37 @@ def on_starting(server):
         start_websockify(port, get_token_dir())
 
 
-def when_ready(server):
-    """Start conserver only after workers are forked.
+def _start_sol() -> None:
+    """Start IPMI SOL in a thread.
 
-    Starting threads in the gunicorn master (on_starting) and then
-    forking workers can deadlock the children on locks inherited from
-    the master thread (CPython os.fork semantics): the SOL thread runs
-    db_initialize/SQLAlchemy in the master, so workers would block on
-    inherited import/DB mutexes at import (observed on dracs.rdu2).
+    Runs inside a worker (post_worker_init): starting threads in the
+    gunicorn master and then forking workers can deadlock the children on
+    locks inherited from the master thread (CPython os.fork semantics).
     """
+    if os.environ.get("SOL_ENABLE", "false").lower() not in ("true", "1", "yes"):
+        return
+    import threading
+    from pathlib import Path
 
-    if os.environ.get("SOL_ENABLE", "false").lower() in ("true", "1", "yes"):
-        import threading
-        from pathlib import Path
+    from dracs.sol import startup as sol_startup
 
-        from dracs.sol import startup as sol_startup
-
-        threading.Thread(
-            target=sol_startup,
-            args=(
-                os.environ.get("DRACS_DB", "./warranty.db"),
-                None,
-                Path(os.environ.get("SOL_CONSERVER_CF", "/etc/dracs/conserver.cf")),
-                Path(
-                    os.environ.get(
-                        "SOL_CONSERVER_PASSWD", "/etc/dracs/conserver.passwd"
-                    )
-                ),
-                Path(
-                    os.environ.get("SOL_CONSERVER_LOGDIR", "/var/log/dracs/conserver")
-                ),
+    threading.Thread(
+        target=sol_startup,
+        args=(
+            os.environ.get("DRACS_DB", "./warranty.db"),
+            None,
+            Path(os.environ.get("SOL_CONSERVER_CF", "/etc/dracs/conserver.cf")),
+            Path(
+                os.environ.get(
+                    "SOL_CONSERVER_PASSWD", "/etc/dracs/conserver.passwd"
+                )
             ),
-            daemon=True,
-        ).start()
+            Path(
+                os.environ.get("SOL_CONSERVER_LOGDIR", "/var/log/dracs/conserver")
+            ),
+        ),
+        daemon=True,
+    ).start()
 
 
 def _stale_holder_pid(pid_path: str, max_age_secs: float):
@@ -169,6 +167,8 @@ def post_worker_init(worker):
         config_collector = ConfigCollector()
         config_collector.start()
         _set_cc(config_collector)
+
+        _start_sol()
 
         worker._job_processor = processor
         worker._job_scheduler = scheduler

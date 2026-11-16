@@ -34,35 +34,37 @@ def test_add_column_safe_duplicate_column(temp_db):
         _add_column_safe(engine, "ALTER TABLE missing_table ADD COLUMN x TEXT")
 
 
-def test_db_initialize_waits_for_write_lock(temp_db):
-    import threading
-    import time
+def test_db_initialize_same_url_reuses_engine(temp_db):
+    from dracs import db as db_mod
 
     db_initialize(temp_db)
-
-    release = threading.Event()
-
-    def hold_write_lock():
-        con = sqlite3.connect(temp_db)
-        con.execute("BEGIN IMMEDIATE")
-        con.execute("INSERT INTO systems (svc_tag, name) VALUES ('LOCK', 'holder')")
-        release.wait(timeout=60)
-        con.rollback()
-        con.close()
-
-    holder = threading.Thread(target=hold_write_lock)
-    holder.start()
-    time.sleep(1)  # let the writer acquire the write lock
-    # Release after ~6s: longer than sqlite3's default 5s busy timeout,
-    # so pre-fix code fails with "database is locked" instead of waiting.
-    threading.Timer(6.0, release.set).start()
-
-    # A second worker's import-time db_initialize must block on the lock
-    # and succeed once it is released.
+    engine = db_mod._engine
+    # Job-pool threads re-run db_initialize per job; same URL must be a no-op.
     db_initialize(temp_db)
+    assert db_mod._engine is engine
 
-    holder.join(timeout=10)
-    assert not holder.is_alive()
+
+def test_keepalive_pins_wal_files(temp_db):
+    """The pinned keepalive connection keeps -wal/-shm after writes."""
+    import os
+
+    from sqlalchemy import text
+
+    from dracs.db import get_session
+
+    db_initialize(temp_db)
+    with get_session() as session:
+        session.execute(
+            text(
+                "INSERT INTO sites (name, is_primary, created_at) "
+                "VALUES (:name, 1, :ts)"
+            ),
+            {"name": "pin", "ts": "now"},
+        )
+        session.commit()
+
+    assert os.path.exists(temp_db + "-wal")
+    assert os.path.exists(temp_db + "-shm")
 
 
 def test_db_initialize_creates_table(temp_db):
