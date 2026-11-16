@@ -61,14 +61,8 @@ def _start_sol() -> None:
             os.environ.get("DRACS_DB", "./warranty.db"),
             None,
             Path(os.environ.get("SOL_CONSERVER_CF", "/etc/dracs/conserver.cf")),
-            Path(
-                os.environ.get(
-                    "SOL_CONSERVER_PASSWD", "/etc/dracs/conserver.passwd"
-                )
-            ),
-            Path(
-                os.environ.get("SOL_CONSERVER_LOGDIR", "/var/log/dracs/conserver")
-            ),
+            Path(os.environ.get("SOL_CONSERVER_PASSWD", "/etc/dracs/conserver.passwd")),
+            Path(os.environ.get("SOL_CONSERVER_LOGDIR", "/var/log/dracs/conserver")),
         ),
         daemon=True,
     ).start()
