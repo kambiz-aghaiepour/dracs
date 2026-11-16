@@ -23,6 +23,7 @@ from sqlalchemy.orm import (
 
 _engine = None
 _SessionFactory = None
+_keepalive = None
 
 
 class Base(DeclarativeBase):
@@ -512,14 +513,20 @@ def _grandfather_sites(engine) -> None:
             ).fetchone()
         default_id = row[0]
 
-        conn.execute(
-            text("UPDATE systems SET site_id = :sid WHERE site_id IS NULL"),
-            {"sid": default_id},
-        )
-        conn.execute(
-            text("UPDATE jobs SET site_id = :sid WHERE site_id IS NULL"),
-            {"sid": default_id},
-        )
+        if conn.execute(
+            text("SELECT COUNT(*) FROM systems WHERE site_id IS NULL")
+        ).scalar():
+            conn.execute(
+                text("UPDATE systems SET site_id = :sid WHERE site_id IS NULL"),
+                {"sid": default_id},
+            )
+        if conn.execute(
+            text("SELECT COUNT(*) FROM jobs WHERE site_id IS NULL")
+        ).scalar():
+            conn.execute(
+                text("UPDATE jobs SET site_id = :sid WHERE site_id IS NULL"),
+                {"sid": default_id},
+            )
 
 
 def _seed_attr_defs(engine) -> None:
@@ -691,7 +698,7 @@ def _migrate_collection_tables(engine) -> None:
 
 
 def db_initialize(db_url: str) -> None:
-    global _engine, _SessionFactory
+    global _engine, _SessionFactory, _keepalive
     url = make_db_url(db_url)
 
     if url.startswith("sqlite"):
@@ -699,8 +706,16 @@ def db_initialize(db_url: str) -> None:
         # db_initialize in every gunicorn worker, job pool threads) must
         # wait instead of failing with "database is locked".
         _engine = create_engine(url, poolclass=NullPool, connect_args={"timeout": 30})
+        global _keepalive
+        if _keepalive is not None and _keepalive[0] is not _engine:
+            _keepalive[1].close()
+        # Keep one connection open for the process lifetime: with NullPool the
+        # last closing connection makes SQLite delete the -wal/-shm files, and
+        # connections held by the job pool then use deleted fds -> IOERR.
+        _keepalive = (_engine, _engine.connect())
         with _engine.connect() as conn:
-            conn.exec_driver_sql("PRAGMA journal_mode=WAL")
+            if conn.exec_driver_sql("PRAGMA journal_mode").scalar() != "wal":
+                conn.exec_driver_sql("PRAGMA journal_mode=WAL")
     else:
         _engine = create_engine(url)  # pragma: no cover
 
