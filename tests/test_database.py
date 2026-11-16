@@ -44,6 +44,44 @@ def test_db_initialize_same_url_reuses_engine(temp_db):
     assert db_mod._engine is engine
 
 
+def test_db_initialize_blocks_on_init_lock(temp_db):
+    """A thread that passes the URL check while another thread holds the
+    init lock must reuse the winner's engine (check-then-act race)."""
+    import os
+    import threading
+    import time
+
+    from dracs import db as db_mod
+
+    db_initialize(temp_db)
+    url2 = f"{temp_db}.race.db"
+    canon2 = "sqlite:///" + os.path.abspath(url2)
+
+    db_mod._init_lock.acquire()
+    errors = []
+
+    def worker():
+        try:
+            db_initialize(url2)
+        except Exception as exc:  # pragma: no cover
+            errors.append(exc)
+
+    thread = threading.Thread(target=worker)
+    thread.start()
+    time.sleep(0.2)  # worker passed the URL check and is blocked on the lock
+
+    # Another thread finished initializing url2 while we held the lock.
+    db_mod._engine = db_mod.create_engine(canon2)
+    db_mod._db_url = canon2
+    db_mod._init_lock.release()
+
+    thread.join(timeout=10)
+    assert not thread.is_alive()
+    assert not errors
+    if os.path.exists(url2):
+        os.unlink(url2)
+
+
 def test_keepalive_pins_wal_files(temp_db):
     """The pinned keepalive connection keeps -wal/-shm after writes."""
     import os
