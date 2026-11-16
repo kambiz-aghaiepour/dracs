@@ -18,6 +18,7 @@ from dracs.display import (
     render_tsr_table,
 )
 from dracs.exceptions import (
+    APIError,
     DatabaseError,
     DracsError,
     SNMPError,
@@ -118,8 +119,22 @@ async def add_dell_warranty(
             f"Adding new record for {service_tag}, fetching warranty from Dell API"
         )
         if warranty_results is None:
-            warranty_results = dell_api_warranty_date(service_tag)
-        h_epoch, h_date, h_start = warranty_results[service_tag]
+            try:
+                warranty_results = dell_api_warranty_date(service_tag)
+            except APIError as exc:
+                logger.warning(
+                    "Dell warranty API unavailable for %s (%s); "
+                    "adding record without warranty data",
+                    service_tag,
+                    exc,
+                )
+                warranty_results = None
+        if warranty_results is not None:
+            # The API may answer 200 without this tag (unknown service tag
+            # or no entitlements); treat it like unavailability.
+            h_epoch, h_date, h_start = warranty_results.get(service_tag, (0, "", None))
+        else:
+            h_epoch, h_date, h_start = 0, "", None
 
         if debug_output:
             logger.debug(
@@ -447,8 +462,20 @@ async def refresh_dell_warranty(
         f"Updated SNMP values - Model: {model}, BIOS: {bios_version}, iDRAC: {idrac_version}"
     )
 
-    warranty_results = dell_api_warranty_date(svc_tag)
-    exp_epoch, exp_date, start_date = warranty_results[svc_tag]
+    keep_warranty = (existing[6], old_exp_date, existing[7])
+    try:
+        warranty_results = dell_api_warranty_date(svc_tag)
+        # The API may answer 200 without this tag (unknown service tag
+        # or no entitlements); treat it like unavailability.
+        exp_epoch, exp_date, start_date = warranty_results.get(svc_tag, keep_warranty)
+    except APIError as exc:
+        logger.warning(
+            "Dell warranty API unavailable for %s (%s); "
+            "keeping existing warranty data",
+            svc_tag,
+            exc,
+        )
+        exp_epoch, exp_date, start_date = keep_warranty
 
     logger.debug(f"Updated warranty expiration: {exp_date}")
 

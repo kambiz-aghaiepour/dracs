@@ -276,11 +276,25 @@ def _job_to_dict(job: Job) -> dict:
     }
 
 
+def heartbeat_stale(lock_path: str, max_age_secs: float) -> bool:
+    """True when the lock file has not been touched for max_age_secs."""
+    try:
+        return (time.time() - os.path.getmtime(lock_path)) > max_age_secs
+    except OSError:
+        return True
+
+
 class JobProcessor:
-    def __init__(self, max_workers: int = 50, poll_interval: float = 2.0):
+    def __init__(
+        self,
+        max_workers: int = 50,
+        poll_interval: float = 2.0,
+        heartbeat_path: Optional[str] = None,
+    ):
         """Initialize job processor with bounded thread pool."""
         self._max_workers = max_workers
         self._poll_interval = poll_interval
+        self._heartbeat_path = heartbeat_path
         self._executor = None
         self._running = False
         self._thread = None
@@ -307,6 +321,11 @@ class JobProcessor:
 
     def _run_loop(self) -> None:
         while self._running:
+            if self._heartbeat_path:
+                try:
+                    os.utime(self._heartbeat_path, None)
+                except OSError:
+                    pass
             try:
                 job = claim_next_job(self._worker_id)
                 if job:

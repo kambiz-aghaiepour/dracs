@@ -12,6 +12,7 @@ from sqlalchemy import (
     Integer,
     Text,
 )
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.pool import NullPool
 from sqlalchemy.orm import (
     DeclarativeBase,
@@ -408,6 +409,19 @@ def make_db_url(path: str) -> str:
     return f"sqlite:///{path}"
 
 
+def _add_column_safe(engine, statement: str) -> None:
+    """ADD COLUMN tolerant of concurrent workers doing the same migration
+    (every gunicorn worker runs db_initialize at import)."""
+    from sqlalchemy import text
+
+    try:
+        with engine.begin() as conn:
+            conn.execute(text(statement))
+    except OperationalError as exc:
+        if "duplicate column" not in str(exc).lower():
+            raise
+
+
 def _migrate_schema(engine) -> None:
     from sqlalchemy import inspect, text
 
@@ -417,20 +431,18 @@ def _migrate_schema(engine) -> None:
     if "jobs" in tables:
         columns = {c["name"] for c in inspector.get_columns("jobs")}
         if "metadata_json" not in columns:
-            with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE jobs ADD COLUMN metadata_json TEXT"))
+            _add_column_safe(engine, "ALTER TABLE jobs ADD COLUMN metadata_json TEXT")
         if "site_id" not in columns:
-            with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE jobs ADD COLUMN site_id INTEGER"))
+            _add_column_safe(engine, "ALTER TABLE jobs ADD COLUMN site_id INTEGER")
 
     if "systems" in tables:
         columns = {c["name"] for c in inspector.get_columns("systems")}
         if "site_id" not in columns:
-            with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE systems ADD COLUMN site_id INTEGER"))
+            _add_column_safe(engine, "ALTER TABLE systems ADD COLUMN site_id INTEGER")
         if "start_date" not in columns:
-            with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE systems ADD COLUMN start_date VARCHAR"))
+            _add_column_safe(
+                engine, "ALTER TABLE systems ADD COLUMN start_date VARCHAR"
+            )
 
     if "users" in tables:  # pragma: no cover
         user_cols = {c["name"]: c for c in inspector.get_columns("users")}
@@ -466,22 +478,20 @@ def _migrate_schema(engine) -> None:
         else:
             hc_cols = {c["name"] for c in inspector.get_columns("host_config")}
             if "ssl_fingerprint" not in hc_cols:  # pragma: no cover
-                with engine.begin() as conn:
-                    conn.execute(
-                        text(
-                            "ALTER TABLE host_config ADD COLUMN ssl_fingerprint VARCHAR"
-                        )
-                    )
+                _add_column_safe(
+                    engine, "ALTER TABLE host_config ADD COLUMN ssl_fingerprint VARCHAR"
+                )
 
     if "sites" in tables:
         site_cols = {c["name"] for c in inspector.get_columns("sites")}
         if "sort_order" not in site_cols:
+            _add_column_safe(engine, "ALTER TABLE sites ADD COLUMN sort_order INTEGER")
             with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE sites ADD COLUMN sort_order INTEGER"))
                 conn.execute(text("UPDATE sites SET sort_order = id"))
         if "allowed_domains" not in site_cols:
-            with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE sites ADD COLUMN allowed_domains TEXT"))
+            _add_column_safe(
+                engine, "ALTER TABLE sites ADD COLUMN allowed_domains TEXT"
+            )
 
 
 def _grandfather_sites(engine) -> None:
@@ -685,7 +695,12 @@ def db_initialize(db_url: str) -> None:
     url = make_db_url(db_url)
 
     if url.startswith("sqlite"):
-        _engine = create_engine(url, poolclass=NullPool)
+        # WAL + busy timeout: concurrent writers (import-time
+        # db_initialize in every gunicorn worker, job pool threads) must
+        # wait instead of failing with "database is locked".
+        _engine = create_engine(url, poolclass=NullPool, connect_args={"timeout": 30})
+        with _engine.connect() as conn:
+            conn.exec_driver_sql("PRAGMA journal_mode=WAL")
     else:
         _engine = create_engine(url)  # pragma: no cover
 

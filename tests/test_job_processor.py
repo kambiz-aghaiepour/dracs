@@ -1129,3 +1129,124 @@ class TestGunicornHook:
 
         assert not hasattr(worker, "_job_processor")
         lock_file.close()
+
+
+class TestProcessorHeartbeat:
+    def test_heartbeat_stale(self, tmp_path):
+        from dracs.jobqueue import heartbeat_stale
+
+        lock_path = str(tmp_path / "hb.lock")
+        with open(lock_path, "w") as f:
+            f.write("123\n")
+        assert not heartbeat_stale(lock_path, 120)
+
+        old = time.time() - 300
+        os.utime(lock_path, (old, old))
+        assert heartbeat_stale(lock_path, 120)
+
+        assert heartbeat_stale(str(tmp_path / "missing.lock"), 120)
+
+    def test_processor_updates_heartbeat(self, tmp_path):
+        from dracs.jobqueue import JobProcessor, heartbeat_stale
+
+        lock_path = str(tmp_path / "hb.lock")
+        with open(lock_path, "w") as f:
+            f.write("123\n")
+
+        processor = JobProcessor(poll_interval=0.05, heartbeat_path=lock_path)
+        processor.start()
+        time.sleep(0.4)
+        processor.stop()
+
+        assert not heartbeat_stale(lock_path, 30)
+
+    def test_processor_heartbeat_missing_path(self, tmp_path):
+        from dracs.jobqueue import JobProcessor
+
+        # Missing directory: the heartbeat touch must fail softly.
+        processor = JobProcessor(
+            poll_interval=0.05, heartbeat_path=str(tmp_path / "no" / "hb.lock")
+        )
+        processor.start()
+        time.sleep(0.3)
+        processor.stop()
+        assert processor.is_running is False
+
+
+class TestProcessorWatchdog:
+    def _load_gunicorn_conf(self):
+        from pathlib import Path
+
+        conf_path = Path(__file__).parent.parent / "src" / "dracs" / "gunicorn.conf.py"
+        spec = importlib.util.spec_from_file_location("gunicorn_conf", str(conf_path))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+
+    def test_stale_holder_pid_branches(self, tmp_path):
+        pid_path = str(tmp_path / "hb.pid")
+        conf = self._load_gunicorn_conf()
+
+        # Empty / unparsable pid file.
+        with open(pid_path, "w") as f:
+            f.write("nope\n")
+        assert conf._stale_holder_pid(pid_path, 120) is None
+
+        # Missing file.
+        assert conf._stale_holder_pid(str(tmp_path / "missing.pid"), 120) is None
+
+        # Live holder, fresh heartbeat.
+        with open(pid_path, "w") as f:
+            f.write(f"{os.getpid()}\n")
+        assert conf._stale_holder_pid(pid_path, 120) is None
+
+        # Live holder, stale heartbeat.
+        old = time.time() - 300
+        os.utime(pid_path, (old, old))
+        assert conf._stale_holder_pid(pid_path, 120) == os.getpid()
+
+        # Dead holder (unlikely PID), stale heartbeat.
+        with open(pid_path, "w") as f:
+            f.write("4194304\n")
+        os.utime(pid_path, (old, old))
+        assert conf._stale_holder_pid(pid_path, 120) is None
+
+    def test_pid_survives_loser_lock_open(self, tmp_path):
+        # Regression: losing workers open the flock lock file with "w",
+        # truncating it. The PID lives in a separate file so it survives.
+        lock_path = str(tmp_path / "hb.lock")
+        pid_path = f"{lock_path}.pid"
+        with open(lock_path, "w") as f:
+            f.write("")
+        with open(pid_path, "w") as f:
+            f.write(f"{os.getpid()}\n")
+
+        loser_lock = open(lock_path, "w")
+        loser_lock.close()
+
+        with open(pid_path) as f:
+            assert int(f.read().strip()) == os.getpid()
+
+    def test_watchdog_logs_stale_heartbeat(self, tmp_path):
+        pid_path = str(tmp_path / "hb.pid")
+        with open(pid_path, "w") as f:
+            f.write(f"{os.getpid()}\n")
+        old = time.time() - 300
+        os.utime(pid_path, (old, old))
+
+        conf = self._load_gunicorn_conf()
+        real_sleep = time.sleep
+        try:
+            with patch("time.sleep", side_effect=lambda s: real_sleep(0.01)):
+                with patch.object(
+                    conf.logging.getLogger("dracs"), "error"
+                ) as mock_error:
+                    conf._start_processor_watchdog(pid_path)
+                    real_sleep(0.2)
+
+            # Throttled: logged exactly once per stale episode.
+            mock_error.assert_called_once()
+        finally:
+            # Leave the daemon watchdog with a fresh heartbeat so it
+            # stops logging stale warnings for the rest of the run.
+            os.utime(pid_path, None)
