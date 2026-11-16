@@ -749,9 +749,17 @@ def db_initialize(db_url: str) -> None:
                     # the job pool holding fds to deleted files -> "disk I/O
                     # error". The SELECT 1 registers this connection with the
                     # WAL (a connection opened but never used does not pin).
-                    _keepalive = (_engine, _engine.connect())
-                    _keepalive[1].exec_driver_sql("SELECT 1")
-                    _keepalive[1].rollback()
+                    # Publish the keepalive only after the pin succeeds: a
+                    # failed SELECT 1 leaves _keepalive None so a retry
+                    # re-initializes instead of trusting a non-pinning conn.
+                    keepalive = _engine.connect()
+                    try:
+                        keepalive.exec_driver_sql("SELECT 1")
+                        keepalive.rollback()
+                    except BaseException:
+                        keepalive.close()
+                        raise
+                    _keepalive = (_engine, keepalive)
                 else:
                     _engine = create_engine(url)  # pragma: no cover
 

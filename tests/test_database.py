@@ -100,6 +100,55 @@ def test_db_initialize_recovers_after_partial_failure(temp_db):
     assert db_mod._keepalive[0] is db_mod._engine
 
 
+def test_db_initialize_keepalive_select_failure(temp_db):
+    """A keepalive whose SELECT 1 fails is not published; a retry re-inits."""
+    import pytest
+    from unittest.mock import patch
+
+    from dracs import db as db_mod
+
+    db_initialize(temp_db)
+    db_mod._keepalive = None
+    real_create = db_mod.create_engine
+    state = {"n": 0}
+
+    class KeepaliveFailures:
+        def __init__(self, conn):
+            self._conn = conn
+
+        def exec_driver_sql(self, *args, **kwargs):
+            raise RuntimeError("boom")
+
+        def rollback(self):
+            pass
+
+        def close(self):
+            self._conn.close()
+
+    def flaky_create(*args, **kwargs):
+        engine = real_create(*args, **kwargs)
+        real_connect = engine.connect
+
+        def flaky_connect():
+            conn = real_connect()
+            if state["n"] == 0:
+                state["n"] = 1
+                return conn
+            return KeepaliveFailures(conn)
+
+        engine.connect = flaky_connect
+        return engine
+
+    with patch.object(db_mod, "create_engine", side_effect=flaky_create):
+        with pytest.raises(RuntimeError):
+            db_initialize(temp_db)
+    assert db_mod._keepalive is None
+
+    db_initialize(temp_db)  # retry: pin succeeds, keepalive published
+    assert db_mod._keepalive is not None
+    assert db_mod._keepalive[0] is db_mod._engine
+
+
 def test_keepalive_pins_wal_files(temp_db):
     """The pinned keepalive connection keeps -wal/-shm after writes."""
     import os
