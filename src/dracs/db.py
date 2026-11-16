@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import List, Optional
 import os
 import threading
+import logging
 
 from sqlalchemy import (
     Boolean,
@@ -22,6 +23,8 @@ from sqlalchemy.orm import (
     mapped_column,
     sessionmaker,
 )
+
+logger = logging.getLogger("dracs")
 
 _engine = None
 _SessionFactory = None
@@ -715,6 +718,24 @@ def db_initialize(db_url: str) -> None:
     # (e.g. the WAL switch timed out), so re-initialize rather than lose the
     # WAL pin. Non-sqlite engines have no keepalive and reuse unconditionally.
     needs_keepalive = url.startswith("sqlite")
+    # Probe the pinned connection on every call: if it died (or the DB file
+    # was replaced, leaving the pin on the unlinked inode), drop it so the
+    # recovery below re-initializes instead of silently reusing without a
+    # WAL pin. Serialized: the keepalive Connection is shared across the
+    # job-pool threads and is not thread-safe.
+    if needs_keepalive and _keepalive is not None:
+        with _init_lock:
+            if _keepalive is not None:
+                try:
+                    _keepalive[1].exec_driver_sql("SELECT 1")
+                    _keepalive[1].rollback()
+                except Exception:
+                    _keepalive[1].close()
+                    _keepalive = None
+                    logger.warning(
+                        "dropped dead keepalive connection; re-initializing DB"
+                    )
+
     if _db_url != url or _engine is None or (needs_keepalive and _keepalive is None):
         with _init_lock:
             # Two threads can pass the check above; re-check under the lock.

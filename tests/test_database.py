@@ -57,6 +57,12 @@ def test_db_initialize_blocks_on_init_lock(temp_db):
     url2 = f"{temp_db}.race.db"
     canon2 = "sqlite:///" + os.path.abspath(url2)
 
+    # Fresh-process state: nothing initialized, so the worker's outer check
+    # passes and it blocks on the init lock (no keepalive to probe first).
+    db_mod._db_url = None
+    db_mod._engine = None
+    db_mod._keepalive = None
+
     db_mod._init_lock.acquire()
     errors = []
 
@@ -72,8 +78,12 @@ def test_db_initialize_blocks_on_init_lock(temp_db):
 
     # Another thread finished initializing url2 while we held the lock.
     fake_engine = db_mod.create_engine(canon2)
+    fake_pin = fake_engine.connect()
+    fake_pin.exec_driver_sql("SELECT 1")
+    fake_pin.rollback()
     db_mod._engine = fake_engine
     db_mod._db_url = canon2
+    db_mod._keepalive = (fake_engine, fake_pin)
     db_mod._init_lock.release()
 
     thread.join(timeout=10)
@@ -147,6 +157,21 @@ def test_db_initialize_keepalive_select_failure(temp_db):
     db_initialize(temp_db)  # retry: pin succeeds, keepalive published
     assert db_mod._keepalive is not None
     assert db_mod._keepalive[0] is db_mod._engine
+
+
+def test_db_initialize_probes_stale_keepalive(temp_db):
+    """A dead pinned connection is detected on the next call and replaced."""
+    from dracs import db as db_mod
+
+    db_initialize(temp_db)
+    old = db_mod._keepalive
+    old[1].close()  # simulate a keepalive whose pin silently died
+
+    db_initialize(temp_db)  # same URL: probe must drop and re-pin
+
+    assert db_mod._keepalive is not None
+    assert db_mod._keepalive[0] is db_mod._engine
+    assert db_mod._keepalive[1] is not old[1]
 
 
 def test_keepalive_pins_wal_files(temp_db):
