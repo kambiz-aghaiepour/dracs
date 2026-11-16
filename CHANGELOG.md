@@ -2,6 +2,44 @@
 
 <!-- version list -->
 
+## v2.23.0 (2026-11-16)
+
+### Bug Fixes
+
+- Address review feedback on job processor lock fix
+  ([`9b46e1c`](https://github.com/kambiz-aghaiepour/dracs/commit/9b46e1cfdb3124ea68866632cc113adf49994128))
+
+- Close remaining gaps from review (missing tags, ALTER race, hung processor)
+  ([`c07ed91`](https://github.com/kambiz-aghaiepour/dracs/commit/c07ed91d44a7d20ae7de4364075bc587710f6cb3))
+
+- Keep heartbeat PID in a file losers cannot truncate; throttle stale logs
+  ([`2174116`](https://github.com/kambiz-aghaiepour/dracs/commit/21741164a87e624cf0fcb42cd8624cdca9502733))
+
+- Keep job processor alive despite SQLite lock contention
+  ([`0f655f4`](https://github.com/kambiz-aghaiepour/dracs/commit/0f655f416c6e0ecf08e82772a73779ff260aca31))
+
+- Remove unused heartbeat_stale import (flake8 F401)
+  ([`dc7b8ca`](https://github.com/kambiz-aghaiepour/dracs/commit/dc7b8cab4c6f5250afa4ca9745de66927fafa3b3))
+
+- Satisfy codacy and codecov patch on PR 289
+  ([`8b47e0d`](https://github.com/kambiz-aghaiepour/dracs/commit/8b47e0d97d58c55f242bf9125f4ee56857406746))
+
+### Chores
+
+- Sync spec file version to 2.22.3 [skip ci]
+  ([`d6f177a`](https://github.com/kambiz-aghaiepour/dracs/commit/d6f177a35d8b9fe903b68f20a7dfe76072ebfb61))
+
+### Features
+
+- Keep SNMP data on discover/refresh when Dell warranty API fails
+  ([`a94dc70`](https://github.com/kambiz-aghaiepour/dracs/commit/a94dc709ccda68bdcb3d8bd8c0d84178a49f242b))
+
+### Testing
+
+- Silence daemon watchdog after stale-heartbeat test
+  ([`b9e7ead`](https://github.com/kambiz-aghaiepour/dracs/commit/b9e7ead6b7086714923e22652bb1a65af40dbb4d))
+
+
 ## v2.22.3 (2026-10-16)
 
 ### Bug Fixes
