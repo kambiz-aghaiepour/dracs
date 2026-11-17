@@ -2,6 +2,59 @@
 
 <!-- version list -->
 
+## v2.23.1 (2026-11-17)
+
+### Bug Fixes
+
+- Address PR review on keepalive pinning and SOL thread placement
+  ([`9e03219`](https://github.com/kambiz-aghaiepour/dracs/commit/9e03219ade3675a4f2c91ba5fe0f4f33c318d827))
+
+- Clear the keepalive before closing it; correct probe limitation comment
+  ([`d62759f`](https://github.com/kambiz-aghaiepour/dracs/commit/d62759fa0860b6380d16f3671f24dc3db4f47ca8))
+
+- Keep gunicorn workers and job pool alive under SQLite WAL churn
+  ([`0832a90`](https://github.com/kambiz-aghaiepour/dracs/commit/0832a90e80d1798190e3d7b37fd795f9f19458d6))
+
+- Keep non-sqlite engine reuse; make lock-race test assert reuse
+  ([`a3cce5b`](https://github.com/kambiz-aghaiepour/dracs/commit/a3cce5b3cecd41b9feb88b7ac092a208f21588fe))
+
+- Probe the keepalive on reuse so a dead pin is re-established
+  ([`337455c`](https://github.com/kambiz-aghaiepour/dracs/commit/337455cea081502dab638cdc63b22dbfc32fcc79))
+
+- Publish the keepalive only after the WAL pin succeeds
+  ([`7a45a10`](https://github.com/kambiz-aghaiepour/dracs/commit/7a45a10c90c6c10add635649cfbc409c1fe04e58))
+
+- Recover keepalive after a partial db_initialize; refresh stale SOL docstring
+  ([`5bb1de7`](https://github.com/kambiz-aghaiepour/dracs/commit/5bb1de70f8c5b70fed4cad860f3465977a8b81cc))
+
+- Reset engine globals with the keepalive on a URL swap
+  ([`25b3fe3`](https://github.com/kambiz-aghaiepour/dracs/commit/25b3fe3f65cd693f28ba6385b3b01b16212f7153))
+
+- Start conserver after workers are forked
+  ([`1324ffc`](https://github.com/kambiz-aghaiepour/dracs/commit/1324ffc3ea79e84d15d74b483a8ad26ce6cc5ec7))
+
+- Sync db_initialize swaps and bound the job pool claim rate
+  ([`1d46dad`](https://github.com/kambiz-aghaiepour/dracs/commit/1d46dad5dc4698361465a7c10faf3ef2733aa548))
+
+### Chores
+
+- Sync spec file version to 2.23.0 [skip ci]
+  ([`a5e416c`](https://github.com/kambiz-aghaiepour/dracs/commit/a5e416c444c79fc2111cec78c8a7a73eee15805e))
+
+### Code Style
+
+- Black-format gunicorn.conf.py
+  ([`792ef86`](https://github.com/kambiz-aghaiepour/dracs/commit/792ef861fc66f30abd8fb47ef10a07eccd7ab868))
+
+### Testing
+
+- Cover the db_initialize lock race re-check
+  ([`c908198`](https://github.com/kambiz-aghaiepour/dracs/commit/c9081983b8b04fdec0437e1c40c69b4f30b44b2f))
+
+- Cover the keepalive close-failure path in the URL swap
+  ([`3c2c2f4`](https://github.com/kambiz-aghaiepour/dracs/commit/3c2c2f49634a371db83583ed5c0dfe18036c2926))
+
+
 ## v2.23.0 (2026-11-16)
 
 ### Bug Fixes
