@@ -2,6 +2,9 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Optional
+import os
+import threading
+import logging
 
 from sqlalchemy import (
     Boolean,
@@ -21,8 +24,13 @@ from sqlalchemy.orm import (
     sessionmaker,
 )
 
+logger = logging.getLogger("dracs")
+
 _engine = None
 _SessionFactory = None
+_keepalive = None
+_db_url = None
+_init_lock = threading.Lock()
 
 
 class Base(DeclarativeBase):
@@ -512,14 +520,20 @@ def _grandfather_sites(engine) -> None:
             ).fetchone()
         default_id = row[0]
 
-        conn.execute(
-            text("UPDATE systems SET site_id = :sid WHERE site_id IS NULL"),
-            {"sid": default_id},
-        )
-        conn.execute(
-            text("UPDATE jobs SET site_id = :sid WHERE site_id IS NULL"),
-            {"sid": default_id},
-        )
+        if conn.execute(
+            text("SELECT COUNT(*) FROM systems WHERE site_id IS NULL")
+        ).scalar():
+            conn.execute(
+                text("UPDATE systems SET site_id = :sid WHERE site_id IS NULL"),
+                {"sid": default_id},
+            )
+        if conn.execute(
+            text("SELECT COUNT(*) FROM jobs WHERE site_id IS NULL")
+        ).scalar():
+            conn.execute(
+                text("UPDATE jobs SET site_id = :sid WHERE site_id IS NULL"),
+                {"sid": default_id},
+            )
 
 
 def _seed_attr_defs(engine) -> None:
@@ -691,18 +705,92 @@ def _migrate_collection_tables(engine) -> None:
 
 
 def db_initialize(db_url: str) -> None:
-    global _engine, _SessionFactory
+    global _engine, _SessionFactory, _keepalive, _db_url
     url = make_db_url(db_url)
+    # "./warranty.db" and "warranty.db" are the same file but distinct keys;
+    # canonicalize so one engine is shared by every caller.
+    if url.startswith("sqlite:///") and not url.startswith("sqlite:///:memory:"):
+        url = "sqlite:///" + os.path.abspath(url[len("sqlite:///") :])
 
-    if url.startswith("sqlite"):
-        # WAL + busy timeout: concurrent writers (import-time
-        # db_initialize in every gunicorn worker, job pool threads) must
-        # wait instead of failing with "database is locked".
-        _engine = create_engine(url, poolclass=NullPool, connect_args={"timeout": 30})
-        with _engine.connect() as conn:
-            conn.exec_driver_sql("PRAGMA journal_mode=WAL")
-    else:
-        _engine = create_engine(url)  # pragma: no cover
+    # Job-pool threads re-run db_initialize per job: reuse the engine and
+    # keepalive, but still run the idempotent migration checks below. A
+    # missing keepalive (sqlite only) means a previous attempt died halfway
+    # (e.g. the WAL switch timed out), so re-initialize rather than lose the
+    # WAL pin. Non-sqlite engines have no keepalive and reuse unconditionally.
+    needs_keepalive = url.startswith("sqlite")
+    # Probe the pinned connection on every call: if it died or became
+    # unusable, drop it so the recovery below re-initializes instead of
+    # silently reusing without a WAL pin. Serialized: the keepalive
+    # Connection is shared across the job-pool threads and is not
+    # thread-safe.
+    # shortcut: this probe detects a dead/unusable connection, not a
+    # replaced DB file (the pin would sit on the orphaned inode); add a
+    # dev/ino check if file replacement becomes a real scenario.
+    if needs_keepalive and _keepalive is not None:
+        with _init_lock:
+            if _keepalive is not None:
+                try:
+                    _keepalive[1].exec_driver_sql("SELECT 1")
+                    _keepalive[1].rollback()
+                except Exception:
+                    _keepalive[1].close()
+                    _keepalive = None
+                    logger.warning(
+                        "dropped dead keepalive connection; re-initializing DB"
+                    )
+
+    if _db_url != url or _engine is None or (needs_keepalive and _keepalive is None):
+        with _init_lock:
+            # Two threads can pass the check above; re-check under the lock.
+            if (
+                _db_url == url
+                and _engine is not None
+                and (not needs_keepalive or _keepalive is not None)
+            ):
+                url = _db_url
+            else:
+                _db_url = url
+                if _keepalive is not None:
+                    keepalive = _keepalive
+                    _keepalive = None
+                    # If the close below raises, the globals must not still
+                    # describe the old engine next to the new URL.
+                    _engine = None
+                    _SessionFactory = None
+                    keepalive[1].close()
+
+                if url.startswith("sqlite"):
+                    # WAL + busy timeout: concurrent writers (import-time
+                    # db_initialize in every gunicorn worker, job pool
+                    # threads) must wait instead of failing with "database
+                    # is locked".
+                    _engine = create_engine(
+                        url, poolclass=NullPool, connect_args={"timeout": 30}
+                    )
+                    with _engine.connect() as conn:
+                        if (
+                            conn.exec_driver_sql("PRAGMA journal_mode").scalar()
+                            != "wal"
+                        ):
+                            conn.exec_driver_sql("PRAGMA journal_mode=WAL")
+                    # Pin the -wal/-shm files: SQLite deletes them when the
+                    # last connection that actually used them closes, leaving
+                    # the job pool holding fds to deleted files -> "disk I/O
+                    # error". The SELECT 1 registers this connection with the
+                    # WAL (a connection opened but never used does not pin).
+                    # Publish the keepalive only after the pin succeeds: a
+                    # failed SELECT 1 leaves _keepalive None so a retry
+                    # re-initializes instead of trusting a non-pinning conn.
+                    keepalive = _engine.connect()
+                    try:
+                        keepalive.exec_driver_sql("SELECT 1")
+                        keepalive.rollback()
+                    except BaseException:
+                        keepalive.close()
+                        raise
+                    _keepalive = (_engine, keepalive)
+                else:
+                    _engine = create_engine(url)  # pragma: no cover
 
     _migrate_schema(_engine)
     Base.metadata.create_all(_engine)

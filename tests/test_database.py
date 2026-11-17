@@ -34,35 +34,200 @@ def test_add_column_safe_duplicate_column(temp_db):
         _add_column_safe(engine, "ALTER TABLE missing_table ADD COLUMN x TEXT")
 
 
-def test_db_initialize_waits_for_write_lock(temp_db):
+def test_db_initialize_same_url_reuses_engine(temp_db):
+    from dracs import db as db_mod
+
+    db_initialize(temp_db)
+    engine = db_mod._engine
+    # Job-pool threads re-run db_initialize per job; same URL must be a no-op.
+    db_initialize(temp_db)
+    assert db_mod._engine is engine
+
+
+def test_db_initialize_blocks_on_init_lock(temp_db):
+    """A thread that passes the URL check while another thread holds the
+    init lock must reuse the winner's engine (check-then-act race)."""
+    import os
     import threading
     import time
 
+    from dracs import db as db_mod
+
+    db_initialize(temp_db)
+    url2 = f"{temp_db}.race.db"
+    canon2 = "sqlite:///" + os.path.abspath(url2)
+
+    # Fresh-process state: nothing initialized, so the worker's outer check
+    # passes and it blocks on the init lock (no keepalive to probe first).
+    db_mod._db_url = None
+    db_mod._engine = None
+    db_mod._keepalive = None
+
+    db_mod._init_lock.acquire()
+    errors = []
+
+    def worker():
+        try:
+            db_initialize(url2)
+        except Exception as exc:  # pragma: no cover
+            errors.append(exc)
+
+    thread = threading.Thread(target=worker)
+    thread.start()
+    time.sleep(0.2)  # worker passed the URL check and is blocked on the lock
+
+    # Another thread finished initializing url2 while we held the lock.
+    fake_engine = db_mod.create_engine(canon2)
+    fake_pin = fake_engine.connect()
+    fake_pin.exec_driver_sql("SELECT 1")
+    fake_pin.rollback()
+    db_mod._engine = fake_engine
+    db_mod._db_url = canon2
+    db_mod._keepalive = (fake_engine, fake_pin)
+    db_mod._init_lock.release()
+
+    thread.join(timeout=10)
+    assert not thread.is_alive()
+    assert not errors
+    # The reuse branch must leave the winner's engine in place; a second
+    # engine creation here would mean the re-check is broken.
+    assert db_mod._engine is fake_engine
+    if os.path.exists(url2):
+        os.unlink(url2)
+
+
+def test_db_initialize_recovers_after_partial_failure(temp_db):
+    """A same-URL retry after a failed init attempt (no keepalive) re-inits."""
+    from dracs import db as db_mod
+
+    db_initialize(temp_db)
+    # Simulate an init that died between engine creation and keepalive.
+    db_mod._keepalive = None
+
     db_initialize(temp_db)
 
-    release = threading.Event()
+    assert db_mod._keepalive is not None
+    assert db_mod._keepalive[0] is db_mod._engine
 
-    def hold_write_lock():
-        con = sqlite3.connect(temp_db)
-        con.execute("BEGIN IMMEDIATE")
-        con.execute("INSERT INTO systems (svc_tag, name) VALUES ('LOCK', 'holder')")
-        release.wait(timeout=60)
-        con.rollback()
-        con.close()
 
-    holder = threading.Thread(target=hold_write_lock)
-    holder.start()
-    time.sleep(1)  # let the writer acquire the write lock
-    # Release after ~6s: longer than sqlite3's default 5s busy timeout,
-    # so pre-fix code fails with "database is locked" instead of waiting.
-    threading.Timer(6.0, release.set).start()
+def test_db_initialize_keepalive_select_failure(temp_db):
+    """A keepalive whose SELECT 1 fails is not published; a retry re-inits."""
+    import pytest
+    from unittest.mock import patch
 
-    # A second worker's import-time db_initialize must block on the lock
-    # and succeed once it is released.
+    from dracs import db as db_mod
+
     db_initialize(temp_db)
+    db_mod._keepalive = None
+    real_create = db_mod.create_engine
+    state = {"n": 0}
 
-    holder.join(timeout=10)
-    assert not holder.is_alive()
+    class KeepaliveFailures:
+        def __init__(self, conn):
+            self._conn = conn
+
+        def exec_driver_sql(self, *args, **kwargs):
+            raise RuntimeError("boom")
+
+        def rollback(self):
+            pass
+
+        def close(self):
+            self._conn.close()
+
+    def flaky_create(*args, **kwargs):
+        engine = real_create(*args, **kwargs)
+        real_connect = engine.connect
+
+        def flaky_connect():
+            conn = real_connect()
+            if state["n"] == 0:
+                state["n"] = 1
+                return conn
+            return KeepaliveFailures(conn)
+
+        engine.connect = flaky_connect
+        return engine
+
+    with patch.object(db_mod, "create_engine", side_effect=flaky_create):
+        with pytest.raises(RuntimeError):
+            db_initialize(temp_db)
+    assert db_mod._keepalive is None
+
+    db_initialize(temp_db)  # retry: pin succeeds, keepalive published
+    assert db_mod._keepalive is not None
+    assert db_mod._keepalive[0] is db_mod._engine
+
+
+def test_db_initialize_probes_stale_keepalive(temp_db):
+    """A dead pinned connection is detected on the next call and replaced."""
+    from dracs import db as db_mod
+
+    db_initialize(temp_db)
+    old = db_mod._keepalive
+    old[1].close()  # simulate a keepalive whose pin silently died
+
+    db_initialize(temp_db)  # same URL: probe must drop and re-pin
+
+    assert db_mod._keepalive is not None
+    assert db_mod._keepalive[0] is db_mod._engine
+    assert db_mod._keepalive[1] is not old[1]
+
+
+def test_db_initialize_swap_close_failure_self_heals(temp_db):
+    """A close() raising during a URL swap must drop the keepalive, not keep
+    it paired with the new URL; the next same-URL call re-pins."""
+    import os
+    import pytest
+    from unittest.mock import patch
+
+    from sqlalchemy.engine import Connection
+
+    from dracs import db as db_mod
+
+    db_initialize(temp_db)
+    url2 = f"{temp_db}.swap.db"
+    canon2 = "sqlite:///" + os.path.abspath(url2)
+
+    with patch.object(Connection, "close", side_effect=RuntimeError("boom")):
+        with pytest.raises(RuntimeError):
+            db_initialize(url2)
+
+    # The keepalive must not survive the failed swap beside the new URL.
+    assert db_mod._keepalive is None
+    assert db_mod._db_url == canon2
+    assert db_mod._engine is None
+    assert db_mod._SessionFactory is None
+
+    db_initialize(url2)  # retry: re-initializes and re-pins
+    assert db_mod._keepalive is not None
+    assert db_mod._keepalive[0] is db_mod._engine
+    assert db_mod._db_url == canon2
+    if os.path.exists(url2):
+        os.unlink(url2)
+
+
+def test_keepalive_pins_wal_files(temp_db):
+    """The pinned keepalive connection keeps -wal/-shm after writes."""
+    import os
+
+    from sqlalchemy import text
+
+    from dracs.db import get_session
+
+    db_initialize(temp_db)
+    with get_session() as session:
+        session.execute(
+            text(
+                "INSERT INTO sites (name, is_primary, created_at) "
+                "VALUES (:name, 1, :ts)"
+            ),
+            {"name": "pin", "ts": "now"},
+        )
+        session.commit()
+
+    assert os.path.exists(temp_db + "-wal")
+    assert os.path.exists(temp_db + "-shm")
 
 
 def test_db_initialize_creates_table(temp_db):

@@ -476,7 +476,8 @@ def startup(
     passwd_path: Path,
     log_dir: Path,
 ) -> None:
-    """Orchestrate conserver startup in a daemon thread during gunicorn on_starting."""
+    """Orchestrate conserver startup in a daemon thread in the gunicorn worker
+    that holds the job-processor lock (post_worker_init)."""
     try:
         from dracs.db import Site, System, db_initialize, get_session
         from dracs.sites import get_site_ini_config, set_site_ini_config

@@ -293,6 +293,7 @@ class JobProcessor:
     ):
         """Initialize job processor with bounded thread pool."""
         self._max_workers = max_workers
+        self._in_flight: set = set()
         self._poll_interval = poll_interval
         self._heartbeat_path = heartbeat_path
         self._executor = None
@@ -327,9 +328,14 @@ class JobProcessor:
                 except OSError:
                     pass
             try:
+                if len(self._in_flight) >= self._max_workers:
+                    time.sleep(self._poll_interval)
+                    continue
                 job = claim_next_job(self._worker_id)
                 if job:
-                    self._executor.submit(self._execute_job, job)
+                    future = self._executor.submit(self._execute_job, job)
+                    self._in_flight.add(future)
+                    future.add_done_callback(self._in_flight.discard)
                 else:
                     time.sleep(self._poll_interval)
             except Exception as exc:

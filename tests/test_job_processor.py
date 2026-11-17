@@ -72,6 +72,33 @@ class TestJobProcessor:
         status = get_job_status(job_id)
         assert status["status"] in ("completed", "running")
 
+    def test_claim_throttled_to_max_workers(self, job_db):
+        """Pool workers blocked means no further claims pile up as "running"."""
+        import sqlite3
+        import threading
+
+        gate = threading.Event()
+
+        def mock_execute(hostname, job_id=None, metadata=None):
+            gate.wait(timeout=10)
+
+        for i in range(5):
+            enqueue_job("tsr", f"server{i}.example.com")
+
+        processor = JobProcessor(max_workers=2, poll_interval=0.05)
+        with patch("dracs.jobqueue.execute_tsr_job", mock_execute):
+            processor.start()
+            time.sleep(0.3)
+            running = (
+                sqlite3.connect(job_db)
+                .execute("SELECT COUNT(*) FROM jobs WHERE status='running'")
+                .fetchone()[0]
+            )
+            processor.stop()
+
+        assert running <= 3  # max_workers plus one claim race
+        gate.set()
+
     def test_handles_execution_failure(self, job_db):
         job_id = enqueue_job("tsr", "server01.example.com")
 
