@@ -196,6 +196,8 @@ def test_db_initialize_swap_close_failure_self_heals(temp_db):
     # The keepalive must not survive the failed swap beside the new URL.
     assert db_mod._keepalive is None
     assert db_mod._db_url == canon2
+    assert db_mod._engine is None
+    assert db_mod._SessionFactory is None
 
     db_initialize(url2)  # retry: re-initializes and re-pins
     assert db_mod._keepalive is not None

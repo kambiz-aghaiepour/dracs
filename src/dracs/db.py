@@ -753,6 +753,10 @@ def db_initialize(db_url: str) -> None:
                 if _keepalive is not None:
                     keepalive = _keepalive
                     _keepalive = None
+                    # If the close below raises, the globals must not still
+                    # describe the old engine next to the new URL.
+                    _engine = None
+                    _SessionFactory = None
                     keepalive[1].close()
 
                 if url.startswith("sqlite"):
