@@ -174,6 +174,37 @@ def test_db_initialize_probes_stale_keepalive(temp_db):
     assert db_mod._keepalive[1] is not old[1]
 
 
+def test_db_initialize_swap_close_failure_self_heals(temp_db):
+    """A close() raising during a URL swap must drop the keepalive, not keep
+    it paired with the new URL; the next same-URL call re-pins."""
+    import os
+    import pytest
+    from unittest.mock import patch
+
+    from sqlalchemy.engine import Connection
+
+    from dracs import db as db_mod
+
+    db_initialize(temp_db)
+    url2 = f"{temp_db}.swap.db"
+    canon2 = "sqlite:///" + os.path.abspath(url2)
+
+    with patch.object(Connection, "close", side_effect=RuntimeError("boom")):
+        with pytest.raises(RuntimeError):
+            db_initialize(url2)
+
+    # The keepalive must not survive the failed swap beside the new URL.
+    assert db_mod._keepalive is None
+    assert db_mod._db_url == canon2
+
+    db_initialize(url2)  # retry: re-initializes and re-pins
+    assert db_mod._keepalive is not None
+    assert db_mod._keepalive[0] is db_mod._engine
+    assert db_mod._db_url == canon2
+    if os.path.exists(url2):
+        os.unlink(url2)
+
+
 def test_keepalive_pins_wal_files(temp_db):
     """The pinned keepalive connection keeps -wal/-shm after writes."""
     import os
