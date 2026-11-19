@@ -1772,6 +1772,100 @@ def api_power_action():
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
 
 
+@app.route("/api/mass-power-action", methods=["POST"])
+def api_mass_power_action():
+    """Queue a mass power/racreset action for multiple hosts (best effort)."""
+    MASS_ACTIONS = {"racreset", "powerup", "powerdown", "powercycle"}
+
+    try:
+        user, err = _require_auth()
+        if err:
+            return err
+
+        data = request.get_json(silent=True) or {}
+        action = data.get("action", "").strip()
+        if action not in MASS_ACTIONS:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": f"Invalid action: {action}. "
+                        f"Must be one of: {', '.join(sorted(MASS_ACTIONS))}",
+                    }
+                ),
+                400,
+            )
+
+        hosts = data.get("hosts")
+        if not isinstance(hosts, list) or not hosts:
+            return jsonify({"success": False, "message": "hosts list required"}), 400
+
+        is_superadmin, eff_role = _get_effective_role()
+        results = []
+        allowed = []
+        for raw in hosts:
+            hostname = str(raw).strip()
+            entry = {"hostname": hostname, "status": "error"}
+            if not hostname or not validate_hostname(hostname):
+                entry["message"] = "Invalid hostname"
+                results.append(entry)
+                continue
+            if not is_superadmin and eff_role != "admin":
+                host_site_id = _site_id_for_host(hostname)
+                if host_site_id is None or not _quads_host_access(
+                    user, hostname, host_site_id
+                ):
+                    entry["message"] = "Insufficient permissions"
+                    results.append(entry)
+                    continue
+            allowed.append(hostname)
+            entry["status"] = "queued"
+            results.append(entry)
+
+        job_type = "racreset" if action == "racreset" else "power_action"
+        from dracs.jobqueue import enqueue_batch
+
+        queued = 0
+        if allowed:
+            queued = enqueue_batch(
+                job_type,
+                ",".join(allowed),
+                metadata={"action": action},
+                hostnames=allowed,
+            )
+            for hostname in allowed:
+                audit_log(
+                    "power_action",
+                    target=hostname,
+                    user=user,
+                    source=_client_ip(),
+                    details=action,
+                )
+
+        action_label = {
+            "racreset": "Racreset",
+            "powerup": "Power on",
+            "powerdown": "Power off",
+            "powercycle": "Power cycle",
+        }[action]
+
+        failed = [r["hostname"] for r in results if r["status"] == "error"]
+        message = f"{action_label} queued for {queued} host(s)"
+        if failed:
+            message += f"; failed for {len(failed)}: {', '.join(failed)}"
+        return jsonify(
+            {
+                "success": True,
+                "message": message,
+                "queued": queued,
+                "results": results,
+            }
+        )
+
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+
 CATALOG_URL = "https://downloads.dell.com/catalog/Catalog.xml.gz"
 CATALOG_BASE_URL = "https://downloads.dell.com"
 FIRMWARE_IMAGE_DIR = Path("/var/lib/dracs/web/firmware")

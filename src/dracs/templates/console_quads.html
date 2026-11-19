@@ -258,7 +258,7 @@
         }
 
         /* Host selection modal */
-        #mc-host-modal {
+        #mc-host-modal, #mc-mass-modal {
             display: none;
             position: fixed;
             inset: 0;
@@ -268,7 +268,7 @@
             justify-content: center;
         }
 
-        #mc-host-panel-modal {
+        #mc-host-panel-modal, #mc-mass-panel {
             background: #2d2d2d;
             border: 1px solid #555;
             padding: 16px;
@@ -319,6 +319,14 @@
         .mc-modal-btn.mc-modal-apply { background: #2d5a2d; border-color: #4a7a4a; color: #90c090; }
         .mc-modal-btn.mc-modal-apply:hover { background: #3a6a3a; }
         .mc-modal-btn:disabled { opacity: 0.4; cursor: default; }
+
+        .mc-mass-btn { color: #d8b26a; }
+        .mc-mass-btn:hover { color: #ffd98a; }
+        .mc-mass-btn:disabled { opacity: 0.5; cursor: default; }
+
+        #mc-mass-result { display: none; font-size: 12px; }
+        .mc-mass-ok { color: #8c8; }
+        .mc-mass-err { color: #f66; }
 
         /* Login overlay */
         #login-overlay {
@@ -432,6 +440,11 @@
     <button class="mc-col-btn" data-cols="5" onclick="setCols(5)">5</button>
 
     <span class="mc-sep">|</span>
+    <button class="mc-col-btn mc-mass-btn" id="mass-racreset" onclick="openMassAction('racreset')" disabled>Racreset</button>
+    <button class="mc-col-btn mc-mass-btn" id="mass-poweroff" onclick="openMassAction('powerdown')" disabled>Power Off</button>
+    <button class="mc-col-btn mc-mass-btn" id="mass-poweron" onclick="openMassAction('powerup')" disabled>Power On</button>
+    <button class="mc-col-btn mc-mass-btn" id="mass-powercycle" onclick="openMassAction('powercycle')" disabled>Power Cycle</button>
+    <span class="mc-sep">|</span>
     <select id="quads-alloc-select" onchange="onAllocChange(this.value)">
         <option value="">Loading allocations...</option>
     </select>
@@ -474,6 +487,19 @@
         <div class="mc-modal-btns">
             <button class="mc-modal-btn" onclick="cancelConsoleModal()">Cancel</button>
             <button class="mc-modal-btn mc-modal-apply" id="mc-modal-apply-btn" onclick="applyConsoleModal()">Show Consoles</button>
+        </div>
+    </div>
+</div>
+
+<div id="mc-mass-modal">
+    <div id="mc-mass-panel">
+        <div class="mc-modal-title" id="mc-mass-title">Confirm operation</div>
+        <div id="mc-mass-host-list" style="overflow-y:auto; max-height:160px; border:1px solid #444;"></div>
+        <div class="mc-modal-hint">Racreset reboots the host's iDRAC and will drop any open consoles to that host.</div>
+        <div id="mc-mass-result"></div>
+        <div class="mc-modal-btns">
+            <button class="mc-modal-btn" id="mc-mass-cancel-btn" onclick="cancelMassAction()">Cancel</button>
+            <button class="mc-modal-btn mc-modal-apply" id="mc-mass-confirm-btn" onclick="confirmMassAction()">Confirm</button>
         </div>
     </div>
 </div>
@@ -660,6 +686,9 @@
         btn.textContent = '[ ' + displayedHosts.length + ' / ' + selectedHosts.size + ' ]';
         btn.disabled = selectedHosts.size === 0;
         document.getElementById('close-all-btn').disabled = displayedHosts.length === 0;
+        ['mass-racreset', 'mass-poweroff', 'mass-poweron', 'mass-powercycle'].forEach(function(id) {
+            document.getElementById(id).disabled = selectedHosts.size === 0;
+        });
     }
 
     function onMaxChange(val) {
@@ -1038,6 +1067,74 @@
         );
     }
 
+    // ── Mass power/racreset actions ───────────────────────────────────────────
+
+    var massAction = null;
+    var MASS_LABELS = {
+        'racreset': 'Racreset',
+        'powerdown': 'Power Off',
+        'powerup': 'Power On',
+        'powercycle': 'Power Cycle'
+    };
+
+    function openMassAction(action) {
+        var hosts = Array.from(selectedHosts);
+        if (hosts.length === 0) return;
+        massAction = action;
+        document.getElementById('mc-mass-title').textContent =
+            'Confirm ' + MASS_LABELS[action] + ' on ' + hosts.length + ' host(s)?';
+        var list = document.getElementById('mc-mass-host-list');
+        list.innerHTML = '';
+        hosts.slice(0, 20).forEach(function(hostname) {
+            var item = document.createElement('div');
+            item.className = 'mc-modal-item';
+            item.textContent = hostname;
+            list.appendChild(item);
+        });
+        if (hosts.length > 20) {
+            var more = document.createElement('div');
+            more.className = 'mc-modal-hint';
+            more.textContent = '... and ' + (hosts.length - 20) + ' more';
+            list.appendChild(more);
+        }
+        var result = document.getElementById('mc-mass-result');
+        result.style.display = 'none';
+        result.textContent = '';
+        var confirmBtn = document.getElementById('mc-mass-confirm-btn');
+        confirmBtn.style.display = '';
+        confirmBtn.disabled = false;
+        document.getElementById('mc-mass-cancel-btn').textContent = 'Cancel';
+        document.getElementById('mc-mass-modal').style.display = 'flex';
+    }
+
+    function cancelMassAction() {
+        document.getElementById('mc-mass-modal').style.display = 'none';
+    }
+
+    async function confirmMassAction() {
+        var hosts = Array.from(selectedHosts);
+        var confirmBtn = document.getElementById('mc-mass-confirm-btn');
+        var result = document.getElementById('mc-mass-result');
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = 'Queuing...';
+        try {
+            var resp = await fetch('/api/mass-power-action', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({hosts: hosts, action: massAction})
+            });
+            var data = await resp.json();
+            result.textContent = data.message || (data.success ? 'Queued' : 'Failed');
+            result.className = data.success ? 'mc-mass-ok' : 'mc-mass-err';
+        } catch (e) {
+            result.textContent = 'Failed: ' + (e.message || 'network error');
+            result.className = 'mc-mass-err';
+        }
+        result.style.display = 'block';
+        confirmBtn.style.display = 'none';
+        document.getElementById('mc-mass-cancel-btn').textContent = 'Close';
+    }
+
     // ── Initialisation ────────────────────────────────────────────────────────
 
     async function initPage() {
@@ -1107,8 +1204,17 @@
     document.getElementById('mc-host-modal').addEventListener('click', function(e) {
         if (e.target === this) { cancelConsoleModal(); }
     });
+    document.getElementById('mc-mass-modal').addEventListener('click', function(e) {
+        if (e.target === this) { cancelMassAction(); }
+    });
     document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') { cancelConsoleModal(); }
+        if (e.key === 'Escape') {
+            if (document.getElementById('mc-mass-modal').style.display === 'flex') {
+                cancelMassAction();
+            } else {
+                cancelConsoleModal();
+            }
+        }
     });
 
     updateShowBtn();

@@ -731,6 +731,65 @@ class TestQuadsRBAC:
         )
         assert resp.status_code == 403
 
+    def test_mass_power_action_quads_user_allowed(self, quads_client, quads_webapp_db):
+        """Quads-role user can queue mass actions for hosts in their allocation."""
+        _create_quads_role_user(quads_webapp_db)
+        _login(quads_client, "quadsuser", "pass123")
+
+        schedules = [
+            {
+                "host": {"name": "host1"},
+                "assignment": {"owner": "quadsuser", "ccuser": []},
+            },
+        ]
+        import dracs.webapp as webapp_mod
+
+        webapp_mod._quads_host_cache.clear()
+        with patch("urllib.request.urlopen", return_value=_make_quads_resp(schedules)):
+            with patch("dracs.jobqueue.enqueue_batch", return_value=1) as mock_enqueue:
+                resp = quads_client.post(
+                    "/api/mass-power-action",
+                    data=json.dumps({"hosts": ["host1"], "action": "powercycle"}),
+                    content_type="application/json",
+                )
+        data = resp.get_json()
+        assert resp.status_code == 200
+        assert data["success"] is True
+        assert data["queued"] == 1
+        assert mock_enqueue.call_args[1]["hostnames"] == ["host1"]
+
+    def test_mass_power_action_quads_user_partial_denied(
+        self, quads_client, quads_webapp_db
+    ):
+        """Mass action queues only hosts the quads user is authorized to touch."""
+        _create_quads_role_user(quads_webapp_db)
+        _login(quads_client, "quadsuser", "pass123")
+
+        schedules = [
+            {
+                "host": {"name": "host1"},
+                "assignment": {"owner": "quadsuser", "ccuser": []},
+            },
+        ]
+        import dracs.webapp as webapp_mod
+
+        webapp_mod._quads_host_cache.clear()
+        with patch("urllib.request.urlopen", return_value=_make_quads_resp(schedules)):
+            with patch("dracs.jobqueue.enqueue_batch", return_value=1) as mock_enqueue:
+                resp = quads_client.post(
+                    "/api/mass-power-action",
+                    data=json.dumps({"hosts": ["host1", "host2"], "action": "powerup"}),
+                    content_type="application/json",
+                )
+        data = resp.get_json()
+        assert resp.status_code == 200
+        assert data["success"] is True
+        assert data["queued"] == 1
+        assert mock_enqueue.call_args[1]["hostnames"] == ["host1"]
+        denied = next(r for r in data["results"] if r["hostname"] == "host2")
+        assert denied["status"] == "error"
+        assert "Insufficient permissions" in denied["message"]
+
     def test_power_status_bearer_token_admin_allowed(
         self, quads_client, quads_webapp_db
     ):
