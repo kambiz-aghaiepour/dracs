@@ -495,7 +495,7 @@
     <div id="mc-mass-panel">
         <div class="mc-modal-title" id="mc-mass-title">Confirm operation</div>
         <div id="mc-mass-host-list" style="overflow-y:auto; max-height:160px; border:1px solid #444;"></div>
-        <div class="mc-modal-hint">Racreset reboots the host's iDRAC and will drop any open consoles to that host.</div>
+        <div class="mc-modal-hint" id="mc-mass-hint"></div>
         <div id="mc-mass-result"></div>
         <div class="mc-modal-btns">
             <button class="mc-modal-btn" id="mc-mass-cancel-btn" onclick="cancelMassAction()">Cancel</button>
@@ -1076,6 +1076,12 @@
         'powerup': 'Power On',
         'powercycle': 'Power Cycle'
     };
+    var MASS_HINTS = {
+        'racreset': "Racreset reboots the host's iDRAC; the host keeps running but open consoles to it will drop.",
+        'powerdown': 'These hosts will be hard powered off (no graceful OS shutdown); consoles to them will drop.',
+        'powerup': 'These hosts will be powered on; consoles will connect once they are up.',
+        'powercycle': 'These hosts will be rebooted; consoles to them will drop.'
+    };
 
     function openMassAction(action) {
         var hosts = Array.from(selectedHosts);
@@ -1083,6 +1089,7 @@
         massAction = action;
         document.getElementById('mc-mass-title').textContent =
             'Confirm ' + MASS_LABELS[action] + ' on ' + hosts.length + ' host(s)?';
+        document.getElementById('mc-mass-hint').textContent = MASS_HINTS[action];
         var list = document.getElementById('mc-mass-host-list');
         list.innerHTML = '';
         hosts.slice(0, 20).forEach(function(hostname) {

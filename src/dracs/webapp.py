@@ -1800,11 +1800,17 @@ def api_mass_power_action():
         if not isinstance(hosts, list) or not hosts:
             return jsonify({"success": False, "message": "hosts list required"}), 400
 
+        hosts = list(dict.fromkeys(str(h).strip() for h in hosts))
+        if len(hosts) > 500:
+            return (
+                jsonify({"success": False, "message": "Too many hosts (max 500)"}),
+                400,
+            )
+
         is_superadmin, eff_role = _get_effective_role()
         results = []
         allowed = []
-        for raw in hosts:
-            hostname = str(raw).strip()
+        for hostname in hosts:
             entry = {"hostname": hostname, "status": "error"}
             if not hostname or not validate_hostname(hostname):
                 entry["message"] = "Invalid hostname"
@@ -1855,7 +1861,7 @@ def api_mass_power_action():
             message += f"; failed for {len(failed)}: {', '.join(failed)}"
         return jsonify(
             {
-                "success": True,
+                "success": queued > 0,
                 "message": message,
                 "queued": queued,
                 "results": results,

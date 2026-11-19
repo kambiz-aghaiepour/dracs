@@ -1107,6 +1107,51 @@ class TestMassPowerActionEndpoint:
         assert data["success"] is False
         assert "queue down" in data["message"]
 
+    def test_all_hosts_rejected_returns_success_false(self, client):
+        _login(client)
+        with patch("dracs.jobqueue.enqueue_batch", return_value=0) as mock_enqueue:
+            resp = client.post(
+                "/api/mass-power-action",
+                data=json.dumps({"hosts": ["../../etc/passwd"], "action": "powerup"}),
+                content_type="application/json",
+            )
+        data = resp.get_json()
+        assert resp.status_code == 200
+        assert data["success"] is False
+        assert data["queued"] == 0
+        mock_enqueue.assert_not_called()
+
+    def test_duplicate_hosts_deduped(self, client):
+        _login(client)
+        with patch("dracs.jobqueue.enqueue_batch", return_value=1) as mock_enqueue:
+            resp = client.post(
+                "/api/mass-power-action",
+                data=json.dumps(
+                    {
+                        "hosts": ["server01", "server01", " server01 "],
+                        "action": "powerup",
+                    }
+                ),
+                content_type="application/json",
+            )
+        data = resp.get_json()
+        assert data["success"] is True
+        assert data["queued"] == 1
+        assert len(data["results"]) == 1
+        assert mock_enqueue.call_args[1]["hostnames"] == ["server01"]
+
+    def test_too_many_hosts_returns_400(self, client):
+        _login(client)
+        resp = client.post(
+            "/api/mass-power-action",
+            data=json.dumps(
+                {"hosts": [f"host{i}" for i in range(501)], "action": "powerup"}
+            ),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "Too many hosts" in resp.get_json()["message"]
+
 
 # ---------------------------------------------------------------------------
 # Latest Firmware Endpoint
