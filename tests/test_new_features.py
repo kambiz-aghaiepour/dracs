@@ -1091,6 +1091,22 @@ class TestMassPowerActionEndpoint:
         assert err["status"] == "error"
         assert "Invalid hostname" in err["message"]
 
+    def test_enqueue_failure_returns_500(self, client):
+        _login(client)
+        with patch(
+            "dracs.jobqueue.enqueue_batch",
+            side_effect=RuntimeError("queue down"),
+        ):
+            resp = client.post(
+                "/api/mass-power-action",
+                data=json.dumps({"hosts": ["server01"], "action": "powerup"}),
+                content_type="application/json",
+            )
+        data = resp.get_json()
+        assert resp.status_code == 500
+        assert data["success"] is False
+        assert "queue down" in data["message"]
+
 
 # ---------------------------------------------------------------------------
 # Latest Firmware Endpoint
