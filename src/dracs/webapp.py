@@ -1800,7 +1800,7 @@ def api_mass_power_action():
         if not isinstance(hosts, list) or not hosts:
             return jsonify({"success": False, "message": "hosts list required"}), 400
 
-        hosts = list(dict.fromkeys(str(h).strip() for h in hosts))
+        hosts = list(dict.fromkeys(str(h).strip().lower() for h in hosts))
         if len(hosts) > 500:
             return (
                 jsonify({"success": False, "message": "Too many hosts (max 500)"}),

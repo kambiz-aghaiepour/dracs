@@ -1070,6 +1070,7 @@ def enqueue_batch(
     metadata: Optional[dict] = None,
     hostnames: Optional[list] = None,
 ) -> int:
+    explicit = hostnames is not None
     if hostnames is None:
         hostnames = _resolve_targets(target_spec, site_id=site_id)
     hostnames = [h for h in hostnames if h]
@@ -1079,7 +1080,21 @@ def enqueue_batch(
         enqueue_job(job_type, hostnames[0], site_id=site_id, metadata=metadata)
         return 1
 
-    parent_id = enqueue_job(job_type, target_spec, site_id=site_id, metadata=metadata)
+    if explicit:
+        # Keep the parent target short for the Job Queue UI; the full list
+        # stays on the parent (children already carry one hostname each).
+        parent_meta = dict(metadata or {})
+        parent_meta["hostnames"] = list(hostnames)
+        parent_id = enqueue_job(
+            job_type,
+            f"batch of {len(hostnames)} hosts",
+            site_id=site_id,
+            metadata=parent_meta,
+        )
+    else:
+        parent_id = enqueue_job(
+            job_type, target_spec, site_id=site_id, metadata=metadata
+        )
     with get_session() as session:
         parent = session.get(Job, parent_id)
         parent.status = "running"

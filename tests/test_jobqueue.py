@@ -70,9 +70,16 @@ class TestEnqueueBatchHostnames:
             parents = session.query(Job).filter(Job.parent_id.is_(None)).all()
             assert len(parents) == 1
             parent = parents[0]
+            assert parent.target == "batch of 3 hosts"
+            import json as json_module
+
+            assert json_module.loads(parent.metadata_json) == {
+                "hostnames": ["host1", "host2", "host3"]
+            }
             children = session.query(Job).filter(Job.parent_id == parent.id).all()
             assert len(children) == 3
             assert sorted(c.target for c in children) == ["host1", "host2", "host3"]
+            assert all(c.metadata_json is None for c in children)
 
     def test_empty_list_returns_zero(self, job_db):
         assert enqueue_batch("racreset", "ignored-spec", hostnames=[]) == 0
