@@ -226,7 +226,7 @@ def _fetch_quads_hosts(username: str, quads_url: str):
     except Exception:
         return None
     return frozenset(
-        s["host"]["name"]
+        s["host"]["name"].lower()
         for s in schedules
         if s.get("assignment")
         and s.get("host")
@@ -300,7 +300,7 @@ def _quads_host_access(username: str, hostname: str, site_id: int) -> bool:
         return False
 
     allowed = _get_quads_hosts_for_user(username, site_id, quads_url)
-    return allowed is not None and hostname in allowed
+    return allowed is not None and hostname.lower() in allowed
 
 
 def _require_auth(required_role=None, site_id=None):
@@ -1800,8 +1800,17 @@ def api_mass_power_action():
         if not isinstance(hosts, list) or not hosts:
             return jsonify({"success": False, "message": "hosts list required"}), 400
 
-        hosts = list(dict.fromkeys(str(h).strip().lower() for h in hosts))
-        if len(hosts) > 500:
+        # Only strings are candidate hostnames; non-strings are reported as
+        # invalid instead of being coerced into queueable names.
+        clean_seen = set()
+        cleaned = []
+        for raw in hosts:
+            if isinstance(raw, str):
+                hostname = raw.strip().lower()
+                if hostname not in clean_seen:
+                    clean_seen.add(hostname)
+                    cleaned.append(hostname)
+        if len(cleaned) > 500:
             return (
                 jsonify({"success": False, "message": "Too many hosts (max 500)"}),
                 400,
@@ -1810,8 +1819,17 @@ def api_mass_power_action():
         is_superadmin, eff_role = _get_effective_role()
         results = []
         allowed = []
-        for hostname in hosts:
-            entry = {"hostname": hostname, "status": "error"}
+        seen = set()
+        for raw in hosts:
+            entry = {"hostname": str(raw), "status": "error"}
+            if not isinstance(raw, str):
+                entry["message"] = "Invalid hostname"
+                results.append(entry)
+                continue
+            hostname = raw.strip().lower()
+            if hostname in seen:
+                continue
+            seen.add(hostname)
             if not hostname or not validate_hostname(hostname):
                 entry["message"] = "Invalid hostname"
                 results.append(entry)
@@ -3642,7 +3660,7 @@ def api_sites_quads_schedules(name):
 
     with get_session() as db_sess:
         dracs_hosts = frozenset(
-            s.name
+            s.name.lower()
             for s in db_sess.query(System)
             .filter(
                 System.site_id == site_id,
@@ -3660,7 +3678,7 @@ def api_sites_quads_schedules(name):
             continue
         cloud_obj = assignment.get("cloud") or {}
         cloud_name = cloud_obj.get("name")
-        hostname = host_obj.get("name")
+        hostname = (host_obj.get("name") or "").lower()
         if not cloud_name or not hostname:
             continue
         if is_quads_only:

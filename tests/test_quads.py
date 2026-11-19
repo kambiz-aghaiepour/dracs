@@ -790,6 +790,35 @@ class TestQuadsRBAC:
         assert denied["status"] == "error"
         assert "Insufficient permissions" in denied["message"]
 
+    def test_mass_power_action_quads_user_mixed_case_host(
+        self, quads_client, quads_webapp_db
+    ):
+        """Quads hostname differing in case still authorizes the user's host."""
+        _create_quads_role_user(quads_webapp_db)
+        _login(quads_client, "quadsuser", "pass123")
+
+        schedules = [
+            {
+                "host": {"name": "HOST1"},
+                "assignment": {"owner": "quadsuser", "ccuser": []},
+            },
+        ]
+        import dracs.webapp as webapp_mod
+
+        webapp_mod._quads_host_cache.clear()
+        with patch("urllib.request.urlopen", return_value=_make_quads_resp(schedules)):
+            with patch("dracs.jobqueue.enqueue_batch", return_value=1) as mock_enqueue:
+                resp = quads_client.post(
+                    "/api/mass-power-action",
+                    data=json.dumps({"hosts": ["host1"], "action": "powerup"}),
+                    content_type="application/json",
+                )
+        data = resp.get_json()
+        assert resp.status_code == 200
+        assert data["success"] is True
+        assert data["queued"] == 1
+        assert mock_enqueue.call_args[1]["hostnames"] == ["host1"]
+
     def test_power_status_bearer_token_admin_allowed(
         self, quads_client, quads_webapp_db
     ):
@@ -1054,6 +1083,31 @@ class TestQuadsSchedulesEndpoint:
         assert alloc["cloud"] == "cloud01"
         assert alloc["host_count"] == 2
         assert sorted(alloc["hosts"]) == ["host1", "host2"]
+
+    def test_schedules_mixed_case_hostnames_match(self, quads_client, quads_webapp_db):
+        """QUADS hostnames differing in case still match DRACS inventory."""
+        _create_role_user(quads_webapp_db)
+        _login(quads_client, "roleuser", "pass123")
+        schedules = [
+            {
+                "host": {"name": "HOST1"},
+                "assignment": {
+                    "cloud": {"name": "cloud01"},
+                    "description": "Mixed case",
+                    "owner": "alice",
+                    "ccuser": [],
+                },
+            },
+        ]
+        with patch(
+            "urllib.request.urlopen",
+            return_value=self._make_quads_resp(schedules),
+        ):
+            resp = quads_client.get("/api/sites/Default/quads-schedules")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["success"] is True
+        assert data["allocations"][0]["hosts"] == ["host1"]
 
     def test_schedules_quads_api_failure(self, quads_client, quads_webapp_db):
         """QUADS API unreachable returns 502."""

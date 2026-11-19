@@ -1159,6 +1159,22 @@ class TestMassPowerActionEndpoint:
         assert len(data["results"]) == 1
         assert mock_enqueue.call_args[1]["hostnames"] == ["server01"]
 
+    def test_non_string_hosts_reported_invalid(self, client):
+        _login(client)
+        with patch("dracs.jobqueue.enqueue_batch", return_value=1) as mock_enqueue:
+            resp = client.post(
+                "/api/mass-power-action",
+                data=json.dumps({"hosts": [True, 42, "server01"], "action": "powerup"}),
+                content_type="application/json",
+            )
+        data = resp.get_json()
+        assert data["success"] is True
+        assert data["queued"] == 1
+        assert mock_enqueue.call_args[1]["hostnames"] == ["server01"]
+        invalid = [r for r in data["results"] if r["status"] == "error"]
+        assert len(invalid) == 2
+        assert all("Invalid hostname" in r["message"] for r in invalid)
+
     def test_too_many_hosts_returns_400(self, client):
         _login(client)
         resp = client.post(

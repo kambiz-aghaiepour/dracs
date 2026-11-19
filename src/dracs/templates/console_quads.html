@@ -1070,6 +1070,7 @@
     // ── Mass power/racreset actions ───────────────────────────────────────────
 
     var massAction = null;
+    var massTargetHosts = [];
     var MASS_LABELS = {
         'racreset': 'Racreset',
         'powerdown': 'Power Off',
@@ -1084,7 +1085,8 @@
     };
 
     function openMassAction(action) {
-        var hosts = Array.from(selectedHosts);
+        massTargetHosts = Array.from(selectedHosts);
+        var hosts = massTargetHosts;
         if (hosts.length === 0) return;
         massAction = action;
         document.getElementById('mc-mass-title').textContent =
@@ -1119,7 +1121,7 @@
     }
 
     async function confirmMassAction() {
-        var hosts = Array.from(selectedHosts);
+        var hosts = massTargetHosts;
         var confirmBtn = document.getElementById('mc-mass-confirm-btn');
         var result = document.getElementById('mc-mass-result');
         confirmBtn.disabled = true;
