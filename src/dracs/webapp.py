@@ -1819,18 +1819,9 @@ def api_mass_power_action():
         hosts = data.get("hosts")
         if not isinstance(hosts, list) or not hosts:
             return jsonify({"success": False, "message": "hosts list required"}), 400
-
-        # Only strings are candidate hostnames; non-strings are reported as
-        # invalid instead of being coerced into queueable names.
-        clean_seen = set()
-        cleaned = []
-        for raw in hosts:
-            if isinstance(raw, str):
-                hostname = raw.strip().lower()
-                if hostname not in clean_seen:
-                    clean_seen.add(hostname)
-                    cleaned.append(hostname)
-        if len(cleaned) > 500:
+        # Bound the request before dedupe so huge bodies (strings or not)
+        # cannot produce an unbounded per-host result list.
+        if len(hosts) > 500:
             return (
                 jsonify({"success": False, "message": "Too many hosts (max 500)"}),
                 400,

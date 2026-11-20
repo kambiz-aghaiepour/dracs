@@ -1187,6 +1187,17 @@ class TestMassPowerActionEndpoint:
         assert resp.status_code == 400
         assert "Too many hosts" in resp.get_json()["message"]
 
+    def test_too_many_hosts_with_non_strings_returns_400(self, client):
+        _login(client)
+        hosts = [f"host{i}" for i in range(250)] + [123] * 251
+        resp = client.post(
+            "/api/mass-power-action",
+            data=json.dumps({"hosts": hosts, "action": "powerup"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "Too many hosts" in resp.get_json()["message"]
+
 
 # ---------------------------------------------------------------------------
 # Latest Firmware Endpoint
