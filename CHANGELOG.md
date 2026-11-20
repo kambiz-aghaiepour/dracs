@@ -2,6 +2,42 @@
 
 <!-- version list -->
 
+## v2.23.2 (2026-11-20)
+
+### Bug Fixes
+
+- Case-insensitive credential override sections
+  ([`27ea83f`](https://github.com/kambiz-aghaiepour/dracs/commit/27ea83f08745339dacf0d9ffa1852b00cac6d0d5))
+
+- Case-insensitive dedupe and short batch job labels
+  ([`6d1d655`](https://github.com/kambiz-aghaiepour/dracs/commit/6d1d6555914b5aad0678e4bb33410bc0e0ac9996))
+
+- Case-insensitive host site lookup and partial failure color
+  ([`4aeebc1`](https://github.com/kambiz-aghaiepour/dracs/commit/4aeebc1ecf397d1a29e259d31ab174a75efe58ae))
+
+- Harden mass power endpoint and per-action hints
+  ([`3ca2d26`](https://github.com/kambiz-aghaiepour/dracs/commit/3ca2d268b777da40ca97a9de51ae355dd2b29c2e))
+
+- Mass racreset and power actions in console views
+  ([`a20f879`](https://github.com/kambiz-aghaiepour/dracs/commit/a20f87907bdca7bd42e4280d47cf32034c29763f))
+
+- Reset confirm label and bound raw host request
+  ([`f166602`](https://github.com/kambiz-aghaiepour/dracs/commit/f1666025bc1dd0cc7f059d97eb8b857685afbc85))
+
+- Snapshot modal targets and case-insensitive quads hosts
+  ([`6f62519`](https://github.com/kambiz-aghaiepour/dracs/commit/6f625192b8f50d92e372121dcf55ffae88108952))
+
+### Chores
+
+- Sync spec file version to 2.23.1 [skip ci]
+  ([`2eea816`](https://github.com/kambiz-aghaiepour/dracs/commit/2eea8165e155ee0b1ddde7e8387c06b36e0cf0f5))
+
+### Testing
+
+- Cover mass power action failure path
+  ([`8c3ec8c`](https://github.com/kambiz-aghaiepour/dracs/commit/8c3ec8c205e79ea712f48df7d64bbb916392be32))
+
+
 ## v2.23.1 (2026-11-17)
 
 ### Bug Fixes
