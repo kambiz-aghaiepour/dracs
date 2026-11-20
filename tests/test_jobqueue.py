@@ -12,6 +12,7 @@ from dracs.jobqueue import (
     cancel_job,
     claim_next_job,
     complete_job,
+    enqueue_batch,
     enqueue_job,
     fail_job,
     get_active_jobs,
@@ -57,6 +58,39 @@ class TestEnqueueJob:
         id1 = enqueue_job("tsr", "host01.example.com")
         id2 = enqueue_job("refresh", "host02.example.com")
         assert id1 != id2
+
+
+class TestEnqueueBatchHostnames:
+    def test_enqueues_parent_and_children_for_explicit_list(self, job_db):
+        count = enqueue_batch(
+            "racreset", "ignored-spec", hostnames=["host1", "host2", "host3"]
+        )
+        assert count == 3
+        with get_session() as session:
+            parents = session.query(Job).filter(Job.parent_id.is_(None)).all()
+            assert len(parents) == 1
+            parent = parents[0]
+            assert parent.target == "batch of 3 hosts"
+            import json as json_module
+
+            assert json_module.loads(parent.metadata_json) == {
+                "hostnames": ["host1", "host2", "host3"]
+            }
+            children = session.query(Job).filter(Job.parent_id == parent.id).all()
+            assert len(children) == 3
+            assert sorted(c.target for c in children) == ["host1", "host2", "host3"]
+            assert all(c.metadata_json is None for c in children)
+
+    def test_empty_list_returns_zero(self, job_db):
+        assert enqueue_batch("racreset", "ignored-spec", hostnames=[]) == 0
+
+    def test_single_host_no_parent(self, job_db):
+        count = enqueue_batch("racreset", "ignored-spec", hostnames=["host1"])
+        assert count == 1
+        with get_session() as session:
+            jobs = session.query(Job).all()
+            assert len(jobs) == 1
+            assert jobs[0].parent_id is None
 
 
 class TestClaimNextJob:

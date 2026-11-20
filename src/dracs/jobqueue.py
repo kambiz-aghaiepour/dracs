@@ -366,6 +366,10 @@ class JobProcessor:
                 execute_ssl_cert_upload_job(job["target"], meta)
             elif job["job_type"] == "vnc_reset":
                 execute_vnc_reset_job(job["target"], meta)
+            elif job["job_type"] == "power_action":
+                execute_power_action_job(job["target"], meta)
+            elif job["job_type"] == "racreset":
+                execute_racreset_job(job["target"], meta)
             else:
                 fail_job(job_id, error=f"Unknown job type: {job['job_type']}")
                 return
@@ -802,6 +806,38 @@ def execute_vnc_reset_job(hostname: str, metadata: dict) -> None:
     logger.info("vnc_reset completed for %s", hostname)
 
 
+def _run_racadm_op(hostname: str, description: str, args: list) -> None:
+    """Run a racadm operation against a host's iDRAC, raising on failure."""
+    from dracs.snmp import ValidationError, build_idrac_hostname
+    from dracs.webapp import get_idrac_credentials
+
+    try:
+        idrac_fqdn = build_idrac_hostname(hostname)
+    except ValidationError as exc:
+        raise RuntimeError(f"Cannot build iDRAC FQDN for {hostname}: {exc}") from exc
+
+    username, password = get_idrac_credentials(hostname)
+    result = run_racadm_ssh(idrac_fqdn, username, password, args)
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"{description} {hostname} failed "
+            f"(rc={result.returncode}): {result.stderr.strip()}"
+        )
+
+
+def execute_power_action_job(hostname: str, metadata: dict) -> None:
+    """Execute a mass power action on a host via racadm serveraction."""
+    action = (metadata or {}).get("action", "")
+    if action not in ("powerup", "powerdown", "powercycle"):
+        raise RuntimeError(f"Invalid power action: {action}")
+    _run_racadm_op(hostname, f"Power action {action} on", ["serveraction", action])
+
+
+def execute_racreset_job(hostname: str, metadata: dict) -> None:
+    """Reset the iDRAC management controller of a host via racadm racreset."""
+    _run_racadm_op(hostname, "Racreset on", ["racreset"])
+
+
 def _run_idracadm7(cmd: list, *, retries: int = 1, retry_delay: int = 5):
     """Run an idracadm7 command, retrying once on transient iDRAC failures."""
     for attempt in range(retries + 1):
@@ -1032,15 +1068,33 @@ def enqueue_batch(
     target_spec: str,
     site_id: Optional[int] = None,
     metadata: Optional[dict] = None,
+    hostnames: Optional[list] = None,
 ) -> int:
-    hostnames = _resolve_targets(target_spec, site_id=site_id)
+    explicit = hostnames is not None
+    if hostnames is None:
+        hostnames = _resolve_targets(target_spec, site_id=site_id)
+    hostnames = [h for h in hostnames if h]
     if not hostnames:
         return 0
     if len(hostnames) == 1:
         enqueue_job(job_type, hostnames[0], site_id=site_id, metadata=metadata)
         return 1
 
-    parent_id = enqueue_job(job_type, target_spec, site_id=site_id, metadata=metadata)
+    if explicit:
+        # Keep the parent target short for the Job Queue UI; the full list
+        # stays on the parent (children already carry one hostname each).
+        parent_meta = dict(metadata or {})
+        parent_meta["hostnames"] = list(hostnames)
+        parent_id = enqueue_job(
+            job_type,
+            f"batch of {len(hostnames)} hosts",
+            site_id=site_id,
+            metadata=parent_meta,
+        )
+    else:
+        parent_id = enqueue_job(
+            job_type, target_spec, site_id=site_id, metadata=metadata
+        )
     with get_session() as session:
         parent = session.get(Job, parent_id)
         parent.status = "running"

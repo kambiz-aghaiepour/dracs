@@ -124,6 +124,27 @@ class TestQuadsCacheFunctions:
         assert ("henry", 1) not in webapp_mod._quads_host_cache
 
 
+class TestCaseInsensitiveHostLookup:
+    def test_site_id_matches_uppercase_stored_host(self, quads_webapp_db):
+        from dracs.db import upsert_system
+        from dracs.webapp import _site_id_for_host
+
+        upsert_system(
+            quads_webapp_db, "TAGUP", "UPPERHOST", "R660", "7.0", "2.1", "Jan 1 2027", 0
+        )
+        assert _site_id_for_host("upperhost") == _site_id_for_host("UPPERHOST")
+        assert _site_id_for_host("upperhost") is not None
+
+    def test_resolve_site_matches_uppercase_stored_host(self, quads_webapp_db):
+        from dracs.db import upsert_system
+        from dracs.webapp import _resolve_site_for_host
+
+        upsert_system(
+            quads_webapp_db, "TAGUP", "UPPERHOST", "R660", "7.0", "2.1", "Jan 1 2027", 0
+        )
+        assert _resolve_site_for_host("upperhost") == "Default"
+
+
 # ---------------------------------------------------------------------------
 # Fetch unit tests
 # ---------------------------------------------------------------------------
@@ -731,6 +752,135 @@ class TestQuadsRBAC:
         )
         assert resp.status_code == 403
 
+    def test_mass_power_action_quads_user_allowed(self, quads_client, quads_webapp_db):
+        """Quads-role user can queue mass actions for hosts in their allocation."""
+        _create_quads_role_user(quads_webapp_db)
+        _login(quads_client, "quadsuser", "pass123")
+
+        schedules = [
+            {
+                "host": {"name": "host1"},
+                "assignment": {"owner": "quadsuser", "ccuser": []},
+            },
+        ]
+        import dracs.webapp as webapp_mod
+
+        webapp_mod._quads_host_cache.clear()
+        with patch("urllib.request.urlopen", return_value=_make_quads_resp(schedules)):
+            with patch("dracs.jobqueue.enqueue_batch", return_value=1) as mock_enqueue:
+                resp = quads_client.post(
+                    "/api/mass-power-action",
+                    data=json.dumps({"hosts": ["host1"], "action": "powercycle"}),
+                    content_type="application/json",
+                )
+        data = resp.get_json()
+        assert resp.status_code == 200
+        assert data["success"] is True
+        assert data["queued"] == 1
+        assert mock_enqueue.call_args[1]["hostnames"] == ["host1"]
+
+    def test_mass_power_action_quads_user_partial_denied(
+        self, quads_client, quads_webapp_db
+    ):
+        """Mass action queues only hosts the quads user is authorized to touch."""
+        _create_quads_role_user(quads_webapp_db)
+        _login(quads_client, "quadsuser", "pass123")
+
+        schedules = [
+            {
+                "host": {"name": "host1"},
+                "assignment": {"owner": "quadsuser", "ccuser": []},
+            },
+        ]
+        import dracs.webapp as webapp_mod
+
+        webapp_mod._quads_host_cache.clear()
+        with patch("urllib.request.urlopen", return_value=_make_quads_resp(schedules)):
+            with patch("dracs.jobqueue.enqueue_batch", return_value=1) as mock_enqueue:
+                resp = quads_client.post(
+                    "/api/mass-power-action",
+                    data=json.dumps({"hosts": ["host1", "host2"], "action": "powerup"}),
+                    content_type="application/json",
+                )
+        data = resp.get_json()
+        assert resp.status_code == 200
+        assert data["success"] is True
+        assert data["queued"] == 1
+        assert mock_enqueue.call_args[1]["hostnames"] == ["host1"]
+        denied = next(r for r in data["results"] if r["hostname"] == "host2")
+        assert denied["status"] == "error"
+        assert "Insufficient permissions" in denied["message"]
+
+    def test_mass_power_action_quads_user_mixed_case_host(
+        self, quads_client, quads_webapp_db
+    ):
+        """Quads hostname differing in case still authorizes the user's host."""
+        _create_quads_role_user(quads_webapp_db)
+        _login(quads_client, "quadsuser", "pass123")
+
+        schedules = [
+            {
+                "host": {"name": "HOST1"},
+                "assignment": {"owner": "quadsuser", "ccuser": []},
+            },
+        ]
+        import dracs.webapp as webapp_mod
+
+        webapp_mod._quads_host_cache.clear()
+        with patch("urllib.request.urlopen", return_value=_make_quads_resp(schedules)):
+            with patch("dracs.jobqueue.enqueue_batch", return_value=1) as mock_enqueue:
+                resp = quads_client.post(
+                    "/api/mass-power-action",
+                    data=json.dumps({"hosts": ["host1"], "action": "powerup"}),
+                    content_type="application/json",
+                )
+        data = resp.get_json()
+        assert resp.status_code == 200
+        assert data["success"] is True
+        assert data["queued"] == 1
+        assert mock_enqueue.call_args[1]["hostnames"] == ["host1"]
+
+    def test_mass_power_action_quads_user_uppercase_db_host(
+        self, quads_client, quads_webapp_db
+    ):
+        """Host stored uppercase in DRACS still authorizes the quads user."""
+        from dracs.db import upsert_system
+
+        upsert_system(
+            quads_webapp_db,
+            "TAGUP",
+            "UPPERHOST",
+            "R660",
+            "7.0",
+            "2.1",
+            "Jan 1 2027",
+            0,
+        )
+        _create_quads_role_user(quads_webapp_db)
+        _login(quads_client, "quadsuser", "pass123")
+
+        schedules = [
+            {
+                "host": {"name": "upperhost"},
+                "assignment": {"owner": "quadsuser", "ccuser": []},
+            },
+        ]
+        import dracs.webapp as webapp_mod
+
+        webapp_mod._quads_host_cache.clear()
+        with patch("urllib.request.urlopen", return_value=_make_quads_resp(schedules)):
+            with patch("dracs.jobqueue.enqueue_batch", return_value=1) as mock_enqueue:
+                resp = quads_client.post(
+                    "/api/mass-power-action",
+                    data=json.dumps({"hosts": ["upperhost"], "action": "powerup"}),
+                    content_type="application/json",
+                )
+        data = resp.get_json()
+        assert resp.status_code == 200
+        assert data["success"] is True
+        assert data["queued"] == 1
+        assert mock_enqueue.call_args[1]["hostnames"] == ["upperhost"]
+
     def test_power_status_bearer_token_admin_allowed(
         self, quads_client, quads_webapp_db
     ):
@@ -995,6 +1145,31 @@ class TestQuadsSchedulesEndpoint:
         assert alloc["cloud"] == "cloud01"
         assert alloc["host_count"] == 2
         assert sorted(alloc["hosts"]) == ["host1", "host2"]
+
+    def test_schedules_mixed_case_hostnames_match(self, quads_client, quads_webapp_db):
+        """QUADS hostnames differing in case still match DRACS inventory."""
+        _create_role_user(quads_webapp_db)
+        _login(quads_client, "roleuser", "pass123")
+        schedules = [
+            {
+                "host": {"name": "HOST1"},
+                "assignment": {
+                    "cloud": {"name": "cloud01"},
+                    "description": "Mixed case",
+                    "owner": "alice",
+                    "ccuser": [],
+                },
+            },
+        ]
+        with patch(
+            "urllib.request.urlopen",
+            return_value=self._make_quads_resp(schedules),
+        ):
+            resp = quads_client.get("/api/sites/Default/quads-schedules")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["success"] is True
+        assert data["allocations"][0]["hosts"] == ["host1"]
 
     def test_schedules_quads_api_failure(self, quads_client, quads_webapp_db):
         """QUADS API unreachable returns 502."""

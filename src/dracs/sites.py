@@ -220,7 +220,7 @@ def set_site_ini_config(site_name: str, site_config: dict) -> None:
 
     hosts = site_config.get("hosts", {})
     for hostname, host_config in hosts.items():
-        section = f"{site_name}-{hostname}"
+        section = f"{site_name}-{hostname.lower()}"
         config.add_section(section)
         for key, value in host_config.items():
             config.set(section, key, value)

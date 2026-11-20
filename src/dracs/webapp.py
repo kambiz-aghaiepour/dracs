@@ -226,7 +226,7 @@ def _fetch_quads_hosts(username: str, quads_url: str):
     except Exception:
         return None
     return frozenset(
-        s["host"]["name"]
+        s["host"]["name"].lower()
         for s in schedules
         if s.get("assignment")
         and s.get("host")
@@ -248,9 +248,15 @@ def _get_quads_hosts_for_user(username: str, site_id, quads_url: str):
 
 
 def _site_id_for_host(hostname: str):
-    """Return the site_id for a given hostname, or None."""
+    """Return the site_id for a given hostname, or None (case-insensitive)."""
+    from sqlalchemy import func
+
     with get_session() as db_sess:
-        system = db_sess.query(System).filter(System.name == hostname).first()
+        system = (
+            db_sess.query(System)
+            .filter(func.lower(System.name) == hostname.lower())
+            .first()
+        )
         return system.site_id if system else None
 
 
@@ -300,7 +306,7 @@ def _quads_host_access(username: str, hostname: str, site_id: int) -> bool:
         return False
 
     allowed = _get_quads_hosts_for_user(username, site_id, quads_url)
-    return allowed is not None and hostname in allowed
+    return allowed is not None and hostname.lower() in allowed
 
 
 def _require_auth(required_role=None, site_id=None):
@@ -418,10 +424,16 @@ def _find_passwords_ini() -> Path | None:
 
 def _resolve_site_for_host(hostname: str) -> str:
     try:
+        from sqlalchemy import func
+
         with get_session() as sess:
             from dracs.db import Site
 
-            system = sess.query(System).filter(System.name == hostname).first()
+            system = (
+                sess.query(System)
+                .filter(func.lower(System.name) == hostname.lower())
+                .first()
+            )
             if system and system.site_id:
                 site_obj = sess.get(Site, system.site_id)
                 if site_obj:
@@ -446,6 +458,14 @@ def get_idrac_credentials(hostname: str, site: str | None = None) -> tuple:
 
     host_section = f"{site}-{hostname}"
     defaults_section = f"{site}-DEFAULTS"
+
+    # Host override sections may be authored in mixed case; match the host
+    # part of the section name case-insensitively.
+    host_section_lower = host_section.lower()
+    for section in config.sections():
+        if section.lower() == host_section_lower:
+            host_section = section
+            break
 
     if host_section in config:
         username = config.get(
@@ -1768,6 +1788,115 @@ def api_power_action():
             ),
             500,
         )
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+
+@app.route("/api/mass-power-action", methods=["POST"])
+def api_mass_power_action():
+    """Queue a mass power/racreset action for multiple hosts (best effort)."""
+    MASS_ACTIONS = {"racreset", "powerup", "powerdown", "powercycle"}
+
+    try:
+        user, err = _require_auth()
+        if err:
+            return err
+
+        data = request.get_json(silent=True) or {}
+        action = data.get("action", "").strip()
+        if action not in MASS_ACTIONS:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": f"Invalid action: {action}. "
+                        f"Must be one of: {', '.join(sorted(MASS_ACTIONS))}",
+                    }
+                ),
+                400,
+            )
+
+        hosts = data.get("hosts")
+        if not isinstance(hosts, list) or not hosts:
+            return jsonify({"success": False, "message": "hosts list required"}), 400
+        # Bound the request before dedupe so huge bodies (strings or not)
+        # cannot produce an unbounded per-host result list.
+        if len(hosts) > 500:
+            return (
+                jsonify({"success": False, "message": "Too many hosts (max 500)"}),
+                400,
+            )
+
+        is_superadmin, eff_role = _get_effective_role()
+        results = []
+        allowed = []
+        seen = set()
+        for raw in hosts:
+            entry = {"hostname": str(raw), "status": "error"}
+            if not isinstance(raw, str):
+                entry["message"] = "Invalid hostname"
+                results.append(entry)
+                continue
+            hostname = raw.strip().lower()
+            if hostname in seen:
+                continue
+            seen.add(hostname)
+            if not hostname or not validate_hostname(hostname):
+                entry["message"] = "Invalid hostname"
+                results.append(entry)
+                continue
+            if not is_superadmin and eff_role != "admin":
+                host_site_id = _site_id_for_host(hostname)
+                if host_site_id is None or not _quads_host_access(
+                    user, hostname, host_site_id
+                ):
+                    entry["message"] = "Insufficient permissions"
+                    results.append(entry)
+                    continue
+            allowed.append(hostname)
+            entry["status"] = "queued"
+            results.append(entry)
+
+        job_type = "racreset" if action == "racreset" else "power_action"
+        from dracs.jobqueue import enqueue_batch
+
+        queued = 0
+        if allowed:
+            queued = enqueue_batch(
+                job_type,
+                ",".join(allowed),
+                metadata={"action": action},
+                hostnames=allowed,
+            )
+            for hostname in allowed:
+                audit_log(
+                    "power_action",
+                    target=hostname,
+                    user=user,
+                    source=_client_ip(),
+                    details=action,
+                )
+
+        action_label = {
+            "racreset": "Racreset",
+            "powerup": "Power on",
+            "powerdown": "Power off",
+            "powercycle": "Power cycle",
+        }[action]
+
+        failed = [r["hostname"] for r in results if r["status"] == "error"]
+        message = f"{action_label} queued for {queued} host(s)"
+        if failed:
+            message += f"; failed for {len(failed)}: {', '.join(failed)}"
+        return jsonify(
+            {
+                "success": queued > 0,
+                "message": message,
+                "queued": queued,
+                "results": results,
+            }
+        )
+
     except Exception as e:
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
 
@@ -3542,7 +3671,7 @@ def api_sites_quads_schedules(name):
 
     with get_session() as db_sess:
         dracs_hosts = frozenset(
-            s.name
+            s.name.lower()
             for s in db_sess.query(System)
             .filter(
                 System.site_id == site_id,
@@ -3560,7 +3689,7 @@ def api_sites_quads_schedules(name):
             continue
         cloud_obj = assignment.get("cloud") or {}
         cloud_name = cloud_obj.get("name")
-        hostname = host_obj.get("name")
+        hostname = (host_obj.get("name") or "").lower()
         if not cloud_name or not hostname:
             continue
         if is_quads_only:

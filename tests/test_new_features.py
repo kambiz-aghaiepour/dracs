@@ -1006,6 +1006,200 @@ class TestPowerActionEndpoint:
 
 
 # ---------------------------------------------------------------------------
+# Mass Power Action Endpoint
+# ---------------------------------------------------------------------------
+class TestMassPowerActionEndpoint:
+    def test_no_auth(self, client):
+        resp = client.post(
+            "/api/mass-power-action",
+            data=json.dumps({"hosts": ["server01"], "action": "powerup"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 401
+
+    def test_missing_hosts(self, client):
+        _login(client)
+        resp = client.post(
+            "/api/mass-power-action",
+            data=json.dumps({"action": "powerup"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+    def test_empty_hosts(self, client):
+        _login(client)
+        resp = client.post(
+            "/api/mass-power-action",
+            data=json.dumps({"hosts": [], "action": "powerup"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+    def test_invalid_action(self, client):
+        _login(client)
+        resp = client.post(
+            "/api/mass-power-action",
+            data=json.dumps({"hosts": ["server01"], "action": "explode"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+    def test_powerup_queues_all_hosts(self, client):
+        _login(client)
+        with patch("dracs.jobqueue.enqueue_batch", return_value=2) as mock_enqueue:
+            resp = client.post(
+                "/api/mass-power-action",
+                data=json.dumps(
+                    {"hosts": ["server01", "server02"], "action": "powerup"}
+                ),
+                content_type="application/json",
+            )
+        data = resp.get_json()
+        assert data["success"] is True
+        assert data["queued"] == 2
+        assert all(r["status"] == "queued" for r in data["results"])
+        assert mock_enqueue.call_args[0][0] == "power_action"
+        assert mock_enqueue.call_args[1]["hostnames"] == ["server01", "server02"]
+        assert mock_enqueue.call_args[1]["metadata"] == {"action": "powerup"}
+
+    def test_racreset_queues_racreset_type(self, client):
+        _login(client)
+        with patch("dracs.jobqueue.enqueue_batch", return_value=1) as mock_enqueue:
+            resp = client.post(
+                "/api/mass-power-action",
+                data=json.dumps({"hosts": ["server01"], "action": "racreset"}),
+                content_type="application/json",
+            )
+        assert resp.get_json()["queued"] == 1
+        assert mock_enqueue.call_args[0][0] == "racreset"
+
+    def test_best_effort_skips_invalid_host(self, client):
+        _login(client)
+        with patch("dracs.jobqueue.enqueue_batch", return_value=1) as mock_enqueue:
+            resp = client.post(
+                "/api/mass-power-action",
+                data=json.dumps(
+                    {"hosts": ["server01", "../../etc/passwd"], "action": "powerdown"}
+                ),
+                content_type="application/json",
+            )
+        data = resp.get_json()
+        assert data["success"] is True
+        assert data["queued"] == 1
+        assert mock_enqueue.call_args[1]["hostnames"] == ["server01"]
+        err = next(r for r in data["results"] if r["hostname"] == "../../etc/passwd")
+        assert err["status"] == "error"
+        assert "Invalid hostname" in err["message"]
+
+    def test_enqueue_failure_returns_500(self, client):
+        _login(client)
+        with patch(
+            "dracs.jobqueue.enqueue_batch",
+            side_effect=RuntimeError("queue down"),
+        ):
+            resp = client.post(
+                "/api/mass-power-action",
+                data=json.dumps({"hosts": ["server01"], "action": "powerup"}),
+                content_type="application/json",
+            )
+        data = resp.get_json()
+        assert resp.status_code == 500
+        assert data["success"] is False
+        assert "queue down" in data["message"]
+
+    def test_all_hosts_rejected_returns_success_false(self, client):
+        _login(client)
+        with patch("dracs.jobqueue.enqueue_batch", return_value=0) as mock_enqueue:
+            resp = client.post(
+                "/api/mass-power-action",
+                data=json.dumps({"hosts": ["../../etc/passwd"], "action": "powerup"}),
+                content_type="application/json",
+            )
+        data = resp.get_json()
+        assert resp.status_code == 200
+        assert data["success"] is False
+        assert data["queued"] == 0
+        mock_enqueue.assert_not_called()
+
+    def test_duplicate_hosts_deduped(self, client):
+        _login(client)
+        with patch("dracs.jobqueue.enqueue_batch", return_value=1) as mock_enqueue:
+            resp = client.post(
+                "/api/mass-power-action",
+                data=json.dumps(
+                    {
+                        "hosts": ["server01", "server01", " server01 "],
+                        "action": "powerup",
+                    }
+                ),
+                content_type="application/json",
+            )
+        data = resp.get_json()
+        assert data["success"] is True
+        assert data["queued"] == 1
+        assert len(data["results"]) == 1
+        assert mock_enqueue.call_args[1]["hostnames"] == ["server01"]
+
+    def test_mixed_case_hosts_deduped(self, client):
+        _login(client)
+        with patch("dracs.jobqueue.enqueue_batch", return_value=1) as mock_enqueue:
+            resp = client.post(
+                "/api/mass-power-action",
+                data=json.dumps(
+                    {
+                        "hosts": ["Server01", "server01", "SERVER01 "],
+                        "action": "powerup",
+                    }
+                ),
+                content_type="application/json",
+            )
+        data = resp.get_json()
+        assert data["success"] is True
+        assert data["queued"] == 1
+        assert len(data["results"]) == 1
+        assert mock_enqueue.call_args[1]["hostnames"] == ["server01"]
+
+    def test_non_string_hosts_reported_invalid(self, client):
+        _login(client)
+        with patch("dracs.jobqueue.enqueue_batch", return_value=1) as mock_enqueue:
+            resp = client.post(
+                "/api/mass-power-action",
+                data=json.dumps({"hosts": [True, 42, "server01"], "action": "powerup"}),
+                content_type="application/json",
+            )
+        data = resp.get_json()
+        assert data["success"] is True
+        assert data["queued"] == 1
+        assert mock_enqueue.call_args[1]["hostnames"] == ["server01"]
+        invalid = [r for r in data["results"] if r["status"] == "error"]
+        assert len(invalid) == 2
+        assert all("Invalid hostname" in r["message"] for r in invalid)
+
+    def test_too_many_hosts_returns_400(self, client):
+        _login(client)
+        resp = client.post(
+            "/api/mass-power-action",
+            data=json.dumps(
+                {"hosts": [f"host{i}" for i in range(501)], "action": "powerup"}
+            ),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "Too many hosts" in resp.get_json()["message"]
+
+    def test_too_many_hosts_with_non_strings_returns_400(self, client):
+        _login(client)
+        hosts = [f"host{i}" for i in range(250)] + [123] * 251
+        resp = client.post(
+            "/api/mass-power-action",
+            data=json.dumps({"hosts": hosts, "action": "powerup"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "Too many hosts" in resp.get_json()["message"]
+
+
+# ---------------------------------------------------------------------------
 # Latest Firmware Endpoint
 # ---------------------------------------------------------------------------
 class TestLatestFirmwareEndpoint:

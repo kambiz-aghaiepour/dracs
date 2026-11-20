@@ -377,10 +377,15 @@ def get_vnc_credentials(hostname: str, site: str | None = None) -> tuple:
 
     if site is None:
         try:
+            from sqlalchemy import func
             from dracs.db import System, Site, get_session, get_primary_site_name
 
             with get_session() as sess:
-                system = sess.query(System).filter(System.name == hostname).first()
+                system = (
+                    sess.query(System)
+                    .filter(func.lower(System.name) == hostname.lower())
+                    .first()
+                )
                 if system and system.site_id:
                     site_obj = sess.get(Site, system.site_id)
                     if site_obj:
@@ -395,6 +400,14 @@ def get_vnc_credentials(hostname: str, site: str | None = None) -> tuple:
 
     host_section = f"{site}-{hostname}"
     defaults_section = f"{site}-DEFAULTS"
+
+    # Host override sections may be authored in mixed case; match the host
+    # part of the section name case-insensitively.
+    host_section_lower = host_section.lower()
+    for section in config.sections():
+        if section.lower() == host_section_lower:
+            host_section = section
+            break
 
     if host_section in config:
         vnc_port = int(
