@@ -248,9 +248,15 @@ def _get_quads_hosts_for_user(username: str, site_id, quads_url: str):
 
 
 def _site_id_for_host(hostname: str):
-    """Return the site_id for a given hostname, or None."""
+    """Return the site_id for a given hostname, or None (case-insensitive)."""
+    from sqlalchemy import func
+
     with get_session() as db_sess:
-        system = db_sess.query(System).filter(System.name == hostname).first()
+        system = (
+            db_sess.query(System)
+            .filter(func.lower(System.name) == hostname.lower())
+            .first()
+        )
         return system.site_id if system else None
 
 
@@ -418,10 +424,16 @@ def _find_passwords_ini() -> Path | None:
 
 def _resolve_site_for_host(hostname: str) -> str:
     try:
+        from sqlalchemy import func
+
         with get_session() as sess:
             from dracs.db import Site
 
-            system = sess.query(System).filter(System.name == hostname).first()
+            system = (
+                sess.query(System)
+                .filter(func.lower(System.name) == hostname.lower())
+                .first()
+            )
             if system and system.site_id:
                 site_obj = sess.get(Site, system.site_id)
                 if site_obj:

@@ -499,8 +499,9 @@
                 body: JSON.stringify({hosts: hosts, action: massAction})
             });
             var data = await resp.json();
-            result.textContent = data.message || (data.success ? 'Queued' : 'Failed');
-            result.className = data.success ? 'mc-mass-ok' : 'mc-mass-err';
+            var allQueued = data.success && data.queued === data.results.length;
+            result.textContent = data.message || (allQueued ? 'Queued' : 'Failed');
+            result.className = allQueued ? 'mc-mass-ok' : 'mc-mass-err';
         } catch (e) {
             result.textContent = 'Failed: ' + (e.message || 'network error');
             result.className = 'mc-mass-err';
