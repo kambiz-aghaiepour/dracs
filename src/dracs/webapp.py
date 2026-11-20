@@ -459,6 +459,14 @@ def get_idrac_credentials(hostname: str, site: str | None = None) -> tuple:
     host_section = f"{site}-{hostname}"
     defaults_section = f"{site}-DEFAULTS"
 
+    # Host override sections may be authored in mixed case; match the host
+    # part of the section name case-insensitively.
+    host_section_lower = host_section.lower()
+    for section in config.sections():
+        if section.lower() == host_section_lower:
+            host_section = section
+            break
+
     if host_section in config:
         username = config.get(
             host_section,

@@ -361,6 +361,50 @@ class TestCredentialSiteResolution:
         rename_site(get_default_site_id(), "RDU2")
         assert get_primary_site_name() == "RDU2"
 
+    def test_idrac_credentials_matches_mixed_case_override_section(
+        self, tmp_path, monkeypatch
+    ):
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text(
+            "[Default-DEFAULTS]\nusername = root\npassword = calvin\n\n"
+            "[Default-UPPERHOST]\nusername = ovuser\npassword = ovpass\n"
+        )
+        monkeypatch.chdir(tmp_path)
+
+        user, pwd = get_idrac_credentials("upperhost", site="Default")
+        assert user == "ovuser"
+        assert pwd == "ovpass"
+
+    def test_vnc_credentials_matches_mixed_case_override_section(
+        self, tmp_path, monkeypatch
+    ):
+        from dracs.vnc import get_vnc_credentials
+
+        ini = tmp_path / "drac-passwords.ini"
+        ini.write_text(
+            "[Default-DEFAULTS]\nvnc_port = 5901\nvnc_password = def\n\n"
+            "[Default-UPPERHOST]\nvnc_port = 5999\nvnc_password = ov\n"
+        )
+        monkeypatch.chdir(tmp_path)
+
+        port, pwd = get_vnc_credentials("upperhost", site="Default")
+        assert port == 5999
+        assert pwd == "ov"
+
+    def test_set_site_ini_config_lowercases_host_keys(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        set_site_ini_config(
+            "Default", {"hosts": {"UPPERHOST": {"username": "ov", "password": "op"}}}
+        )
+        config = configparser.RawConfigParser()
+        config.read("drac-passwords.ini")
+        assert config.has_section("Default-upperhost")
+        assert not config.has_section("Default-UPPERHOST")
+
+        user, pwd = get_idrac_credentials("upperhost", site="Default")
+        assert user == "ov"
+        assert pwd == "op"
+
 
 class TestGetIdracCredentialsSiteAware:
     def test_default_site_implicit(self, tmp_path, monkeypatch):
